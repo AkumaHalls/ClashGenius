@@ -33,7 +33,8 @@ headers = {
 previous_data = {
     "members": {},
     "war": None,
-    "donations": {}
+    "donations": {},
+    "capital": None  # Adicionada esta linha
 }
 
 # Função auxiliar para formatar a tag do clã
@@ -60,6 +61,15 @@ async def get_current_war():
                 return await response.json()
             else:
                 print(f"Erro ao obter dados da guerra: {response.status}")
+                return None
+# Função para obter dados da Capital do Clã
+async def get_clan_capital_info():
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"{BASE_URL}/clans/{format_tag(CLAN_TAG)}/capitalraidseasons", headers=headers) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                print(f"Erro ao obter dados da Capital do Clã: {response.status}")
                 return None
 
 # Função para obter dados do histórico de guerras
@@ -88,6 +98,7 @@ async def on_ready():
     # Iniciar as tarefas de monitoramento
     check_clan_status.start()
     check_war_status.start()
+    check_clan_capital_status.start()
 
 # Task para verificar o status do clã regularmente
 @tasks.loop(minutes=5)
@@ -306,9 +317,112 @@ async def check_war_status():
         previous_data["war"] = war_data
     except Exception as e:
         print(f"Erro em check_war_status: {e}")
+        
+        # Task para monitorar atividades da Capital do Clã
+@tasks.loop(hours=6)  # Verificar a cada 6 horas é suficiente
+async def check_clan_capital_status():
+    try:
+        guild = bot.get_guild(GUILD_ID)
+        if not guild:
+            print(f"Não foi possível encontrar o servidor com ID {GUILD_ID}")
+            return
+        
+        log_channel = guild.get_channel(LOG_CHANNEL_ID)
+        if not log_channel:
+            print(f"Não foi possível encontrar o canal com ID {LOG_CHANNEL_ID}")
+            return
+        
+        capital_data = await get_clan_capital_info()
+        if not capital_data or "items" not in capital_data or len(capital_data["items"]) == 0:
+            return
+        
+        # Obter dados mais recentes da temporada atual da Capital
+        latest_season = capital_data["items"][0]
+        
+        # Verificar se temos dados armazenados para comparação
+        if "capital" not in previous_data or previous_data["capital"] is None:
+            previous_data["capital"] = latest_season
+            return
+        
+        # Comparar com os dados anteriores para verificar mudanças
+        prev_season = previous_data["capital"]
+        
+        # Verificar se é uma nova temporada
+        if prev_season.get("id") != latest_season.get("id"):
+            start_date = latest_season.get("startTime", "desconhecido")
+            end_date = latest_season.get("endTime", "desconhecido")
+            await log_channel.send(f"🏛️ **Nova temporada da Capital do Clã iniciada!**\n"
+                                 f"Período: {start_date} até {end_date}")
+            
+            # Se a temporada anterior terminou, mostrar resumo
+            if "id" in prev_season:
+                total_raid_medals = prev_season.get("totalAttacks", 0)
+                offensive_reward = prev_season.get("offensiveReward", 0)
+                defensive_reward = prev_season.get("defensiveReward", 0)
+                
+                await log_channel.send(f"🏆 **Resumo da temporada anterior:**\n"
+                                     f"Total de ataques: {total_raid_medals}\n"
+                                     f"Recompensas ofensivas: {offensive_reward} medalhas\n"
+                                     f"Recompensas defensivas: {defensive_reward} medalhas\n"
+                                     f"Total: {offensive_reward + defensive_reward} medalhas")
+        
+        # Verificar contribuições de ouro da capital
+        if "members" in latest_season and "members" in prev_season:
+            new_contributions = {}
+            for member in latest_season.get("members", []):
+                if "tag" in member and "name" in member and "capitalResourcesLooted" in member:
+                    new_contributions[member["tag"]] = {
+                        "name": member["name"],
+                        "gold": member["capitalResourcesLooted"]
+                    }
+            
+            old_contributions = {}
+            for member in prev_season.get("members", []):
+                if "tag" in member and "capitalResourcesLooted" in member:
+                    old_contributions[member["tag"]] = member["capitalResourcesLooted"]
+            
+            # Verificar aumento nas contribuições
+            contributions_log = ""
+            for tag, data in new_contributions.items():
+                old_gold = old_contributions.get(tag, 0)
+                new_gold = data["gold"]
+                
+                if new_gold > old_gold:
+                    contributions_log += f"{data['name']}: +{new_gold - old_gold} ouro\n"
+            
+            if contributions_log:
+                await log_channel.send(f"💰 **Novas contribuições para a Capital do Clã:**\n```\n{contributions_log}```")
+        
+        # Verificar novos ataques em raids da capital
+        if "attackLog" in latest_season and "attackLog" in prev_season:
+            old_attacks = set()
+            for attack in prev_season.get("attackLog", []):
+                if "attacker" in attack and "defender" in attack:
+                    attack_id = f"{attack['attacker'].get('tag', '')}-{attack['defender'].get('tag', '')}-{attack.get('destructionPercentage', 0)}"
+                    old_attacks.add(attack_id)
+            
+            new_attacks = []
+            for attack in latest_season.get("attackLog", []):
+                if "attacker" in attack and "defender" in attack:
+                    attack_id = f"{attack['attacker'].get('tag', '')}-{attack['defender'].get('tag', '')}-{attack.get('destructionPercentage', 0)}"
+                    if attack_id not in old_attacks:
+                        new_attacks.append(attack)
+            
+            for attack in new_attacks:
+                attacker_name = attack.get("attacker", {}).get("name", "Membro desconhecido")
+                district_name = attack.get("defender", {}).get("name", "Distrito desconhecido")
+                destruction = attack.get("destructionPercentage", 0)
+                await log_channel.send(f"⚔️ **Ataque na Capital do Clã!** {attacker_name} atacou {district_name} e conseguiu {destruction}% de destruição!")
+        
+        # Atualizar dados para a próxima verificação
+        previous_data["capital"] = latest_season
+        
+    except Exception as e:
+        print(f"Erro em check_clan_capital_status: {e}")
 
 @check_clan_status.before_loop
 @check_war_status.before_loop
+@check_clan_capital_status.before_loop
 async def before_check():
     await bot.wait_until_ready()
 
@@ -547,6 +661,61 @@ async def trophies_ranking(ctx):
     except Exception as e:
         await ctx.send(f"Erro ao processar informações de troféus: {e}")
 
+# Comando para mostrar informações da Capital do Clã
+@bot.command(name='capital')
+async def clan_capital_info(ctx):
+    try:
+        capital_data = await get_clan_capital_info()
+        if not capital_data or "items" not in capital_data or len(capital_data["items"]) == 0:
+            await ctx.send("Não foi possível obter informações da Capital do Clã.")
+            return
+        
+        # Obter dados da temporada atual
+        latest_season = capital_data["items"][0]
+        
+        embed = discord.Embed(
+            title="Informações da Capital do Clã", 
+            description=f"Temporada: {latest_season.get('id', 'N/A')}", 
+            color=0x00ff00
+        )
+        
+        # Informações gerais
+        start_date = latest_season.get("startTime", "desconhecido")
+        end_date = latest_season.get("endTime", "desconhecido")
+        embed.add_field(name="Período", value=f"{start_date} até {end_date}", inline=False)
+        
+        # Recompensas
+        offensive_reward = latest_season.get("offensiveReward", 0)
+        defensive_reward = latest_season.get("defensiveReward", 0)
+        total_rewards = offensive_reward + defensive_reward
+        
+        embed.add_field(name="Recompensas", value=f"Ofensivas: {offensive_reward}\nDefensivas: {defensive_reward}\nTotal: {total_rewards}", inline=True)
+        
+        # Total de distritos atacados
+        total_districts = latest_season.get("districtsDestroyed", 0)
+        total_attacks = latest_season.get("totalAttacks", 0)
+        embed.add_field(name="Atividade do Clã", value=f"Distritos destruídos: {total_districts}\nTotal de ataques: {total_attacks}", inline=True)
+        
+        # Top contribuidores de ouro
+        if "members" in latest_season:
+            members = latest_season.get("members", [])
+            sorted_members = sorted(members, key=lambda x: x.get("capitalResourcesLooted", 0), reverse=True)
+            
+            contributors = "```\n"
+            contributors += f"{'Nome':<15} | {'Ouro':<10}\n"
+            contributors += "-" * 30 + "\n"
+            
+            for i, member in enumerate(sorted_members[:10]):
+                if "name" in member and "capitalResourcesLooted" in member:
+                    contributors += f"{member['name'][:15]:<15} | {member['capitalResourcesLooted']:<10}\n"
+            
+            contributors += "```"
+            embed.add_field(name="Top Contribuidores de Ouro", value=contributors, inline=False)
+        
+        await ctx.send(embed=embed)
+    except Exception as e:
+        await ctx.send(f"Erro ao processar informações da Capital do Clã: {e}")
+
 # Comando de ajuda
 @bot.command(name='ajuda')
 async def help_command(ctx):
@@ -557,6 +726,7 @@ async def help_command(ctx):
         ("!coc war", "Mostra o status da guerra atual"),
         ("!coc doadores", "Mostra o ranking de doadores do clã"),
         ("!coc trofeus", "Mostra o ranking de troféus do clã"),
+        ("!coc capital", "Mostra informações da Capital do Clã"),  # Adicionada esta linha
         ("!coc ajuda", "Mostra esta mensagem de ajuda")
     ]
     
