@@ -6,6 +6,18 @@ import datetime
 import json
 import os
 from dotenv import load_dotenv
+from flask import Flask
+
+# Cria um pequeno servidor Flask
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Brix está online!"
+
+# Inicia o servidor Flask em uma thread separada
+def run_server():
+    app.run(host="0.0.0.0", port=3000)
 
 # Carregar variáveis de ambiente
 load_dotenv()
