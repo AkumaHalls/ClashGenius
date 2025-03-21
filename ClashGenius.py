@@ -5,7 +5,16 @@ import asyncio
 import datetime
 import json
 import os
+import express
 from dotenv import load_dotenv
+
+const app = require('express')();
+
+app.get('/', (req, res) => res.send('LunaBot Online.'));
+
+module.exports = () => {
+  app.listen(3000);
+}
 
 # Carregar variáveis de ambiente
 load_dotenv()
