@@ -16,6 +16,8 @@ CLAN_TAG = os.getenv('CLAN_TAG')
 GUILD_ID = int(os.getenv('GUILD_ID'))
 LOG_CHANNEL_ID = int(os.getenv('LOG_CHANNEL_ID'))
 
+keep_alive()
+
 # Configuração do bot
 intents = discord.Intents.default()
 intents.message_content = True
