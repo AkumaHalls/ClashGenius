@@ -90,7 +90,7 @@ async def on_ready():
     check_war_status.start()
 
 # Task para verificar o status do clã regularmente
-@tasks.loop(minutes=30)
+@tasks.loop(minutes=5)
 async def check_clan_status():
     try:
         guild = bot.get_guild(GUILD_ID)
