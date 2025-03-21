@@ -13,11 +13,37 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Brix está online!"
-
-# Inicia o servidor Flask em uma thread separada
-def run_server():
-    app.run(host="0.0.0.0", port=3000)
+    try:
+        # Tentar obter o IP externo
+        external_ip = "Não disponível"
+        try:
+            response = requests.get("https://api.ipify.org", timeout=5)
+            if response.status_code == 200:
+                external_ip = response.text.strip()
+        except:
+            pass
+            
+        # Obter IP local
+        hostname = socket.gethostname()
+        local_ip = "Não disponível"
+        try:
+            local_ip = socket.gethostbyname(hostname)
+        except:
+            pass
+            
+        return f"""
+        <html>
+        <head><title>Genius Status</title></head>
+        <body>
+            <h1>Genius está online!</h1>
+            <p>IP externo: {external_ip}</p>
+            <p>Hostname: {hostname}</p>
+            <p>IP local: {local_ip}</p>
+        </body>
+        </html>
+        """
+    except Exception as e:
+        return f"Genius está online! (Erro ao obter IP: {str(e)})"
 
 # Carregar variáveis de ambiente
 load_dotenv()
