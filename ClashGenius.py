@@ -5,15 +5,16 @@ import asyncio
 import datetime
 import json
 import os
+import flask
 from dotenv import load_dotenv
 
-const app = require('express')();
-
-app.get('/', (req, res) => res.send('LunaBot Online.'));
-
-module.exports = () => {
-  app.listen(3000);
-}
+from flask import Flask
+app = Flask(name)
+@app.route('/')
+def index():
+  return "Bot up and running"
+if name == 'main':
+  app.run(host="0.0.0.0",debug=True,port=8080)
 
 # Carregar variáveis de ambiente
 load_dotenv()
