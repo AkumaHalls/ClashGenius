@@ -5,7 +5,6 @@ import asyncio
 import datetime
 import json
 import os
-import express
 from dotenv import load_dotenv
 
 const app = require('express')();
