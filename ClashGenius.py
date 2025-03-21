@@ -5,16 +5,19 @@ import asyncio
 import datetime
 import json
 import os
-import flask
 from dotenv import load_dotenv
-
 from flask import Flask
-app = Flask(name)
-@app.route('/')
-def index():
-  return "Bot up and running"
-if name == 'main':
-  app.run(host="0.0.0.0",debug=True,port=8080)
+
+# Cria um pequeno servidor Flask
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Genius está online!"
+
+# Inicia o servidor Flask em uma thread separada
+def run_server():
+    app.run(host="0.0.0.0", port=3000)
 
 # Carregar variáveis de ambiente
 load_dotenv()
