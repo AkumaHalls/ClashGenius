@@ -1,0 +1,6 @@
+coc.py
+aiohttp
+requests
+pytz
+python-dotenv
+discord.py
