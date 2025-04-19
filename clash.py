@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
-# Versão 14.11 - Mantém chamada documentada v3.9.1, melhora log em except genérico
+# Versão 14.12 - Adiciona servidor web aiohttp para compatibilidade com Render.com
 
 import discord
 from discord.ext import commands, tasks
 import coc
-from coc import errors as coc_errors # Importa como coc_errors
+from coc import errors as coc_errors
 import asyncio
 import os
 import logging
 from datetime import datetime, timedelta
 import pytz
 from dotenv import load_dotenv
+from aiohttp import web # <--- Adicionado para o servidor web
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -31,6 +32,8 @@ EMAIL = os.getenv('COC_EMAIL')
 PASSWORD = os.getenv('COC_PASSWORD')
 CLAN_TAG = os.getenv('CLAN_TAG')
 CHANNEL_ID_STR = os.getenv('CHANNEL_ID')
+# *** Adicionado: Leitura da porta para o Render ***
+PORT = int(os.environ.get("PORT", 10000)) # Render define PORT, 10000 é um padrão comum
 
 if not all([TOKEN, CLAN_TAG, CHANNEL_ID_STR]): logger.critical("FATAL: TOKEN, CLAN_TAG ou CHANNEL_ID faltando."); exit("Erro Conf.")
 if not EMAIL or not PASSWORD: logger.critical("FATAL: Email/Senha CoC não configurados."); exit("Erro Conf: Credenciais CoC faltando.")
@@ -64,7 +67,63 @@ emojis = {
 # --- Cliente CoC ---
 coc_client = None
 
+# --- Servidor Web para Health Check (Render) ---
+async def health_check(request):
+    """Responde que o bot está rodando."""
+    return web.Response(text="ClashGenius is running!")
+
+@bot.event
+async def setup_hook():
+    """Inicializa tarefas de fundo, incluindo o servidor web."""
+    # Cria e inicia o servidor web aiohttp
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    # O site escuta em 0.0.0.0 na porta definida pelo Render (ou padrão 10000)
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    try:
+        await site.start()
+        logger.info(f"Servidor web de health check iniciado em http://0.0.0.0:{PORT}")
+        # Guarda referências para limpeza posterior
+        bot.web_runner = runner
+        bot.web_site = site
+    except Exception as e:
+        logger.critical(f"Falha ao iniciar servidor web na porta {PORT}: {e}", exc_info=True)
+        # Considerar se o bot deve parar se o web server falhar
+        # await bot.close() # Descomente se o health check for essencial
+
+    # Tenta inicializar o cliente CoC APÓS o setup do web server (opcional, pode ser em on_ready também)
+    # Manter em on_ready pode ser mais robusto se o login CoC for demorado
+    # await initialize_coc_client_and_tasks() # Vamos manter a lógica de iniciar tasks em on_ready por enquanto
+
+@bot.event
+async def before_closing():
+    """Chamado antes do bot encerrar para limpeza."""
+    logger.info("Recebido sinal para encerrar...")
+    # Limpa o servidor web se ele foi iniciado
+    if hasattr(bot, 'web_runner'):
+        logger.info("Encerrando servidor web...")
+        try:
+            await bot.web_runner.cleanup()
+            logger.info("Servidor web encerrado.")
+        except Exception as e:
+            logger.error(f"Erro ao encerrar servidor web: {e}", exc_info=True)
+    # Limpa cliente CoC (já estava no main, mas pode ficar aqui também)
+    if coc_client and hasattr(coc_client, 'close'):
+        logger.info("Fechando cliente CoC...")
+        try:
+            await coc_client.close()
+            logger.info("Cliente CoC fechado.")
+        except Exception as e_coc_close:
+            logger.error(f"Erro ao fechar cliente CoC: {e_coc_close}")
+
+
+# --- Inicialização CoC e Tasks (movido para on_ready para garantir Discord pronto) ---
+# Removida a função initialize_coc_client_and_tasks() daqui
+
 async def initialize_coc_client():
+    # (Função sem alterações)
     global coc_client
     logger.info("--- Iniciando Login Cliente CoC ---")
     if not EMAIL or not PASSWORD: logger.critical("Email/Senha CoC não encontrados."); return False
@@ -77,7 +136,7 @@ async def initialize_coc_client():
             if hasattr(temp_client, 'http') and temp_client.http:
                  coc_client = temp_client; logger.info(f"[Tentativa {attempt}/3] Login CoC OK."); return True
             else: logger.error(f"[Tentativa {attempt}/3] Login OK, mas HTTP session inválida.")
-        except coc_errors.AuthenticationError as e_auth: # Mantém específico pois parece funcionar
+        except coc_errors.AuthenticationError as e_auth:
             logger.error(f"[Tentativa {attempt}/3] Falha autenticação: {e_auth}"); return False
         except asyncio.TimeoutError: logger.error(f"[Tentativa {attempt}/3] Timeout login.")
         except Exception as e_login: logger.error(f"[Tentativa {attempt}/3] Erro login: {e_login}", exc_info=True)
@@ -86,6 +145,7 @@ async def initialize_coc_client():
 
 # --- Funções Auxiliares ---
 async def get_clan_data(tag=None):
+    # (Função sem alterações, já usa tratamento genérico)
     global CLAN_TAG, coc_client
     if not coc_client or not hasattr(coc_client, 'http') or not coc_client.http:
         logger.error("CoC Client inválido ou não inicializado em get_clan_data.")
@@ -97,7 +157,6 @@ async def get_clan_data(tag=None):
         clan = await asyncio.wait_for(coc_client.get_clan(target_tag), timeout=30.0)
         logger.debug(f"Dados clã '{getattr(clan, 'name', target_tag)}' recebidos.")
         return clan
-    # *** CORREÇÃO APLICADA AQUI - Tratamento genérico refinado ***
     except coc_errors.NotFound:
         logger.error(f"Clã '{target_tag}' não encontrado."); return None
     except coc_errors.ClashOfClansException as e_coc:
@@ -108,7 +167,7 @@ async def get_clan_data(tag=None):
         logger.error(f"Erro Inesperado ({type(e).__name__}) buscando clã '{target_tag}': {e}", exc_info=True); return None
 
 async def send_embeds_splitted(channel, base_embed, field_name, members_list, max_len=1000):
-    # Sem alterações
+    # (Função sem alterações)
     if not members_list:
         try: base_embed.add_field(name=field_name, value="Nenhum.", inline=False); await channel.send(embed=base_embed)
         except Exception as e: logger.error(f"Erro send_embeds_splitted (vazio): {e}", exc_info=True)
@@ -129,7 +188,7 @@ async def send_embeds_splitted(channel, base_embed, field_name, members_list, ma
         except Exception as e: logger.error(f"Erro send_embeds_splitted (final): {e}", exc_info=True)
 
 async def get_player_name(tag):
-    # Sem alterações
+    # (Função sem alterações)
     global coc_client; fallback_name = f"Jogador ({tag[-4:]})" if tag else "Jogador (?)"
     if not coc_client or not tag: return fallback_name
     try: player = await asyncio.wait_for(coc_client.get_player(tag), timeout=15.0); return getattr(player, 'name', fallback_name)
@@ -139,7 +198,7 @@ async def get_player_name(tag):
 # --- Tarefas de Monitoramento ---
 @tasks.loop(minutes=5)
 async def check_donations():
-    # Sem alterações
+    # (Função sem alterações)
     global donation_cache, coc_client
     if not coc_client: logger.debug("check_donations pulado: cliente CoC inválido."); return
     clan = await get_clan_data()
@@ -189,7 +248,7 @@ async def check_donations():
 
 @tasks.loop(minutes=10)
 async def check_members():
-    # Sem alterações
+    # (Função sem alterações)
     global member_cache, coc_client
     if not coc_client: logger.debug("check_members pulado: cliente CoC inválido."); return
     clan = await get_clan_data()
@@ -228,7 +287,7 @@ async def check_members():
     except Exception as e: logger.error(f"Erro GERAL check_members: {e}", exc_info=True)
 
 async def check_war_attacks_and_report(war, war_type="Guerra Normal"):
-    # Sem alterações
+    # (Função sem alterações)
     global war_cache, coc_client, bot, CHANNEL_ID, CLAN_TAG, TIMEZONE, emojis
     if not coc_client: logger.debug("check_war_attacks pulado: cliente CoC inválido."); return
     channel=bot.get_channel(CHANNEL_ID)
@@ -469,13 +528,12 @@ async def check_league_war():
 @tasks.loop(hours=1)
 async def check_raid_weekend():
     global raid_weekend_cache, coc_client
-    # Adicionado check explícito
     if not coc_client:
         logger.debug("check_raid_weekend pulado: cliente CoC inválido/não inicializado.")
         return
     try:
         logger.debug("Verificando Raid Weekend...")
-        # *** CORREÇÃO APLICADA AQUI - Mantém chamada documentada p/ v3.9.1 ***
+        # *** Mantendo chamada documentada para v3.9.1 ***
         rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG, limit=1), timeout=45.0)
 
         channel=bot.get_channel(CHANNEL_ID)
@@ -601,11 +659,12 @@ async def check_raid_weekend():
             else: logger.info(f"Raid {r_id} estado '{curr_r.state}' (cache era '{prev_state}').")
     # *** CORREÇÃO APLICADA AQUI - Tratamento genérico refinado ***
     except coc_errors.ClashOfClansException as e_coc:
-        logger.warning(f"Erro API CoC ({type(e_coc).__name__}) check_raid: {e_coc}")
+        logger.warning(f"Erro API CoC ({type(e_coc).__name__}) check_raid: {e_coc}") # Loga o tipo específico pego
     except asyncio.TimeoutError:
          logger.warning(f"Timeout check_raid.")
     except Exception as e:
-        logger.error(f"Erro GERAL check_raid: {e}", exc_info=True); # Log traceback para erros inesperados
+        # Logar traceback para erros gerais inesperados é importante
+        logger.error(f"Erro GERAL check_raid: {e}", exc_info=True);
 
 # --- Eventos e Comandos ---
 
@@ -674,7 +733,7 @@ async def on_command_error(ctx, error):
          original=error.original; logger.error(f"Erro cmd '{ctx.command}': {original}",exc_info=True)
          if isinstance(original, coc_errors.NotFound): await ctx.send(f"{emojis['error']} API: Ñ enc.")
          elif isinstance(original, coc_errors.AuthenticationError): await ctx.send(f"{emojis['error']} API: Autenticação falhou.")
-         elif isinstance(original, coc_errors.ClashOfClansException): await ctx.send(f"{emojis['warning']} API CoC Error: {type(original).__name__}.") # Mostra nome do erro genérico
+         elif isinstance(original, coc_errors.ClashOfClansException): await ctx.send(f"{emojis['warning']} API CoC Error: {type(original).__name__}.")
          elif isinstance(original, asyncio.TimeoutError): await ctx.send(f"{emojis['error']} API: Timeout.")
          elif not coc_client: await ctx.send(f"{emojis['error']} API CoC não conectada.")
          else: await ctx.send(f"{emojis['error']} Erro interno cmd.")
@@ -800,7 +859,7 @@ async def status_command(ctx):
 
             rs=f"{emojis['warning']}Verificando...";
             try:
-                # *** CORREÇÃO APLICADA AQUI - Nome do Método ***
+                # *** Mantendo chamada documentada p/ v3.9.1 ***
                 rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG,limit=1),timeout=30.0);
                 if rl and rl[0] and hasattr(rl[0],'state'):
                     r=rl[0]
@@ -852,7 +911,7 @@ async def top_command(ctx, tipo: str = "doacoes", limite: int = 10):
             elif tipo=="capital":
                 title=f"{emojis['clan_capital']}Top {limite} Capital(Últ.Raid)"; color=0x9B59B6;
                 try:
-                    # *** CORREÇÃO APLICADA AQUI - Nome do Método ***
+                    # *** Mantendo chamada documentada p/ v3.9.1 ***
                     rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG,limit=1),timeout=30.0);
                     if not rl or not rl[0] or not hasattr(rl[0],'members') or not rl[0].members: await ctx.send(f"{emojis['warning']}Sem dados membros últ. raid."); return
                     m_data={m.tag:{'name':getattr(m,'name','?'),'loot':getattr(m,'capital_resources_looted',0)} for m in rl[0].members if hasattr(m,'tag')};
@@ -984,7 +1043,7 @@ async def capital_command(ctx):
         rf_v=f"{emojis['warning']}Verificando..."
         top_s=""
         try:
-            # *** CORREÇÃO APLICADA AQUI - Nome do Método ***
+            # *** Mantendo chamada documentada p/ v3.9.1 ***
             rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG,limit=1),timeout=30.0);
             if rl and rl[0] and hasattr(rl[0],'state'):
                 r=rl[0]; state=r.state; loot=getattr(r,'capital_total_loot',0); attacks=getattr(r,'total_attacks','?'); d_d=getattr(r,'districts_destroyed','?')
@@ -1129,33 +1188,30 @@ async def ajuda_command(ctx):
     embed.add_field(name="📊 Infos (Admin)", value=f"`!status`\n`!top [tipo] [limite]`\n`!ataques`|`!ligaataques`\n`!membro #TAG`\n`!capital`", inline=False)
     embed.add_field(name="👀 Eventos Auto", value=f"{emojis['donation']} Doações\n{emojis['join']}/{emojis['leave']}Entr/Saída\n{emojis['war_attack']}Ataques\n{emojis['war_win']}Guerras\n{emojis['time']}Alertas\n{emojis['missed_attack']}Perdidos\n{emojis['raid']}Raid", inline=False)
     # *** CORREÇÃO APLICADA AQUI - Versão Atualizada ***
-    embed.set_footer(text=f"Bot V14.10 | Use {bot.command_prefix}comando"); await ctx.send(embed=embed) # Atualiza número da versão
+    embed.set_footer(text=f"Bot V14.11 | Use {bot.command_prefix}comando"); await ctx.send(embed=embed)
 
 # --- Função Principal ---
 async def main():
     # Sem alterações
+    global coc_client # Garante que coc_client seja acessível globalmente se modificado no hook/tasks
+    # A inicialização do web server é feita no setup_hook
+    # A inicialização do CoC e tasks é feita no on_ready
     if not TOKEN: logger.critical("Token Discord não encontrado."); return
-    logger.info("Iniciando bot Discord...")
-    try: await bot.start(TOKEN)
+
+    logger.info("Iniciando bot Discord (main)...")
+    try:
+        # bot.start() inicia o bot, que por sua vez chama setup_hook e on_ready
+        await bot.start(TOKEN)
     except discord.LoginFailure: logger.critical("Login Discord falhou: Token inválido.")
     except discord.PrivilegedIntentsRequired: logger.critical("Login Discord falhou: Intenções privilegiadas não habilitadas.")
     except KeyboardInterrupt: logger.info("Desligamento via Ctrl+C.")
-    except Exception as e: logger.critical(f"Erro fatal bot: {e}", exc_info=True)
-    finally: # Limpeza
-         if bot and not bot.is_closed():
-              logger.info("Fechando conexão bot Discord...")
-              try: await bot.close()
-              except Exception as e_close: logger.error(f"Erro ao fechar bot: {e_close}")
-              logger.info("Conexão bot Discord fechada.")
-         if coc_client and hasattr(coc_client, 'close'):
-             logger.info("Fechando cliente CoC...")
-             try: await coc_client.close()
-             except Exception as e_coc_close: logger.error(f"Erro ao fechar cliente CoC: {e_coc_close}")
-             logger.info("Cliente CoC fechado.")
-         logger.info("Bot encerrado.")
+    except Exception as e: logger.critical(f"Erro fatal no loop principal do bot: {e}", exc_info=True)
+    # before_closing é chamado automaticamente pelo bot.close() ou fim do start()
 
 if __name__ == "__main__":
     try:
         if os.name == 'nt': asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        # Chama a função principal que agora só precisa iniciar o bot
         asyncio.run(main())
-    except Exception as e_run: logger.critical(f"Erro crítico executar main: {e_run}", exc_info=True)
+    except Exception as e_run:
+        logger.critical(f"Erro crítico ao executar asyncio.run(main): {e_run}", exc_info=True)
