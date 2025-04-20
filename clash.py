@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-# Versão 14.12 - Adiciona servidor web aiohttp para compatibilidade com Render.com
-# Versão 14.13 - Melhoria visual dos logs com Embeds (Solicitação do usuário)
+# Versão 15.0.11 - Correção Final de SyntaxError e Indentação
 
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 import coc
 from coc import errors as coc_errors
@@ -12,7 +12,8 @@ import logging
 from datetime import datetime, timedelta
 import pytz
 from dotenv import load_dotenv
-from aiohttp import web # <--- Adicionado para o servidor web
+from aiohttp import web
+from typing import Optional
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -54,7 +55,7 @@ except pytz.UnknownTimeZoneError: logger.error("TZ 'America/Sao_Paulo' não enco
 
 # --- Bot Discord ---
 intents = discord.Intents.default(); intents.message_content = True; intents.members = True
-bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
+bot = commands.Bot(command_prefix=commands.when_mentioned_or("!"), intents=intents, help_command=None)
 
 # --- Emojis ---
 emojis = {
@@ -62,9 +63,7 @@ emojis = {
     'war_tie': '🤝', 'war_attack': '⚔️', 'war_defense': '🛡️', 'raid': '🔥', 'level_up': '⭐',
     'trophy': '🏆', 'time': '⏰', 'clan_capital': '🏰', 'missed_attack': '❌', 'info': 'ℹ️',
     'error': '❌', 'success': '✅', 'warning': '⚠️', 'league': '🌟',
-    'received': '📥', # Adicionado para diferenciar recebido
-    'progress': '📊', # Adicionado para progresso
-    'destruction': '💥' # Adicionado para destruição
+    'received': '📥', 'progress': '📊', 'destruction': '💥', 'sync': '🔄', 'admin': '🛠️'
 }
 
 # --- Cliente CoC ---
@@ -88,1938 +87,1220 @@ async def setup_hook():
         bot.web_site = site
     except Exception as e:
         logger.critical(f"Falha ao iniciar servidor web na porta {PORT}: {e}", exc_info=True)
+        # Adicionado um pass aqui para evitar erro caso a inicialização falhe,
+        # mas o ideal seria tratar melhor ou parar o bot.
+        pass
+
 
 @bot.event
 async def before_closing():
     logger.info("Recebido sinal para encerrar...")
     if hasattr(bot, 'web_runner'):
         logger.info("Encerrando servidor web...")
-        try:
-            await bot.web_runner.cleanup()
-            logger.info("Servidor web encerrado.")
-        except Exception as e:
-            logger.error(f"Erro ao encerrar servidor web: {e}", exc_info=True)
+        try: await bot.web_runner.cleanup(); logger.info("Servidor web encerrado.")
+        except Exception as e: logger.error(f"Erro ao encerrar servidor web: {e}", exc_info=True)
     if coc_client and hasattr(coc_client, 'close'):
-        logger.info("Fechando cliente CoC...")
-        try:
-            await coc_client.close()
-            logger.info("Cliente CoC fechado.")
-        except Exception as e_coc_close:
-            logger.error(f"Erro ao fechar cliente CoC: {e_coc_close}")
+        logger.info("Fechando cliente CoC...");
+        try: await coc_client.close(); logger.info("Cliente CoC fechado.")
+        except Exception as e: logger.error(f"Erro ao fechar cliente CoC: {e}")
 
 # --- Inicialização CoC ---
 async def initialize_coc_client():
     global coc_client
     logger.info("--- Iniciando Login Cliente CoC ---")
     if not EMAIL or not PASSWORD: logger.critical("Email/Senha CoC não encontrados."); return False
+    last_error = None
     for attempt in range(1, 4):
         try:
             logger.info(f"[Tentativa {attempt}/3] Criando Client...")
-            temp_client = coc.Client(key_count=1, key_names="cocpy-bot-v14", throttle_limit=20)
+            # Usando key_count=5 e key_names genérico como sugerido pela documentação atual do coc.py
+            temp_client = coc.Client(key_count=5, key_names="cocpy-bot", throttle_limit=20)
             logger.info(f"[Tentativa {attempt}/3] Login com Email/Senha...")
             await asyncio.wait_for(temp_client.login(EMAIL, PASSWORD), timeout=60.0)
-            if hasattr(temp_client, 'http') and temp_client.http:
-                 coc_client = temp_client; logger.info(f"[Tentativa {attempt}/3] Login CoC OK."); return True
-            else: logger.error(f"[Tentativa {attempt}/3] Login OK, mas HTTP session inválida.")
-        except coc_errors.AuthenticationError as e_auth:
-            logger.error(f"[Tentativa {attempt}/3] Falha autenticação: {e_auth}"); return False
-        except asyncio.TimeoutError: logger.error(f"[Tentativa {attempt}/3] Timeout login.")
-        except Exception as e_login: logger.error(f"[Tentativa {attempt}/3] Erro login: {e_login}", exc_info=True)
-        if attempt < 3: wait_time = 15 * attempt; logger.info(f"Aguardando {wait_time}s..."); await asyncio.sleep(wait_time)
-    logger.critical("--- Falha em todas as tentativas de login CoC ---"); coc_client = None; return False
+
+            # Se login() completou sem erro, consideramos OK.
+            coc_client = temp_client; logger.info(f"[Tentativa {attempt}/3] Login CoC OK."); return True
+
+        except coc_errors.AuthenticationError as e: logger.error(f"[Tentativa {attempt}/3] Falha autenticação: {e}"); last_error = e; return False # Erro fatal, não adianta tentar de novo
+        except coc_errors.Maintenance as e: logger.warning(f"[Tentativa {attempt}/3] API CoC em manutenção: {e}"); last_error = e
+        except asyncio.TimeoutError: logger.error(f"[Tentativa {attempt}/3] Timeout login API CoC."); last_error = asyncio.TimeoutError("Timeout login API CoC.")
+        except Exception as e: logger.error(f"[Tentativa {attempt}/3] Erro login CoC: {e}", exc_info=True); last_error = e
+
+        # Se chegou aqui, houve um erro (exceto AuthenticationError), espera e tenta novamente
+        if attempt < 3:
+            wait_time = 15 * attempt; logger.info(f"Aguardando {wait_time}s antes da próxima tentativa...")
+            await asyncio.sleep(wait_time)
+
+    # Se todas as tentativas falharam
+    logger.critical(f"--- Falha login CoC após {attempt} tentativas. Último erro: {last_error} ---"); coc_client = None; return False
 
 # --- Funções Auxiliares ---
-async def get_clan_data(tag=None):
+async def get_clan_data(tag=None, timeout=30.0):
     global CLAN_TAG, coc_client
-    if not coc_client or not hasattr(coc_client, 'http') or not coc_client.http:
-        logger.error("CoC Client inválido ou não inicializado em get_clan_data.")
-        return None
+    if not coc_client or not hasattr(coc_client, 'http') or not coc_client.http: logger.error("CoC Client inválido em get_clan_data."); return None
     target_tag = tag or CLAN_TAG
     if not target_tag: logger.error("Tag clã não definida (get_clan_data)."); return None
+    if not coc.utils.is_valid_tag(target_tag): raise coc_errors.InvalidTag(f"Tag clã inválida: {target_tag}")
     try:
-        logger.debug(f"Buscando dados clã: {target_tag}")
-        clan = await asyncio.wait_for(coc_client.get_clan(target_tag), timeout=30.0)
+        logger.debug(f"Buscando dados clã: {target_tag} (Timeout: {timeout}s)")
+        clan = await asyncio.wait_for(coc_client.get_clan(target_tag), timeout=timeout)
         logger.debug(f"Dados clã '{getattr(clan, 'name', target_tag)}' recebidos.")
         return clan
-    except coc_errors.NotFound:
-        logger.error(f"Clã '{target_tag}' não encontrado."); return None
-    except coc_errors.ClashOfClansException as e_coc:
-        logger.warning(f"Erro API CoC ({type(e_coc).__name__}) buscando clã '{target_tag}': {e_coc}"); return None
-    except asyncio.TimeoutError:
-        logger.error(f"Timeout buscando clã '{target_tag}'."); return None
-    except Exception as e:
-        logger.error(f"Erro Inesperado ({type(e).__name__}) buscando clã '{target_tag}': {e}", exc_info=True); return None
+    except coc_errors.NotFound: logger.error(f"Clã '{target_tag}' não encontrado."); raise
+    except coc_errors.Maintenance as e: logger.warning(f"API CoC em manutenção (clã '{target_tag}'): {e}"); raise
+    except coc_errors.ClashOfClansException as e: logger.warning(f"Erro API CoC ({type(e).__name__}) clã '{target_tag}': {e}"); raise
+    except asyncio.TimeoutError: logger.error(f"Timeout ({timeout}s) clã '{target_tag}'."); raise
+    except Exception as e: logger.error(f"Erro Inesperado ({type(e).__name__}) clã '{target_tag}': {e}", exc_info=True); raise
 
-async def send_embeds_splitted(channel, base_embed, field_name, items_list, max_len=1024, max_items_per_embed=25):
-    # <<< EMBED START >>>
-    # Adaptada para Embeds: max_len agora é por valor do campo, e max_items_per_embed limita campos por embed
-    if not items_list:
-        try:
-            # Não envia embed vazio, apenas loga ou lida de outra forma se necessário
-            logger.debug("send_embeds_splitted: Lista de itens vazia.")
-            # Se quiser enviar uma mensagem indicando que está vazio:
-            # base_embed.add_field(name=field_name, value="Nenhum item.", inline=False)
-            # await channel.send(embed=base_embed)
-        except Exception as e:
-            logger.error(f"Erro send_embeds_splitted (lista vazia): {e}", exc_info=True)
+async def send_embeds_splitted(channel: discord.TextChannel, base_embed: discord.Embed, field_name: str, items_list: list, max_len: int = 1024, max_items_per_embed: int = 25):
+    if not channel: # Adiciona verificação se o canal é válido
+        logger.error("send_embeds_splitted: Canal inválido recebido.")
         return
-
-    current_embed = base_embed.copy()
-    current_value = ""
-    item_count_in_current_embed = 0
-    embed_count = 0
-
-    # Limpa campos pré-existentes se for o primeiro embed a ser criado por esta função
-    if len(current_embed.fields) > 0:
-         logger.warning("Embed base passado para send_embeds_splitted já continha campos. Limpando.")
-         current_embed.clear_fields()
-
+    if not items_list: logger.debug(f"send_embeds_splitted: Lista vazia p/ '{field_name}' canal #{getattr(channel, 'name', '?')}."); return
+    current_embed = base_embed.copy(); current_field_value = ""; fields_in_current_embed = len(current_embed.fields); total_embeds_sent = 0
+    # Corrigido: Verificar se a lista é realmente uma lista de strings antes de juntar
+    if items_list and all(isinstance(item, str) for item in items_list):
+        fits_in_one_field = len("\n".join(items_list)) <= max_len
+    else:
+        fits_in_one_field = False # Assume que não cabe se não for lista de strings
+    can_add_one_more_field = fields_in_current_embed < max_items_per_embed
+    clear_fields_initially = not (fits_in_one_field and can_add_one_more_field)
+    if clear_fields_initially and fields_in_current_embed > 0: logger.debug("send_embeds_splitted: Limpando campos base."); current_embed.clear_fields(); fields_in_current_embed = 0
+    elif not can_add_one_more_field: logger.warning(f"send_embeds_splitted: Embed base já cheio."); return
+    temp_field_list = []
     for i, item in enumerate(items_list):
-        item_line = item + "\n"
+        # Garante que o item é uma string
+        item_str = str(item)
+        item_line = item_str + "\n"; projected_length = len(current_field_value) + len(item_line)
+        if projected_length > max_len or not current_field_value: # Inicia novo campo se > max_len ou se campo atual está vazio
+            if current_field_value: # Se havia algo no campo anterior, adiciona-o à lista temporária
+                 part_num = (total_embeds_sent * max_items_per_embed) + len(temp_field_list) + 1
+                 # Modificado: Simplifica a lógica do título da parte
+                 field_title = f"{field_name} (Parte {part_num})" if len(items_list) > max_items_per_embed else field_name
+                 temp_field_list.append({"name": field_title, "value": current_field_value, "inline": False})
+            current_field_value = item_line # Começa o novo campo com o item atual
+            # Verifica se o embed atual está cheio (considerando os campos já adicionados + os temporários)
+            if fields_in_current_embed + len(temp_field_list) >= max_items_per_embed:
+                # Adiciona os campos temporários ao embed atual até o limite
+                for field_data in temp_field_list:
+                    if len(current_embed.fields) < max_items_per_embed: current_embed.add_field(**field_data)
+                    else: break # Para se o embed ficar cheio
+                # Envia o embed atual
+                try:
+                    logger.debug(f"Enviando embed dividido ({total_embeds_sent + 1}) #{getattr(channel, 'name', '?')}")
+                    await channel.send(embed=current_embed)
+                    total_embeds_sent += 1
+                    await asyncio.sleep(0.3) # Pequena pausa entre embeds
+                except Exception as e: logger.error(f"Erro enviar embed dividido: {e}", exc_info=True); return # Para se houver erro no envio
+                # Prepara o próximo embed (cópia do base, sem campos)
+                current_embed = base_embed.copy(); current_embed.clear_fields(); fields_in_current_embed = 0; temp_field_list = []
+        else: # Se cabe, adiciona ao campo atual
+            current_field_value += item_line
 
-        # Verifica se adicionar esta linha excede o limite do valor do campo
-        # OU se já atingiu o limite de campos por embed (Discord limita a 25)
-        # OU se o tamanho total do embed excederia o limite (6000 caracteres) - Verificação simplificada
-        if (len(current_value) + len(item_line) > max_len) or \
-           (item_count_in_current_embed >= max_items_per_embed) or \
-           (len(current_embed) + len(item_line) > 5900): # Deixa margem
+    # Adiciona o último campo restante (se houver) à lista temporária
+    if current_field_value:
+         part_num = (total_embeds_sent * max_items_per_embed) + len(temp_field_list) + 1
+         field_title = f"{field_name} (Parte {part_num})" if len(items_list) > max_items_per_embed else field_name
+         temp_field_list.append({"name": field_title, "value": current_field_value, "inline": False})
 
-            # Adiciona o campo atual antes de criar um novo
-            if current_value:
-                current_embed.add_field(
-                    name=f"{field_name} (Parte {embed_count + 1})" if embed_count > 0 or len(items_list) > max_items_per_embed else field_name,
-                    value=current_value,
-                    inline=False
-                )
-                item_count_in_current_embed += 1
+    # Adiciona os campos temporários restantes ao embed atual
+    for field_data in temp_field_list:
+         if len(current_embed.fields) < max_items_per_embed: current_embed.add_field(**field_data)
+         else: logger.warning("Limite campos atingido no final send_embeds_splitted."); break
 
-            # Envia o embed atual
-            try:
-                logger.debug(f"Enviando embed dividido (Parte {embed_count + 1})")
-                await channel.send(embed=current_embed)
-                await asyncio.sleep(0.5) # Pequena pausa entre embeds
-            except discord.HTTPException as e:
-                logger.error(f"Erro HTTP ao enviar embed dividido (Parte {embed_count + 1}): {e.status} {e.code} - {e.text}", exc_info=True)
-                # Tentar enviar uma versão mais curta se for erro de tamanho? Pode ser complexo.
-                return # Aborta se falhar
-            except Exception as e:
-                logger.error(f"Erro ao enviar embed dividido (Parte {embed_count + 1}): {e}", exc_info=True)
-                return # Aborta se falhar
-
-            # Prepara o próximo embed
-            embed_count += 1
-            current_embed = base_embed.copy()
-            current_embed.clear_fields() # Garante que está limpo
-            current_value = item_line
-            item_count_in_current_embed = 0 # Reset counter for the new embed field
-
-        else:
-            current_value += item_line
-
-    # Envia o último embed se houver conteúdo restante
-    if current_value:
-        current_embed.add_field(
-             name=f"{field_name} (Parte {embed_count + 1})" if embed_count > 0 or item_count_in_current_embed > 0 else field_name,
-             value=current_value,
-             inline=False
-        )
-        try:
-            logger.debug(f"Enviando último embed (Parte {embed_count + 1 if embed_count > 0 or item_count_in_current_embed > 0 else 1})")
-            await channel.send(embed=current_embed)
-        except discord.HTTPException as e:
-            logger.error(f"Erro HTTP ao enviar último embed: {e.status} {e.code} - {e.text}", exc_info=True)
-        except Exception as e:
-            logger.error(f"Erro ao enviar último embed: {e}", exc_info=True)
-    # <<< EMBED END >>>
+    # Envia o último embed se ele tiver campos
+    if len(current_embed.fields) > 0:
+         try:
+             logger.debug(f"Enviando último embed ({total_embeds_sent + 1}) #{getattr(channel, 'name', '?')}")
+             await channel.send(embed=current_embed)
+         except Exception as e: logger.error(f"Erro enviar último embed: {e}", exc_info=True)
 
 async def get_player_name(tag):
     global coc_client; fallback_name = f"Jogador ({tag[-4:]})" if tag else "Jogador (?)"
     if not coc_client or not tag: return fallback_name
+    if not coc.utils.is_valid_tag(tag): return fallback_name
     try: player = await asyncio.wait_for(coc_client.get_player(tag), timeout=15.0); return getattr(player, 'name', fallback_name)
-    except (coc_errors.NotFound, asyncio.TimeoutError): return fallback_name
-    except Exception as e: logger.error(f"Erro get_player_name {tag}: {e}", exc_info=True); return fallback_name
+    except (coc_errors.NotFound, coc_errors.Maintenance, asyncio.TimeoutError, coc_errors.InvalidTag): return fallback_name
+    except Exception as e: logger.error(f"Erro get_player_name {tag}: {e}", exc_info=False); return fallback_name
 
 # --- Tarefas de Monitoramento ---
 @tasks.loop(minutes=5)
 async def check_donations():
-    # <<< EMBED START >>>
-    global donation_cache, coc_client
-    if not coc_client: logger.debug("check_donations pulado: cliente CoC inválido."); return
-    clan = await get_clan_data()
-    if not clan or not hasattr(clan, 'members') or not clan.members:
-        logger.debug("check_donations pulado: dados clã/membros indisponíveis."); return
     try:
+        global donation_cache, coc_client
+        if not coc_client: return
+        clan = await get_clan_data(timeout=45)
+        if not clan or not hasattr(clan, 'members') or not clan.members: return
         channel = bot.get_channel(CHANNEL_ID)
-        if not channel: logger.warning("check_donations: Canal ID não encontrado."); return
-
-        donation_updates = []
-        reception_updates = []
-        current_time = datetime.now(TIMEZONE)
-        local_cache = donation_cache.copy()
-        new_state = {}
-        is_initial = not local_cache
-
-        for member in clan.members:
-            tag = getattr(member, 'tag', None)
-            if not tag: continue
-            donations = getattr(member, 'donations', 0)
-            received = getattr(member, 'received', 0)
-            name = getattr(member, 'name', f'Membro({tag[-4:]})')
-            current_data = {'name': name, 'donations': donations, 'received': received}
-            new_state[tag] = current_data
-
-            if not is_initial and tag in local_cache:
-                old = local_cache[tag]
-                old_don = old.get('donations', 0)
-                old_rec = old.get('received', 0)
-                don_diff = current_data['donations'] - old_don
-                rec_diff = current_data['received'] - old_rec
-
-                if don_diff > 0:
-                    donation_updates.append(f"{emojis['donation']} `{name}` doou **{don_diff}** (Total: {current_data['donations']:,})")
-                if rec_diff > 0:
-                    reception_updates.append(f"{emojis['received']} `{name}` recebeu **{rec_diff}** (Total: {current_data['received']:,})")
-
-        donation_cache = new_state
-
-        if (donation_updates or reception_updates) and not is_initial:
-            logger.info(f"Detectadas {len(donation_updates)} doações, {len(reception_updates)} recebimentos.")
-
-            embed = discord.Embed(
-                title=f"{emojis['donation']} Atualização de Doações/Recebimentos",
-                color=discord.Color.blue(),
-                timestamp=current_time
-            )
-            embed.set_footer(text=f"Clã: {getattr(clan, 'name', CLAN_TAG)}")
-
-            all_updates = donation_updates + reception_updates
-            update_text = "\n".join(all_updates)
-
-            # Limitar o tamanho da descrição ou usar campos se for muito longo
-            if len(update_text) <= 4096: # Limite da descrição do Embed
-                 embed.description = update_text
-                 try:
-                     await channel.send(embed=embed)
-                 except discord.HTTPException as e:
-                     logger.error(f"Erro HTTP ao enviar embed de doações: {e.status} {e.code} - {e.text}. Tamanho: {len(embed)}", exc_info=True)
-                     # Fallback para mensagem de texto se o embed falhar (ou dividir)
-                     await channel.send(f"{emojis['time']}[{current_time.strftime('%H:%M')}] {emojis['donation']} Doa/Rec:\n" + update_text[:1900] + "...") # Envia truncado
-                 except Exception as e:
-                     logger.error(f"Erro ao enviar embed de doações: {e}", exc_info=True)
-
-            else:
-                # Se for muito longo para a descrição, usa a função de split
-                logger.info("Lista de doações/recebimentos muito longa, dividindo...")
-                # Cria um embed base sem descrição para a função de split
-                base_embed_split = discord.Embed(
-                    title=f"{emojis['donation']} Atualização de Doações/Recebimentos",
-                    color=discord.Color.blue(),
-                    timestamp=current_time
-                )
-                base_embed_split.set_footer(text=f"Clã: {getattr(clan, 'name', CLAN_TAG)}")
-                await send_embeds_splitted(channel, base_embed_split, "Atualizações", all_updates, max_len=1024, max_items_per_embed=15) # Ajuste max_items se necessário
-
-
-        elif is_initial and new_state:
-            logger.info("Cache doações inicializado.")
-        else:
-            logger.debug("check_donations executado, sem novas doações/recebimentos.")
-
-    except Exception as e:
-        logger.error(f"Erro GERAL check_donations: {e}", exc_info=True)
-    # <<< EMBED END >>>
+        if not channel:
+            try: logger.debug(f"[Task Dono] Canal {CHANNEL_ID} cache miss, fetch..."); channel = await bot.fetch_channel(CHANNEL_ID)
+            except (discord.NotFound, discord.Forbidden): logger.error(f"[Task Dono] Canal ID {CHANNEL_ID} inacessível."); return
+            except Exception as e: logger.error(f"[Task Dono] Erro fetch canal {CHANNEL_ID}: {e}"); return
+        dono_upd = []; rec_upd = []; curr_time = datetime.now(TIMEZONE); cache = donation_cache.copy(); state = {}; initial = not cache
+        for m in clan.members:
+            tag = m.tag
+            name = m.name
+            if not tag: logger.warning(f"Membro {name} clã {clan.name} sem tag. Pulando."); continue
+            d = m.donations
+            r = m.received
+            data = {'name': name, 'donations': d, 'received': r}
+            state[tag] = data
+            if not initial and tag in cache:
+                old = cache[tag]
+                d_diff = data['donations'] - old.get('donations', 0)
+                r_diff = data['received'] - old.get('received', 0)
+                if d_diff > 0: dono_upd.append(f"{emojis['donation']}`{name}`+**{d_diff}** ({data['donations']:,})")
+                if r_diff > 0: rec_upd.append(f"{emojis['received']}`{name}`+**{r_diff}** ({data['received']:,})")
+        donation_cache = state
+        if (dono_upd or rec_upd) and not initial:
+            logger.info(f"[Task Dono] {len(dono_upd)} doações, {len(rec_upd)} recebidos.")
+            base = discord.Embed(title=f"{emojis['donation']} Doações/Recebidos", color=discord.Color.blue(), timestamp=curr_time).set_footer(text=f"Clã: {clan.name}")
+            if channel: # Verifica canal
+                await send_embeds_splitted(channel, base, "Atualizações", dono_upd + rec_upd, max_items_per_embed=15)
+        elif initial and state: logger.info("[Task Dono] Cache init.")
+        else: logger.debug("[Task Dono] Sem novas doações.")
+    except Exception as e: logger.error(f"Erro GERAL task check_donations: {e}", exc_info=True)
 
 @tasks.loop(minutes=10)
 async def check_members():
-    # <<< EMBED START >>>
-    global member_cache, coc_client
-    if not coc_client: logger.debug("check_members pulado: cliente CoC inválido."); return
-    clan = await get_clan_data()
-    if not clan or not hasattr(clan, 'members') or not clan.members:
-        logger.debug("check_members pulado: dados clã/membros indisponíveis."); return
     try:
+        global member_cache, coc_client
+        if not coc_client: return
+        clan = await get_clan_data(timeout=45)
+        if not clan or not hasattr(clan, 'members'): return
         channel = bot.get_channel(CHANNEL_ID)
-        if not channel: logger.warning("check_members: Canal ID não encontrado."); return
-
-        current_dict = {getattr(m, 'tag', None): getattr(m, 'name', '?') for m in clan.members if hasattr(m, 'tag')}
-        current_dict = {k: v for k, v in current_dict.items() if k}
-        current_time = datetime.now(TIMEZONE)
-
-        if not member_cache['members']:
-            logger.info("Cache membros inicializando...")
-            member_cache['members'] = current_dict
-            member_cache['count'] = len(current_dict)
-            logger.info(f"Cache membros inicializado: {member_cache['count']} membros.");
-            # Opcional: Enviar embed de status inicial
-            # init_embed = discord.Embed(title=f"{emojis['info']} Monitoramento de Membros Iniciado",
-            #                            description=f"Clã **{getattr(clan, 'name', CLAN_TAG)}**\nMembros atuais: **{member_cache['count']}**",
-            #                            color=discord.Color.light_grey(), timestamp=current_time)
-            # try: await channel.send(embed=init_embed)
-            # except Exception as e: logger.error(f"Erro ao enviar embed inicial de membros: {e}")
+        if not channel:
+            try: logger.debug(f"[Task Memb] Canal {CHANNEL_ID} cache miss, fetch..."); channel = await bot.fetch_channel(CHANNEL_ID)
+            except (discord.NotFound, discord.Forbidden): logger.error(f"[Task Memb] Canal ID {CHANNEL_ID} inacessível."); return
+            except Exception as e: logger.error(f"[Task Memb] Erro fetch canal {CHANNEL_ID}: {e}"); return
+        curr_list = clan.members or []; curr_dict = {m.tag: m.name for m in curr_list if m.tag}; curr_time = datetime.now(TIMEZONE); footer = f"Clã: {clan.name}"
+        if not member_cache['members'] and member_cache['count'] == 0:
+            logger.info("[Task Memb] Cache init..."); member_cache['members'] = curr_dict; member_cache['count'] = len(curr_dict); logger.info(f"[Task Memb] Cache: {member_cache['count']} membros.");
+            init_emb = discord.Embed(title=f"{emojis['info']} Monitoramento Membros ON", description=f"Clã **{clan.name}**\nMembros: **{member_cache['count']}**", color=0xAAAAAA, timestamp=curr_time).set_footer(text=footer)
+            if channel: # Verifica canal
+                try: await channel.send(embed=init_emb)
+                except Exception as e: logger.error(f"[Task Memb] Erro embed inicial: {e}")
             return
-
-        old_set = set(member_cache['members'].keys())
-        current_set = set(current_dict.keys())
-        left_tags = old_set - current_set
-        joined_tags = current_set - old_set
-
-        send_tasks = []
-        log_msgs = []
-
-        if left_tags:
-            logger.info(f"Detectadas {len(left_tags)} saídas.")
-            for tag in left_tags:
-                name = member_cache['members'].get(tag, f"Membro ({tag[-4:]})")
-                log_msgs.append(f"Saiu:{name}({tag})")
-                embed = discord.Embed(
-                    title=f"{emojis['leave']} Saída de Membro",
-                    description=f"**{name}** saiu do clã.",
-                    color=discord.Color.red(),
-                    timestamp=current_time
-                )
-                embed.set_footer(text=f"Clã: {getattr(clan, 'name', CLAN_TAG)}")
-                send_tasks.append(channel.send(embed=embed))
-
-        if joined_tags:
-            logger.info(f"Detectadas {len(joined_tags)} entradas.")
-            for tag in joined_tags:
-                name = current_dict.get(tag, f"Membro ({tag[-4:]})")
-                log_msgs.append(f"Entrou:{name}({tag})")
-                # Tenta obter mais detalhes do membro que entrou
-                member_details = next((m for m in clan.members if getattr(m, 'tag', None) == tag), None)
-                details_text = ""
-                if member_details:
-                    th = getattr(member_details, 'town_hall', '?')
-                    lvl = getattr(member_details, 'exp_level', '?')
-                    trophies = getattr(member_details, 'trophies', 0)
-                    league_name = getattr(getattr(member_details, 'league', None), 'name', 'Sem Liga')
-                    details_text = f"CV{th} | Nível {lvl} | {trophies}{emojis['trophy']} | {league_name}"
-
-                embed = discord.Embed(
-                    title=f"{emojis['join']} Entrada de Membro",
-                    description=f"**{name}** entrou no clã!",
-                    color=discord.Color.green(),
-                    timestamp=current_time
-                )
-                if details_text:
-                     embed.add_field(name="Detalhes", value=details_text, inline=False)
-                embed.set_footer(text=f"Clã: {getattr(clan, 'name', CLAN_TAG)}")
-                send_tasks.append(channel.send(embed=embed))
-
-        if send_tasks:
-            results = await asyncio.gather(*send_tasks, return_exceptions=True)
-            for i, res in enumerate(results):
-                if isinstance(res, Exception):
-                    logger.error(f"Erro send embed membro [{i}]: {res}", exc_info=True)
-
-            if log_msgs:
-                logger.info(f"Detalhes Membros: {', '.join(log_msgs)}")
-
-            # Atualiza o cache *depois* de processar as mudanças
-            member_cache['members'] = current_dict
-            member_cache['count'] = len(current_dict)
-            # Envia uma atualização do total de membros
-            count_embed = discord.Embed(
-                description=f"Total de membros atualizado: **{member_cache['count']}/50**",
-                color=discord.Color.light_grey(),
-                timestamp=current_time
-            )
-            try:
-                await channel.send(embed=count_embed)
-            except Exception as e:
-                logger.error(f"Erro ao enviar embed de contagem de membros: {e}")
-
-        else:
-            logger.debug(f"check_members executado, sem alterações.")
-
-    except Exception as e:
-        logger.error(f"Erro GERAL check_members: {e}", exc_info=True)
-    # <<< EMBED END >>>
-
+        old_set = set(member_cache['members'].keys()); curr_set = set(curr_dict.keys()); left = old_set - curr_set; joined = curr_set - old_set; tasks = []; logs = []
+        if left:
+            logger.info(f"[Task Memb] {len(left)} saídas.");
+            for tag in left:
+                 name = member_cache['members'].get(tag, f"M({tag[-4:]})"); logs.append(f"Saiu:{name}({tag})");
+                 emb = discord.Embed(title=f"{emojis['leave']} Saída", description=f"**{name}** saiu.", color=discord.Color.red(), timestamp=curr_time).set_footer(text=footer);
+                 if channel: tasks.append(channel.send(embed=emb)) # Verifica se canal existe
+        if joined:
+            logger.info(f"[Task Memb] {len(joined)} entradas.");
+            for tag in joined:
+                name = curr_dict.get(tag, f"M({tag[-4:]})"); logs.append(f"Entrou:{name}({tag})");
+                m_det = next((m for m in curr_list if m.tag == tag), None); details = ""; l_icon = None
+                if m_det: th=m_det.town_hall; lvl=m_det.exp_level; tr=m_det.trophies; lg_ic=getattr(m_det.league,'icon',None); l_icon=lg_ic.url if lg_ic else None; details=f"CV{th}|Lvl{lvl}|{tr}{emojis['trophy']}"
+                emb = discord.Embed(title=f"{emojis['join']} Entrada", description=f"**{name}** entrou!", color=discord.Color.green(), timestamp=curr_time);
+                if l_icon: emb.set_thumbnail(url=l_icon);
+                if details: emb.add_field(name="Detalhes", value=details, inline=False);
+                emb.set_footer(text=footer);
+                if channel: tasks.append(channel.send(embed=emb)) # Verifica se canal existe
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True); errors = sum(1 for r in results if isinstance(r, Exception));
+            if errors > 0: logger.error(f"[Task Memb] {errors} erros ao enviar embeds de entrada/saída.")
+            if logs: logger.info(f"[Task Memb] Detalhes: {', '.join(logs)}")
+            member_cache['members'] = curr_dict; new_count = len(curr_dict); member_cache['count'] = new_count
+            if (left or joined) and errors == 0 and channel: # Verifica se canal existe
+                 cnt_emb = discord.Embed(description=f"Membros: **{new_count}/50**", color=0xAAAAAA);
+                 try: await channel.send(embed=cnt_emb, delete_after=60)
+                 except Exception as e: logger.error(f"[Task Memb] Erro embed contagem: {e}")
+        else: logger.debug("[Task Memb] Sem alterações.")
+    except Exception as e: logger.error(f"Erro GERAL task check_members: {e}", exc_info=True)
 
 async def check_war_attacks_and_report(war, war_type="Guerra Normal"):
-    # <<< EMBED START >>> (Principalmente na parte de reportar ataques individuais)
-    global war_cache, coc_client, bot, CHANNEL_ID, CLAN_TAG, TIMEZONE, emojis
-    if not coc_client: logger.debug("check_war_attacks pulado: cliente CoC inválido."); return
-    channel=bot.get_channel(CHANNEL_ID)
-    if not channel: logger.warning(f"check_war_attacks ({war_type}): Canal ID não encontrado."); return
     try:
-        our_c=war.clan if hasattr(war,'clan') and war.clan.tag==CLAN_TAG else getattr(war,'opponent',None);
-        en_c=war.opponent if hasattr(war,'clan') and war.clan.tag==CLAN_TAG else getattr(war,'clan',None);
-        if not our_c or not en_c: logger.error(f"Erro ID clãs {war_type} ({getattr(war, 'tag', 'N/A')})"); return
-
-        prep_time_obj = getattr(war,'preparation_start_time', None)
-        prep_time_iso = prep_time_obj.time.isoformat() if prep_time_obj and hasattr(prep_time_obj, 'time') else datetime.now().isoformat()
-        war_id=f"{getattr(our_c,'tag','?')}-{getattr(en_c,'tag','?')}-{prep_time_iso}";
-
-        if war_id not in war_cache: war_cache[war_id]={'attacks':{},'time_alerts':set(),'state':getattr(war,'state','unknown')}
-        war_data=war_cache[war_id]
-        current_time = datetime.now(TIMEZONE)
-        current_state = getattr(war,'state','unknown')
-
-        if war_id in war_cache: war_cache[war_id]['state'] = current_state
-        logger.debug(f"Verificando {war_type} ID:{war_id[-15:]} | Estado API:{current_state} Cache:{war_data['state']}")
-
-        if current_state=='inWar':
-            m_check=getattr(our_c,'members',[])
-            new_attacks_found = False
-            for m in m_check:
-                tag = getattr(m, 'tag', None)
-                if not tag: continue
-                m_att=getattr(m,'attacks',[])
-                curr_c=len(m_att)
-                prev_c=war_data.get('attacks',{}).get(tag,0);
-                if curr_c>prev_c:
-                    new_attacks_found = True
-                    new_att=m_att[prev_c:]
-                    attacker_name=getattr(m,'name','?')
-                    attacker_th=getattr(m,'town_hall','?')
-                    logger.info(f"Novo(s) ataque(s) {war_type} ID {war_id[-15:]} por {attacker_name}")
-                    for att in new_att:
-                        if not all(hasattr(att,a) for a in ['defender_tag','stars','destruction']):
-                            logger.warning("Ataque dados faltando."); continue
-
-                        defender_tag = att.defender_tag
-                        stars=getattr(att,'stars',0)
-                        destruction=round(getattr(att,'destruction',0.0),1)
-                        star_emojis=("⭐"*stars)+("⚫"*(3-stars)) if stars>=0 else "Erro" # Emojis de estrela
-
-                        # Tenta obter nome e TH do defensor (com fallback e timeout)
-                        defender_name = "?"
-                        defender_th = "?"
+        global war_cache, coc_client, bot, CHANNEL_ID, CLAN_TAG, TIMEZONE, emojis
+        if not coc_client: return
+        channel = bot.get_channel(CHANNEL_ID)
+        if not channel:
+            try: logger.debug(f"[Task WarAtk] Canal {CHANNEL_ID} cache miss, fetch..."); channel = await bot.fetch_channel(CHANNEL_ID)
+            except (discord.NotFound, discord.Forbidden): logger.error(f"[Task WarAtk] ({war_type}) Canal ID {CHANNEL_ID} inacessível."); return
+            except Exception as e: logger.error(f"[Task WarAtk] ({war_type}) Erro fetch canal {CHANNEL_ID}: {e}"); return
+        our_c = war.clan if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'opponent', None)
+        en_c = war.opponent if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'clan', None)
+        if not our_c or not en_c: logger.error(f"[Task WarAtk] Erro ID clãs {war_type} ({getattr(war, 'tag', 'TAG Desconhecida')})"); return # Log Tag se possível
+        op_name = en_c.name; prep_time = war.preparation_start_time.time if war.preparation_start_time else datetime.now();
+        # Usa getattr para war.tag
+        war_tag_part = getattr(war, 'tag', None) or f"{our_c.tag}-{op_name}-{prep_time.isoformat()}"
+        war_id = f"{'league-' if war.is_cwl else 'war-'}{war_tag_part}"
+        if war_id not in war_cache: war_cache[war_id] = {'attacks': {}, 'time_alerts': set(), 'state': war.state}
+        war_data = war_cache[war_id]; curr_time = datetime.now(TIMEZONE); curr_state = war.state
+        if curr_state != war_data.get('state'): logger.info(f"[Task WarAtk] {war_type} ID:{war_id[-25:]} | Estado: {war_data.get('state')}->{curr_state}"); war_data['state'] = curr_state
+        logger.debug(f"[Task WarAtk] Verificando {war_type} ID:{war_id[-25:]} | Estado:{curr_state}")
+        if curr_state == 'inWar':
+            members = our_c.members; send_tasks = []; new_atks_cycle = False
+            for m in members:
+                tag = m.tag
+                name = m.name
+                th = m.town_hall
+                if not tag: logger.warning(f"Membro {name} guerra {war_type} sem tag. Pulando."); continue
+                m_atks = m.attacks
+                curr_atk_c = len(m_atks)
+                prev_atk_c = war_data.get('attacks', {}).get(tag, 0)
+                if curr_atk_c > prev_atk_c:
+                    new_atks_cycle = True; new_list = m_atks[prev_atk_c:]; logger.info(f"[Task WarAtk] {war_type} ID {war_id[-25:]}: {name} +{len(new_list)} atk(s).")
+                    for att in new_list:
+                        if not all(hasattr(att, a) for a in ['defender_tag', 'stars', 'destruction']): logger.warning(" Atk dados faltando."); continue
+                        def_tag = att.defender_tag; stars = att.stars; destr = round(att.destruction, 1); stars_emo = ("⭐"*stars)+("⚫"*(3-stars))
+                        defender_name, defender_th = "?", "?";
                         try:
-                            defender_player = await asyncio.wait_for(coc_client.get_player(defender_tag), timeout=10.0)
-                            defender_name = getattr(defender_player, 'name', f'Defensor({defender_tag[-4:]})')
-                            defender_th = getattr(defender_player, 'town_hall', '?')
-                        except (coc_errors.NotFound, asyncio.TimeoutError):
-                            defender_name = f'Defensor({defender_tag[-4:]})'
-                        except Exception as e_th:
-                            logger.warning(f"Erro buscar dados def {defender_tag}: {e_th}")
-                            defender_name = f'Defensor({defender_tag[-4:]})'
-
-                        # --- Criação do Embed para o Ataque ---
-                        attack_embed = discord.Embed(
-                            title=f"{emojis['war_attack']} Ataque em {war_type}!",
-                            color=discord.Color.orange(), # Ou outra cor para ataque
-                            timestamp=current_time
-                        )
-                        attack_embed.add_field(name="Atacante", value=f"`{attacker_name}` (CV{attacker_th})", inline=True)
-                        attack_embed.add_field(name="Defensor", value=f"`{defender_name}` (CV{defender_th})", inline=True)
-                        attack_embed.add_field(name="Resultado", value=f"**{stars}** {star_emojis}  **{destruction}%** {emojis['destruction']}", inline=False)
-                        attack_embed.set_footer(text=f"Guerra vs {getattr(en_c,'name','?')}")
-
-                        try:
-                            await channel.send(embed=attack_embed)
-                        except Exception as e:
-                            logger.error(f"Erro send embed atq: {e}", exc_info=True)
-                            # Fallback para texto se embed falhar
-                            fallback_msg = (f"{emojis['time']}[{current_time.strftime('%H:%M')}] {emojis['war_attack']}**Ataque {war_type}!**\n"
-                                            f"`{attacker_name}`(CV{attacker_th}) vs `{defender_name}`(CV{defender_th})\n"
-                                            f"-> {stars}{star_emojis} {destruction}%")
-                            try: await channel.send(fallback_msg)
-                            except Exception as ef: logger.error(f"Erro send fallback msg atq: {ef}")
-
-                    war_data['attacks'][tag]=curr_c
-            if not new_attacks_found: logger.debug(f"{war_type} {war_id[-15:]}: Sem novos ataques.")
-
-            # Lógica de Alertas de Tempo (já usa Embed, mantida)
-            end_time_obj = getattr(war,'end_time', None)
-            if end_time_obj and hasattr(end_time_obj, 'time'):
-                end_time_utc = end_time_obj.time.astimezone(pytz.utc)
-                t_left=end_time_utc - datetime.now(pytz.utc);
-                h_left=t_left.total_seconds()/3600 if t_left.total_seconds()>0 else 0
-                alert_h=[12,6,3,1]
-                for h in alert_h:
-                    if 'time_alerts' not in war_data: war_data['time_alerts'] = set()
-                    if h not in war_data.get('time_alerts',set()) and 0<h_left<=h:
-                        war_data['time_alerts'].add(h); logger.info(f"Gerando alerta {h}h {war_type} ID: {war_id[-15:]}")
-                        m_list=[]
-                        att_per=getattr(war,'attacks_per_member',1)
-                        m_alert=getattr(our_c,'members',[])
-                        for m in m_alert:
-                            used=len(getattr(m,'attacks',[]))
-                            left=att_per-used
-                            if left>0: m_list.append(f"`{getattr(m,'name','?')}`: **{left}** ataque(s) restante(s)") # Melhoria texto
-                        if m_list:
-                             # Ajuste no título e descrição do alerta
-                             alert_emb=discord.Embed(title=f"{emojis['time']} ALERTA: Restam {h}h na {war_type}!",
-                                                     description=f"Atenção! A {war_type} contra **{getattr(en_c,'name','?')}** está acabando.",
-                                                     color=discord.Color.orange());
-                             alert_emb.timestamp = end_time_obj.time.astimezone(TIMEZONE) # Adiciona timestamp do fim
-                             # Usa a função de split adaptada para embeds
-                             await send_embeds_splitted(channel, alert_emb, "Ataques Pendentes", m_list, max_len=1024, max_items_per_embed=15);
-                             logger.info(f"Alerta {h}h enviado {war_type} ID:{war_id[-15:]}")
-                        else:
-                            logger.info(f"Alerta {h}h {war_type} ID:{war_id[-15:]} - Todos atacaram.")
-                            # Opcional: Enviar msg que todos atacaram
-                            all_attacked_embed = discord.Embed(
-                                title=f"{emojis['success']} {war_type}: Todos Atacaram!",
-                                description=f"Todos os membros realizaram seus ataques na guerra contra **{getattr(en_c,'name','?')}**.",
-                                color=discord.Color.green(),
-                                timestamp=current_time # Timestamp da verificação
+                            defender_player_obj = await asyncio.wait_for(coc_client.get_player(def_tag), timeout=10.0)
+                            defender_name = getattr(defender_player_obj, 'name', f'Defensor({def_tag[-4:]})')
+                            defender_th = getattr(defender_player_obj, 'town_hall', '?')
+                        except coc_errors.NotFound: defender_name = f"Defensor NF ({def_tag[-4:]})"; logger.warning(f"[Task WarAtk] Defensor {def_tag} NotFound.")
+                        except asyncio.TimeoutError: defender_name = f"Defensor TO ({def_tag[-4:]})"; logger.warning(f"[Task WarAtk] Timeout def {def_tag}.")
+                        except coc_errors.Maintenance: defender_name = f"Defensor Maint. ({def_tag[-4:]})"; logger.warning(f"[Task WarAtk] API Maint. def {def_tag}.")
+                        except Exception as e_def: defender_name = f"Defensor Err ({def_tag[-4:]})"; logger.error(f"[Task WarAtk] Erro def {def_tag}: {e_def}", exc_info=False)
+                        atk_emb = discord.Embed(title=f"{emojis['war_attack']} Ataque {war_type}!", color=discord.Color.orange(), timestamp=curr_time)
+                        atk_emb.add_field(name="Atacante", value=f"`{name}` (CV{th})", inline=True); atk_emb.add_field(name="Defensor", value=f"`{defender_name}` (CV{defender_th})", inline=True); atk_emb.add_field(name="Resultado", value=f"**{stars}** {stars_emo} **{destr}%** {emojis['destruction']}", inline=False); atk_emb.set_footer(text=f"Guerra vs {op_name}")
+                        if channel: send_tasks.append(channel.send(embed=atk_emb)) # Verifica canal
+                    war_data['attacks'][tag] = curr_atk_c
+            if send_tasks:
+                 logger.info(f"[Task WarAtk] Enviando {len(send_tasks)} embeds atk...");
+                 results = await asyncio.gather(*send_tasks, return_exceptions=True)
+                 errors = sum(1 for r in results if isinstance(r, Exception))
+                 if errors > 0: logger.error(f"[Task WarAtk] {errors} erros ao enviar embeds de ataque.")
+            if not new_atks_cycle: logger.debug(f"[Task WarAtk] {war_type} {war_id[-25:]}: Sem novos atks.")
+            end_time = war.end_time
+            if end_time and hasattr(end_time, 'time'):
+                # Correção: Usar timezones consistentes para comparação
+                now_utc = datetime.now(pytz.utc)
+                end_time_utc = end_time.time.astimezone(pytz.utc)
+                t_left = end_time_utc - now_utc
+                h_left = t_left.total_seconds() / 3600 if t_left.total_seconds() > 0 else 0
+                a_hours = [12, 6, 3, 1]
+                if 'time_alerts' not in war_data: war_data['time_alerts'] = set()
+                for h in a_hours:
+                    if h not in war_data['time_alerts'] and 0 < h_left <= h:
+                        war_data['time_alerts'].add(h); logger.info(f"[Task WarAtk] Alerta {h}h {war_type} ID: {war_id[-25:]}")
+                        missing = []; per = war.attacks_per_member
+                        for m in members:
+                            if len(m.attacks) < per: missing.append(f"`{m.name}`: **{per - len(m.attacks)}** atk(s)")
+                        if missing and channel:
+                            end_timestamp_int = int(end_time_utc.timestamp())
+                            a_emb = discord.Embed(
+                                title=f"{emojis['time']} ALERTA: Restam {h}h {war_type}!",
+                                description=f"vs **{op_name}**, fim <t:{end_timestamp_int}:R>.",
+                                color=discord.Color.orange(),
+                                timestamp=end_time_utc # Usar timestamp consistente
                             )
-                            try: await channel.send(embed=all_attacked_embed)
-                            except Exception as e: logger.error(f"Erro ao enviar embed 'todos atacaram' (alerta {h}h): {e}")
-                        break # Sai do loop de horas após encontrar o primeiro alerta
-
-        # Relatório Final (já usa Embed, mantido)
-        rep_key='war_end_reported' if war_type=="Guerra Normal" else 'league_war_end_reported';
-        if rep_key not in war_cache: war_cache[rep_key]={}
-        if current_state=='warEnded' and war_id not in war_cache.get(rep_key,{}):
-             war_cache[rep_key][war_id]=True; logger.info(f"{war_type} ID:{war_id[-15:]} TERMINOU. Relatório.")
-             try:
-                 our_s=getattr(our_c,'stars',0); en_s=getattr(en_c,'stars',0); our_d=round(getattr(our_c,'destruction',0.0),2); en_d=round(getattr(en_c,'destruction',0.0),2); our_n=getattr(our_c,'name','Nosso Clã'); en_n=getattr(en_c,'name','Oponente');
-                 res, emo, col = "EMPATE", emojis['war_tie'], discord.Color.gold()
-                 if our_s>en_s or (our_s==en_s and our_d>en_d): res,emo,col="VITÓRIA",emojis['war_win'],discord.Color.green()
-                 elif our_s<en_s or (our_s==en_s and our_d<en_d): res,emo,col="DERROTA",emojis['war_lose'],discord.Color.red()
-                 end_emb=discord.Embed(title=f"{emo} {war_type.upper()} FINALIZADA: {res}! {emo}", # Título mais descritivo
-                                      description=f"Resultado da guerra contra **{en_n}**",
-                                      color=col);
-                 end_emb.add_field(name=f"{emojis['clan_capital']} {our_n}",value=f"**{our_s}** {emojis['level_up']} ({our_d}%)",inline=True); # Usando estrela emoji
-                 end_emb.add_field(name=f"{emojis['war_attack']} {en_n}",value=f"**{en_s}** {emojis['level_up']} ({en_d}%)",inline=True); # Usando estrela emoji
-                 end_time_obj = getattr(war,'end_time', None)
-                 if end_time_obj and hasattr(end_time_obj, 'time'): end_emb.timestamp = end_time_obj.time.astimezone(TIMEZONE)
-                 try: await channel.send(embed=end_emb); await asyncio.sleep(1)
-                 except Exception as e: logger.error(f"Erro send embed fim {war_type}: {e}")
-
-                 # Relatório de Ataques Perdidos (já usa Embed, melhorando texto)
-                 missed_list=[]
-                 att_per=getattr(war,'attacks_per_member',1)
-                 m_check_end=getattr(our_c,'members',[])
-                 for m in m_check_end:
-                     used=len(getattr(m,'attacks',[]))
-                     needed=att_per
-                     if used<needed:
-                         missed=needed-used
-                         th=getattr(m,'town_hall','?')
-                         name=getattr(m,'name','?')
-                         missed_list.append(f"`{name}` (CV{th}): **{missed}** ataque(s) perdido(s)") # Texto mais claro
-                 if missed_list:
-                     missed_emb=discord.Embed(title=f"{emojis['missed_attack']} Ataques Não Realizados - {war_type}",
-                                             description=f"Membros que não usaram todos os ataques contra **{en_n}**:", # Descrição
-                                             color=discord.Color.dark_red());
-                     if end_time_obj and hasattr(end_time_obj, 'time'): missed_emb.timestamp = end_time_obj.time.astimezone(TIMEZONE) # Timestamp fim
-                     await send_embeds_splitted(channel, missed_emb,"Membros", missed_list, max_len=1024, max_items_per_embed=15);
-                     logger.info(f"Relatório perdidos enviado {war_type} ID:{war_id[-15:]}")
-                 else:
-                    # Mensagem "Todos atacaram" agora como Embed
-                    msg_ok_embed=discord.Embed(title=f"{emojis['success']} Ataques Completos!",
-                                               description=f"Todos os membros atacaram na {war_type} contra **{en_n}**!",
-                                               color=discord.Color.green())
-                    if end_time_obj and hasattr(end_time_obj, 'time'): msg_ok_embed.timestamp = end_time_obj.time.astimezone(TIMEZONE)
-                    try: await channel.send(embed=msg_ok_embed);
-                    except Exception as e: logger.error(f"Erro ao enviar embed 'todos atacaram' (final): {e}")
-                    logger.info(f"Todos atacaram {war_type} ID:{war_id[-15:]}")
-             except Exception as e: logger.error(f"Erro relatório final {war_type} ID {war_id[-15:]}: {e}",exc_info=True)
-             # Limpeza do cache (mantida)
-             if war_id in war_cache:
-                  try: del war_cache[war_id]; logger.info(f"Cache {war_type} ID:{war_id[-15:]} removido.")
-                  except KeyError: pass
+                            await send_embeds_splitted(channel, a_emb, "Ataques Pendentes", missing, max_items_per_embed=15)
+                        elif not missing: logger.info(f" [Task WarAtk] Alerta {h}h - Todos atacaram.")
+                        break # Sai do loop após encontrar e processar o primeiro alerta aplicável
+        rep_key = 'war_end_reported' if not war.is_cwl else 'league_war_end_reported'
+        if rep_key not in war_cache: war_cache[rep_key] = {}
+        if curr_state == 'warEnded' and war_id not in war_cache.get(rep_key, {}):
+            war_cache[rep_key][war_id] = True; logger.info(f"[Task WarAtk] {war_type} ID:{war_id[-25:]} FIM. Relatório.")
+            try:
+                os_val=our_c.stars; es_val=en_c.stars; od_val=round(our_c.destruction,2); ed_val=round(en_c.destruction,2); on_val=our_c.name; en_val=en_c.name
+                res, emo, col = ("EMPATE", emojis['war_tie'], 0xFFD700) if os_val==es_val and od_val==ed_val else (("VITÓRIA", emojis['war_win'], 0x00FF00) if os_val>es_val or (os_val==es_val and od_val>ed_val) else ("DERROTA", emojis['war_lose'], 0xFF0000))
+                end_emb=discord.Embed(title=f"{emo} {war_type.upper()} FIM: {res}! {emo}", description=f"vs **{en_val}**", color=col)
+                end_emb.add_field(name=f"{emojis['clan_capital']} {on_val}", value=f"**{os_val}**⭐({od_val}%)", inline=True); end_emb.add_field(name=f"{emojis['war_attack']} {en_val}", value=f"**{es_val}**⭐({ed_val}%)", inline=True)
+                if war.end_time and hasattr(war.end_time, 'time'): end_emb.timestamp = war.end_time.time.astimezone(TIMEZONE)
+                if channel: await channel.send(embed=end_emb); await asyncio.sleep(0.5) # Verifica canal
+                missed = []; per = war.attacks_per_member
+                for m in getattr(our_c,'members',[]):
+                    if len(m.attacks) < per: missed.append(f"`{m.name}`(CV{m.town_hall}): **{per - len(m.attacks)}** perdido(s)")
+                if missed and channel: # Verifica canal
+                    miss_emb = discord.Embed(title=f"{emojis['missed_attack']} Ataques Ñ Realizados", description=f"vs **{en_val}**:", color=0xFF0000);
+                    if war.end_time and hasattr(war.end_time, 'time'): miss_emb.timestamp = war.end_time.time.astimezone(TIMEZONE);
+                    await send_embeds_splitted(channel, miss_emb, "Membros", missed, max_items_per_embed=15)
+                elif not missed and channel: # Verifica canal
+                    all_atk_emb = discord.Embed(title=f"{emojis['success']} Ataques Completos!", description=f"Todos atacaram vs **{en_val}**!", color=0x00FF00);
+                    if war.end_time and hasattr(war.end_time, 'time'): all_atk_emb.timestamp = war.end_time.time.astimezone(TIMEZONE);
+                    await channel.send(embed=all_atk_emb)
+                logger.info(f"[Task WarAtk] Relatório final {war_type} ID:{war_id[-25:]} enviado.")
+            except Exception as e: logger.error(f"[Task WarAtk] Erro relatório final {war_type} ID {war_id[-25:]}: {e}", exc_info=True)
     except Exception as e: logger.error(f"Erro GERAL check_war_attacks ({war_type}): {e}", exc_info=True)
-    # <<< EMBED END >>>
 
 @tasks.loop(minutes=15)
 async def check_war():
-    global coc_client, war_cache
-    if not coc_client: logger.debug("check_war pulado."); return
     try:
-        logger.debug("Verificando guerra normal...")
-        # <<< EMBED START >>> (Pequeno ajuste no embed de preparação)
-        war=await asyncio.wait_for(coc_client.get_current_war(CLAN_TAG),timeout=45.0);
-        if not war or getattr(war,'state','notInWar')=='notInWar' or getattr(war,'is_cwl',False):
-            logger.debug("Não em guerra normal ou é CWL."); return
+        global coc_client, war_cache
+        if not coc_client: return
+        #logger.debug("[Task War] Verificando guerra normal...") # Log menos verboso
+        war = await asyncio.wait_for(coc_client.get_current_war(CLAN_TAG, war_tag="#0"), timeout=60.0)
+        if not war or war.state=='notInWar' or war.is_cwl:
+            #logger.info("[Task War] Nenhuma guerra normal ativa ou clã está em CWL.") # Log desnecessário a cada 15min
+            return
+        our_c = war.clan if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'opponent', None) # Safety checks
+        en_c = war.opponent if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'clan', None)
+        if not our_c or not en_c:
+             logger.error(f"[Task War] Erro ao identificar clãs na guerra {getattr(war, 'tag', 'TAG Desconhecida')}") # Log Tag se possível
+             return
+        op_name = en_c.name
+        prep_time = war.preparation_start_time.time if war.preparation_start_time else datetime.now()
 
-        our_c=war.clan if hasattr(war,'clan') and war.clan.tag==CLAN_TAG else getattr(war,'opponent',None);
-        en_c=war.opponent if hasattr(war,'clan') and war.clan.tag==CLAN_TAG else getattr(war,'clan',None);
-        if not our_c or not en_c: raise AttributeError("Clãs guerra não ID.")
-        prep_time_obj = getattr(war,'preparation_start_time', None)
-        prep_time_iso = prep_time_obj.time.isoformat() if prep_time_obj and hasattr(prep_time_obj, 'time') else datetime.now().isoformat()
-        war_id=f"{getattr(our_c,'tag','?')}-{getattr(en_c,'tag','?')}-{prep_time_iso}";
+        # --- CORREÇÃO APLICADA AQUI (Erro 1) ---
+        war_tag_part = getattr(war, 'tag', None) or f"{our_c.tag}-{op_name}-{prep_time.isoformat()}"
+        # --- FIM DA CORREÇÃO ---
+
+        war_id = f"war-{war_tag_part}"
 
         if war.state=='preparation':
             if war_id not in war_cache: war_cache[war_id] = {'attacks':{}, 'time_alerts':set(), 'state':'unknown'}
             if war_cache.get(war_id,{}).get('state') != 'preparation':
-                logger.info(f"Nova Guerra Normal prep. ID: {war_id[-15:]}")
-                war_cache[war_id]['state']='preparation'
-                e_n=getattr(en_c,'name','?')
-                size=getattr(war,'team_size','?')
-                start_time_obj = getattr(war,'start_time', None)
-                st_ts = int(start_time_obj.time.astimezone(TIMEZONE).timestamp()) if start_time_obj and hasattr(start_time_obj, 'time') else None
-                # Embed de Preparação (ligeiramente melhorado)
-                prep_emb=discord.Embed(
-                    title=f"{emojis['war_attack']} Preparação de Guerra Iniciada! {emojis['war_attack']}",
-                    description=f"**`{getattr(our_c,'name','Nosso Clã')}`** vs **`{e_n}`**\nTamanho: **{size} vs {size}**",
-                    color=discord.Color.blue()
-                )
-                if st_ts:
-                    prep_emb.add_field(name="Início da Batalha", value=f"<t:{st_ts}:R> (<t:{st_ts}:F>)", inline=False)
-                if start_time_obj and hasattr(start_time_obj, 'time'):
-                     prep_emb.timestamp = start_time_obj.time.astimezone(TIMEZONE) # Timestamp do início real da guerra
+                logger.info(f"[Task War] Nova Guerra prep. ID: {war_id[-25:]}"); war_cache[war_id]['state']='preparation'
+                size=war.team_size; st_obj = war.start_time; st_ts = int(st_obj.time.timestamp()) if st_obj and hasattr(st_obj, 'time') else None
+                prep_emb=discord.Embed(title=f"{emojis['war_attack']} Preparação Guerra!", description=f"**`{our_c.name}`** vs **`{op_name}`** ({size}v{size})", color=discord.Color.blue())
+                if st_ts: prep_emb.add_field(name="Início Batalha", value=f"<t:{st_ts}:R> (<t:{st_ts}:F>)", inline=False)
+                if st_obj and hasattr(st_obj, 'time'): prep_emb.timestamp = st_obj.time.astimezone(TIMEZONE)
+                channel = bot.get_channel(CHANNEL_ID)
+                if not channel:
+                    try: logger.debug(f"[Task War] Canal {CHANNEL_ID} cache miss, fetch..."); channel = await bot.fetch_channel(CHANNEL_ID)
+                    except (discord.NotFound, discord.Forbidden): logger.error(f"[Task War] Canal ID {CHANNEL_ID} inacessível p/ anúncio prep."); return
+                    except Exception as e: logger.error(f"[Task War] Erro fetch canal {CHANNEL_ID} p/ anúncio prep: {e}"); return
+                if channel: # Verifica se canal existe
+                    try: await channel.send(embed=prep_emb); logger.info(f"[Task War] Anúncio prep ID:{war_id[-25:]} enviado.")
+                    except Exception as e: logger.error(f"[Task War] Erro send anúncio prep: {e}", exc_info=True)
+            else: logger.debug(f"[Task War] Guerra {war_id[-25:]} já em prep cache.")
+            return # Retorna se estiver em preparação
 
-                chan=bot.get_channel(CHANNEL_ID);
-                if chan:
-                    try: await chan.send(embed=prep_emb); logger.info(f"Anúncio prep Guerra ID:{war_id[-15:]} enviado.")
-                    except Exception as e_send: logger.error(f"Erro send anúncio prep G: {e_send}", exc_info=True)
-                else: logger.warning("Canal não encontrado anúncio prep G.")
-            else: logger.debug(f"Guerra {war_id[-15:]} já em prep.")
-            return # Sai se estiver em preparação
-
-        # Chama a função que agora também lida com embeds para ataques
+        # Se não estiver em preparação, verifica ataques
         await check_war_attacks_and_report(war, war_type="Guerra Normal")
-        # <<< EMBED END >>>
-    except coc_errors.NotFound: logger.info("Nenhuma guerra normal ativa.")
-    except coc_errors.ClashOfClansException as e_coc:
-        logger.warning(f"Erro API CoC ({type(e_coc).__name__}) check_war: {e_coc}")
-    except asyncio.TimeoutError:
-        logger.warning(f"Timeout check_war.")
-    except AttributeError as e_atr: logger.error(f"Erro Atributo check_war: {e_atr}", exc_info=True)
-    except Exception as e: logger.error(f"Erro GERAL check_war: {e}", exc_info=True)
+
+    except coc_errors.NotFound: logger.info("[Task War] Nenhuma guerra normal ativa (NotFound).")
+    except coc_errors.PrivateWarLog: logger.info("[Task War] Log de Guerra Privado.")
+    except coc_errors.Maintenance: logger.warning("[Task War] API CoC em manutenção.")
+    except asyncio.TimeoutError: logger.error("[Task War] Timeout ao buscar guerra atual.")
+    except Exception as e: logger.error(f"[Task War] Erro GERAL: {e}", exc_info=True)
 
 @tasks.loop(minutes=20)
 async def check_league_war():
-    global coc_client, war_cache
-    if not coc_client: logger.debug("check_league_war pulado."); return
     try:
-        logger.debug("Verificando grupo liga...")
-        # <<< EMBED START >>> (Pequenos ajustes nos embeds de liga)
-        lg=await asyncio.wait_for(coc_client.get_league_group(CLAN_TAG),timeout=60.0);
-        if not lg or getattr(lg,'state','notInWar')=="notInWar":
-            if war_cache.get('league_start_announced',False): logger.info("Liga fim/saiu. Reset flag."); war_cache['league_start_announced']=False
-            logger.debug("Não em guerra liga."); return
-
-        chan=bot.get_channel(CHANNEL_ID);
-        if not chan: logger.warning("check_league_war: Canal ID não encontrado."); return
-
-        # Anúncio de Início da Liga (Embed parece OK, talvez adicionar ano à temporada)
-        if not war_cache.get('league_start_announced',False):
-            war_cache['league_start_announced']=True
-            clans=getattr(lg,'clans',[])
-            names=[f"- `{getattr(c,'name','?')}` (Nível {getattr(c,'level','?')})" for c in clans] # Adiciona nível do clã
-            season=getattr(lg,'season','?') # Formato YYYY-MM
-            league_name = getattr(getattr(lg, 'league', None), 'name', 'Liga Desconhecida') # Nome da Liga (ex: Mestre III)
-            lg_emb=discord.Embed(
-                 title=f"{emojis['league']} CWL Iniciada: {league_name}! {emojis['league']}",
-                 description=f"Temporada: **{season}**",
-                 color=discord.Color.purple(),
-                 timestamp=datetime.now(TIMEZONE) # Timestamp do anúncio
-            )
-            # Usar send_embeds_splitted para a lista de clãs se for muito longa
-            await send_embeds_splitted(chan, lg_emb, "Clãs no Grupo", names, max_len=1024, max_items_per_embed=10)
-            logger.info(f"Anúncio Liga temp {season} enviado.")
-            # try: await chan.send(embed=lg_emb); logger.info(f"Anúncio Liga temp {season} enviado.")
-            # except Exception as e_send: logger.error(f"Erro send anúncio Liga: {e_send}")
-
-        try:
-            logger.debug("Buscando guerras liga...")
-            all_wars = await asyncio.wait_for(lg.get_wars(CLAN_TAG),timeout=60.0)
-            if not all_wars : logger.info("Nenhuma guerra liga encontrada para o clã."); return
-        except coc_errors.NotFound: # Tratamento específico se get_wars não encontrar guerras para o *nosso clã* no grupo
-            logger.info(f"Nenhuma guerra de liga encontrada para o clã {CLAN_TAG} neste grupo/temporada.")
+        global coc_client, war_cache
+        if not coc_client: return
+        #logger.debug("[Task CWL] Verificando grupo liga...") # Log menos verboso
+        lg = await asyncio.wait_for(coc_client.get_league_group(CLAN_TAG), timeout=90.0)
+        if not lg or lg.state=="notInWar":
+            if war_cache.get('league_start_announced',False): logger.info("[Task CWL] Grupo Liga inativo. Reset flag."); war_cache['league_start_announced']=False
+            #logger.debug("[Task CWL] Não em CWL."); # Log desnecessário a cada 20min
             return
-        except Exception as e: logger.error(f"Erro get_wars liga: {e}"); return
+        channel = bot.get_channel(CHANNEL_ID)
+        if not channel:
+            try: logger.debug(f"[Task CWL] Canal {CHANNEL_ID} cache miss, fetch..."); channel = await bot.fetch_channel(CHANNEL_ID)
+            except (discord.NotFound, discord.Forbidden): logger.error(f"[Task CWL] Canal ID {CHANNEL_ID} inacessível."); return
+            except Exception as e: logger.error(f"[Task CWL] Erro fetch canal {CHANNEL_ID}: {e}"); return
+        if not war_cache.get('league_start_announced',False) and channel: # Verifica canal
+            war_cache['league_start_announced']=True; clans=lg.clans; names=[f"- `{c.name}` (Lvl {c.level})" for c in clans]; season=lg.season; lg_name=lg.league.name; curr_time=datetime.now(TIMEZONE)
+            lg_emb=discord.Embed(title=f"{emojis['league']} CWL Iniciada: {lg_name}! {emojis['league']}", description=f"Temporada: **{season}**", color=discord.Color.purple(), timestamp=curr_time)
+            await send_embeds_splitted(channel, lg_emb, "Clãs no Grupo", names, max_items_per_embed=10)
+            logger.info(f"[Task CWL] Anúncio Liga {season} ({lg_name}) enviado.")
+        all_wars = [];
+        try: #logger.debug("[Task CWL] Buscando guerras..."); # Log menos verboso
+             all_wars = await asyncio.wait_for(lg.get_wars(CLAN_TAG), timeout=90.0)
+        except coc_errors.NotFound: logger.info(f"[Task CWL] Nenhuma guerra para {CLAN_TAG} no grupo.")
+        except asyncio.TimeoutError: logger.error("[Task CWL] Timeout ao buscar guerras da liga.")
+        except Exception as e: logger.error(f"[Task CWL] Erro get_wars: {e}", exc_info=True)
 
-        active_war_found = False
-        current_round_war = None # Para guardar a guerra da rodada atual (prep ou inWar)
-
-        # Encontrar a guerra da rodada atual
+        curr_round = None; ended_unrep = []
         for war in all_wars:
-             if not war or not all(hasattr(war,a) for a in ['state','preparation_start_time','clan','opponent']):
-                 logger.warning(f"Guerra liga inválida encontrada: {war}"); continue
-             if war.state in ['inWar', 'preparation']:
-                 current_round_war = war
-                 break # Encontrou a guerra ativa/preparação
-
-        if current_round_war:
-            war = current_round_war # Renomeia para usar o código existente
-            active_war_found = True
+            if not war or not all(hasattr(war,a) for a in ['state','preparation_start_time','clan','opponent']): continue
             try:
-                 our_c=war.clan if hasattr(war, 'clan') and war.clan.tag==CLAN_TAG else getattr(war,'opponent', None)
-                 en_c=war.opponent if hasattr(war, 'clan') and war.clan.tag==CLAN_TAG else getattr(war,'clan', None)
-                 if not our_c or not en_c: logger.error("Erro ID clãs G Liga."); raise ValueError("Clãs inválidos") # Pula para o próximo war se der erro aqui
+                 our_c = war.clan if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'opponent', None)
+                 en_c = war.opponent if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'clan', None)
+                 if not our_c or not en_c: logger.warning(f"[Task CWL] Não identificou clãs G. Liga {getattr(war, 'tag', '?')}. Pulando."); continue
                  prep_time_obj = getattr(war,'preparation_start_time', None)
-                 prep_time_iso = prep_time_obj.time.isoformat() if prep_time_obj and hasattr(prep_time_obj, 'time') else datetime.now().isoformat()
-                 war_id=f"league-{getattr(our_c,'tag','?')}-{getattr(en_c,'tag','?')}-{prep_time_iso}";
-                 rep_key='league_war_end_reported'
-            except Exception as e: logger.error(f"Erro processar dados G Liga: {e}"); active_war_found = False # Marca como não ativa se falhar
+                 prep_time = prep_time_obj.time if prep_time_obj and hasattr(prep_time_obj, 'time') else datetime.now()
+                 # Usa getattr para war.tag
+                 war_tag_part = getattr(war, 'tag', None) or f"{getattr(our_c,'tag','?')}-{getattr(en_c,'name','?')}-{prep_time.isoformat()}"
+                 war_id = f"league-{war_tag_part}"
+                 report_key = 'league_war_end_reported'
+                 if report_key not in war_cache: war_cache[report_key] = {} # Garante que a chave existe
+            except Exception as e: logger.error(f"[Task CWL] Erro processar dados básicos G. Liga ({getattr(war, 'tag', '?')}): {e}", exc_info=True); continue
 
-            if active_war_found:
-                 if rep_key not in war_cache: war_cache[rep_key]={}
-                 if war.state=='warEnded' and war_id in war_cache.get(rep_key,{}):
-                     logger.debug(f"G Liga {war_id[-15:]} já reportada."); active_war_found = False # Não processa de novo
+            if war.state in ['inWar', 'preparation']:
+                curr_round = war; break # Encontrou a rodada atual, sai do loop
+            elif war.state == 'warEnded' and war_id not in war_cache.get(report_key, {}):
+                ended_unrep.append(war) # Adiciona à lista de finalizadas não reportadas
 
-            if active_war_found and war.state=='preparation':
+        if curr_round:
+            war = curr_round # Renomeia para 'war' para consistência
+            try:
+                our_c = war.clan if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'opponent', None)
+                en_c = war.opponent if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'clan', None)
+                if not our_c or not en_c: raise ValueError("Clãs G. Liga inválidos na guerra atual")
+                opponent_name_cache = getattr(en_c, 'name', '?')
+                prep_time_obj = getattr(war, 'preparation_start_time', None)
+                prep_time = prep_time_obj.time if prep_time_obj and hasattr(prep_time_obj, 'time') else datetime.now()
+                # Usa getattr para war.tag
+                war_tag_part = getattr(war, 'tag', None) or f"{getattr(our_c,'tag','?')}-{opponent_name_cache}-{prep_time.isoformat()}"
+                war_id = f"league-{war_tag_part}"
+            except Exception as e_id_curr:
+                logger.error(f"[Task CWL] Erro ao processar dados/ID da G. Liga atual ({getattr(war, 'tag', '?')}): {e_id_curr}", exc_info=True)
+                return # Retorna se não conseguir processar a guerra atual
+
+            if war.state=='preparation':
                  if war_id not in war_cache: war_cache[war_id]={'attacks':{},'time_alerts':set(),'state':'unknown'}
                  if war_cache.get(war_id,{}).get('state')!='preparation':
-                     logger.info(f"Nova G Liga prep. ID: {war_id[-15:]}")
-                     war_cache[war_id]['state']='preparation'
-                     start_time_obj = getattr(war,'start_time', None)
-                     st_ts = int(start_time_obj.time.astimezone(TIMEZONE).timestamp()) if start_time_obj and hasattr(start_time_obj, 'time') else None
-
-                     # Identificar rodada (pode ser impreciso se API não der)
-                     round_n = "?"
-                     # Tentar inferir a rodada baseado nas guerras finalizadas? Complexo. Deixar "?" por enquanto.
-
-                     # Embed de Preparação da Liga (melhorado)
-                     prep_emb=discord.Embed(
-                         title=f"{emojis['league']} Preparação CWL (Rodada {round_n}) {emojis['league']}",
-                         description=f"**`{getattr(our_c,'name','Nosso Clã')}`** vs **`{getattr(en_c,'name','Oponente')}`**",
-                         color=discord.Color.blue()
-                     )
-                     if st_ts:
-                         prep_emb.add_field(name="Início da Batalha", value=f"<t:{st_ts}:R> (<t:{st_ts}:F>)", inline=False)
-                     if start_time_obj and hasattr(start_time_obj, 'time'):
-                          prep_emb.timestamp = start_time_obj.time.astimezone(TIMEZONE) # Timestamp do início real
-
-                     try: await chan.send(embed=prep_emb); logger.info(f"Anúncio prep Liga ID:{war_id[-15:]} enviado.")
-                     except Exception as e_send: logger.error(f"Erro send anúncio prep Liga: {e_send}", exc_info=True)
-                 else: logger.debug(f"G Liga {war_id[-15:]} já em prep.")
-
-            elif active_war_found: # Se não está em 'preparation', deve estar em 'inWar' ou 'warEnded' (e não reportada)
-                 logger.debug(f"Chamando check_attacks para Liga ID:{war_id[-15:]} (Estado: {war.state})")
-                 await check_war_attacks_and_report(war, war_type="Guerra de Liga")
-
-        else: # Se não encontrou guerra em 'inWar' ou 'preparation'
-             # Verifica se a última guerra já terminou e precisa ser reportada (caso a task rode bem na hora da transição)
-             ended_but_not_reported = []
-             for war in all_wars:
-                 if not war or not all(hasattr(war,a) for a in ['state','preparation_start_time','clan','opponent']): continue
-                 if war.state == 'warEnded':
-                     try:
-                         our_c=war.clan if hasattr(war, 'clan') and war.clan.tag==CLAN_TAG else getattr(war,'opponent', None)
-                         en_c=war.opponent if hasattr(war, 'clan') and war.clan.tag==CLAN_TAG else getattr(war,'clan', None)
-                         if not our_c or not en_c: continue
-                         prep_time_obj = getattr(war,'preparation_start_time', None)
-                         prep_time_iso = prep_time_obj.time.isoformat() if prep_time_obj and hasattr(prep_time_obj, 'time') else datetime.now().isoformat()
-                         war_id=f"league-{getattr(our_c,'tag','?')}-{getattr(en_c,'tag','?')}-{prep_time_iso}";
-                         rep_key='league_war_end_reported'
-                         if rep_key not in war_cache: war_cache[rep_key]={}
-                         if war_id not in war_cache.get(rep_key,{}):
-                             ended_but_not_reported.append(war)
-                     except Exception as e_check_ended:
-                         logger.error(f"Erro ao verificar guerra finalizada da liga: {e_check_ended}")
-
-             if ended_but_not_reported:
-                  logger.info(f"Encontrada(s) {len(ended_but_not_reported)} guerra(s) de liga finalizada(s) e não reportada(s).")
-                  for war in ended_but_not_reported:
-                       await check_war_attacks_and_report(war, war_type="Guerra de Liga") # Chama para reportar
-             else:
-                 logger.info("Nenhuma G Liga ativa (prep/inWar) ou pendente de relatório encontrada.")
-        # <<< EMBED END >>>
+                     logger.info(f"[Task CWL] Nova G. Liga prep. ID: {war_id}"); war_cache[war_id]['state']='preparation'
+                     st_obj=war.start_time; st_ts=int(st_obj.time.timestamp()) if st_obj and hasattr(st_obj, 'time') else None; round_n=str(sum(1 for w in all_wars if w.state == 'warEnded') + 1) if all_wars else "?"
+                     prep_emb=discord.Embed(title=f"{emojis['league']} Preparação CWL (R{round_n})", description=f"**`{our_c.name}`** vs **`{opponent_name_cache}`**", color=discord.Color.blue())
+                     if st_ts: prep_emb.add_field(name="Início Batalha", value=f"<t:{st_ts}:R> (<t:{st_ts}:F>)", inline=False)
+                     if st_obj and hasattr(st_obj, 'time'): prep_emb.timestamp = st_obj.time.astimezone(TIMEZONE)
+                     if channel: # Verifica canal
+                         try: await channel.send(embed=prep_emb); logger.info(f"[Task CWL] Anúncio prep Liga ID:{war_id} (R{round_n}) enviado.")
+                         except Exception as e: logger.error(f"[Task CWL] Erro send anúncio prep Liga: {e}", exc_info=True)
+                 else: logger.debug(f"[Task CWL] G. Liga {war_id} já em prep cache.")
+            elif war.state == 'inWar': logger.debug(f"[Task CWL] Check ataques Liga ID:{war_id}"); await check_war_attacks_and_report(war, war_type="Guerra de Liga")
+        elif ended_unrep:
+             logger.info(f"[Task CWL] Processando {len(ended_unrep)} finalizada(s) ñ reportada(s).")
+             for war in ended_unrep: logger.debug(f"[Task CWL] Reportando G. Liga finalizada ID: league-{getattr(war, 'tag', '?')}"); await check_war_attacks_and_report(war, war_type="Guerra de Liga") # Usa getattr
+        else: logger.info("[Task CWL] Nenhuma G. Liga ativa/prep ou pendente.")
     except coc_errors.NotFound:
-         if war_cache.get('league_start_announced',False): logger.info("Grupo liga não encontrado. Reset flag."); war_cache['league_start_announced']=False
-         logger.info("Clã não em Grupo Liga.")
-    except coc_errors.ClashOfClansException as e_coc:
-        logger.warning(f"Erro API CoC ({type(e_coc).__name__}) check_lg_war: {e_coc}")
-    except asyncio.TimeoutError:
-         logger.warning(f"Timeout check_lg_war.")
-    except Exception as e: logger.error(f"Erro GERAL check_lg_war: {e}",exc_info=True); war_cache['league_start_announced']=False
+         if war_cache.get('league_start_announced',False): logger.info("[Task CWL] Grupo liga NotFound. Reset flag."); war_cache['league_start_announced']=False
+         logger.info("[Task CWL] Não em Grupo CWL (NotFound).")
+    except coc_errors.Maintenance: logger.warning("[Task CWL] API CoC em manutenção.")
+    except asyncio.TimeoutError: logger.error("[Task CWL] Timeout ao buscar grupo da liga.")
+    except Exception as e: logger.error(f"[Task CWL] Erro GERAL: {e}",exc_info=True); war_cache['league_start_announced']=False # Reset flag em caso de erro geral
 
 @tasks.loop(hours=1)
 async def check_raid_weekend():
-    # <<< EMBED START >>> (Melhorias nos embeds de início e progresso)
-    global raid_weekend_cache, coc_client
-    if not coc_client:
-        logger.debug("check_raid_weekend pulado: cliente CoC inválido/não inicializado.")
-        return
     try:
-        logger.debug("Verificando Raid Weekend...")
-        rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG, limit=1), timeout=45.0)
+        global raid_weekend_cache, coc_client
+        if not coc_client: return
+        #logger.debug("[Task Raid] Verificando Raid...") # Log menos verboso
+        rl = await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG, limit=1), timeout=60.0)
+        channel = bot.get_channel(CHANNEL_ID)
+        if not channel:
+            try: logger.debug(f"[Task Raid] Canal {CHANNEL_ID} cache miss, fetch..."); channel = await bot.fetch_channel(CHANNEL_ID)
+            except (discord.NotFound, discord.Forbidden): logger.error(f"[Task Raid] Canal ID {CHANNEL_ID} inacessível."); return
+            except Exception as e: logger.error(f"[Task Raid] Erro fetch canal {CHANNEL_ID}: {e}"); return
+        curr_time = datetime.now(TIMEZONE);
+        try: # Tenta obter nome do clã, mas continua se falhar
+            clan_data = await get_clan_data(timeout=15)
+            clan_name = getattr(clan_data, 'name', CLAN_TAG) if clan_data else CLAN_TAG
+        except Exception as e_clan:
+            logger.warning(f"[Task Raid] Não foi possível obter nome do clã: {e_clan}")
+            clan_name = CLAN_TAG
 
-        channel=bot.get_channel(CHANNEL_ID)
-        if not channel: logger.warning("check_raid_weekend: Canal ID não encontrado."); return
+        async def send_raid_report(data, emoji, title, color, type="final"): # Interna
+            st_str = data.get('start_time_str', 'N/A'); loot = data.get('total_loot', 0); state = data.get('state', 'N/A').capitalize(); attacks = data.get('total_attacks', '?'); dist_d = data.get('districts_destroyed', '?')
+            r_time = data.get('end_time') or datetime.now(TIMEZONE)
+            emb = discord.Embed(title=f"{emoji} {title} {emoji}", description=f"**Início:** {st_str}\n**Estado:** {state}", color=color, timestamp=r_time)
+            emb.add_field(name=f"{emojis['clan_capital']} Ouro", value=f"**{loot:,}**", inline=True); emb.add_field(name=f"{emojis['war_attack']} Atks", value=f"{attacks}", inline=True); emb.add_field(name=f"{emojis['destruction']} Distr", value=f"{dist_d}", inline=True)
+            members = data.get('members', {})
+            top_contributors_list = [] # Lista para guardar os contribuidores formatados
+            if members:
+                m_map = {}
+                try:
+                    clan_for_map = await get_clan_data(timeout=15)
+                    if clan_for_map: m_map = {m.tag: m.name for m in getattr(clan_for_map, 'members', []) if m.tag}
+                except Exception as e_map:
+                    logger.warning(f"[Task Raid] Erro ao obter mapa de membros para relatório: {e_map}")
+                s_m = sorted(members.items(), key=lambda i: i[1].get('loot', 0), reverse=True);
+                top_contributors_list = [f"{i}. `{m_map.get(t, d.get('name', '?'))}`: **{d.get('loot', 0):,}**" for i, (t, d) in enumerate(s_m, 1)]
 
-        if not rl:
-             cached=raid_weekend_cache.get('current_raid');
+            emb.set_footer(text=f"Clã: {clan_name}")
+            if channel: # Verifica canal
+                 try: await channel.send(embed=emb)
+                 except Exception as e: logger.error(f"[Task Raid] Erro send embed relatório {type}: {e}")
+                 # Envia a lista de contribuidores separadamente se existir
+                 if top_contributors_list:
+                     field_title = f"🌟 Top Contribs ({type.capitalize()}) 🌟"
+                     top_emb = discord.Embed(title=field_title, color=color) # Cria novo embed para a lista
+                     await send_embeds_splitted(channel, top_emb, "Ranking", top_contributors_list, max_items_per_embed=15)
+                     await asyncio.sleep(0.3) # Pausa após enviar a lista
+            else:
+                logger.warning("[Task Raid] Canal inválido para enviar relatório de raid.")
+
+        if not rl: # API vazia
+             cached = raid_weekend_cache.get('current_raid')
              if cached and cached.get('state') in ['ongoing', 'ended_due_to_api_error']:
-                  logger.warning("API não retornou raids, mas cache indica ongoing/erro.");
-                  raid_weekend_cache['current_raid']['state']='ended_due_to_api_error'
-                  # Opcional: Enviar mensagem de erro?
-                  # error_embed = discord.Embed(title=f"{emojis['error']} Erro ao buscar Raid Weekend",
-                  #                             description="Não foi possível obter dados da API, mas um Raid estava em andamento.",
-                  #                             color=discord.Color.dark_red(), timestamp=datetime.now(TIMEZONE))
-                  # try: await channel.send(embed=error_embed)
-                  # except Exception as e: logger.error(f"Erro ao enviar embed de erro da raid: {e}")
-             else: logger.info("Nenhum dado Raid Weekend na API.")
+                  if cached.get('state') != 'ended_due_to_api_error':
+                       logger.warning("[Task Raid] API vazia, marcando raid como erro."); raid_weekend_cache['current_raid']['state'] = 'ended_due_to_api_error'
+                       err_emb = discord.Embed(title=f"{emojis['error']} Erro Dados Raid", description="API não retornou dados da raid.", color=0xFF0000, timestamp=curr_time)
+                       if channel: # Verifica canal
+                            try: await channel.send(embed=err_emb)
+                            except Exception as e: logger.error(f"[Task Raid] Erro enviar embed erro API vazia: {e}")
+             else: logger.info("[Task Raid] Sem dados Raid API.")
              return
 
-        curr_r=rl[0];
-        if not curr_r or not all(hasattr(curr_r,a) for a in ['start_time','state','capital_total_loot']):
-            logger.error(f"Objeto Raid inválido: {curr_r}"); return
+        curr_r = rl[0]
+        if not curr_r or not all(hasattr(curr_r,a) for a in ['start_time','state','capital_total_loot','total_attacks','districts_destroyed']): logger.error(f"[Task Raid] Objeto Raid API inválido: {curr_r}"); return
+        st_obj = curr_r.start_time;
+        # Verifica se start_time tem o atributo 'time' antes de usar
+        if not st_obj or not hasattr(st_obj, 'time'): logger.error("[Task Raid] Objeto Raid sem start_time válido."); return
+        r_iso = st_obj.time.isoformat(); r_id = f"{CLAN_TAG}-{r_iso}"
+        cached = raid_weekend_cache.get('current_raid'); prev_id = cached['id'] if cached else None; prev_state = cached['state'] if cached else None
 
-        current_time = datetime.now(TIMEZONE)
-        start_time_obj = getattr(curr_r, 'start_time', None)
-        r_id = f"{CLAN_TAG}-{start_time_obj.time.isoformat()}" if start_time_obj and hasattr(start_time_obj, 'time') else f"{CLAN_TAG}-unknown_start"
-        cached=raid_weekend_cache.get('current_raid')
-        prev_id=cached['id'] if cached else None
-        prev_state=cached['state'] if cached else None
-        clan_name_cache = getattr(await get_clan_data(), 'name', CLAN_TAG) # Cache nome clã p/ rodapé
+        if r_id != prev_id: # Nova Raid
+            logger.info(f"[Task Raid] Nova Raid ID: {r_id}. Anterior: {prev_id}")
+            if prev_id and prev_state in ['ongoing','ended_due_to_api_error']:
+                logger.info(f"[Task Raid] Raid anterior '{prev_state}'. Report presumido.");
+                cached['state']='ended(presumed)';
+                cached['end_time']=curr_time;
+                await send_raid_report(cached,emojis['warning'],"RAID ANTERIOR FIM (Presumido)",0x808080,"presumido") # Envia relatório da anterior
 
-        async def send_raid_report(raid_data, title_emoji, title_text, color, report_type="final"):
-            # Função auxiliar já usa Embed, adicionando timestamp e footer
-            start_str = raid_data.get('start_time_str','N/A')
-            loot = raid_data.get('total_loot',0)
-            state = raid_data.get('state','N/A').capitalize() # Capitaliza 'ongoing'/'ended'
-            attacks = raid_data.get('total_attacks', '?') # Pega total de ataques se disponível no cache
-            dist_destroyed = raid_data.get('districts_destroyed', '?') # Pega distritos destruídos
+            st_aware = st_obj.time.astimezone(TIMEZONE); st_str = st_aware.strftime('%d/%m %H:%M'); end_obj = curr_r.end_time; end_aware = end_obj.time.astimezone(TIMEZONE) if end_obj and hasattr(end_obj, 'time') else None
+            m_dict = {m.tag:{'name':m.name,'loot':m.capital_resources_looted} for m in getattr(curr_r,'members',[]) if m.tag}
+            d_dict = {d.id:{'name':d.name,'destruction':d.destruction_percent} for d in getattr(curr_r,'attack_log',[]) if hasattr(d,'id')} # Usa attack_log para distritos, mais preciso
+            raid_weekend_cache['current_raid'] = {'id': r_id, 'start_time': st_aware, 'start_time_str': st_str, 'end_time': end_aware, 'state': curr_r.state, 'members': m_dict, 'districts': d_dict, 'total_loot': curr_r.capital_total_loot, 'total_attacks': curr_r.total_attacks, 'districts_destroyed': curr_r.districts_destroyed}
+            logger.info(f"[Task Raid] Cache raid ID:{r_id} init. Estado:{curr_r.state}")
 
-            report_time = raid_data.get('end_time', datetime.now(TIMEZONE)) if report_type == "final" else datetime.now(TIMEZONE)
+            if curr_r.state == 'ongoing' and channel: # Verifica canal
+                end_ts = int(end_aware.timestamp()) if end_aware else None
+                start_emb = discord.Embed(title=f"{emojis['raid']} Raid Iniciado! {emojis['raid']}", description="Ataquem Capital!", color=0xFF0000, timestamp=st_aware)
+                start_emb.add_field(name="Início", value=st_str, inline=True);
+                if end_ts: start_emb.add_field(name="Fim Prev.", value=f"<t:{end_ts}:R>", inline=True)
+                start_emb.set_footer(text=f"Clã: {clan_name}")
+                try: await channel.send(embed=start_emb); logger.info(f"[Task Raid] Anúncio início Raid ID:{r_id} enviado.")
+                except Exception as e: logger.error(f"[Task Raid] Erro send anúncio início: {e}")
 
-            emb = discord.Embed(
-                 title=f"{title_emoji} {title_text} {title_emoji}",
-                 description=f"**Início:** {start_str}\n**Estado:** {state}",
-                 color=color,
-                 timestamp=report_time
-             )
-            emb.add_field(name=f"{emojis['clan_capital']} Ouro Total", value=f"**{loot:,}**", inline=True)
-            emb.add_field(name=f"{emojis['war_attack']} Ataques Usados", value=f"{attacks}", inline=True)
-            emb.add_field(name=f"{emojis['destruction']} Distritos Destruídos", value=f"{dist_destroyed}", inline=True)
-
-            members_data = raid_data.get('members',{})
-            if members_data:
+        elif r_id == prev_id: # Mesma Raid
+            logger.debug(f"[Task Raid] Mesmo ID:{r_id}. API:{curr_r.state}, Cache:{prev_state}")
+            curr_data = raid_weekend_cache['current_raid']
+            if prev_state != 'ended' and curr_r.state == 'ended': # Finalizou
+                logger.info(f"[Task Raid] Raid {r_id} FIM (API 'ended'). Relatório.");
+                end_obj_f = curr_r.end_time;
+                curr_data['state']='ended';
+                curr_data['end_time']=end_obj_f.time.astimezone(TIMEZONE) if end_obj_f and hasattr(end_obj_f, 'time') else curr_time;
+                curr_data['total_loot']=curr_r.capital_total_loot; curr_data['total_attacks']=curr_r.total_attacks; curr_data['districts_destroyed']=curr_r.districts_destroyed;
+                curr_data['members']={m.tag:{'name':m.name,'loot':m.capital_resources_looted} for m in getattr(curr_r,'members',[]) if m.tag}
+                await send_raid_report(curr_data, emojis['clan_capital'], "RAID FINALIZADO!", 0x808080, "final"); logger.info(f"[Task Raid] Relatório final ID:{r_id} enviado.")
+            elif prev_state == 'ended' and curr_r.state == 'ongoing': logger.warning(f"[Task Raid] Raid {r_id}: ended->ongoing."); curr_data['state']='ongoing';
+            elif curr_r.state == 'ongoing': # Verifica progresso
+                #logger.debug(f"[Task Raid] Raid {r_id} ongoing. Check progresso."); # Log menos verboso
+                loot_ch=[]; dist_ch=[]; prog_found=False
+                new_m_state={}; cache_m=curr_data.get('members',{});
+                m_map = {}
                 try:
-                    # Tentar pegar nomes atuais (pode falhar se membro saiu)
-                    clan_now = await get_clan_data(timeout=15) # Timeout menor
-                    m_map = {m.tag:m.name for m in getattr(clan_now,'members',[]) if hasattr(m,'tag')} if clan_now else {}
-                except Exception: m_map = {}
-
-                # Usa nome do cache da raid se não encontrar no clã atual
-                sorted_members = sorted(members_data.items(), key=lambda i:i[1].get('loot', 0), reverse=True)
-                top_list = [
-                    f"{i}. `{m_map.get(tag, data.get('name','?'))}`: **{data.get('loot',0):,}**"
-                    for i, (tag, data) in enumerate(sorted_members[:10], 1) # Top 10
-                ]
-                if top_list:
-                    # Usar send_embeds_splitted se a lista for longa
-                    field_title = f"🌟 Top Contribuições ({report_type.capitalize()}) 🌟"
-                    if len("\n".join(top_list)) > 1024:
-                         await send_embeds_splitted(channel, emb, field_title, top_list, max_len=1024, max_items_per_embed=10)
-                         # O embed base já foi enviado pela função splitted, então retornamos
-                         return
-                    else:
-                         emb.add_field(name=field_title, value="\n".join(top_list), inline=False)
-
-            emb.set_footer(text=f"Clã: {clan_name_cache}")
-
-            try:
-                # A função splitted já envia, então só enviamos se não foi dividida
-                if not (members_data and len("\n".join(top_list)) > 1024):
-                    await channel.send(embed=emb)
-            except Exception as e:
-                logger.error(f"Erro send embed relatório raid {report_type}: {e}", exc_info=True)
-
-
-        # Lógica principal do check_raid_weekend
-        if r_id != prev_id:
-            logger.info(f"Novo Raid ID: {r_id}. Anterior: {prev_id}")
-            if prev_id and prev_state in ['ongoing', 'ended_due_to_api_error']:
-                logger.info(f"Raid anterior ({prev_id}) '{prev_state}'. Gerando relatório presumido.")
-                # Atualiza dados do cache antigo com o que tivermos antes de reportar
-                cached['state'] = 'ended (presumed)'
-                cached['end_time'] = current_time # Marca hora atual como fim presumido
-                await send_raid_report(cached, emojis['warning'], "RAID ANTERIOR FINALIZADA (Presumido)", discord.Color.dark_grey(), report_type="presumido")
-
-            # Inicializa cache para a nova raid
-            start_time_str = start_time_obj.time.astimezone(TIMEZONE).strftime('%d/%m/%Y %H:%M') if start_time_obj and hasattr(start_time_obj, 'time') else "N/A"
-            members_dict = {m.tag:{'name':getattr(m,'name','?'),'loot':getattr(m,'capital_resources_looted',0)} for m in getattr(curr_r,'members',[]) if hasattr(m,'tag')}
-            districts_dict = {d.id:{'name':getattr(d,'name','?'),'destruction':getattr(d,'destruction_percent',0)} for d in getattr(curr_r,'attack_log',[]) if hasattr(d,'id')} # Usar attack_log para distritos atacados
-            raid_weekend_cache['current_raid'] = {
-                'id': r_id,
-                'start_time': start_time_obj,
-                'start_time_str': start_time_str,
-                'state': curr_r.state,
-                'members': members_dict,
-                'districts': districts_dict, # Armazena estado inicial dos distritos
-                'total_loot': getattr(curr_r,'capital_total_loot',0),
-                'total_attacks': getattr(curr_r, 'total_attacks', 0), # Armazena ataques iniciais
-                'districts_destroyed': getattr(curr_r, 'districts_destroyed', 0) # Armazena distritos destruídos iniciais
-            };
-            logger.info(f"Cache raid ID: {r_id}, Estado: {curr_r.state}")
-
-            if curr_r.state == 'ongoing':
-                # Embed de início de Raid
-                end_time_obj = getattr(curr_r, 'end_time', None) # Pega fim estimado
-                end_ts = int(end_time_obj.time.astimezone(TIMEZONE).timestamp()) if end_time_obj and hasattr(end_time_obj, 'time') else None
-
-                start_embed=discord.Embed(
-                    title=f"{emojis['raid']} Raid Weekend Iniciado! {emojis['raid']}",
-                    description=f"Preparem seus ataques na Capital do Clã!",
-                    color=discord.Color.red(), # Vermelho para início/ação
-                    timestamp=start_time_obj.time.astimezone(TIMEZONE) if start_time_obj else current_time
-                )
-                start_embed.add_field(name="Início", value=start_time_str, inline=True)
-                if end_ts:
-                     start_embed.add_field(name="Término Previsto", value=f"<t:{end_ts}:R>", inline=True)
-                start_embed.set_footer(text=f"Clã: {clan_name_cache}")
-
-                try: await channel.send(embed=start_embed); logger.info(f"Anúncio início Raid ID:{r_id} enviado.")
-                except Exception as e: logger.error(f"Erro send anúncio início Raid: {e}", exc_info=True)
-
-        elif r_id == prev_id: # Mesma Raid, verificar mudanças
-            logger.debug(f"Mesmo Raid ID: {r_id}. API: {curr_r.state}, Cache: {prev_state}")
-            current_raid_data = raid_weekend_cache['current_raid']
-
-            # Transição para 'ended'
-            if prev_state != 'ended' and curr_r.state == 'ended':
-                logger.info(f"Raid {r_id} terminou. Gerando relatório final.")
-                # Atualiza cache com dados finais
-                current_raid_data['state'] = 'ended'
-                current_raid_data['total_loot'] = getattr(curr_r,'capital_total_loot', current_raid_data.get('total_loot',0));
-                current_raid_data['members'] = {m.tag:{'name':getattr(m,'name','?'),'loot':getattr(m,'capital_resources_looted',0)} for m in getattr(curr_r,'members',[]) if hasattr(m,'tag')};
-                # Pega dados finais dos distritos (se API fornecer no final)
-                # current_raid_data['districts'] = {d.id:{'name':getattr(d,'name','?'),'destruction':getattr(d,'destruction_percent',0)} for d in getattr(curr_r,'defense_log',[]) if hasattr(d,'id')} # defense_log pode ter info final? verificar API
-                current_raid_data['total_attacks'] = getattr(curr_r, 'total_attacks', current_raid_data.get('total_attacks', '?'))
-                current_raid_data['districts_destroyed'] = getattr(curr_r, 'districts_destroyed', current_raid_data.get('districts_destroyed', '?'))
-                current_raid_data['end_time'] = getattr(curr_r, 'end_time', None).time.astimezone(TIMEZONE) if getattr(curr_r, 'end_time', None) else current_time
-
-                await send_raid_report(current_raid_data, emojis['clan_capital'], "RAID WEEKEND FINALIZADO!", discord.Color.dark_grey(), report_type="final")
-                logger.info(f"Relatório final Raid ID:{r_id} enviado.")
-
-            # Transição de 'ended' para 'ongoing' (Incomum, mas tratar)
-            elif prev_state == 'ended' and curr_r.state == 'ongoing':
-                 logger.warning(f"Raid {r_id}: Estado mudou de 'ended' para 'ongoing'.")
-                 current_raid_data['state'] = 'ongoing' # Atualiza cache
-                 restart_embed=discord.Embed(
-                      title=f"{emojis['warning']} Raid Weekend Reiniciado?",
-                      description=f"O estado da Raid Weekend (ID: ...{r_id[-10:]}) mudou de finalizado para em andamento.",
-                      color=discord.Color.orange(),
-                      timestamp=current_time
-                 )
-                 restart_embed.set_footer(text=f"Clã: {clan_name_cache}")
-                 try: await channel.send(embed=restart_embed);
-                 except Exception as e: logger.error(f"Erro send anúncio reinício Raid: {e}", exc_info=True)
-
-            # Raid continua 'ongoing', verificar progresso
-            elif curr_r.state == 'ongoing':
-                logger.debug(f"Raid {r_id} ongoing. Verificando progresso.")
-                loot_changes = []
-                district_changes = []
-                progress_found = False
-
-                # Verificar Loot dos Membros
-                new_member_state = {}
-                cached_members = current_raid_data.get('members', {})
-                try: # Pega nomes atuais para exibição
-                    clan_now = await get_clan_data(timeout=15); m_map = {m.tag:m.name for m in getattr(clan_now,'members',[]) if hasattr(m,'tag')} if clan_now else {}
-                except Exception: m_map = {}
+                    clan_for_map = await get_clan_data(timeout=15)
+                    if clan_for_map: m_map = {m.tag: m.name for m in getattr(clan_for_map, 'members', []) if m.tag}
+                except Exception as e_map:
+                    logger.warning(f"[Task Raid] Erro ao obter mapa de membros para progresso: {e_map}")
 
                 for m in getattr(curr_r, 'members', []):
                     tag = getattr(m, 'tag', None)
-                    if not tag: continue
-                    current_loot = getattr(m, 'capital_resources_looted', 0)
-                    member_name = getattr(m, 'name', '?')
-                    new_member_state[tag] = {'name': member_name, 'loot': current_loot}
-                    previous_loot = cached_members.get(tag, {'loot': 0})['loot']
-                    loot_diff = current_loot - previous_loot
-                    if loot_diff > 0:
-                        progress_found = True
-                        display_name = m_map.get(tag, member_name) # Usa nome atual se possível
-                        loot_changes.append(f"{emojis['raid']} `{display_name}` +**{loot_diff:,}** (Total: {current_loot:,})")
+                    if not tag: logger.warning(f"Membro {getattr(m, 'name', '?')} raid sem tag. Pulando."); continue
+                    name = getattr(m, 'name', '?')
+                    c_loot = getattr(m, 'capital_resources_looted', 0)
+                    new_m_state[tag] = {'name': name, 'loot': c_loot}
+                    p_loot = cache_m.get(tag, {'loot': 0})['loot']
+                    diff = c_loot - p_loot
+                    if diff > 0:
+                        prog_found = True
+                        disp_n = m_map.get(tag, name) # Usa nome do mapa se disponível
+                        loot_ch.append(f"{emojis['raid']}`{disp_n}`+**{diff:,}** ({c_loot:,})")
 
-                # Verificar Distritos Destruídos
-                new_district_state = {}
-                cached_districts = current_raid_data.get('districts', {})
-                # Usar attack_log para ver distritos atacados/destruídos na raid atual
-                for district_log in getattr(curr_r, 'attack_log', []):
-                    if not all(hasattr(district_log, a) for a in ['id', 'name', 'destruction_percent']): continue
-                    d_id = district_log.id
-                    d_name = getattr(district_log, 'name', '?')
-                    current_destruction = getattr(district_log, 'destruction_percent', 0)
-                    new_district_state[d_id] = {'name': d_name, 'destruction': current_destruction}
-                    previous_destruction = cached_districts.get(d_id, {'destruction': 0})['destruction']
+                new_d_state={}; cache_d=curr_data.get('districts',{}); atk_log=getattr(curr_r,'attack_log',[])
+                if atk_log:
+                    for d_log in atk_log:
+                        if not all(hasattr(d_log,a) for a in ['id','name','destruction_percent']): continue;
+                        d_id=d_log.id; name=d_log.name; c_dest=d_log.destruction_percent; new_d_state[d_id]={'name':name,'destruction':c_dest};
+                        p_dest=cache_d.get(d_id,{'destruction':0})['destruction'];
+                        if c_dest==100 and p_dest<100: prog_found=True; dist_ch.append(f"{emojis['destruction']}**{name}** 100%!")
+                else: new_d_state=cache_d # Mantém o cache antigo se não houver attack_log
 
-                    if current_destruction == 100 and previous_destruction < 100:
-                        progress_found = True
-                        district_changes.append(f"{emojis['destruction']} Distrito **{d_name}** destruído (100%)!")
+                if prog_found and channel: # Verifica canal
+                    logger.info(f"[Task Raid] Progresso {r_id}: {len(loot_ch)} loot, {len(dist_ch)} distritos.")
+                    prog_emb = discord.Embed(title=f"{emojis['progress']} Progresso Raid", color=0x008080, timestamp=curr_time)
+                    c_loot=curr_r.capital_total_loot; c_atks=curr_r.total_attacks; c_dist=curr_r.districts_destroyed
+                    prog_emb.add_field(name="Status Atual", value=f"Ouro:**{c_loot:,}**|Atk:{c_atks}|Distr:{c_dist}", inline=False)
+                    prog_emb.set_footer(text=f"Clã: {clan_name}")
 
-                # Enviar Embed de Progresso se houver mudanças
-                if progress_found:
-                    logger.info(f"Progresso detectado Raid {r_id}: {len(loot_changes)} loot, {len(district_changes)} distritos.")
-                    progress_embed = discord.Embed(
-                        title=f"{emojis['progress']} Progresso da Raid Weekend",
-                        color=discord.Color.teal(), # Cor para progresso
-                        timestamp=current_time
-                    )
-                    # Adiciona campos separados para loot e distritos se houver
-                    if loot_changes:
-                        loot_text = "\n".join(loot_changes)
-                        if len(loot_text) <= 1024:
-                             progress_embed.add_field(name=f"{emojis['clan_capital']} Ouro Coletado", value=loot_text, inline=False)
-                        else:
-                             # Se muito longo, apenas indica que houve e loga (ou usa split)
-                             progress_embed.add_field(name=f"{emojis['clan_capital']} Ouro Coletado", value=f"{len(loot_changes)} membros contribuíram (lista longa no log).", inline=False)
-                             logger.debug(f"Loot changes (Raid {r_id}):\n{loot_text}")
-
-
-                    if district_changes:
-                        district_text = "\n".join(district_changes)
-                        # Campo de distrito é geralmente curto
-                        progress_embed.add_field(name=f"{emojis['destruction']} Distritos Destruídos", value=district_text, inline=False)
-
-                    # Adiciona informações gerais
-                    current_total_loot = getattr(curr_r,'capital_total_loot',0)
-                    current_attacks = getattr(curr_r, 'total_attacks', '?')
-                    current_dist_destroyed = getattr(curr_r, 'districts_destroyed', '?')
-                    progress_embed.add_field(name="Status Geral", value=f"Ouro Total: **{current_total_loot:,}**\nAtaques: {current_attacks}\nDistritos: {current_dist_destroyed}", inline=False)
-
-                    progress_embed.set_footer(text=f"Clã: {clan_name_cache}")
-
+                    # Envia embed de status antes das listas
                     try:
-                        await channel.send(embed=progress_embed)
-                    except Exception as e:
-                        logger.error(f"Erro send embed progresso raid: {e}", exc_info=True)
+                        await channel.send(embed=prog_emb)
+                        await asyncio.sleep(0.3)
+                    except Exception as e: logger.error(f"[Task Raid] Erro send embed progresso (status): {e}")
 
-                    # Atualizar cache com os novos estados
-                    current_raid_data['members'] = new_member_state
-                    current_raid_data['districts'] = new_district_state
-                    current_raid_data['total_loot'] = current_total_loot
-                    current_raid_data['total_attacks'] = current_attacks
-                    current_raid_data['districts_destroyed'] = current_dist_destroyed
-                else:
-                    logger.debug(f"Raid {r_id} ongoing, sem progresso detectado nesta verificação.")
-            else: # Outros estados (ex: ended_due_to_api_error)
-                logger.info(f"Raid {r_id} em estado '{curr_r.state}' (cache era '{prev_state}'). Nenhuma ação específica.")
+                    # Envia listas separadas
+                    if loot_ch:
+                        loot_emb = discord.Embed(title=f"{emojis['clan_capital']} Ouro Obtido", color=0x008080)
+                        await send_embeds_splitted(channel,loot_emb, "Jogadores", loot_ch, max_items_per_embed=15);
+                        await asyncio.sleep(0.3) # Pausa
+                    if dist_ch:
+                        dist_emb = discord.Embed(title=f"{emojis['destruction']} Distritos Destruídos", color=0x008080)
+                        # Usa send_embeds_splitted para o caso de muitos distritos cairem ao mesmo tempo
+                        await send_embeds_splitted(channel, dist_emb, "Distritos", dist_ch, max_items_per_embed=20)
+                        await asyncio.sleep(0.3) # Pausa
 
-    except coc_errors.ClashOfClansException as e_coc:
-        logger.warning(f"Erro API CoC ({type(e_coc).__name__}) check_raid: {e_coc}")
-    except asyncio.TimeoutError:
-         logger.warning(f"Timeout check_raid.")
-    except Exception as e:
-        logger.error(f"Erro GERAL check_raid: {e}", exc_info=True);
-    # <<< EMBED END >>>
+                    # Atualiza cache
+                    curr_data['members']=new_m_state; curr_data['districts']=new_d_state; curr_data['total_loot']=c_loot; curr_data['total_attacks']=c_atks; curr_data['districts_destroyed']=c_dist
+                elif prog_found and not channel:
+                     logger.warning("[Task Raid] Progresso encontrado, mas canal inválido para enviar.")
+                else: logger.debug(f"[Task Raid] Raid {r_id} ongoing, sem progresso.")
+            else: logger.info(f"[Task Raid] Raid {r_id} API '{curr_r.state}' (cache '{prev_state}').")
+            if prev_state == 'ended_due_to_api_error' and curr_r.state in ['ongoing','ended']: logger.info(f"[Task Raid] API Raid {r_id} voltou. Estado '{curr_r.state}'."); curr_data['state']=curr_r.state
+    except coc_errors.Maintenance: logger.warning("[Task Raid] API CoC em manutenção.")
+    except asyncio.TimeoutError: logger.error("[Task Raid] Timeout ao buscar dados da raid.")
+    except Exception as e: logger.error(f"[Task Raid] Erro GERAL: {e}", exc_info=True);
 
-
-# --- Eventos e Comandos ---
-
+# --- Evento Ready ---
 @bot.event
 async def on_ready():
-    # <<< EMBED START >>> (Mensagens de status/erro no on_ready)
     global coc_client
-    logger.info(f'Bot {bot.user.name} ({bot.user.id}) online e pronto!')
+    logger.info(f'Bot {bot.user.name} ({bot.user.id}) pronto.')
+    logger.info(f"discord.py: {discord.__version__} | coc.py: {coc.__version__}")
     logger.info(f"Monitorando Clã: {CLAN_TAG} | Canal ID: {CHANNEL_ID}")
-    channel = bot.get_channel(CHANNEL_ID)
     start_time = datetime.now(TIMEZONE)
-
+    try: synced = await bot.tree.sync(); logger.info(f"Sincronizados {len(synced)} comandos barra.")
+    except Exception as e: logger.error(f"Falha sincronizar comandos: {e}", exc_info=True)
+    channel = bot.get_channel(CHANNEL_ID)
     if not channel:
-        logger.error(f"Canal ID {CHANNEL_ID} NÃO ENCONTRADO.")
-        # Não pode enviar mensagem se o canal não existe
-
-    logger.info("Tentando inicializar e logar cliente CoC...")
-    login_successful = await initialize_coc_client()
-
-    if not login_successful:
-        logger.critical("Falha login CoC. API indisponível.")
+        try: logger.debug(f"[OnReady] Canal {CHANNEL_ID} cache miss, fetch..."); channel = await bot.fetch_channel(CHANNEL_ID)
+        except (discord.NotFound, discord.Forbidden): logger.error(f"[OnReady] Canal ID {CHANNEL_ID} inacessível."); channel = None
+        except Exception as e: logger.error(f"[OnReady] Erro fetch canal {CHANNEL_ID}: {e}"); channel = None
+    logger.info("Inicializando cliente CoC...")
+    login_ok = await initialize_coc_client() # Tenta inicializar o cliente CoC
+    if not login_ok:
+        logger.critical("Falha login CoC após tentativas.");
         if channel:
-            error_embed = discord.Embed(
-                title=f"{emojis['error']} Erro Crítico na Inicialização",
-                description="**Falha ao autenticar com a API do Clash of Clans.**\n"
-                            "As funcionalidades relacionadas ao jogo (monitoramento, comandos CoC) estarão indisponíveis.\n"
-                            "Verifique as credenciais `COC_EMAIL` e `COC_PASSWORD`.",
-                color=discord.Color.dark_red(),
-                timestamp=start_time
-            )
-            try:
-                await channel.send(embed=error_embed)
-            except Exception as e_send_err:
-                logger.error(f"Erro ao enviar embed (falha login CoC) para canal {CHANNEL_ID}: {e_send_err}")
-        logger.warning("Bot rodando apenas com funcionalidades básicas do Discord.")
-    else:
-        logger.info("Cliente CoC OK. Verificando acesso ao clã...")
+            err_emb = discord.Embed(title=f"{emojis['error']} Erro Crítico - API CoC", description="**Falha autenticação API.**\nMonitoramento/comandos CoC offline.", color=discord.Color.red(), timestamp=start_time)
+            try: await channel.send(embed=err_emb)
+            except Exception as e: logger.error(f"Erro enviar embed (falha login CoC): {e}")
+        logger.warning("Bot rodando só com Discord (sem monitoramento CoC).")
+    else: # Se login CoC OK
+        logger.info("CoC OK. Verificando clã...")
         try:
-            clan_test = await get_clan_data();
-            if clan_test:
-                clan_name = getattr(clan_test,'name',CLAN_TAG)
-                logger.info(f"Acesso API CoC e clã '{clan_name}' OK.")
-                task_list = [check_donations, check_members, check_war, check_league_war, check_raid_weekend];
-                start_log = []
-                logger.info("Iniciando tasks monitoramento...")
-                for task in task_list:
-                    task_name = task.coro.__name__
-                    if not task.is_running():
-                        try: task.start(); start_log.append(f"{task_name}: Iniciada {emojis['success']}"); logger.debug(f"Task '{task_name}' iniciada.")
-                        except RuntimeError as e_task: logger.error(f"Erro start task {task_name}: {e_task}"); start_log.append(f"{task_name}: Erro Start {emojis['error']}")
-                    else: start_log.append(f"{task_name}: Já Rodando {emojis['warning']}"); logger.warning(f"Task '{task_name}' já rodando.")
-
-                status_tasks = "\n".join(f"- {s}" for s in start_log)
-                logger.info(f"Status inicialização tasks: {'; '.join(start_log)}.")
-
+            clan = await get_clan_data(timeout=60);
+            if clan:
+                logger.info(f"Acesso clã '{clan.name}' OK.")
+                tasks=[check_donations, check_members, check_war, check_league_war, check_raid_weekend]; logs=[]; ok=True
+                logger.info("Iniciando tasks...")
+                for t in tasks:
+                    name = t.coro.__name__
+                    if not t.is_running():
+                        try:
+                            t.start()
+                            logs.append(f"{name}: OK {emojis['success']}")
+                            logger.debug(f"Task '{name}' iniciada.")
+                        except RuntimeError as e_runtime: # Erro comum se a task já foi iniciada/parada rapidamente
+                            if "Cannot run the event loop while another loop is running" in str(e_runtime):
+                                logger.warning(f"Task '{name}' já parece estar rodando (RuntimeError).")
+                                logs.append(f"{name}: Já ON? {emojis['warning']}")
+                            else:
+                                logger.error(f"Erro start {name}: {e_runtime}", exc_info=True)
+                                logs.append(f"{name}: ERRO {emojis['error']}")
+                                ok = False
+                        except Exception as e:
+                            logger.error(f"Erro start {name}: {e}", exc_info=True)
+                            logs.append(f"{name}: ERRO {emojis['error']}")
+                            ok = False
+                    else:
+                        logs.append(f"{name}: Já ON {emojis['warning']}")
+                        logger.warning(f"Task '{name}' já estava rodando.")
+                status= "\n".join(f"- {s}" for s in logs) if logs else "Nenhuma."; logger.info(f"Status tasks: {'; '.join(logs)}.")
                 if channel:
-                    online_embed = discord.Embed(
-                         title=f"{emojis['success']} Bot Online e Monitorando!",
-                         description=f"Monitoramento do clã **{clan_name}** (`{CLAN_TAG}`) iniciado.",
-                         color=discord.Color.green(),
-                         timestamp=start_time
-                    )
-                    online_embed.add_field(name="Status das Tarefas", value=status_tasks if status_tasks else "Nenhuma tarefa iniciada.", inline=False)
-                    online_embed.set_footer(text=f"Bot: {bot.user.name}")
-                    try:
-                        await channel.send(embed=online_embed)
-                    except Exception as e_send_err:
-                         logger.error(f"Erro ao enviar embed (online) para canal {CHANNEL_ID}: {e_send_err}")
-                else: logger.info("Inicialização completa (sem canal para mensagem de status).")
+                    on_emb=discord.Embed(title=f"{emojis['success']} Bot Online!", description=f"Clã: **{clan.name}** (`{CLAN_TAG}`)", color=discord.Color.green(), timestamp=start_time)
+                    on_emb.add_field(name="Tarefas", value=status, inline=False);
+                    if not ok: on_emb.add_field(name=f"{emojis['warning']} Atenção", value="Falha iniciar uma ou mais tarefas. Verifique os logs.", inline=False); on_emb.color=discord.Color.orange() # Mensagem mais informativa
+                    on_emb.set_footer(text=f"Bot: {bot.user.name} | v15.0.11");
+                    try: await channel.send(embed=on_emb)
+                    except Exception as e: logger.error(f"Erro enviar embed (online): {e}")
             else:
-                # Falha ao obter dados do clã *depois* do login CoC
-                logger.critical(f"FALHA GRAVE: Login CoC OK, mas não foi possível obter dados do clã {CLAN_TAG}.")
+                logger.critical(f"FALHA GRAVE: Clã {CLAN_TAG} inacessível pós-login OK.");
                 if channel:
-                    error_embed = discord.Embed(
-                        title=f"{emojis['error']} Erro Crítico na Inicialização",
-                        description=f"**Falha ao obter dados do clã `{CLAN_TAG}` após login na API.**\n"
-                                    "Verifique se a TAG do clã está correta e se o bot tem permissão para vê-lo.\n"
-                                    "Funcionalidades podem estar comprometidas.",
-                        color=discord.Color.dark_red(),
-                        timestamp=start_time
-                    )
-                    try:
-                        await channel.send(embed=error_embed)
-                    except Exception as e_send_err:
-                        logger.error(f"Erro ao enviar embed (falha obter clã) para canal {CHANNEL_ID}: {e_send_err}")
-        except Exception as e_ready_get:
-             logger.critical(f"FALHA GRAVE: Erro inesperado ao verificar clã no on_ready: {e_ready_get}", exc_info=True)
+                    err_emb = discord.Embed(title=f"{emojis['error']} Erro Crítico - Acesso Clã", description=f"**Falha obter dados clã `{CLAN_TAG}`.**\nVerifique a TAG e as permissões da API Key.", color=discord.Color.red(), timestamp=start_time) # Dica adicional
+                    try: await channel.send(embed=err_emb)
+                    except Exception as e: logger.error(f"Erro enviar embed (falha obter clã): {e}")
+        except Exception as e:
+             logger.critical(f"FALHA GRAVE: Erro on_ready ao verificar clã/iniciar tasks: {e}", exc_info=True);
              if channel:
-                 error_embed = discord.Embed(
-                        title=f"{emojis['error']} Erro Crítico na Inicialização",
-                        description=f"**Ocorreu um erro inesperado ao verificar o clã durante a inicialização.**\n"
-                                    f"Erro: `{e_ready_get}`\n"
-                                    "Verifique os logs para mais detalhes.",
-                        color=discord.Color.dark_red(),
-                        timestamp=start_time
-                    )
+                 err_emb = discord.Embed(title=f"{emojis['error']} Erro Crítico - Init", description=f"**Erro inesperado durante inicialização:**\n`{e}`", color=discord.Color.red(), timestamp=start_time)
+                 try: await channel.send(embed=err_emb)
+                 except Exception as e2: logger.error(f"Erro enviar embed (erro API on_ready): {e2}")
+
+# --- Tratador de Erros App Commands ---
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    error_embed = discord.Embed(color=discord.Color.red(), timestamp=datetime.now(TIMEZONE));
+    cmd_name = interaction.command.name if interaction.command else 'N/A';
+    error_embed.set_footer(text=f"Comando: /{cmd_name}");
+    handled = False;
+    original_error = error.original if isinstance(error, app_commands.CommandInvokeError) else error
+
+    # Log mais detalhado para erros inesperados
+    if not isinstance(original_error, (coc_errors.NotFound, coc_errors.Maintenance, asyncio.TimeoutError, coc_errors.AuthenticationError, coc_errors.InvalidTag, coc_errors.PrivateWarLog, app_commands.CheckFailure, app_commands.CommandOnCooldown, app_commands.MissingPermissions, app_commands.BotMissingPermissions)):
+        logger.error(f"Erro não tratado em /{cmd_name}: {type(original_error).__name__} - {original_error}", exc_info=True)
+    else:
+        logger.warning(f"Erro esperado em /{cmd_name}: {type(original_error).__name__} - {original_error}")
+
+    # Tratamento de erros específicos
+    if isinstance(original_error, app_commands.CheckFailure):
+        handled = True; error_embed.title = f"{emojis['error']} Acesso Negado"; error_embed.description = "Você não tem permissão para usar este comando ou outra verificação falhou."
+    elif isinstance(original_error, app_commands.CommandOnCooldown):
+        handled = True; error_embed.title = f"{emojis['time']} Cooldown"; error_embed.description = f"Aguarde `{original_error.retry_after:.1f}s` para usar este comando novamente."; error_embed.color = 0xFFA500
+    elif isinstance(original_error, app_commands.MissingPermissions):
+        handled = True; error_embed.title = f"{emojis['error']} Permissão Negada (Usuário)"; error_embed.description = f"Você precisa da permissão: `{', '.join(original_error.missing_permissions)}`."
+    elif isinstance(original_error, app_commands.BotMissingPermissions):
+        handled = True; error_embed.title = f"{emojis['error']} Permissão Negada (Bot)"; error_embed.description = f"Eu preciso da permissão: `{', '.join(original_error.missing_permissions)}` para executar este comando."
+    elif isinstance(original_error, coc_errors.NotFound):
+        handled = True; error_embed.title = f"{emojis['error']} Não Encontrado"; error_embed.description = "Recurso CoC (Clã, Jogador, Guerra) não encontrado. Verifique a TAG fornecida."
+    elif isinstance(original_error, coc_errors.AuthenticationError):
+        handled = True; error_embed.title = f"{emojis['error']} Erro Autenticação CoC"; error_embed.description = "Falha ao autenticar com a API do CoC. Verifique as credenciais (Email/Senha ou API Key)."; error_embed.color=0xCC0000
+    elif isinstance(original_error, coc_errors.Maintenance):
+        handled = True; error_embed.title = f"{emojis['warning']} Manutenção API CoC"; error_embed.description = "A API do Clash of Clans está em manutenção. Tente novamente mais tarde."; error_embed.color=0xFFA500
+    elif isinstance(original_error, coc_errors.InvalidTag):
+        handled = True; error_embed.title = f"{emojis['error']} TAG Inválida"; error_embed.description = "A TAG fornecida não é válida. Verifique o formato (ex: #ABCDEFGH)."
+    elif isinstance(original_error, coc_errors.PrivateWarLog):
+         handled=True; error_embed.title=f"{emojis['warning']}Log de Guerra Privado"; error_embed.description="O log de guerra deste clã é privado e não pode ser acessado."; error_embed.color=0xFFA500
+    elif isinstance(original_error, coc_errors.ClashOfClansException): # Outros erros CoC
+        handled = True; error_embed.title = f"{emojis['warning']} Erro API CoC"; error_embed.description = f"Ocorreu um erro na API do CoC: `{type(original_error).__name__}`."; error_embed.color=0xFFA500
+    elif isinstance(original_error, asyncio.TimeoutError):
+        handled = True; error_embed.title = f"{emojis['error']} Timeout"; error_embed.description = "A operação demorou muito para responder. Tente novamente."
+    elif not coc_client and not isinstance(original_error, (coc_errors.AuthenticationError, coc_errors.Maintenance)): # Se CoC client não está pronto
+        handled = True; error_embed.title = f"{emojis['error']} API CoC Offline"; error_embed.description = "A conexão com a API do CoC não está ativa no momento."; error_embed.color=0xFF8C00
+
+    # Erro genérico se não foi tratado acima
+    if not handled:
+        error_embed.title = f"{emojis['error']} Erro Inesperado"
+        error_embed.description = f"Ocorreu um erro inesperado ao executar o comando.\nTipo: `{type(original_error).__name__}`"
+
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
+        else:
+            await interaction.response.send_message(embed=error_embed, ephemeral=True)
+    except discord.NotFound: logger.warning(f"Interação /{cmd_name} expirou antes de enviar erro.")
+    except Exception as e_send: logger.error(f"Falha ao enviar mensagem de erro para /{cmd_name}: {e_send}", exc_info=True)
+
+
+# --- Comandos de Barra ---
+admin_group = app_commands.Group(name="admin", description="Comandos administrativos.", default_permissions=discord.Permissions(administrator=True))
+war_group = app_commands.Group(name="guerra", description="Comandos de Guerras e CWL.") # Removido default_permissions para permitir uso geral
+info_group = app_commands.Group(name="info", description="Comandos de informação.")
+
+@admin_group.command(name="status", description="Exibe status atual do bot, clã, guerras e raids.")
+@app_commands.checks.has_permissions(administrator=True) # Permissão verificada aqui
+async def status_command(interaction: discord.Interaction):
+    if not coc_client: await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red()), ephemeral=True); return
+    await interaction.response.defer(ephemeral=False)
+    try:
+        clan = await get_clan_data(timeout=45);
+        if not clan: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']} Erro obter dados clã `{CLAN_TAG}`!", color=discord.Color.red())); return
+        # --- LINHA 877 CORRIGIDA ---
+        c_n=clan.name; c_t=clan.tag; c_desc=clan.description or "S/Desc"; c_lvl=clan.level; m_cnt=clan.member_count; m_max=50; loc=getattr(clan.location,'name',"Global"); c_pts=clan.points; c_pts_vs=getattr(clan, 'clan_versus_points', 0); w_lg=getattr(clan.war_league,'name',"Nenhuma"); cap_lg=getattr(clan.capital_league,'name',"Nenhuma"); b_url=getattr(clan.badge,'url',None)
+        # --- FIM DA CORREÇÃO ---
+        emb=discord.Embed(title=f"{emojis['info']} Status: {c_n} ({c_t})",description=f"_{c_desc}_",color=discord.Color.blue());
+        if b_url: emb.set_thumbnail(url=b_url)
+        emb.add_field(name="Nível",value=str(c_lvl),inline=True); emb.add_field(name="Membros",value=f"{m_cnt}/{m_max}",inline=True); emb.add_field(name="Local",value=loc,inline=True); emb.add_field(name="Troféus Vila",value=f"{c_pts:,}{emojis['trophy']}",inline=True); emb.add_field(name="Troféus Constr.",value=f"{c_pts_vs:,}{emojis['trophy']}",inline=True); emb.add_field(name="Liga Guerra",value=w_lg,inline=True); emb.add_field(name="Liga Capital",value=cap_lg,inline=True);
+        ws = f"{emojis['warning']} Verificando..."
+        try:
+            war = await asyncio.wait_for(coc_client.get_current_war(CLAN_TAG, war_tag="#0"), timeout=45.0)
+            if not war or war.state=='notInWar' or war.is_cwl: ws = f"{emojis['success']} Não em Guerra Normal."
+            else:
+                state=war.state; opp=war.opponent; our_w=war.clan; opp_n=opp.name; our_s=our_w.stars; opp_s=opp.stars; st_obj=war.start_time; et_obj=war.end_time; st_ts=int(st_obj.time.timestamp()) if st_obj and hasattr(st_obj,'time') else None; et_ts=int(et_obj.time.timestamp()) if et_obj and hasattr(et_obj,'time') else None
+                if state=='preparation' and st_ts: ws=f"{emojis['time']} **Prep.** vs `{opp_n}` (<t:{st_ts}:R>)"
+                elif state=='inWar' and et_ts: ws=f"{emojis['war_attack']} **Guerra** vs `{opp_n}` ({our_s}⭐/{opp_s}⭐) Fim: <t:{et_ts}:R>"
+                elif state=='warEnded': our_d=round(our_w.destruction,1); opp_d=round(opp.destruction,1); emoji_r,rt=(emojis['war_win'],"Vitória") if our_s>opp_s or (our_s==opp_s and our_d>opp_d) else (emojis['war_lose'],"Derrota") if our_s<opp_s or (our_s==opp_s and our_d<opp_d) else (emojis['war_tie'],"Empate"); ws=f"{emoji_r} **Fim** vs `{opp_n}` ({rt} {our_s}⭐/{opp_s}⭐)"
+                else: ws=f"{emojis['warning']} Estado G: {state}"
+        except (coc_errors.NotFound, coc_errors.PrivateWarLog): ws = f"{emojis['success']} Não em Guerra Normal / Log Privado."
+        except asyncio.TimeoutError: ws = f"{emojis['error']} Timeout ao verificar Guerra Normal."
+        except Exception as e: ws = f"{emojis['error']} Erro G: {type(e).__name__}"; logger.error(f"Erro ao verificar Guerra Normal em /admin status: {e}", exc_info=True)
+        emb.add_field(name="Guerra Normal", value=ws, inline=False)
+        ls=f"{emojis['warning']} Verificando...";
+        try:
+            lg = await asyncio.wait_for(coc_client.get_league_group(CLAN_TAG),timeout=60.0);
+            if lg and lg.state!="notInWar":
+                 season=lg.season; state=lg.state.capitalize(); lg_name=lg.league.name; ls=f"{emojis['league']} **Em CWL** ({lg_name} {season}) Grupo: **{state}**"
+                 active_w=None; lg_wars=[];
                  try:
-                     await channel.send(embed=error_embed)
-                 except Exception as e_send_err:
-                     logger.error(f"Erro ao enviar embed (erro API on_ready) para canal {CHANNEL_ID}: {e_send_err}")
-    # <<< EMBED END >>>
+                     lg_wars = await asyncio.wait_for(lg.get_wars(CLAN_TAG),timeout=60.0)
+                 except asyncio.TimeoutError: logger.warning(f"Timeout ao buscar guerras da liga no comando /admin status")
+                 except Exception as e_get_wars_status: logger.warning(f"Erro ao buscar guerras da liga no comando /admin status: {e_get_wars_status}")
 
-
-@bot.event
-async def on_command_error(ctx, error):
-    # <<< EMBED START >>> (Melhorar mensagens de erro dos comandos)
-    error_handled = False
-    error_embed = discord.Embed(color=discord.Color.red(), timestamp=datetime.now(TIMEZONE))
-    error_embed.set_footer(text=f"Comando: {ctx.command.name if ctx.command else 'N/A'}")
-
-    if isinstance(error, commands.CommandNotFound):
-        # Ignora comando não encontrado silenciosamente
-        # error_embed.title = f"{emojis['warning']} Comando Não Encontrado"
-        # error_embed.description = f"O comando `{ctx.invoked_with}` não existe."
-        # await ctx.send(embed=error_embed, delete_after=10) # Apaga rápido
-        return # Não faz nada
-    elif isinstance(error, commands.MissingRequiredArgument):
-        error_handled = True
-        error_embed.title = f"{emojis['error']} Argumento Faltando"
-        error_embed.description = f"O argumento obrigatório `{error.param.name}` não foi fornecido."
-    elif isinstance(error, commands.MissingPermissions):
-        error_handled = True
-        error_embed.title = f"{emojis['error']} Permissão Negada"
-        error_embed.description = f"Você não tem a(s) permissão(ões) necessária(s): `{', '.join(error.missing_permissions)}`."
-    elif isinstance(error, commands.ChannelNotFound):
-        error_handled = True
-        error_embed.title = f"{emojis['error']} Canal Não Encontrado"
-        error_embed.description = f"O canal `{error.argument}` não foi encontrado."
-    elif isinstance(error, commands.CommandInvokeError):
-         error_handled = True
-         original = error.original
-         logger.error(f"Erro ao invocar comando '{ctx.command}': {original}", exc_info=True)
-         error_embed.title = f"{emojis['error']} Erro na Execução do Comando"
-
-         if isinstance(original, coc_errors.NotFound):
-             error_embed.description = f"Erro na API CoC: Recurso não encontrado (verifique a tag informada)."
-         elif isinstance(original, coc_errors.AuthenticationError):
-             error_embed.description = f"Erro na API CoC: Falha na autenticação. O bot pode estar deslogado."
-         elif isinstance(original, coc_errors.Maintenance):
-              error_embed.description = f"{emojis['warning']} API CoC em Manutenção. Tente novamente mais tarde."
-              error_embed.color = discord.Color.orange()
-         elif isinstance(original, coc_errors.ClashOfClansException):
-             error_embed.description = f"{emojis['warning']} Erro na API CoC: `{type(original).__name__}`. Consulte os logs para detalhes."
-             error_embed.color = discord.Color.orange()
-         elif isinstance(original, asyncio.TimeoutError):
-             error_embed.description = f"{emojis['error']} Erro: Tempo limite excedido ao contatar a API CoC."
-         elif not coc_client:
-             error_embed.description = f"{emojis['error']} Erro: A conexão com a API CoC não está ativa no momento."
-         else:
-             error_embed.description = f"Ocorreu um erro inesperado ao executar o comando.\nErro: `{original}`"
-    elif isinstance(error, commands.CheckFailure): # Ex: Falha no has_permissions
-        error_handled = True
-        error_embed.title = f"{emojis['error']} Acesso Negado"
-        error_embed.description = f"Você não tem permissão para usar este comando."
-    elif isinstance(error, commands.BadArgument):
-        error_handled = True
-        error_embed.title = f"{emojis['error']} Argumento Inválido"
-        error_embed.description = f"Um dos argumentos fornecidos é inválido. Verifique o tipo esperado (ex: texto, número, #tag)."
-        # Tentar ser mais específico se possível?
-        # if hasattr(error, 'param'): error_embed.description += f"\nArgumento problemático: `{error.param.name}`"
-
-    if error_handled:
+                 current_round=next((w for w in lg_wars if w and w.state in ['inWar','preparation']), None) # Adicionado 'w and'
+                 if current_round:
+                    active_w=current_round;
+                    # Safety checks para clãs
+                    our_w_lg = active_w.clan if hasattr(active_w, 'clan') and active_w.clan.tag == CLAN_TAG else getattr(active_w, 'opponent', None)
+                    opp_lg = active_w.opponent if hasattr(active_w, 'clan') and active_w.clan.tag == CLAN_TAG else getattr(active_w, 'clan', None)
+                    if our_w_lg and opp_lg: # Verifica se ambos clãs foram identificados
+                        opp_lg_n=opp_lg.name;
+                        state_t="Guerra" if active_w.state=='inWar' else "Prep.";
+                        st_em=emojis['war_attack'] if state_t=="Guerra" else emojis['time'];
+                        time_obj=active_w.end_time if state_t=="Guerra" else active_w.start_time;
+                        t_rel=f"<t:{int(time_obj.time.timestamp())}:R>" if time_obj and hasattr(time_obj, 'time') else "?";
+                        ls+=f"\n{st_em} Rodada: **{state_t}** vs `{opp_lg_n}` ({t_rel})";
+                        if state_t=="Guerra":
+                             our_s=our_w_lg.stars; opp_s=opp_lg.stars; ls+=f" ({our_s}⭐/{opp_s}⭐)"
+                    else:
+                        ls += f"\n{emojis['error']} Erro ao identificar clãs da rodada atual."
+                 else:
+                    ls+=f"\n{emojis['info']} Nenhuma rodada CWL ativa."
+            else: ls=f"{emojis['success']} Não em CWL."
+        except coc_errors.NotFound: ls=f"{emojis['success']} Não em CWL (grupo não encontrado)."
+        except asyncio.TimeoutError: ls = f"{emojis['error']} Timeout ao verificar CWL."
+        except Exception as e: ls=f"{emojis['error']} Erro Liga: {type(e).__name__}"; logger.error(f"Erro ao verificar CWL em /admin status: {e}", exc_info=True)
+        emb.add_field(name="Guerra de Liga (CWL)", value=ls, inline=False)
+        rs=f"{emojis['warning']} Verificando..."
         try:
-            await ctx.send(embed=error_embed)
-        except Exception as e_send:
-             logger.error(f"Erro ao enviar embed de erro de comando: {e_send}")
-    else:
-        # Erro não tratado especificamente
-        logger.error(f"Erro de comando não tratado: {type(error).__name__} - {error}", exc_info=True)
-        error_embed.title = f"{emojis['error']} Erro Inesperado no Comando"
-        error_embed.description = f"Ocorreu um erro inesperado.\nTipo: `{type(error).__name__}`\nDetalhe: `{error}`\nPor favor, reporte se persistir."
-        try:
-            await ctx.send(embed=error_embed)
-        except Exception as e_send:
-             logger.error(f"Erro ao enviar embed de erro de comando não tratado: {e_send}")
-    # <<< EMBED END >>>
+            rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG,limit=1),timeout=45.0);
+            if rl and rl[0] and hasattr(rl[0],'state'):
+                 r=rl[0]; state=r.state.capitalize(); loot=r.capital_total_loot; attacks=r.total_attacks; d_d=r.districts_destroyed; st_obj=r.start_time; et_obj=r.end_time; st_str=st_obj.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if st_obj and hasattr(st_obj,'time') else '?'; et_ts=int(et_obj.time.timestamp()) if et_obj and hasattr(et_obj,'time') else None
+                 if state=='Ongoing' and et_ts: rs=f"{emojis['raid']} **Ativo** (<t:{et_ts}:R>)\nOuro:**{loot:,}** Atk:{attacks} Distr:{d_d}"
+                 elif state=='Ended': rs=f"{emojis['clan_capital']} **Inativo**. Último ({st_str}):\nOuro:**{loot:,}** Atk:{attacks} Distr:{d_d}"
+                 else: rs=f"{emojis['clan_capital']} Estado Raid: **{state}**"
+            else: rs=f"{emojis['clan_capital']} Sem info raid."
+        except coc_errors.NotFound: rs=f"{emojis['clan_capital']}Sem info raid (NotFound)."
+        except asyncio.TimeoutError: rs = f"{emojis['error']} Timeout ao verificar Raid."
+        except Exception as e: rs=f"{emojis['error']}Erro Raid: {type(e).__name__}."; logger.error(f"Erro ao verificar Raid em /admin status: {e}", exc_info=True)
+        emb.add_field(name="Raid Weekend", value=rs, inline=False)
+        lat=bot.latency*1000; emb.add_field(name="Status Bot", value=f"{emojis['success']}Online|Lat:{lat:.0f}ms", inline=False); emb.timestamp=datetime.now(TIMEZONE)
+        await interaction.followup.send(embed=emb)
+    except Exception as e: logger.error(f"Erro GERAL cmd /admin status:{e}", exc_info=True); await interaction.followup.send(f"{emojis['error']}Ocorreu um erro ao executar o comando status: {e}", ephemeral=True)
 
-
-# --- Comandos --- (Os comandos já usam Embeds, mas revisando alguns textos/layouts)
-
-async def display_attacks_remaining(ctx, war, war_type="Guerra"):
-    # Função auxiliar para !ataques e !ligaataques (Já usa embed, melhorias)
-    if not war or war.state not in ['inWar', 'preparation']:
-        await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} O clã não está em uma {war_type} ativa ou em preparação.", color=discord.Color.orange())); return
-    if not coc_client:
-        await ctx.send(embed=discord.Embed(description=f"{emojis['error']} A API do CoC está indisponível no momento.", color=discord.Color.red())); return
-
-    our_c = war.clan if hasattr(war,'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'opponent', None)
-    en_c = war.opponent if hasattr(war,'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'clan', None)
-    if not our_c or not en_c:
-        await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro ao identificar os clãs participantes da {war_type}.", color=discord.Color.red())); return
-
-    state_info = ""
-    time_ref = None
-    color = discord.Color.blue()
-    timestamp = datetime.now(TIMEZONE)
-
-    if war.state == 'preparation' and hasattr(war, 'start_time') and hasattr(war.start_time, 'time'):
-        time_ref = war.start_time.time.astimezone(TIMEZONE)
-        state_info = f"**Estado:** Preparação\n**Início da Batalha:** <t:{int(time_ref.timestamp())}:R>"
-        timestamp = time_ref # Usa o timestamp do início
-    elif war.state == 'inWar' and hasattr(war, 'end_time') and hasattr(war.end_time, 'time'):
-        time_ref = war.end_time.time.astimezone(TIMEZONE)
-        state_info = f"**Estado:** Em Guerra\n**Término:** <t:{int(time_ref.timestamp())}:R>"
-        color = discord.Color.orange()
-        timestamp = time_ref # Usa o timestamp do fim
-
-    attacks_per_member = getattr(war, 'attacks_per_member', 1)
-    remaining_list = []
-    total_attacks_possible = 0
-    total_attacks_done = 0
-
-    members_in_war = getattr(our_c, 'members', [])
-    if not members_in_war:
-        await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} Lista de membros da {war_type} indisponível.", color=discord.Color.orange())); return
-
-    for member in members_in_war:
-        total_attacks_possible += attacks_per_member
-        attacks_done = len(getattr(member, 'attacks', []));
-        total_attacks_done += attacks_done
-        attacks_left = attacks_per_member - attacks_done
-        if attacks_left > 0:
-            name = getattr(member, 'name', '?');
-            th = getattr(member, 'town_hall', '?');
-            map_pos = getattr(member, 'map_position', '?') # Posição no mapa
-            remaining_list.append(f"{map_pos}. `{name}` (CV{th}): **{attacks_left}** atk(s)")
-
-    title = f"{emojis['war_attack']} Ataques Restantes - {war_type} vs {getattr(en_c, 'name', '?')}"
-    base_embed = discord.Embed(title=title, description=state_info, color=color, timestamp=timestamp)
-    base_embed.set_footer(text=f"Clã: {getattr(our_c, 'name', '?')}")
-
-    attacks_summary = f"**{total_attacks_done} / {total_attacks_possible}** ataques realizados."
-    base_embed.add_field(name="Resumo de Ataques", value=attacks_summary, inline=False)
-
-    if not remaining_list:
-        base_embed.add_field(name="Situação", value=f"{emojis['success']} Todos os ataques foram realizados!", inline=False)
-        base_embed.color = discord.Color.green() # Muda cor para verde
-        await ctx.send(embed=base_embed)
-    else:
-        # Usa a função de split adaptada
-        await send_embeds_splitted(ctx.channel, base_embed, "Membros com Ataques Pendentes", remaining_list, max_len=1024, max_items_per_embed=15)
-
-@bot.command(name='status', help="Exibe status atual bot e clã.")
-@commands.has_permissions(administrator=True)
-async def status_command(ctx):
-    # Comando já usa Embed, apenas pequenas melhorias visuais/texto
-    if not coc_client: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red)); return
-    async with ctx.typing():
-        try:
-            clan=await get_clan_data();
-            if not clan: await ctx.send(embed=discord.Embed(description=f"{emojis['error']}Erro ao obter dados do clã `{CLAN_TAG}`!", color=discord.Color.red)); return
-
-            c_n=getattr(clan,'name','?')
-            c_t=getattr(clan,'tag',CLAN_TAG)
-            c_desc=getattr(clan,'description',"Sem descrição") or "Sem descrição"
-            c_lvl=getattr(clan,'level','?')
-            m_cnt=getattr(clan,'member_count','?')
-            m_max=getattr(clan,'max_members', 50) # Pega o max_members real se disponível
-            loc=getattr(getattr(clan,'location',None),'name',"Global")
-            c_pts=getattr(clan,'points','?')
-            c_pts_vs=getattr(clan,'versus_points','?') # Troféus da base construtor
-            w_lg=getattr(getattr(clan,'war_league',None),'name',"Nenhuma")
-            cap_lg=getattr(getattr(clan,'capital_league',None),'name',"Nenhuma")
-            b_url=getattr(getattr(clan,'badge',None),'url',None)
-
-            emb=discord.Embed(title=f"{emojis['info']} Status: {c_n} ({c_t})",description=f"_{c_desc}_",color=discord.Color.blue());
-            if b_url: emb.set_thumbnail(url=b_url)
-            emb.add_field(name="Nível",value=str(c_lvl),inline=True);
-            emb.add_field(name="Membros",value=f"{m_cnt}/{m_max}",inline=True);
-            emb.add_field(name="Local",value=loc,inline=True);
-            emb.add_field(name="Troféus Vila",value=f"{c_pts:,}{emojis['trophy']}",inline=True);
-            emb.add_field(name="Troféus Constr.",value=f"{c_pts_vs:,}{emojis['trophy']}",inline=True); # Troféus construtor
-            emb.add_field(name="Liga Guerra",value=w_lg,inline=True);
-            emb.add_field(name="Liga Capital",value=cap_lg,inline=True);
-
-            # --- Status Guerra Normal ---
-            ws = f"{emojis['warning']} Verificando..."
+@admin_group.command(name="top", description="Mostra rankings do clã (doações, troféus, capital, etc).")
+@app_commands.describe(tipo="O tipo de ranking a ser exibido.", limite="O número de membros a serem exibidos no ranking (1-50).")
+@app_commands.choices(tipo=[ app_commands.Choice(name="Doações (Temporada)", value="doacoes"), app_commands.Choice(name="Recebidos (Temporada)", value="recebidos"), app_commands.Choice(name="Troféus (Vila Principal)", value="trofeus"), app_commands.Choice(name="Contribuição Capital (Última Raid)", value="capital"),])
+@app_commands.checks.has_permissions(administrator=True) # Permissão verificada aqui
+async def top_command(interaction: discord.Interaction, tipo: app_commands.Choice[str], limite: app_commands.Range[int, 1, 50] = 10):
+    if not coc_client: await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red()), ephemeral=True); return
+    selected_type = tipo.value
+    await interaction.response.defer(ephemeral=False)
+    try:
+        clan = await get_clan_data(timeout=45)
+        if not clan or not hasattr(clan,'members'): await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']} Erro obter membros clã `{CLAN_TAG}`!", color=discord.Color.red())); return
+        types_map = {"doacoes": ("doações", f"{emojis['donation']} Top {limite} Doadores", discord.Color.green()), "recebidos": ("recebidos", f"{emojis['received']} Top {limite} Recebedores", discord.Color.orange()), "trofeus": ("troféus", f"{emojis['trophy']} Top {limite} Troféus", discord.Color.gold()), "capital": ("capital", f"{emojis['clan_capital']} Top {limite} Contrib. Capital", 0x9B59B6) }
+        internal_type, title, color = types_map[selected_type]
+        m_list = clan.members or []
+        if not m_list and internal_type != "capital": await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Lista membros vazia.", color=discord.Color.orange)); return
+        fmt_list = []
+        if internal_type == "doações": s_list=sorted(m_list,key=lambda m:m.donations,reverse=True)[:limite]; fmt_list=[f"{i}. `{m.name}`(CV{m.town_hall}):**{m.donations:,}**{emojis['donation']}" for i,m in enumerate(s_list,1)]
+        elif internal_type == "recebidos": s_list=sorted(m_list,key=lambda m:m.received,reverse=True)[:limite]; fmt_list=[f"{i}. `{m.name}`(CV{m.town_hall}):**{m.received:,}**{emojis['received']}" for i,m in enumerate(s_list,1)]
+        elif internal_type == "troféus": s_list=sorted(m_list,key=lambda m:m.trophies,reverse=True)[:limite]; fmt_list=[f"{i}. `{m.name}`(CV{m.town_hall}):**{m.trophies:,}**{emojis['trophy']}" for i,m in enumerate(s_list,1)]
+        elif internal_type == "capital":
             try:
-                war = await asyncio.wait_for(coc_client.get_current_war(CLAN_TAG), timeout=30.0)
-                if not war or getattr(war,'state', 'notInWar') == 'notInWar' or getattr(war, 'is_cwl', False):
-                    ws = f"{emojis['success']} Não está em Guerra Normal."
-                else:
-                    state = war.state
-                    opp = getattr(war, 'opponent', None)
-                    our_w = getattr(war, 'clan', None)
-                    if opp and our_w and our_w.tag == CLAN_TAG:
-                        opp_n = getattr(opp, 'name', '?')
-                        our_s = getattr(our_w, 'stars', 0)
-                        opp_s = getattr(opp, 'stars', 0)
-                        start_time_obj = getattr(war, 'start_time', None); end_time_obj = getattr(war, 'end_time', None)
-                        st_ts = int(start_time_obj.time.astimezone(TIMEZONE).timestamp()) if start_time_obj and hasattr(start_time_obj, 'time') else None
-                        et_ts = int(end_time_obj.time.astimezone(TIMEZONE).timestamp()) if end_time_obj and hasattr(end_time_obj, 'time') else None
+                rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG,limit=1),timeout=45.0);
+                if not rl or not rl[0] or not rl[0].members: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']}Sem dados membros últ. raid.", color=discord.Color.orange)); return
+                m_data={m.tag:{'name':m.name,'loot':m.capital_resources_looted} for m in rl[0].members}; s_raid=sorted(m_data.items(),key=lambda i:i[1]['loot'],reverse=True)[:limite]; fmt_list=[f"{i}. `{d['name']}`:**{d['loot']:,}**{emojis['clan_capital']}" for i,(t,d) in enumerate(s_raid,1)]
+                if rl[0].start_time and hasattr(rl[0].start_time, 'time'): title += f" ({rl[0].start_time.time.astimezone(TIMEZONE).strftime('%d/%m')})"
+            except asyncio.TimeoutError: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']}Timeout ao buscar dados da Raid.", color=discord.Color.red)); logger.warning(f"Timeout /top capital"); return
+            except Exception as e: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']}Erro ao buscar dados Capital: {type(e).__name__}", color=discord.Color.red)); logger.warning(f"Erro /top capital: {e}", exc_info=True); return
+        if not fmt_list: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Nenhum dado para ranking '{tipo.name}'.", color=discord.Color.orange)); return
+        base_emb=discord.Embed(title=title,color=color); base_emb.set_footer(text=f"Clã: {clan.name} | Verif:{datetime.now(TIMEZONE).strftime('%d/%m %H:%M')}")
+        # Passar interaction.channel para send_embeds_splitted
+        if interaction.channel: # Garante que o canal existe
+             await send_embeds_splitted(interaction.channel, base_emb, "Ranking", fmt_list, max_len=1024, max_items_per_embed=20)
+        else:
+             logger.error(f"Erro /admin top: Canal da interação não encontrado.")
+             await interaction.followup.send(f"{emojis['error']}Erro: Não foi possível encontrar o canal para enviar a resposta.", ephemeral=True)
+    except Exception as e: logger.error(f"Erro GERAL cmd /admin top:{e}", exc_info=True); await interaction.followup.send(f"{emojis['error']}Ocorreu um erro ao gerar o ranking: {e}", ephemeral=True)
 
-                        if state == 'preparation' and st_ts:
-                            ws = f"{emojis['time']} **Preparação** vs `{opp_n}`\nInício: <t:{st_ts}:R>"
-                        elif state == 'inWar' and et_ts:
-                            ws = f"{emojis['war_attack']} **Em Guerra** vs `{opp_n}`\nPlacar: **{our_s}** ⭐ vs **{opp_s}** ⭐\nFim: <t:{et_ts}:R>"
-                        elif state == 'warEnded':
-                            our_d=round(getattr(our_w,'destruction',0.0),1)
-                            opp_d=round(getattr(opp,'destruction',0.0),1)
-                            emoji_r, result_text = (emojis['war_win'], "Vitória") if our_s > opp_s or (our_s == opp_s and our_d > opp_d) else \
-                                                  (emojis['war_lose'], "Derrota") if our_s < opp_s or (our_s == opp_s and our_d < opp_d) else \
-                                                  (emojis['war_tie'], "Empate")
-                            ws = f"{emoji_r} **Finalizada** vs `{opp_n}`\nResultado: **{result_text}** ({our_s} ⭐ / {opp_s} ⭐)"
-                        else:
-                            ws = f"{emojis['warning']} Estado Desconhecido: {state}"
-                    else: ws = f"{emojis['warning']} Dados da guerra incompletos."
-            except coc_errors.NotFound: ws = f"{emojis['success']} Não está em Guerra Normal."
-            except coc_errors.ClashOfClansException as e_coc: ws = f"{emojis['error']} Erro API Guerra ({type(e_coc).__name__})"; logger.warning(f"Erro API GW !status: {e_coc}")
-            except asyncio.TimeoutError: ws=f"{emojis['error']} Timeout ao verificar Guerra."; logger.warning("Timeout GW !status")
-            except Exception as e_stat_war: ws = f"{emojis['error']} Erro ao verificar Guerra"; logger.error(f"Erro GW !status: {e_stat_war}", exc_info=True)
-            emb.add_field(name="Guerra Normal", value=ws, inline=False)
+@admin_group.command(name="setcanal", description="Define o canal onde o bot enviará logs e notificações.")
+@app_commands.describe(canal="O canal de texto para enviar as mensagens.")
+@app_commands.checks.has_permissions(administrator=True) # Permissão verificada aqui
+async def set_canal_command(interaction: discord.Interaction, canal: discord.TextChannel):
+    global CHANNEL_ID
+    target_channel = canal
+    if not interaction.guild: # Adiciona verificação se o comando foi usado em um servidor
+        await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} Este comando só pode ser usado em um servidor.", color=discord.Color.red()), ephemeral=True); return
+    if not target_channel.permissions_for(interaction.guild.me).send_messages or not target_channel.permissions_for(interaction.guild.me).embed_links:
+         await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} Sem permissão p/ enviar msgs/embeds em {target_channel.mention}.", color=discord.Color.red()), ephemeral=True); return
+    try:
+         await interaction.response.defer(ephemeral=True)
+         CHANNEL_ID = target_channel.id
+         # TODO: Salvar CHANNEL_ID permanentemente (ex: em .env ou DB) seria ideal
+         logger.info(f"Canal logs -> {target_channel.name}({CHANNEL_ID}) por {interaction.user}")
+         confirm_embed = discord.Embed(title=f"{emojis['success']} Canal Logs Alterado", description=f"Logs e notificações serão enviados para {target_channel.mention}.", color=discord.Color.green())
+         await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
-            # --- Status Guerra de Liga ---
-            ls=f"{emojis['warning']} Verificando..."
-            try:
-                lg=await asyncio.wait_for(coc_client.get_league_group(CLAN_TAG),timeout=45.0);
-                if lg and getattr(lg,'state','notInWar')!="notInWar":
-                    season=getattr(lg,'season','?')
-                    state=getattr(lg,'state','?').capitalize()
-                    lg_name = getattr(getattr(lg,'league',None),'name', '?')
-                    ls = f"{emojis['league']} **Em CWL** ({lg_name} - {season})\nEstado Grupo: **{state}**"
-                    active_w=None;
-                    try: lg_wars = await asyncio.wait_for(lg.get_wars(CLAN_TAG),timeout=45.0);
-                    except Exception: lg_wars=[]
+         # --- CORREÇÃO APLICADA AQUI (Erro 2) ---
+         await interaction.followup.send(embed=discord.Embed(description=f"{emojis['info']} Canal alterado. As tarefas continuarão rodando. Se necessário, reinicie o bot para garantir a aplicação completa.", color=discord.Color.blue()), ephemeral=True)
+         # --- FIM DA CORREÇÃO ---
 
-                    current_round_war = next((w for w in lg_wars if getattr(w,'state',None) in ['inWar','preparation']), None)
+    except Exception as e: logger.error(f"Erro cmd /admin setcanal: {e}",exc_info=True); await interaction.followup.send(f"{emojis['error']}Ocorreu um erro ao definir o canal: {e}", ephemeral=True)
 
-                    if current_round_war:
-                        active_w = current_round_war
-                        our_w_lg = active_w.clan if hasattr(active_w.clan, 'tag') and active_w.clan.tag == CLAN_TAG else getattr(active_w, 'opponent', None)
-                        opp_lg = active_w.opponent if hasattr(active_w.clan, 'tag') and active_w.clan.tag == CLAN_TAG else getattr(active_w, 'clan', None)
-                        if our_w_lg and opp_lg:
-                           opp_lg_n=getattr(opp_lg,'name','?')
-                           state_t = "Em Guerra" if active_w.state=='inWar' else "Preparação"
-                           st_em = emojis['war_attack'] if active_w.state=='inWar' else emojis['time']
-                           time_obj = active_w.end_time if active_w.state=='inWar' else active_w.start_time
-                           t_rel = f"<t:{int(time_obj.time.astimezone(TIMEZONE).timestamp())}:R>" if time_obj and hasattr(time_obj, 'time') else "?"
-                           ls+=f"\n{st_em} Rodada Atual: **{state_t}** vs `{opp_lg_n}` ({t_rel})";
-                           if active_w.state=='inWar':
-                               our_s=getattr(our_w_lg,'stars',0)
-                               opp_s=getattr(opp_lg,'stars',0)
-                               ls+=f"\nPlacar: **{our_s}** ⭐ vs **{opp_s}** ⭐"
-                        else: ls+=f"\n{emojis['error']} Erro ao identificar clãs da rodada."
-                    else: ls+=f"\n{emojis['info']} Nenhuma rodada ativa (preparação/guerra) encontrada."
-                else: ls=f"{emojis['success']} Não está em CWL."
-            except coc_errors.NotFound: ls=f"{emojis['success']} Não está em CWL (grupo não encontrado)."
-            except coc_errors.ClashOfClansException as e_coc: ls = f"{emojis['error']} Erro API Liga ({type(e_coc).__name__})"; logger.warning(f"Erro API Liga !status: {e_coc}")
-            except asyncio.TimeoutError: ls=f"{emojis['error']} Timeout ao verificar Liga."; logger.warning("Timeout Liga !status")
-            except Exception as e_lg: ls=f"{emojis['error']} Erro ao verificar Liga"; logger.warning(f"Erro Liga !status: {e_lg}", exc_info=True)
-            emb.add_field(name="Guerra de Liga (CWL)", value=ls, inline=False)
 
-             # --- Status Raid Weekend ---
-            rs=f"{emojis['warning']} Verificando..."
-            try:
-                rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG,limit=1),timeout=30.0);
-                if rl and rl[0] and hasattr(rl[0],'state'):
-                    r=rl[0]
-                    state=r.state.capitalize()
-                    loot=getattr(r,'capital_total_loot',0)
-                    attacks=getattr(r,'total_attacks','?')
-                    dist_destroyed=getattr(r,'districts_destroyed','?')
-                    start_time_obj = getattr(r, 'start_time', None)
-                    end_time_obj = getattr(r, 'end_time', None)
-                    st_str = start_time_obj.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if start_time_obj and hasattr(start_time_obj, 'time') else '?'
-                    et_ts = int(end_time_obj.time.astimezone(TIMEZONE).timestamp()) if end_time_obj and hasattr(end_time_obj, 'time') else None
+@admin_group.command(name="setclan", description="Define qual clã o bot deve monitorar.")
+@app_commands.describe(tag="A tag do novo clã a ser monitorado (incluindo #).")
+@app_commands.checks.has_permissions(administrator=True) # Permissão verificada aqui
+async def set_clan_command(interaction: discord.Interaction, tag: str):
+    global CLAN_TAG, member_cache, donation_cache, war_cache, raid_weekend_cache, coc_client
+    if not coc_client: await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red()), ephemeral=True); return
+    clan_tag_input = tag.strip().upper();
+    if not clan_tag_input.startswith('#'): clan_tag_input = '#' + clan_tag_input
+    if not coc.utils.is_valid_tag(clan_tag_input): await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} Tag `{clan_tag_input}` inválida.", color=discord.Color.red), ephemeral=True); return
+    if clan_tag_input == CLAN_TAG: await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['info']} Já monitorando `{clan_tag_input}`.", color=discord.Color.blue), ephemeral=True); return
+    await interaction.response.defer(ephemeral=True)
+    try:
+        logger.info(f"Tentando setclan {clan_tag_input} por {interaction.user}...")
+        clan = await asyncio.wait_for(coc_client.get_clan(clan_tag_input),timeout=45.0);
+        new_clan_name=clan.name; new_clan_tag=clan.tag; new_clan_badge_url=getattr(clan.badge,'url',None)
+        change_embed = discord.Embed(title=f"{emojis['success']} Clã Alvo Alterado!", description=f"Monitorando **{new_clan_name}** (`{new_clan_tag}`).\nLimpando caches e reiniciando tarefas...", color=discord.Color.green())
+        if new_clan_badge_url: change_embed.set_thumbnail(url=new_clan_badge_url)
+        await interaction.followup.send(embed=change_embed, ephemeral=True)
 
-                    if state=='Ongoing' and et_ts:
-                        rs=f"{emojis['raid']} **Raid Ativo**\nInício: {st_str}\nTérmino: <t:{et_ts}:R>\nOuro: **{loot:,}** | Ataques: {attacks} | Distritos: {dist_destroyed}"
-                    elif state=='Ended':
-                         rs=f"{emojis['clan_capital']} **Raid Inativo**. Última ({st_str}):\nOuro: **{loot:,}** | Ataques: {attacks} | Distritos: {dist_destroyed}"
-                    else: rs=f"{emojis['clan_capital']} Raid em estado: **{state}**"
-                else: rs=f"{emojis['clan_capital']} Sem informações de Raid Weekend."
-            except coc_errors.NotFound: rs=f"{emojis['clan_capital']} Sem informações de Raid (NotFound)."
-            except coc_errors.ClashOfClansException as e_coc: rs = f"{emojis['error']} Erro API Raid ({type(e_coc).__name__})"; logger.warning(f"Erro API Raid !status: {e_coc}")
-            except asyncio.TimeoutError: rs=f"{emojis['error']} Timeout ao verificar Raid."; logger.warning("Timeout Raid !status")
-            except Exception as e_rs: rs=f"{emojis['error']} Erro ao verificar Raid"; logger.warning(f"Erro Raid !status: {e_rs}", exc_info=True)
-            emb.add_field(name="Raid Weekend", value=rs, inline=False)
+        old_tag = CLAN_TAG; CLAN_TAG = new_clan_tag
+        # TODO: Salvar CLAN_TAG permanentemente (ex: em .env ou DB) seria ideal
 
-            # --- Status do Bot ---
-            lat=bot.latency*1000
-            emb.add_field(name="Status do Bot", value=f"{emojis['success']} Online | Latência: **{lat:.0f}ms**", inline=False)
-            emb.timestamp = datetime.now(TIMEZONE) # Adiciona timestamp da verificação
-            await ctx.send(embed=emb)
-        except Exception as e:
-             logger.error(f"Erro GERAL cmd status:{e}", exc_info=True);
-             await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Ocorreu um erro ao gerar o status: {e}", color=discord.Color.red));
+        # Limpa Caches
+        member_cache={'members':{},'count':0}; donation_cache={}; raid_weekend_cache={'current_raid':None}; war_cache={'war_end_reported':{},'league_war_end_reported':{},'league_start_announced':False}
+        logger.info(f"Clã {old_tag}->{CLAN_TAG}({new_clan_name}). Caches limpos.")
 
-@bot.command(name='top', help="Rankings: top [tipo] [limite=10]")
-@commands.has_permissions(administrator=True)
-async def top_command(ctx, tipo: str = "doacoes", limite: int = 10):
-    # Comando já usa Embed, apenas pequenas melhorias
-    if not coc_client: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red)); return
-    tipo=tipo.lower().strip()
-    limite=min(50,max(1,limite)) # Limite entre 1 e 50
-    valid_types = {
-        "doacoes": ("doações", f"{emojis['donation']} Top {limite} Doadores (Temporada)", discord.Color.green()),
-        "doações": ("doações", f"{emojis['donation']} Top {limite} Doadores (Temporada)", discord.Color.green()),
-        "recebidos": ("recebidos", f"{emojis['received']} Top {limite} Recebedores (Temporada)", discord.Color.orange()),
-        "trofeus": ("troféus", f"{emojis['trophy']} Top {limite} Troféus (Vila Principal)", discord.Color.gold()),
-        "troféus": ("troféus", f"{emojis['trophy']} Top {limite} Troféus (Vila Principal)", discord.Color.gold()),
-        "capital": ("capital", f"{emojis['clan_capital']} Top {limite} Contrib. Capital (Últ. Raid)", 0x9B59B6) # Roxo
-    }
+        # Reinicia Tasks
+        await interaction.followup.send(embed=discord.Embed(description=f"{emojis['info']} Reiniciando tasks p/ **{new_clan_name}**...", color=discord.Color.blue()), ephemeral=True)
+        tasks_list=[check_donations,check_members,check_war,check_league_war,check_raid_weekend]; restart_log=[]; all_ok = True
+        for t in tasks_list:
+              task_name=t.coro.__name__; status_emoji=emojis['error']; status_text="Erro"
+              try:
+                  if t.is_running(): t.restart(); status_emoji=emojis['success']; status_text="Reiniciada"
+                  else: t.start(); status_emoji=emojis['success']; status_text="Iniciada"
+              except Exception as e: logger.error(f"Erro restart task {task_name} (setclan): {e}", exc_info=True); status_text="Erro"; all_ok=False
+              restart_log.append(f"- {task_name}: {status_text} {status_emoji}")
 
-    if tipo not in valid_types:
-        valid_str = ", ".join(valid_types.keys())
-        await ctx.send(embed=discord.Embed(title=f"{emojis['error']} Tipo de Ranking Inválido", description=f"Tipos válidos: `{valid_str}`", color=discord.Color.red)); return
-
-    internal_type, title, color = valid_types[tipo]
-
-    async with ctx.typing():
+        restart_embed = discord.Embed(title=f"{emojis['success'] if all_ok else emojis['warning']} Tarefas Reiniciadas p/ {new_clan_name}", description="Status:\n"+"\n".join(restart_log), color=discord.Color.green() if all_ok else discord.Color.orange())
+        status_channel = bot.get_channel(CHANNEL_ID);
         try:
-            clan=await get_clan_data();
-            if not clan or not hasattr(clan,'members') or not clan.members:
-                await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro ao obter dados dos membros do clã `{CLAN_TAG}`!", color=discord.Color.red)); return
+            if status_channel: await status_channel.send(embed=restart_embed)
+            else: await interaction.followup.send(embed=restart_embed, ephemeral=False) # Envia no canal do comando se o canal de log não for encontrado
+            await interaction.followup.send(f"{emojis['success']} Tasks reiniciadas p/ **{new_clan_name}**.", ephemeral=True)
+        except Exception as e: logger.error(f"Erro enviar status restart (setclan): {e}"); await interaction.followup.send(f"{emojis['error']} Tasks reiniciadas, erro ao enviar status.", ephemeral=True)
+        logger.info(f"Tasks reiniciadas (setclan p/ {CLAN_TAG}) ({'; '.join(restart_log)}).")
 
-            m_list=list(clan.members) if clan.members else []
-            if not m_list and internal_type != "capital": # Capital busca dados da raid separadamente
-                await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} A lista de membros do clã está vazia ou indisponível.", color=discord.Color.orange)); return
+    except coc_errors.NotFound: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']}Clã `{clan_tag_input}` não encontrado!", color=discord.Color.red), ephemeral=True)
+    except asyncio.TimeoutError: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']}Timeout ao buscar clã `{clan_tag_input}`!", color=discord.Color.red), ephemeral=True)
+    except Exception as e: logger.error(f"Erro cmd /admin setclan {clan_tag_input}: {e}",exc_info=True); await interaction.followup.send(f"{emojis['error']}Erro ao definir clã: {e}", ephemeral=True)
 
-            fmt_list=[]
-            if internal_type == "doações":
-                s_list=sorted(m_list,key=lambda m:getattr(m,'donations',0),reverse=True)[:limite];
-                fmt_list=[f"{i}. `{getattr(m,'name','?')}` (CV{getattr(m,'town_hall','?')}) : **{getattr(m,'donations',0):,}** {emojis['donation']}" for i,m in enumerate(s_list,1)]
-            elif internal_type == "recebidos":
-                s_list=sorted(m_list,key=lambda m:getattr(m,'received',0),reverse=True)[:limite];
-                fmt_list=[f"{i}. `{getattr(m,'name','?')}` (CV{getattr(m,'town_hall','?')}) : **{getattr(m,'received',0):,}** {emojis['received']}" for i,m in enumerate(s_list,1)]
-            elif internal_type == "troféus":
-                s_list=sorted(m_list,key=lambda m:getattr(m,'trophies',0),reverse=True)[:limite];
-                fmt_list=[f"{i}. `{getattr(m,'name','?')}` (CV{getattr(m,'town_hall','?')}) : **{getattr(m,'trophies',0):,}** {emojis['trophy']}" for i,m in enumerate(s_list,1)]
-            elif internal_type == "capital":
-                try:
-                    rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG,limit=1),timeout=30.0);
-                    if not rl or not rl[0] or not hasattr(rl[0],'members') or not rl[0].members:
-                         await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} Sem dados de membros da última Raid Weekend.", color=discord.Color.orange)); return
+@war_group.command(name="ataques", description="Mostra quem ainda não atacou na Guerra Normal atual.")
+async def ataques_command(interaction: discord.Interaction):
+    if not coc_client: await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red()), ephemeral=True); return
+    await interaction.response.defer(ephemeral=False)
+    try:
+        war = await asyncio.wait_for(coc_client.get_current_war(CLAN_TAG, war_tag="#0"), timeout=45.0)
+        if war and war.is_cwl: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Clã em CWL. Use `/guerra liga_ataques`.", color=discord.Color.orange)); return
+        await display_attacks_remaining_slash(interaction, war, war_type="Guerra Normal")
+    except coc_errors.NotFound: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Não em Guerra Normal.", color=discord.Color.orange))
+    except coc_errors.PrivateWarLog: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Log de Guerra Privado. Não é possível verificar ataques.", color=discord.Color.orange))
+    except asyncio.TimeoutError: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']} Timeout ao buscar dados da guerra.", color=discord.Color.red))
+    except Exception as e: logger.error(f"Erro /guerra ataques: {e}", exc_info=True); await interaction.followup.send(f"{emojis['error']}Erro ao verificar ataques: {e}", ephemeral=True)
 
-                    # Usa nomes do log da raid, pois membro pode ter saído
-                    m_data={m.tag:{'name':getattr(m,'name','?'),'loot':getattr(m,'capital_resources_looted',0)} for m in rl[0].members if hasattr(m,'tag')};
-                    s_raid=sorted(m_data.items(),key=lambda i:i[1]['loot'],reverse=True)[:limite];
-                    fmt_list=[f"{i}. `{d['name']}` : **{d['loot']:,}** {emojis['clan_capital']}" for i,(t,d) in enumerate(s_raid,1)]
-                    # Adiciona info sobre quando foi a raid
-                    raid_start_time = getattr(rl[0], 'start_time', None)
-                    if raid_start_time and hasattr(raid_start_time, 'time'):
-                        title += f" ({raid_start_time.time.astimezone(TIMEZONE).strftime('%d/%m')})"
+@war_group.command(name="liga_ataques", description="Mostra quem ainda não atacou na rodada atual da CWL.")
+async def liga_ataques_command(interaction: discord.Interaction):
+    if not coc_client: await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red()), ephemeral=True); return
+    await interaction.response.defer(ephemeral=False)
+    try:
+        lg = await asyncio.wait_for(coc_client.get_league_group(CLAN_TAG), timeout=60.0)
+        if not lg or lg.state == "notInWar": await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Não em CWL.", color=discord.Color.orange)); return
+        curr_war = None; lg_wars = [];
+        try: lg_wars = await asyncio.wait_for(lg.get_wars(CLAN_TAG), timeout=60.0)
+        except asyncio.TimeoutError: logger.warning(f"Timeout ao buscar guerras da liga em /guerra liga_ataques")
+        except Exception as e_wars: logger.warning(f"Erro ao buscar guerras da liga em /guerra liga_ataques: {e_wars}")
 
-                except coc_errors.NotFound: await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} Sem histórico de Raid Weekend encontrado.", color=discord.Color.orange)); return
-                except coc_errors.ClashOfClansException as e_coc: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro API ao buscar dados da Capital ({type(e_coc).__name__}).", color=discord.Color.red)); logger.warning(f"Erro API Capital !top: {e_coc}"); return
-                except asyncio.TimeoutError: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Timeout ao buscar dados da Capital.", color=discord.Color.red)); logger.warning("Timeout Capital !top"); return
-                except Exception as e: logger.error(f"Erro top capital:{e}",exc_info=True); await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro inesperado ao buscar dados da Capital: {e}", color=discord.Color.red)); return
+        curr_war = next((w for w in lg_wars if w and w.state == 'inWar'), None) or next((w for w in lg_wars if w and w.state == 'preparation'), None) # Adicionado 'w and'
+        if not curr_war: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Nenhuma rodada CWL ativa ou em preparação encontrada.", color=discord.Color.orange)); return
+        await display_attacks_remaining_slash(interaction, curr_war, war_type="Guerra de Liga")
+    except coc_errors.NotFound: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Não em CWL (grupo não encontrado).", color=discord.Color.orange))
+    except asyncio.TimeoutError: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']} Timeout ao buscar dados da CWL.", color=discord.Color.red))
+    except Exception as e: logger.error(f"Erro /guerra liga_ataques: {e}", exc_info=True); await interaction.followup.send(f"{emojis['error']}Erro ao verificar ataques da liga: {e}", ephemeral=True)
 
-            if not fmt_list:
-                await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} Nenhum dado encontrado para o ranking '{tipo}'.", color=discord.Color.orange)); return
-
-            base_emb=discord.Embed(title=title,color=color)
-            c_n=getattr(clan,'name',CLAN_TAG)
-            base_emb.set_footer(text=f"Clã: {c_n} | Verificado: {datetime.now(TIMEZONE).strftime('%d/%m %H:%M')}")
-            # Usa a função de split adaptada
-            await send_embeds_splitted(ctx.channel, base_emb, "Ranking", fmt_list, max_len=1024, max_items_per_embed=20) # Aumenta um pouco o limite de itens por embed aqui
-
-        except Exception as e:
-            logger.error(f"Erro GERAL cmd top:{e}", exc_info=True);
-            await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro ao gerar o ranking: {e}", color=discord.Color.red))
-
-@bot.command(name='ataques', help="Ataques restantes guerra normal.")
-@commands.has_permissions(administrator=True)
-async def ataques_command(ctx):
-    # Usa a função auxiliar display_attacks_remaining
-    if not coc_client: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red)); return
-    async with ctx.typing():
-        try:
-            war = await asyncio.wait_for(coc_client.get_current_war(CLAN_TAG), timeout=30.0)
-            if war and getattr(war, 'is_cwl', False):
-                 await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} O clã está em Guerra de Liga (CWL). Use `!ligaataques` para ver os ataques restantes da rodada atual.", color=discord.Color.orange)); return
-            await display_attacks_remaining(ctx, war, war_type="Guerra Normal")
-        except coc_errors.NotFound: await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} O clã não está participando de uma Guerra Normal no momento.", color=discord.Color.orange))
-        except coc_errors.ClashOfClansException as e_coc: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro na API CoC ({type(e_coc).__name__}) ao verificar a guerra.", color=discord.Color.red)); logger.warning(f"Erro API !ataques: {e_coc}")
-        except asyncio.TimeoutError: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Timeout ao verificar a Guerra Normal.", color=discord.Color.red)); logger.warning("Timeout !ataques command")
-        except Exception as e: logger.error(f"Erro !ataques: {e}", exc_info=True); await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro inesperado ao verificar ataques da guerra: {e}", color=discord.Color.red))
-
-@bot.command(name='ligaataques', help="Ataques restantes guerra liga.")
-@commands.has_permissions(administrator=True)
-async def liga_ataques_command(ctx):
-    # Usa a função auxiliar display_attacks_remaining
-    if not coc_client: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red)); return
-    async with ctx.typing():
-        try:
-            lg = await asyncio.wait_for(coc_client.get_league_group(CLAN_TAG), timeout=45.0)
-            if not lg or getattr(lg, 'state', 'notInWar') == "notInWar":
-                await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} O clã não está participando de uma Guerra de Liga (CWL) no momento.", color=discord.Color.orange)); return
-
-            curr_war = None
-            lg_wars = [];
-            try: lg_wars = await asyncio.wait_for(lg.get_wars(CLAN_TAG), timeout=45.0)
-            except Exception as e_get_wars: logger.warning(f"Erro buscar guerras liga !ligaataques: {e_get_wars}")
-
-            # Encontra a guerra da rodada atual (prioriza 'inWar', depois 'preparation')
-            curr_war = next((w for w in lg_wars if getattr(w, 'state', None) == 'inWar'), None)
-            if not curr_war:
-                 curr_war = next((w for w in lg_wars if getattr(w, 'state', None) == 'preparation'), None)
-
-            if not curr_war:
-                 await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} Nenhuma rodada da Guerra de Liga ativa (em guerra ou preparação) encontrada.", color=discord.Color.orange)); return
-
-            await display_attacks_remaining(ctx, curr_war, war_type="Guerra de Liga")
-        except coc_errors.NotFound: await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} Clã não encontrado em um grupo de Guerra de Liga.", color=discord.Color.orange))
-        except coc_errors.ClashOfClansException as e_coc: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro na API CoC ({type(e_coc).__name__}) ao verificar a liga.", color=discord.Color.red)); logger.warning(f"Erro API !ligaataques: {e_coc}")
-        except asyncio.TimeoutError: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Timeout ao verificar a Guerra de Liga.", color=discord.Color.red)); logger.warning("Timeout !ligaataques command")
-        except Exception as e: logger.error(f"Erro !ligaataques: {e}", exc_info=True); await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro inesperado ao verificar ataques da liga: {e}", color=discord.Color.red))
-
-@bot.command(name='membro', help="Detalhes jogador: !membro <#TAG>")
-@commands.has_permissions(administrator=True)
-async def membro_command(ctx, player_tag: str = None):
-     # Comando já usa Embed, apenas pequenas melhorias
-    if not coc_client: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red)); return
-    if not player_tag: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Por favor, forneça a TAG do jogador. Ex: `!membro #Y9PVY2C`", color=discord.Color.red)); return
-
-    player_tag=player_tag.strip().upper()
+@info_group.command(name="membro", description="Mostra detalhes e estatísticas de um jogador.")
+@app_commands.describe(tag="A tag do jogador (incluindo o #).")
+async def membro_command(interaction: discord.Interaction, tag: str):
+    if not coc_client: await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red()), ephemeral=True); return
+    player_tag=tag.strip().upper();
     if not player_tag.startswith('#'): player_tag='#'+player_tag
-    if not coc.utils.is_valid_tag(player_tag): await ctx.send(embed=discord.Embed(description=f"{emojis['error']} A tag `{player_tag}` é inválida.", color=discord.Color.red)); return
+    if not coc.utils.is_valid_tag(player_tag): await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} Tag `{player_tag}` inválida.", color=discord.Color.red), ephemeral=True); return
+    await interaction.response.defer(ephemeral=False)
+    try:
+        player=await asyncio.wait_for(coc_client.get_player(player_tag),timeout=30.0);
+        p_n=player.name; p_t=player.tag; p_th=player.town_hall; p_th_w=player.town_hall_weapon; p_xp=player.exp_level; p_lg=player.league; p_tr=player.trophies; p_btr=player.best_trophies; p_ws=player.war_stars; p_don=player.donations; p_rec=player.received; p_cl=player.clan; p_role=player.role if p_cl else 'N/A'; p_hr=player.heroes; p_pet=player.pets
+        title=f"{p_lg.name if p_lg else ''} {p_n} ({p_t})"
+        emb=discord.Embed(title=title, color=discord.Color.orange());
+        if p_lg and p_lg.icon: emb.set_thumbnail(url=p_lg.icon.url)
+        cl_info="S/ clã";
+        if p_cl:
+            cl_name = getattr(p_cl, 'name', 'Nome Clã?') # Safety check
+            cl_tag = getattr(p_cl, 'tag', None)
+            cl_badge_url = getattr(p_cl.badge, 'url', None) if hasattr(p_cl, 'badge') else None
+            cl_info=f"[{cl_name}]({coc.utils.clan_link(cl_tag) if cl_tag else '#'})" if cl_tag else cl_name
+            cl_info += f"\nCargo: **{p_role}**";
+            if cl_badge_url: emb.set_author(name=f"Membro de {cl_name}", icon_url=cl_badge_url)
+        emb.add_field(name=f"{emojis['clan_capital']} Clã",value=cl_info,inline=False)
+        emb.add_field(name="CV", value=f"**{p_th}**"+(f" (Arma:{p_th_w})" if p_th_w else ""), inline=True); emb.add_field(name="XP Lvl", value=str(p_xp), inline=True); emb.add_field(name="Liga", value=f"{p_tr:,}{emojis['trophy']}"+(f" ({p_lg.name})" if p_lg else ""), inline=True); emb.add_field(name="Recorde", value=f"{p_btr:,}{emojis['trophy']}", inline=True); emb.add_field(name="Estrelas G.", value=f"{p_ws:,}⭐", inline=True); emb.add_field(name="Doa/Rec", value=f"{p_don:,}{emojis['donation']}/{p_rec:,}{emojis['received']}", inline=True);
 
-    async with ctx.typing():
-        try:
-            player=await asyncio.wait_for(coc_client.get_player(player_tag),timeout=20.0);
-            p_n=getattr(player,'name','?')
-            p_t=getattr(player,'tag',player_tag)
-            p_th=getattr(player,'town_hall','?')
-            p_th_weapon=getattr(player,'town_hall_weapon',None)
-            p_xp=getattr(player,'exp_level','?')
-            p_lg=getattr(player,'league',None)
-            p_tr=getattr(player,'trophies',0)
-            p_btr=getattr(player,'best_trophies',0)
-            p_ws=getattr(player,'war_stars',0)
-            p_aw=getattr(player,'attack_wins',0) # Ataques vencidos (Multiplayer)
-            p_dw=getattr(player,'defense_wins',0) # Defesas vencidas
-            p_don=getattr(player,'donations',0)
-            p_rec=getattr(player,'received',0)
-            p_cl=getattr(player,'clan',None)
-            p_role=getattr(player,'role','?') if p_cl else 'N/A' # Cargo no clã
-            p_hr=getattr(player,'heroes',[])
-            p_pet=getattr(player,'pets',[])
-            p_spells = getattr(player, 'spells', []) # Feitiços (para contar)
-            p_troops = getattr(player, 'troops', []) # Tropas (para contar)
+        hv_heroes = [h for h in p_hr if h.is_home_base] if p_hr else [] # Garante que p_hr não é None
+        if hv_heroes: # Verifica se a lista não está vazia
+             # Cria a lista de strings formatadas
+             hero_lines = [f"- {h.name}: **{h.level}**/{h.max_level}" for h in hv_heroes]
+             # Junta as linhas em uma única string
+             h_str = "\n".join(hero_lines)
+             # Adiciona o campo ao embed se a string foi criada
+             emb.add_field(name=f"{emojis['war_attack']} Heróis",value=h_str,inline=False)
 
-            # Montar Embed
-            title=f"{p_lg.name if p_lg and hasattr(p_lg,'name') else ''} {p_n} ({p_t})" # Liga no título
-            emb=discord.Embed(title=title, color=discord.Color.orange());
-            if p_lg and hasattr(p_lg,'icon') and hasattr(p_lg.icon,'url'): emb.set_thumbnail(url=p_lg.icon.url)
+        pet_list = p_pet if p_pet else []
+        if pet_list:
+            pet_lines = [f"- {p.name}: **{p.level}**/{p.max_level}" for p in pet_list]
+            pet_str = "\n".join(pet_lines)
+            emb.add_field(name="🐾 Pets",value=pet_str,inline=False)
 
-            # Informações do Clã
-            clan_info = "Sem clã";
-            if p_cl and hasattr(p_cl,'name') and hasattr(p_cl,'tag') and hasattr(p_cl,'badge') and hasattr(p_cl.badge,'url'):
-                clan_info = f"[{getattr(p_cl,'name','?')}]({coc.utils.clan_link(p_cl.tag)})\nCargo: **{p_role}**" # Link clã
-                emb.set_author(name=f"Membro de {p_cl.name}", icon_url=p_cl.badge.url) # Author com badge clã
-            elif p_cl and hasattr(p_cl,'name'): # Fallback sem link/badge
-                 clan_info = f"{getattr(p_cl,'name','?')}\nCargo: **{p_role}**"
-            emb.add_field(name=f"{emojis['clan_capital']} Clã",value=clan_info,inline=False)
+        emb.description=f"[Ver perfil]({coc.utils.player_link(p_t)})"; emb.set_footer(text=f"Verif:{datetime.now(TIMEZONE):%d/%m/%Y %H:%M}")
+        await interaction.followup.send(embed=emb)
+    except coc_errors.NotFound: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']} Jogador `{player_tag}` não encontrado.", color=discord.Color.red))
+    except asyncio.TimeoutError: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']} Timeout ao buscar dados do jogador `{player_tag}`.", color=discord.Color.red))
+    except Exception as e: logger.error(f"Erro /info membro {player_tag}:{e}",exc_info=True); await interaction.followup.send(f"{emojis['error']}Erro ao buscar dados do jogador: {e}", ephemeral=True)
 
-            # Infos Gerais
-            emb.add_field(name="CV", value=f"**{p_th}**" + (f" (Arma: {p_th_weapon})" if p_th_weapon else ""), inline=True)
-            emb.add_field(name="Nível XP", value=str(p_xp), inline=True)
-            emb.add_field(name="Liga", value=f"{p_tr:,}{emojis['trophy']}" + (f" ({p_lg.name})" if p_lg else ""), inline=True)
-            emb.add_field(name="Recorde Troféus", value=f"{p_btr:,}{emojis['trophy']}", inline=True)
-            emb.add_field(name="Estrelas Guerra", value=f"{p_ws:,}⭐", inline=True)
-            emb.add_field(name="Doações Temp.", value=f"{p_don:,}{emojis['donation']} / {p_rec:,}{emojis['received']}", inline=True)
+@info_group.command(name="capital", description="Mostra informações sobre a Capital do Clã e a última Raid.")
+async def capital_command(interaction: discord.Interaction):
+    if not coc_client: await interaction.response.send_message(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red()), ephemeral=True); return
+    await interaction.response.defer(ephemeral=False)
+    try:
+        clan=await get_clan_data(timeout=45);
+        if not clan: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']}Erro dados clã `{CLAN_TAG}`!", color=discord.Color.red)); return
 
-            # Heróis (Home Village)
-            hv_heroes = [h for h in p_hr if getattr(h,'is_home_base',False)]
-            h_str="\n".join([f"- {getattr(h,'name','?')}: **{getattr(h,'level','?')}** / {getattr(h,'max_level','?')}" for h in hv_heroes]) or "N/A";
-            if h_str != "N/A": emb.add_field(name=f"{emojis['war_attack']} Heróis (Vila Principal)",value=h_str,inline=False)
+        c_n = clan.name
+        emb = discord.Embed(title=f"{emojis['clan_capital']} Capital: {c_n}", color=0x9B59B6) # Usa int para cor
+        if clan.badge:
+            emb.set_thumbnail(url=clan.badge.url)
 
-            # Pets (Home Village)
-            # A API pode não retornar pets diretamente no player, verificar se p_pet existe e tem itens
-            if p_pet:
-                pet_str="\n".join([f"- {getattr(p,'name','?')}: **{getattr(p,'level','?')}** / {getattr(p,'max_level','?')}" for p in p_pet]) or "N/A";
-                if pet_str != "N/A": emb.add_field(name="🐾 Pets",value=pet_str,inline=False)
+        cap_info=clan.clan_capital; dist_field_added=False; final_embeds = [] # Lista para guardar embeds a serem enviados
+        dist_list = []
+        dist_title = f"{emojis['clan_capital']} Distritos"
 
-            # Adicionar link para o perfil (opcional)
-            player_link = coc.utils.player_link(p_t)
-            emb.description = f"[Ver perfil no jogo]({player_link})" # Adiciona link na descrição
-
-            emb.set_footer(text=f"Verificado: {datetime.now(TIMEZONE).strftime('%d/%m/%Y %H:%M:%S')}")
-            await ctx.send(embed=emb)
-
-        except coc_errors.NotFound: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Jogador com a tag `{player_tag}` não encontrado.", color=discord.Color.red))
-        except coc_errors.ClashOfClansException as e_coc: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro na API CoC ({type(e_coc).__name__}) ao buscar o jogador.", color=discord.Color.red)); logger.warning(f"Erro API !membro: {e_coc}")
-        except asyncio.TimeoutError: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Timeout ao buscar dados do jogador.", color=discord.Color.red)); logger.warning("Timeout !membro command")
-        except Exception as e: logger.error(f"Erro !membro {player_tag}:{e}",exc_info=True); await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro inesperado ao buscar jogador: {e}", color=discord.Color.red))
-
-
-@bot.command(name='capital', help="Infos Capital Clã e último raid.")
-@commands.has_permissions(administrator=True)
-async def capital_command(ctx):
-    # Comando já usa Embed, melhorias
-    if not coc_client: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível.", color=discord.Color.red)); return
-    async with ctx.typing():
-        clan=await get_clan_data();
-        if not clan: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro ao obter dados do clã `{CLAN_TAG}`!", color=discord.Color.red)); return
-
-        c_n=getattr(clan,'name',CLAN_TAG)
-        emb=discord.Embed(title=f"{emojis['clan_capital']} Capital do Clã: {c_n}",color=0x9B59B6) # Roxo
-        badge=getattr(getattr(clan,'badge',None),'url',None)
-        if badge: emb.set_thumbnail(url=badge)
-
-        # Informações da Capital (Nível Salão, Distritos)
-        cap_info = getattr(clan, 'clan_capital', None)
         try:
             if cap_info:
-                 hall_lvl=getattr(cap_info,'capital_hall_level','?')
-                 emb.description=f"Nível do Salão da Capital: **{hall_lvl}**"
-                 districts = getattr(cap_info,'districts',[]);
-                 d_list = [f"- {getattr(d,'name','?')}: Nível **{getattr(d,'hall_level','?')}**" for d in districts] if districts else ["N/D"]
-                 # Usar split se a lista de distritos for muito longa
-                 dist_field_title = f"{emojis['clan_capital']} Distritos ({len(d_list)})"
-                 if len("\n".join(d_list)) > 1024:
-                      await send_embeds_splitted(ctx.channel, emb, dist_field_title, d_list, max_len=1024, max_items_per_embed=10)
-                      # O embed base já foi enviado, não precisa adicionar campo aqui
-                 elif d_list != ["N/D"]:
-                      emb.add_field(name=dist_field_title, value="\n".join(d_list), inline=False)
-                 else:
-                      emb.add_field(name=dist_field_title, value="Nenhum distrito encontrado.", inline=False)
+                hall_lvl=cap_info.capital_hall_level; emb.description=f"Salão Capital: **{hall_lvl}**"; districts=cap_info.districts;
+                dist_list=[f"- {d.name}: Lvl **{d.hall_level}**" for d in districts] if districts else ["N/D"];
+                dist_title=f"{emojis['clan_capital']} Distritos ({len(dist_list) if dist_list != ['N/D'] else 0})" # Conta corretamente
+                if len("\n".join(dist_list)) > 1024 and dist_list != ["N/D"]:
+                     dist_field_added=True
+                     # Não adiciona ao embed principal, será enviado separadamente
+                elif dist_list != ["N/D"]: emb.add_field(name=dist_title, value="\n".join(dist_list), inline=False)
+                else: emb.add_field(name=dist_title, value="N/D.", inline=False)
+            else: emb.description="Infos Capital indisponíveis."
+        except Exception as e: emb.description=f"Erro Capital:{e}"; logger.error(f"Erro /info capital (detalhes):{e}",exc_info=True)
 
-            else: emb.description="Informações sobre a Capital do Clã indisponíveis."
-        except Exception as e:
-            emb.description=f"Erro ao buscar detalhes da Capital: {e}";
-            logger.error(f"Erro Capital !capital (detalhes):{e}",exc_info=True)
-
-
-        # Informações da Última/Atual Raid Weekend
-        raid_field_title = f"{emojis['raid']} Última/Atual Raid Weekend"
-        rf_v=f"{emojis['warning']} Verificando..."
-        top_s=""
-        raid_found = False
+        raid_title=f"{emojis['raid']} Última/Atual Raid"; rf_v=f"{emojis['warning']} Verificando..."; top_s=""; raid_found=False; top_raiders_list = []
         try:
-            rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG,limit=1),timeout=30.0);
+            rl=await asyncio.wait_for(coc_client.get_clan_capital_raid_seasons(CLAN_TAG,limit=1),timeout=45.0);
             if rl and rl[0] and hasattr(rl[0],'state'):
-                raid_found = True
-                r=rl[0]; state=r.state.capitalize(); loot=getattr(r,'capital_total_loot',0); attacks=getattr(r,'total_attacks','?'); d_d=getattr(r,'districts_destroyed','?')
-                st_obj = getattr(r, 'start_time', None); et_obj = getattr(r, 'end_time', None)
-                st = st_obj.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if st_obj and hasattr(st_obj, 'time') else '?'
-                et_ts = int(et_obj.time.astimezone(TIMEZONE).timestamp()) if et_obj and hasattr(et_obj, 'time') else None;
-                t_inf=f"(Término: <t:{et_ts}:R>)" if et_ts and state == 'Ongoing' else "";
-                st_t="Ativo" if state=='Ongoing' else "Finalizado"
-                s_em=emojis['raid'] if state=='Ongoing' else emojis['success']
+                 raid_found=True; r=rl[0]; state=r.state.capitalize(); loot=r.capital_total_loot; attacks=r.total_attacks; d_d=r.districts_destroyed; st_obj=r.start_time; et_obj=r.end_time; st=st_obj.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if st_obj and hasattr(st_obj,'time') else '?'; et_ts=int(et_obj.time.timestamp()) if et_obj and hasattr(et_obj,'time') else None; t_inf=f"(Fim: <t:{et_ts}:R>)" if et_ts and state=='Ongoing' else ""; st_t="Ativo" if state=='Ongoing' else "Finalizado"; s_em=emojis['raid'] if state=='Ongoing' else emojis['success']
+                 rf_v=(f"**Estado:** {s_em}{st_t} {t_inf}\n**Início:** {st}\n{emojis['clan_capital']}Ouro:**{loot:,}** {emojis['war_attack']}Atk:{attacks} {emojis['destruction']}Distr:{d_d}")
+                 if r.members:
+                     m_data={m.tag:{'name':m.name,'loot':m.capital_resources_looted} for m in r.members};
+                     s_raiders=sorted(m_data.items(),key=lambda i:i[1]['loot'],reverse=True)[:5]; # Top 5 apenas para o embed principal
+                     top_s="\n".join([f"{i}. `{d['name']}`:**{d['loot']:,}**" for i,(t,d) in enumerate(s_raiders,1)])
+                     # Guarda a lista completa para possível split
+                     full_raiders_sorted = sorted(m_data.items(), key=lambda i: i[1]['loot'], reverse=True)
+                     top_raiders_list = [f"{i}. `{d['name']}`:**{d['loot']:,}**" for i, (t, d) in enumerate(full_raiders_sorted, 1)]
+            else: rf_v=f"{emojis['warning']}Nenhum dado raid."
+        except asyncio.TimeoutError: rf_v = f"{emojis['error']} Timeout ao buscar Raid."
+        except Exception as e: rf_v=f"{emojis['error']}Erro Raid: {type(e).__name__}."
 
-                rf_v=(f"**Estado:** {s_em} {st_t} {t_inf}\n"
-                      f"**Início:** {st}\n"
-                      f"{emojis['clan_capital']} Ouro Total: **{loot:,}**\n"
-                      f"{emojis['war_attack']} Ataques: {attacks}\n"
-                      f"{emojis['destruction']} Distritos Destruídos: {d_d}")
+        # Adiciona info da raid ao embed principal (se não foi dividido pelos distritos)
+        if not dist_field_added: emb.add_field(name=raid_title, value=rf_v, inline=False);
+        # Adiciona top 5 ao embed principal (se não foi dividido pelos distritos e se houver top)
+        if raid_found and top_s and not dist_field_added:
+             emb.add_field(name="🌟 Top Contribs", value=top_s, inline=False)
 
-                # Top Contribuintes (se houver membros na raid)
-                if getattr(r,'members',[]):
-                    # Usar nomes do log da raid
-                    m_data={m.tag:{'name':getattr(m,'name','?'),'loot':getattr(m,'capital_resources_looted',0)} for m in r.members if hasattr(m,'tag')};
-                    s_raiders=sorted(m_data.items(),key=lambda i:i[1]['loot'],reverse=True)[:5]; # Top 5
-                    top_s="\n".join([f"{i}. `{d['name']}`: **{d['loot']:,}**" for i,(t,d) in enumerate(s_raiders,1)])
-            else: rf_v=f"{emojis['warning']} Nenhum dado da última Raid Weekend encontrado."
-        except coc_errors.NotFound: rf_v=f"{emojis['warning']} Nenhum histórico de Raid Weekend encontrado (NotFound)."
-        except coc_errors.ClashOfClansException as e_coc: rf_v = f"{emojis['error']} Erro API Raid ({type(e_coc).__name__})."; logger.warning(f"Erro API Raid !capital: {e_coc}")
-        except asyncio.TimeoutError: rf_v=f"{emojis['error']} Timeout ao verificar Raid."; logger.warning("Timeout Raid !capital")
-        except Exception as e: rf_v=f"{emojis['error']} Erro ao verificar Raid."; logger.warning(f"Erro Raid !capital:{e}", exc_info=True)
+        emb.set_footer(text=f"Verif:{datetime.now(TIMEZONE):%d/%m/%Y %H:%M}")
 
-        # Adiciona o campo da Raid (se não foi enviado pelo split dos distritos)
-        if not (cap_info and districts and len("\n".join(d_list)) > 1024):
-             emb.add_field(name=raid_field_title, value=rf_v, inline=False)
+        # Envia o embed principal
+        await interaction.followup.send(embed=emb)
 
-        # Adiciona Top Contribuintes se houver e se a raid foi encontrada
-        if raid_found and top_s:
-            # Adiciona campo de top (se não foi enviado pelo split dos distritos)
-             if not (cap_info and districts and len("\n".join(d_list)) > 1024):
-                  emb.add_field(name="🌟 Top Contribuições (Últ. Raid)", value=top_s, inline=False)
-             else: # Se o embed base já foi enviado, envia o top separadamente
-                  top_embed = discord.Embed(title="🌟 Top Contribuições (Últ. Raid)", description=top_s, color=emb.color)
-                  try: await ctx.send(embed=top_embed)
-                  except Exception as e: logger.error(f"Erro ao enviar embed TOP separado (!capital): {e}")
+        # Se os distritos foram separados, envia-os agora usando send_embeds_splitted
+        if dist_field_added and interaction.channel and dist_list != ["N/D"]:
+            await send_embeds_splitted(interaction.channel, discord.Embed(color=emb.color), dist_title, dist_list, max_items_per_embed=15)
+            await asyncio.sleep(0.3) # Pequena pausa
 
+        # Se a raid foi encontrada e a lista completa de raiders é longa OU se os distritos foram divididos, envia-a separadamente
+        if raid_found and top_raiders_list and interaction.channel and (len("\n".join(top_raiders_list)) > 1024 or dist_field_added):
+            top_emb = discord.Embed(title="🌟 Top Contribs Raid", color=emb.color)
+            await send_embeds_splitted(interaction.channel, top_emb, "Ranking", top_raiders_list, max_items_per_embed=15)
 
-        emb.set_footer(text=f"Verificado: {datetime.now(TIMEZONE).strftime('%d/%m/%Y %H:%M:%S')}")
-        # Envia o embed principal (se não foi enviado pelo split dos distritos)
-        if not (cap_info and districts and len("\n".join(d_list)) > 1024):
-            await ctx.send(embed=emb)
+    except asyncio.TimeoutError: await interaction.followup.send(f"{emojis['error']}Timeout ao buscar dados do clã.", ephemeral=True)
+    except Exception as e: logger.error(f"Erro GERAL cmd /info capital:{e}", exc_info=True); await interaction.followup.send(f"{emojis['error']}Erro ao buscar informações da capital: {e}", ephemeral=True)
 
-
-@bot.command(name='setcanal', help="Define canal logs: !setcanal #canal")
-@commands.has_permissions(administrator=True)
-async def set_canal_command(ctx, channel: discord.TextChannel = None):
-    # <<< EMBED START >>> (Usar embeds para confirmações e erros)
-    global CHANNEL_ID
-    target_channel = channel or ctx.channel
-    if not isinstance(target_channel, discord.TextChannel):
-         await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Canal inválido. Por favor, mencione um canal de texto existente.", color=discord.Color.red)); return
-    try:
-         # Testar permissão enviando uma mensagem de teste
-         test_msg = await target_channel.send(embed=discord.Embed(description=f"{emojis['warning']} Testando permissões neste canal...", color=discord.Color.orange))
-         await test_msg.edit(embed=discord.Embed(description=f"{emojis['success']} Permissões OK!", color=discord.Color.green), delete_after=5.0) # Confirma e apaga
-
-         old_channel_id = CHANNEL_ID
-         CHANNEL_ID = target_channel.id
-         logger.info(f"Canal de logs alterado para {target_channel.name}({CHANNEL_ID}) por {ctx.author}")
-
-         confirm_embed = discord.Embed(
-             title=f"{emojis['success']} Canal de Logs Alterado",
-             description=f"O canal para envio de logs e notificações foi definido para {target_channel.mention}.",
-             color=discord.Color.green()
-         )
-         await ctx.send(embed=confirm_embed)
-
-         # Perguntar sobre reiniciar tasks
-         restart_q_embed = discord.Embed(
-             description=f"{emojis['warning']} Deseja reiniciar as tarefas de monitoramento agora para aplicar a mudança imediatamente? (Responda com `sim` ou `não`)",
-             color=discord.Color.orange
-         )
-         confirm_msg = await ctx.send(embed=restart_q_embed)
-
-         check = lambda m: m.author == ctx.author and m.channel == ctx.channel and m.content.lower() in ['sim','s','yes','y','não','nao','n','no']
-         try:
-             resp = await bot.wait_for('message', timeout=30.0, check=check);
-             # Deletar a pergunta e a resposta do usuário
-             try: await confirm_msg.delete()
-             except discord.HTTPException: pass
-             try: await resp.delete()
-             except discord.HTTPException: pass
-
-             if resp.content.lower() in ['sim','s','yes','y']:
-                  await ctx.send(embed=discord.Embed(description=f"{emojis['info']} Reiniciando tarefas...", color=discord.Color.blue), delete_after=10.0)
-                  tasks_list=[check_donations,check_members,check_war,check_league_war,check_raid_weekend]
-                  restart_log = []
-                  for t in tasks_list:
-                      task_name = t.coro.__name__
-                      status_emoji = emojis['error']
-                      status_text = "Erro"
-                      try:
-                          if t.is_running():
-                              t.restart()
-                              status_emoji = emojis['success']
-                              status_text = "Reiniciada"
-                          else:
-                              t.start()
-                              status_emoji = emojis['success']
-                              status_text = "Iniciada"
-                      except Exception as e_restart:
-                          logger.error(f"Erro ao reiniciar/iniciar task {task_name} (setcanal): {e_restart}")
-                          status_text = f"Erro ({e_restart})"
-                      restart_log.append(f"- {task_name}: {status_text} {status_emoji}")
-
-                  restart_embed = discord.Embed(
-                      title=f"{emojis['success']} Tarefas Reiniciadas",
-                      description="As tarefas de monitoramento foram reiniciadas e usarão o novo canal.\n\n**Status:**\n" + "\n".join(restart_log),
-                      color=discord.Color.green
-                  )
-                  await target_channel.send(embed=restart_embed) # Envia no *novo* canal
-                  logger.info(f"Tasks reiniciadas (setcanal) ({'; '.join(restart_log)}).")
-             else:
-                 await ctx.send(embed=discord.Embed(description=f"{emojis['info']} As tarefas não foram reiniciadas. A mudança de canal será efetiva na próxima execução automática ou reinicialização do bot.", color=discord.Color.light_grey))
-         except asyncio.TimeoutError:
-             try: await confirm_msg.delete() # Tenta deletar mesmo no timeout
-             except discord.HTTPException: pass
-             await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} Tempo esgotado. As tarefas não foram reiniciadas.", color=discord.Color.orange))
-
-    except discord.errors.Forbidden:
-        await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Permissão Negada! O bot não tem permissão para enviar mensagens em {target_channel.mention}.", color=discord.Color.red))
-    except Exception as e:
-        logger.error(f"Erro no comando setcanal para {target_channel.mention}: {e}",exc_info=True);
-        await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Ocorreu um erro inesperado ao definir o canal: {e}", color=discord.Color.red))
-    # <<< EMBED END >>>
-
-
-@bot.command(name='setclan', help="Define clã monitorar: !setclan #TAG")
-@commands.has_permissions(administrator=True)
-async def set_clan_command(ctx, clan_tag: str = None):
-    # <<< EMBED START >>> (Usar embeds para confirmações e erros)
-    global CLAN_TAG,member_cache,donation_cache,war_cache,raid_weekend_cache, coc_client
-    if not coc_client: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} API CoC indisponível. Não é possível alterar o clã agora.", color=discord.Color.red)); return
-    if not clan_tag: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Forneça a TAG do clã. Ex: `!setclan #TAGCLAN`", color=discord.Color.red)); return
-
-    clan_tag=clan_tag.strip().upper()
-    if not clan_tag.startswith('#'): clan_tag='#'+clan_tag
-    if not coc.utils.is_valid_tag(clan_tag): await ctx.send(embed=discord.Embed(description=f"{emojis['error']} A tag `{clan_tag}` é inválida.", color=discord.Color.red)); return
-    if clan_tag == CLAN_TAG: await ctx.send(embed=discord.Embed(description=f"{emojis['info']} O bot já está monitorando o clã `{clan_tag}`.", color=discord.Color.blue)); return
-
-    async with ctx.typing():
-        try:
-            logger.info(f"Tentando definir clã para {clan_tag} por {ctx.author}...")
-            # Verificar acesso ao novo clã
-            clan = await asyncio.wait_for(coc_client.get_clan(clan_tag),timeout=30.0);
-            new_clan_name = getattr(clan, 'name', clan_tag)
-            new_clan_tag = getattr(clan, 'tag', clan_tag) # Usa a tag retornada pela API (caso haja diferença de casing)
-            new_clan_badge_url = getattr(getattr(clan,'badge',None),'url',None)
-
-            # Confirmação da mudança
-            change_embed = discord.Embed(
-                 title=f"{emojis['success']} Clã Alvo Alterado!",
-                 description=f"Monitoramento alterado para o clã **{new_clan_name}** (`{new_clan_tag}`).\n\n"
-                             f"{emojis['warning']} Limpando caches de dados antigos...",
-                 color=discord.Color.green
-            )
-            if new_clan_badge_url: change_embed.set_thumbnail(url=new_clan_badge_url)
-            await ctx.send(embed=change_embed)
-
-            old_tag=CLAN_TAG
-            CLAN_TAG=new_clan_tag # Atualiza a variável global
-
-            # Limpar caches
-            member_cache={'members':{},'count':0}
-            donation_cache={}
-            # Limpa cache de guerra de forma mais segura
-            war_cache = {'war_end_reported': war_cache.get('war_end_reported',{}), # Mantém reported
-                         'league_war_end_reported': war_cache.get('league_war_end_reported',{}),
-                         'league_start_announced': False} # Reseta outros
-            raid_weekend_cache={'current_raid':None}
-            logger.info(f"Clã alterado de {old_tag} para {CLAN_TAG} ({new_clan_name}) por {ctx.author}. Caches limpos.")
-
-            await ctx.send(embed=discord.Embed(description=f"{emojis['success']} Caches limpos.", color=discord.Color.green), delete_after=10.0)
-
-            # Perguntar sobre reiniciar tasks
-            restart_q_embed = discord.Embed(
-                description=f"{emojis['warning']} Deseja reiniciar as tarefas de monitoramento agora para o novo clã? (Responda com `sim` ou `não`)",
-                color=discord.Color.orange
-            )
-            confirm_msg = await ctx.send(embed=restart_q_embed)
-
-            check=lambda m: m.author==ctx.author and m.channel==ctx.channel and m.content.lower() in ['sim','s','yes','y','não','nao','n','no']
-            try:
-                resp=await bot.wait_for('message',timeout=30.0,check=check);
-                # Deletar a pergunta e a resposta
-                try: await confirm_msg.delete()
-                except discord.HTTPException: pass
-                try: await resp.delete()
-                except discord.HTTPException: pass
-
-                if resp.content.lower() in ['sim','s','yes','y']:
-                    await ctx.send(embed=discord.Embed(description=f"{emojis['info']} Reiniciando tarefas para **{new_clan_name}**...", color=discord.Color.blue), delete_after=10.0)
-                    tasks_list=[check_donations,check_members,check_war,check_league_war,check_raid_weekend]
-                    restart_log = []
-                    for t in tasks_list:
-                        task_name = t.coro.__name__
-                        status_emoji = emojis['error']
-                        status_text = "Erro"
-                        try:
-                            if t.is_running():
-                                t.restart()
-                                status_emoji = emojis['success']
-                                status_text = "Reiniciada"
-                            else:
-                                t.start()
-                                status_emoji = emojis['success']
-                                status_text = "Iniciada"
-                        except Exception as e_restart:
-                            logger.error(f"Erro ao reiniciar/iniciar task {task_name} (setclan): {e_restart}")
-                            status_text = f"Erro ({e_restart})"
-                        restart_log.append(f"- {task_name}: {status_text} {status_emoji}")
-
-                    restart_embed = discord.Embed(
-                        title=f"{emojis['success']} Tarefas Reiniciadas para {new_clan_name}",
-                        description="As tarefas de monitoramento foram reiniciadas para o novo clã.\n\n**Status:**\n" + "\n".join(restart_log),
-                        color=discord.Color.green
-                    )
-                    status_channel = bot.get_channel(CHANNEL_ID) # Canal atual de logs
-                    if status_channel: await status_channel.send(embed=restart_embed)
-                    else: await ctx.send(embed=restart_embed) # Envia no canal do comando se o de log falhar
-                    logger.info(f"Tasks reiniciadas (setclan para {CLAN_TAG}) ({'; '.join(restart_log)}).")
-                else:
-                    await ctx.send(embed=discord.Embed(description=f"{emojis['info']} As tarefas não foram reiniciadas. O monitoramento do novo clã iniciará na próxima execução automática ou reinicialização do bot.", color=discord.Color.light_grey))
-            except asyncio.TimeoutError:
-                try: await confirm_msg.delete()
-                except discord.HTTPException: pass
-                await ctx.send(embed=discord.Embed(description=f"{emojis['warning']} Tempo esgotado. As tarefas não foram reiniciadas.", color=discord.Color.orange))
-
-        except coc_errors.NotFound: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Clã com a tag `{clan_tag}` não encontrado!", color=discord.Color.red))
-        except coc_errors.ClashOfClansException as e_coc: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro na API CoC ({type(e_coc).__name__}) ao verificar a tag do clã.", color=discord.Color.red)); logger.warning(f"Erro API !setclan: {e_coc}")
-        except asyncio.TimeoutError: await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Timeout ao verificar a tag do clã.", color=discord.Color.red)); logger.warning("Timeout !setclan command")
-        except Exception as e: logger.error(f"Erro setclan {clan_tag}: {e}",exc_info=True); await ctx.send(embed=discord.Embed(description=f"{emojis['error']} Erro inesperado ao definir o clã: {e}", color=discord.Color.red))
-    # <<< EMBED END >>>
-
-@bot.command(name='ajuda', aliases=['help', 'comandos'])
-async def ajuda_command(ctx):
-    # Comando já usa Embed, pequenas melhorias
-    embed=discord.Embed(
-        title=f"{emojis['info']} Ajuda - {bot.user.name}",
-        description="Monitora eventos do Clash of Clans e fornece informações sobre o clã.",
-        color=discord.Color.green()
-    )
+@bot.tree.command(name="ajuda", description="Mostra informações sobre os comandos do bot.")
+async def ajuda_command(interaction: discord.Interaction):
+    embed = discord.Embed(title=f"{emojis['info']} Ajuda - {bot.user.name}", description="Monitora eventos CoC e fornece infos via comandos de barra (`/`).", color=discord.Color.green())
     if bot.user.avatar: embed.set_thumbnail(url=bot.user.avatar.url)
+    embed.add_field(name=f"{emojis['admin']} Admin (`/admin ...`) [ADM]", value=f"`status`: Exibe status geral.\n`top`: Mostra rankings do clã.\n`setcanal`: Define canal de logs.\n`setclan`: Define clã a monitorar.", inline=False)
+    embed.add_field(name=f"{emojis['war_attack']} Guerra (`/guerra ...`)", value=f"`ataques`: Mostra ataques restantes na Guerra Normal.\n`liga_ataques`: Mostra ataques restantes na CWL.", inline=False)
+    embed.add_field(name=f"{emojis['info']} Info (`/info ...`)", value=f"`membro <TAG>`: Detalhes de um jogador.\n`capital`: Infos da Capital do Clã.", inline=False)
+    embed.add_field(name="👀 Eventos Monitorados Auto", value=f"Entrada/Saída de membros, Doações, Ataques de Guerra/Liga, Progresso/Fim de Raid são enviados automaticamente no canal definido por `/admin setcanal`.", inline=False) # Descrição melhorada
+    embed.set_footer(text=f"Versão: 15.0.11")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    embed.add_field(
-        name="🛠️ Comandos de Configuração (Admin)",
-        value=f"`{bot.command_prefix}setcanal #canal` - Define o canal para receber logs e notificações.\n"
-              f"`{bot.command_prefix}setclan #TAGCLAN` - Define qual clã o bot deve monitorar.",
-        inline=False
-    )
-    embed.add_field(
-        name="📊 Comandos de Informação (Admin)",
-        value=f"`{bot.command_prefix}status` - Exibe um resumo do status atual do clã, guerras e raids.\n"
-              f"`{bot.command_prefix}top [tipo] [limite]` - Mostra rankings (tipos: `doacoes`, `recebidos`, `trofeus`, `capital`). Limite padrão é 10.\n"
-              f"`{bot.command_prefix}ataques` - Lista membros com ataques restantes na Guerra Normal atual.\n"
-              f"`{bot.command_prefix}ligaataques` - Lista membros com ataques restantes na rodada atual da CWL.\n"
-              f"`{bot.command_prefix}membro #TAGJOGADOR` - Exibe detalhes de um jogador específico.\n"
-              f"`{bot.command_prefix}capital` - Mostra informações sobre a Capital do Clã e a última Raid Weekend.",
-        inline=False
-    )
-    embed.add_field(
-        name="👀 Eventos Monitorados Automaticamente",
-        value=f"{emojis['donation']}/{emojis['received']} Doações e Recebimentos\n"
-              f"{emojis['join']}/{emojis['leave']} Entradas e Saídas de Membros\n"
-              f"{emojis['war_attack']} Ataques em Guerras (Normal e CWL)\n"
-              f"{emojis['war_win']}/{emojis['war_lose']}/{emojis['war_tie']} Início e Fim de Guerras\n"
-              f"{emojis['time']} Alertas de Tempo Restante em Guerras\n"
-              f"{emojis['missed_attack']} Relatório de Ataques Não Realizados\n"
-              f"{emojis['raid']} Início, Fim e Progresso da Raid Weekend",
-        inline=False
-    )
-    embed.set_footer(text=f"Versão do Bot: 14.13 | Prefixo: {bot.command_prefix}") # Atualiza versão
-    await ctx.send(embed=embed)
+# Função auxiliar corrigida para receber interaction e tratar canal
+async def display_attacks_remaining_slash(interaction: discord.Interaction, war, war_type="Guerra"):
+    if not interaction.channel: # Verifica se o canal da interação é válido
+         logger.error(f"Erro display_attacks_remaining_slash: Canal da interação inválido.")
+         # Tenta enviar no followup mesmo assim, pode funcionar se a interação ainda for válida
+         try: await interaction.followup.send(f"{emojis['error']}Erro: Não foi possível encontrar o canal para enviar a resposta.", ephemeral=True)
+         except Exception as e_followup: logger.error(f"Erro ao enviar msg de erro (canal inválido) em display_attacks_remaining_slash: {e_followup}")
+         return
+
+    if not war or war.state not in ['inWar', 'preparation']: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Não em {war_type} ativa ou em preparação.", color=discord.Color.orange())); return # Mensagem ajustada
+    our_c = war.clan if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'opponent', None)
+    en_c = war.opponent if hasattr(war, 'clan') and war.clan.tag == CLAN_TAG else getattr(war, 'clan', None)
+    if not our_c or not en_c: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['error']} Erro identificar clãs na {war_type}.", color=discord.Color.red())); return
+    state_info = ""; time_ref = None; color = discord.Color.blue(); timestamp = datetime.now(TIMEZONE)
+    if war.state == 'preparation' and war.start_time and hasattr(war.start_time, 'time'):
+        time_ref = war.start_time.time.astimezone(TIMEZONE); state_info = f"**Estado:** Prep.\n**Início:** <t:{int(time_ref.timestamp())}:R>"; timestamp = time_ref
+    elif war.state == 'inWar' and war.end_time and hasattr(war.end_time, 'time'):
+        time_ref = war.end_time.time.astimezone(TIMEZONE); state_info = f"**Estado:** Guerra\n**Término:** <t:{int(time_ref.timestamp())}:R>"; color = discord.Color.orange(); timestamp = time_ref
+    else: # Caso não tenha tempo de início/fim ou estado inesperado
+         state_info = f"**Estado:** {war.state.capitalize()}"
+
+    attacks_per = war.attacks_per_member; remaining = []; total_possible = 0; total_done = 0; members = our_c.members or []
+    if not members: await interaction.followup.send(embed=discord.Embed(description=f"{emojis['warning']} Lista membros da {war_type} indisponível.", color=discord.Color.orange)); return
+    for m in members:
+        total_possible += attacks_per; attacks_d = len(m.attacks); total_done += attacks_d; attacks_l = attacks_per - attacks_d
+        if attacks_l > 0: name=m.name; th=m.town_hall; map_pos=m.map_position; remaining.append(f"{map_pos}. `{name}` (CV{th}): **{attacks_l}** atk(s)")
+    title = f"{emojis['war_attack']} Ataques Restantes - {war_type} vs {en_c.name}"; base_embed = discord.Embed(title=title, description=state_info, color=color, timestamp=timestamp); base_embed.set_footer(text=f"Clã: {our_c.name}")
+    summary = f"**{total_done} / {total_possible}** ataques realizados."; base_embed.add_field(name="Resumo", value=summary, inline=False)
+    if not remaining: base_embed.add_field(name="Situação", value=f"{emojis['success']} Todos atacaram!", inline=False); base_embed.color = discord.Color.green(); await interaction.followup.send(embed=base_embed)
+    else:
+        temp_embed = base_embed.copy(); field_title = "Membros Pendentes"; full_list_str = "\n".join(remaining)
+        if len(full_list_str) <= 1024 and len(remaining) <= 20 : # Cabe em um único campo
+            temp_embed.add_field(name=field_title, value=full_list_str, inline=False);
+            await interaction.followup.send(embed=temp_embed)
+        else: # Precisa dividir
+             # Envia o embed base primeiro
+             await interaction.followup.send(embed=base_embed)
+             # Depois envia a lista de membros pendentes separadamente
+             if interaction.channel: # Garante que canal existe para o split
+                 await send_embeds_splitted(interaction.channel, discord.Embed(color=color), field_title, remaining, max_items_per_embed=15)
+             else:
+                 logger.error(f"Erro display_attacks_remaining_slash: Canal inválido para enviar split.")
+
+
+# Adiciona os grupos à árvore
+bot.tree.add_command(admin_group)
+bot.tree.add_command(war_group)
+bot.tree.add_command(info_group)
 
 # --- Função Principal ---
 async def main():
     global coc_client
     if not TOKEN: logger.critical("Token Discord não encontrado."); return
-
     logger.info("Iniciando bot Discord (main)...")
     try:
-        # setup_hook (web server) e on_ready (CoC login, tasks) são chamados pelo bot.start()
         await bot.start(TOKEN)
     except discord.LoginFailure: logger.critical("Login Discord falhou: Token inválido.")
-    except discord.PrivilegedIntentsRequired: logger.critical("Login Discord falhou: Intenções privilegiadas (Members/Message Content) não habilitadas no Portal do Desenvolvedor Discord.")
+    except discord.PrivilegedIntentsRequired: logger.critical("Login Discord falhou: Intenções Privilegiadas não habilitadas (Gateway Intents).")
     except KeyboardInterrupt: logger.info("Desligamento manual solicitado.")
     except Exception as e: logger.critical(f"Erro fatal no loop principal do bot: {e}", exc_info=True)
-    # before_closing é chamado automaticamente
+    finally:
+        # Garante que o cliente CoC seja fechado ao sair
+        if coc_client and hasattr(coc_client, 'is_closed') and not coc_client.is_closed: # Verifica se existe e não está fechado
+            logger.info("Fechando cliente CoC no final do main...")
+            try:
+                 await coc_client.close()
+                 logger.info("Cliente CoC fechado no final do main.")
+            except Exception as e_close:
+                 logger.error(f"Erro ao fechar cliente CoC no finally: {e_close}", exc_info=True)
+        logger.info("Bot encerrado.")
 
 if __name__ == "__main__":
     try:
-        # Necessário para AIOHTTP no Windows em alguns casos
-        if os.name == 'nt': asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        # A política de loop de eventos do Windows só é necessária se você estiver executando no Windows
+        # e usando versões mais antigas do Python ou enfrentando problemas específicos.
+        # Pode ser removido se não for necessário.
+        if os.name == 'nt':
+             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         asyncio.run(main())
     except Exception as e_run:
-        logger.critical(f"Erro crítico ao executar asyncio.run(main): {e_run}", exc_info=True)
+        # Log crítico se asyncio.run falhar
+        # Tenta usar o logger configurado, se falhar, usa print
+        try:
+            logger.critical(f"Erro crítico irrecuperável ao executar asyncio.run(main): {e_run}", exc_info=True)
+        except:
+            print(f"ERRO CRÍTICO IRRECUPERÁVEL (logger falhou): {e_run}")
