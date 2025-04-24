@@ -1,7 +1,5 @@
-coc.py
-aiohttp
-requests
-pytz
+discord.py==2.5.2
+coc.py==3.9.1
 python-dotenv
-discord.py
 aiohttp
+pytz
