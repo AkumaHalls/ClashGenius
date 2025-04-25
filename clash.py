@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
-# Versão 16.0.32 - Removido handler war_state_change.
-#                  - Adicionada task periódica para reportar ataques perdidos no fim da guerra.
+# Versão 16.0.34 - Corrigido CommandSignatureMismatch forçando sync para Guilda de Teste
 
 import discord
 from discord import app_commands
-from discord.ext import commands, tasks # Adicionado tasks
+from discord.ext import commands, tasks
 import coc
 from coc import utils as coc_utils
-# Exceções importadas diretamente de coc
+# Exceções são importadas diretamente de 'coc' agora
 import asyncio
 import os
 import logging
@@ -21,7 +20,7 @@ from typing import Optional, List, Set
 load_dotenv()
 
 # --- Constantes ---
-BOT_VERSION = "16.0.32" # Define a versão atual aqui
+BOT_VERSION = "16.0.34" # Define a versão atual aqui
 
 # --- Configuração de Logging ---
 log_formatter = logging.Formatter('%(asctime)s-%(levelname)s-[%(funcName)s]: %(message)s')
@@ -44,11 +43,21 @@ CHANNEL_ID_STR = os.getenv('CHANNEL_ID')
 PORT = int(os.environ.get("PORT", 10000))
 ROLE_ID_1STAR_ALERT_STR = os.getenv('ROLE_ID_1STAR_ALERT')
 ROLE_ID_MISSED_ATTACK_STR = os.getenv('ROLE_ID_MISSED_ATTACK')
+# --- NOVA VARIÁVEL PARA GUILD DE TESTE ---
+TEST_GUILD_ID_STR = os.getenv('TEST_GUILD_ID')
+# --- FIM NOVA VARIÁVEL ---
 
 if not all([TOKEN, CLAN_TAG_ENV, CHANNEL_ID_STR]): logger.critical("FATAL: TOKEN, CLAN_TAG ou CHANNEL_ID faltando no .env"); exit("Erro Conf.")
 if not EMAIL or not PASSWORD: logger.critical("FATAL: Email/Senha CoC não configurados."); exit("Erro Conf: Credenciais CoC faltando.")
 try: CHANNEL_ID = int(CHANNEL_ID_STR)
 except ValueError: logger.critical(f"FATAL: CHANNEL_ID inválido ('{CHANNEL_ID_STR}')."); exit("Erro Conf.")
+
+TEST_GUILD_ID = None
+if TEST_GUILD_ID_STR:
+    try: TEST_GUILD_ID = int(TEST_GUILD_ID_STR)
+    except ValueError: logger.warning(f"TEST_GUILD_ID ('{TEST_GUILD_ID_STR}') inválido no .env. Sincronização global será tentada.")
+else: logger.warning("TEST_GUILD_ID não definido no .env. Sincronização global será tentada (pode demorar ou falhar).")
+
 
 ROLE_ID_1STAR_ALERT = None
 if ROLE_ID_1STAR_ALERT_STR:
@@ -93,7 +102,7 @@ coc_client: Optional[coc.EventsClient] = None
 # --- Caches ---
 member_cache = {}
 clan_data_cache = {}
-reported_war_ends: Set[str] = set() # Cache para IDs de guerras já reportadas
+reported_war_ends: Set[str] = set()
 
 # --- Variável Global para Canal ---
 log_channel: Optional[discord.TextChannel] = None
@@ -118,7 +127,6 @@ async def setup_hook():
 async def before_closing():
     global coc_client
     logger.info("Recebido sinal para encerrar...")
-    # Para a task se estiver rodando
     if check_war_end_report_task.is_running():
         logger.info("Parando task check_war_end_report_task...")
         check_war_end_report_task.cancel()
@@ -140,15 +148,15 @@ async def initialize_coc_client():
         try:
             logger.info(f"[Tentativa {attempt}/3] Criando EventsClient...")
             temp_client = coc.EventsClient(throttle_limit=20)
-            temp_client._auto_register = False # Desabilitar registro automático de eventos base
+            temp_client._auto_register = False
             logger.info(f"[Tentativa {attempt}/3] Login com Email/Senha...")
             await asyncio.wait_for(temp_client.login(EMAIL, PASSWORD), timeout=90.0)
             coc_client = temp_client
             logger.info(f"[Tentativa {attempt}/3] Login CoC EventsClient OK.")
-            register_coc_events(coc_client) # Registra nossos handlers
+            register_coc_events(coc_client)
             logger.info(f"Adicionando clã(s) {CLAN_TAGS_TO_MONITOR} ao monitoramento...")
-            coc_client.add_clan_updates(*CLAN_TAGS_TO_MONITOR) # Para eventos de clã
-            coc_client.add_war_updates(*CLAN_TAGS_TO_MONITOR) # Para eventos de guerra (war_attack)
+            coc_client.add_clan_updates(*CLAN_TAGS_TO_MONITOR)
+            coc_client.add_war_updates(*CLAN_TAGS_TO_MONITOR)
             logger.info("Eventos Clã e Guerra registrados no EventsClient.")
             return True
         except coc.InvalidCredentials as e: logger.error(f"[Tentativa {attempt}/3] Falha autenticação (InvalidCredentials): {e}"); last_error = e; return False
@@ -339,12 +347,15 @@ async def send_embeds_splitted(channel: discord.TextChannel, base_embed: discord
     if len(current_embed.fields) > 0 and first_field_added_to_current_embed:
         try:
             logger.debug(f"Enviando último embed {embed_count} para '{field_name}'")
-            # Adiciona rodapé padrão ao último embed do split
-            if not current_embed.footer:
+            # Adiciona rodapé padrão ao último embed do split, se não tiver o rodapé do embed base
+            if not current_embed.footer and base_embed.footer:
+                 current_embed.set_footer(text=base_embed.footer.text, icon_url=base_embed.footer.icon_url)
+            elif not current_embed.footer: # Adiciona rodapé genérico se base não tinha
                  footer_text = f"Bot: {bot.user.name} | v{BOT_VERSION}"
                  if current_embed.timestamp is None:
                       footer_text += f" • {discord.utils.format_dt(datetime.now(TIMEZONE), style='R')}"
                  current_embed.set_footer(text=footer_text)
+
             await channel.send(embed=current_embed)
         except Exception as e:
             logger.error(f"Erro ao enviar último embed {embed_count}: {e}", exc_info=True)
@@ -595,11 +606,10 @@ def register_coc_events(client: coc.EventsClient):
 
         await send_log_embed(atk_emb, add_timestamp=True, add_bot_footer=True, content=mention_content)
 
-    # --- Removido handler @coc.WarEvents.war_state_change() ---
-
+    # Handler on_war_state_change removido na v16.0.32
 
 # --- Evento Ready ---
-# ... (Código on_ready adaptado para iniciar a task) ...
+# ... (igual v16.0.32, inicia a task) ...
 @bot.event
 async def on_ready():
     global coc_client, log_channel, MONITORED_CLAN_NAME, member_cache, clan_data_cache
@@ -608,8 +618,23 @@ async def on_ready():
     logger.info(f"Monitorando Clã(s): {CLAN_TAGS_TO_MONITOR}")
     logger.info(f"Canal ID Logs: {CHANNEL_ID}")
     start_time = datetime.now(TIMEZONE)
-    try: synced = await bot.tree.sync(); logger.info(f"Sincronizados {len(synced)} comandos barra.")
-    except Exception as e: logger.error(f"Falha sincronizar comandos: {e}", exc_info=True)
+    # --- CORREÇÃO: Sincronizar para Guilda de Teste ---
+    try:
+        if TEST_GUILD_ID:
+             logger.info(f"Sincronizando comandos para a Guilda ID: {TEST_GUILD_ID}...")
+             guild_obj = discord.Object(id=TEST_GUILD_ID)
+             # Limpa comandos da guilda primeiro (opcional, mas ajuda a evitar conflitos)
+             # bot.tree.clear_commands(guild=guild_obj)
+             # await bot.tree.sync(guild=guild_obj)
+             synced = await bot.tree.sync(guild=guild_obj)
+             logger.info(f"Sincronizados {len(synced)} comandos para a Guilda {TEST_GUILD_ID}.")
+        else:
+             logger.warning("TEST_GUILD_ID não definido. Tentando sincronização global...")
+             synced = await bot.tree.sync()
+             logger.info(f"Sincronizados {len(synced)} comandos globalmente.")
+    except Exception as e:
+        logger.error(f"Falha sincronizar comandos: {e}", exc_info=True)
+    # --- FIM CORREÇÃO ---
     try: log_channel = await bot.fetch_channel(CHANNEL_ID); logger.info(f"Canal log ({log_channel.name} - {CHANNEL_ID}) encontrado.")
     except (discord.NotFound, discord.Forbidden): logger.error(f"Canal log ID {CHANNEL_ID} inválido."); log_channel = None
     except Exception as e: logger.error(f"Erro ao buscar canal log ({CHANNEL_ID}): {e}"); log_channel = None
@@ -619,7 +644,6 @@ async def on_ready():
         logger.critical("Falha login CoC EventsClient.");
         if log_channel: await send_log_embed(discord.Embed(title=f"{emojis['error']} Erro Crítico - API CoC", description="**Falha autenticação API.**\nMonitoramento CoC offline.", color=discord.Color.red(), timestamp=start_time))
         coc_client = None
-        # Não iniciar a task se o cliente CoC falhar
     else:
         logger.info("CoC EventsClient OK. Verificando clã principal...")
         try:
@@ -647,13 +671,11 @@ async def on_ready():
                 online_emb.add_field(name="Monitoramento", value=f"Event-Driven Ativo {emojis['sync']}", inline=False);
                 await send_log_embed(online_emb, add_timestamp=True, add_bot_footer=True)
 
-                # --- Iniciar a Task ---
                 if not check_war_end_report_task.is_running():
                      logger.info("Iniciando task check_war_end_report_task...")
                      check_war_end_report_task.start()
                 else:
                      logger.warning("Task check_war_end_report_task já estava rodando.")
-                # --- Fim Iniciar Task ---
 
             else:
                 logger.critical(f"FALHA GRAVE: Clã {CLAN_TAGS_TO_MONITOR[0]} inacessível pós-login.");
@@ -664,7 +686,7 @@ async def on_ready():
 
 
 # --- Tratador de Erros App Commands ---
-# ... (igual v16.0.30) ...
+# ... (Igual v16.0.33) ...
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     error_embed = discord.Embed(color=discord.Color.red(), timestamp=datetime.now(TIMEZONE));
@@ -674,13 +696,19 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 
     expected_errors = (
         coc.NotFound, coc.Maintenance, asyncio.TimeoutError, coc.InvalidCredentials,
-        coc.InvalidTag, coc.PrivateWarLog, coc.Forbidden,
+        # coc.InvalidTag removido, tratado abaixo se necessário
+        coc.PrivateWarLog, coc.Forbidden,
         app_commands.CheckFailure, app_commands.CommandOnCooldown,
         app_commands.MissingPermissions, app_commands.BotMissingPermissions
     )
 
     if not isinstance(original_error, expected_errors):
-        logger.error(f"Erro não tratado /{cmd_name}: {type(original_error).__name__} - {original_error}", exc_info=True)
+        if isinstance(original_error, coc.ClashOfClansException) and "Invalid tag" in str(original_error):
+             logger.warning(f"Erro esperado /{cmd_name}: Invalid Tag (detectado pela mensagem) - {original_error}")
+             handled = True; error_embed.title = f"{emojis['error']} TAG Inválida"; error_embed.description = "TAG inválida."
+             error_embed.color = discord.Color.red()
+        else:
+             logger.error(f"Erro não tratado /{cmd_name}: {type(original_error).__name__} - {original_error}", exc_info=True)
     else:
         logger.warning(f"Erro esperado /{cmd_name}: {type(original_error).__name__} - {original_error}")
 
@@ -692,9 +720,9 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     elif isinstance(original_error, coc.InvalidCredentials): handled = True; error_embed.title = f"{emojis['error']} Erro Credenciais CoC"; error_embed.description = "Credenciais (Email/Senha) inválidas."; error_embed.color=0xCC0000
     elif isinstance(original_error, coc.Forbidden): handled = True; error_embed.title = f"{emojis['error']} Erro Permissão API CoC"; error_embed.description = "Acesso negado pela API (IP/chave?)."; error_embed.color=0xCC0000
     elif isinstance(original_error, coc.Maintenance): handled = True; error_embed.title = f"{emojis['warning']} Manutenção API CoC"; error_embed.description = "API em manutenção."; error_embed.color=0xFFA500
-    elif isinstance(original_error, coc.InvalidTag): handled = True; error_embed.title = f"{emojis['error']} TAG Inválida"; error_embed.description = "TAG inválida."
     elif isinstance(original_error, coc.PrivateWarLog): handled=True; error_embed.title=f"{emojis['warning']}Log Guerra Privado"; error_embed.description="Log privado."; error_embed.color=0xFFA500
-    elif isinstance(original_error, coc.ClashOfClansException): handled = True; error_embed.title = f"{emojis['warning']} Erro API CoC"; error_embed.description = f"Erro API: `{type(original_error).__name__}`."; error_embed.color=0xFFA500
+    elif isinstance(original_error, coc.ClashOfClansException) and not handled:
+        handled = True; error_embed.title = f"{emojis['warning']} Erro API CoC"; error_embed.description = f"Erro API: `{type(original_error).__name__}`."; error_embed.color=0xFFA500
     elif isinstance(original_error, asyncio.TimeoutError): handled = True; error_embed.title = f"{emojis['error']} Timeout"; error_embed.description = "Operação demorou."
     elif not coc_client and not isinstance(original_error, (coc.InvalidCredentials, coc.Maintenance)): handled = True; error_embed.title = f"{emojis['error']} API CoC Offline"; error_embed.description = "API CoC inativa."; error_embed.color=0xFF8C00
 
@@ -790,7 +818,10 @@ async def display_attacks_remaining_slash(interaction: discord.Interaction, war,
             else:
                  logger.error(f"Erro display_attacks_remaining_slash (v15 logic): Canal split inválido.")
 
+
 # --- NOVA TASK E FUNÇÃO AUXILIAR ---
+# ... (send_missed_attacks_report, check_war_end_report_task) ...
+# (Sem alterações nestas funções)
 async def send_missed_attacks_report(war_obj: coc.ClanWar, missed_list: List[str], war_type_str: str):
     """Formata e envia o relatório de ataques perdidos."""
     global log_channel, ROLE_ID_MISSED_ATTACK, clan_data_cache, bot
@@ -802,7 +833,6 @@ async def send_missed_attacks_report(war_obj: coc.ClanWar, missed_list: List[str
         logger.info(f"Tentativa de enviar relatório de ataques perdidos, mas a lista está vazia ({war_type_str}).")
         return
 
-    # Prepara menção e mensagem
     mention_str = ""
     role_to_mention = None
     if ROLE_ID_MISSED_ATTACK:
@@ -816,10 +846,8 @@ async def send_missed_attacks_report(war_obj: coc.ClanWar, missed_list: List[str
         except Exception as e:
             logger.error(f"Erro ao obter cargo para ataques perdidos: {e}")
 
-    # Usa a mensagem exata solicitada pelo usuário
     custom_message = f"{mention_str} Ataques Não Realizados! Estes membros estão liberados para serem banidos por não atacar:".strip()
 
-    # Identifica nosso clã e oponente
     our_clan_obj = None
     opponent_clan_obj = None
     war_clan_tag = None
@@ -834,53 +862,45 @@ async def send_missed_attacks_report(war_obj: coc.ClanWar, missed_list: List[str
 
     if not our_clan_obj or not opponent_clan_obj or not war_clan_tag:
         logger.error("Não foi possível identificar clãs no objeto de guerra para o relatório de ataques perdidos.")
-        return # Não pode continuar sem identificar os clãs
+        return
 
     opponent_name = getattr(opponent_clan_obj, 'name', '?')
 
-    # Busca dados do clã (para badge)
     clan_info = clan_data_cache.get(war_clan_tag, {})
     if not clan_info or not isinstance(clan_info, dict):
         try: clan_info = await get_clan_data_with_cache(war_clan_tag) or {}
         except Exception: clan_info = {}
     badge_url = clan_info.get('badge_url')
 
-    # Cria o embed base (será passado para send_embeds_splitted)
     missed_embed = discord.Embed(
         title=f"{emojis['missed_attack']} Ataques Não Realizados - {war_type_str}",
-        description=f"Membros que não usaram todos os ataques contra **{opponent_name}**:", # Descrição como na imagem
+        description=f"Membros que não usaram todos os ataques contra **{opponent_name}**:",
         color=discord.Color.red()
     )
     if badge_url:
-        missed_embed.set_thumbnail(url=badge_url) # Usa thumbnail para o escudo
+        missed_embed.set_thumbnail(url=badge_url)
 
-    # Adiciona rodapé padrão e timestamp
     missed_embed.set_footer(text=f"Bot: {bot.user.name} | v{BOT_VERSION}")
     missed_embed.timestamp = datetime.now(TIMEZONE)
 
-    # Envia a mensagem de texto com menção primeiro
     try:
         await log_channel.send(custom_message)
-        await asyncio.sleep(0.3) # Pequena pausa
+        await asyncio.sleep(0.3)
     except Exception as e:
         logger.error(f"Erro ao enviar mensagem de alerta para ataques perdidos: {e}")
 
-    # Envia a lista de membros usando send_embeds_splitted
-    # Passa o embed base já com rodapé/timestamp
     await send_embeds_splitted(log_channel, missed_embed, "Membros", missed_list)
 
 
-@tasks.loop(minutes=15) # Roda a cada 15 minutos
+@tasks.loop(minutes=15)
 async def check_war_end_report_task():
     global coc_client, reported_war_ends, CLAN_TAGS_TO_MONITOR
 
     if not coc_client:
-        # logger.debug("Task check_war_end: Cliente CoC não pronto.")
-        return # Não faz nada se o cliente não estiver pronto
+        return
 
-    clan_tag = CLAN_TAGS_TO_MONITOR[0] # Pega a tag principal
+    clan_tag = CLAN_TAGS_TO_MONITOR[0]
     if not clan_tag:
-        # logger.debug("Task check_war_end: Nenhuma tag de clã configurada.")
         return
 
     logger.debug(f"Task check_war_end: Verificando guerras para {clan_tag}...")
@@ -890,7 +910,6 @@ async def check_war_end_report_task():
         try:
             war = await coc_client.get_current_war(clan_tag)
             if war and not war.is_cwl and war.state == 'warEnded':
-                # Cria ID único para a guerra
                 prep_time_str = war.preparation_start_time.time.isoformat() if war.preparation_start_time else "unknown_time"
                 opponent_tag_str = getattr(war.opponent, 'tag', 'unknown_opponent')
                 war_id = f"war-{opponent_tag_str}-{prep_time_str}"
@@ -899,7 +918,7 @@ async def check_war_end_report_task():
                     logger.info(f"Task check_war_end: Guerra Normal vs {war.opponent.name} finalizada detectada.")
                     missed_list = []
                     attacks_per = war.attacks_per_member
-                    our_clan_obj = war.clan # Em guerra normal, 'clan' é sempre o nosso
+                    our_clan_obj = war.clan
 
                     if hasattr(our_clan_obj, 'members') and our_clan_obj.members:
                         for m in our_clan_obj.members:
@@ -913,14 +932,12 @@ async def check_war_end_report_task():
                         else:
                              logger.info(f"Guerra Normal vs {war.opponent.name} finalizada. Todos atacaram.")
 
-                        reported_war_ends.add(war_id) # Marca como reportada
+                        reported_war_ends.add(war_id)
                         logger.info(f"Guerra Normal {war_id} marcada como reportada.")
                     else:
                         logger.warning(f"Não foi possível obter lista de membros para Guerra Normal finalizada {war_id}")
-                # else: logger.debug(f"Guerra Normal {war_id} já reportada.")
         except coc.NotFound:
-            #logger.debug("Task check_war_end: Nenhuma guerra normal ativa.")
-            pass # Normal não estar em guerra
+            pass
         except coc.PrivateWarLog:
             logger.warning("Task check_war_end: Log de guerra normal privado.")
         except Exception as e:
@@ -934,7 +951,6 @@ async def check_war_end_report_task():
                 lg_wars = await lg.get_wars(clan_tag)
                 for lw in lg_wars:
                     if lw.state == 'warEnded':
-                        # Identifica nosso clã na guerra da liga
                         our_clan_lw = None
                         opponent_lw = None
                         if lw.clan.tag == clan_tag:
@@ -944,9 +960,8 @@ async def check_war_end_report_task():
                             our_clan_lw = lw.opponent
                             opponent_lw = lw.clan
                         else:
-                             continue # Guerra não envolve nosso clã diretamente
+                             continue
 
-                        # Cria ID único
                         prep_time_lw_str = lw.preparation_start_time.time.isoformat() if lw.preparation_start_time else "unknown_time"
                         opponent_lw_tag_str = getattr(opponent_lw, 'tag', 'unknown_opponent')
                         league_war_id = f"league-{opponent_lw_tag_str}-{prep_time_lw_str}"
@@ -954,7 +969,7 @@ async def check_war_end_report_task():
                         if league_war_id not in reported_war_ends:
                              logger.info(f"Task check_war_end: Guerra de Liga vs {opponent_lw.name} finalizada detectada.")
                              missed_list_lw = []
-                             attacks_per_lw = lw.attacks_per_member # Geralmente 1 na CWL
+                             attacks_per_lw = lw.attacks_per_member
 
                              if hasattr(our_clan_lw, 'members') and our_clan_lw.members:
                                  for m in our_clan_lw.members:
@@ -972,11 +987,8 @@ async def check_war_end_report_task():
                                  logger.info(f"Guerra de Liga {league_war_id} marcada como reportada.")
                              else:
                                  logger.warning(f"Não foi possível obter lista de membros para Guerra de Liga finalizada {league_war_id}")
-                        # else: logger.debug(f"Guerra de Liga {league_war_id} já reportada.")
-            # else: logger.debug("Task check_war_end: Não em CWL.")
         except coc.NotFound:
-             #logger.debug("Task check_war_end: Nenhum grupo de liga encontrado.")
-             pass # Normal não estar em CWL
+             pass
         except Exception as e:
             logger.error(f"Task check_war_end: Erro ao verificar CWL: {e}", exc_info=True)
 
@@ -992,6 +1004,7 @@ bot.tree.add_command(buscar_group)
 bot.tree.add_command(rank_group)
 
 # --- Função Principal ---
+# ... (Igual v16.0.32) ...
 async def main():
     global coc_client
     if not TOKEN: logger.critical("Token Discord não encontrado."); return
