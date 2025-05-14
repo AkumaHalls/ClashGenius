@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 17.1 -
+# Versão 17.2 -
 
 import os
 import logging
@@ -59,7 +59,7 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # Bot version
-BOT_VERSION = "17.1"
+BOT_VERSION = "17.2"
 
 # Cache for reported war ends (using war end time ISO string as key)
 reported_war_ends: Set[str] = set()
@@ -1994,10 +1994,19 @@ async def setup_hook():
                 guild_id_obj = discord.Object(id=int(TEST_GUILD_ID))
                 # Para desenvolvimento, limpar comandos antigos no servidor de teste antes de sincronizar pode ser útil.
                 # bot.tree.clear_commands(guild=guild_id_obj)
-                # await bot.tree.sync(guild=guild_id_obj) # Sincroniza e sobrescreve
-                logger.info(f"Sincronizando comandos para o servidor de teste ID: {TEST_GUILD_ID}")
+                
+                logger.info(f"Copiando comandos globais para o servidor de teste ID: {TEST_GUILD_ID} e sincronizando...")
+                bot.tree.copy_global_to(guild=guild_id_obj)  # <--- LINHA ADICIONADA
                 synced_commands_list = await bot.tree.sync(guild=guild_id_obj)
                 logger.info(f"{len(synced_commands_list)} comandos (/) sincronizados com o servidor de teste (ID: {TEST_GUILD_ID}).")
+                # Adicione um log para ver os nomes dos comandos, se houver algum
+                if synced_commands_list: # LOG DE DIAGNÓSTICO ADICIONADO
+                    nomes_comandos_sinc = [cmd.name for cmd in synced_commands_list]
+                    logger.info(f"Nomes dos comandos sincronizados com o guild: {nomes_comandos_sinc}")
+                elif not synced_commands_list and bot.tree.get_commands(): # Verifica se há comandos globais na tree
+                    nomes_comandos_globais = [cmd.name for cmd in bot.tree.get_commands()]
+                    logger.warning(f"Nenhum comando sincronizado com o guild, mas a tree global possui: {nomes_comandos_globais}")
+
             except (ValueError, TypeError):
                 logger.error(f"TEST_GUILD_ID ('{TEST_GUILD_ID}') é inválido. Tentando sincronizar globalmente...")
                 synced_commands_list = await bot.tree.sync()
@@ -2013,7 +2022,7 @@ async def setup_hook():
             # Log dos nomes dos comandos sincronizados para depuração
             # nomes_comandos = [cmd.name for cmd in synced_commands_list]
             # logger.info(f"Comandos sincronizados: {nomes_comandos}")
-            pass
+            pass # Removido o log anterior daqui, pois foi adicionado acima para o caso específico do guild
 
 
     except discord.Forbidden as e:
@@ -2113,7 +2122,10 @@ if __name__ == "__main__":
             logger.info("Iniciando loop de eventos asyncio para main()...")
             # Setup asyncio exception handler for better debugging of loop errors
             # Use asyncio.run for simplified loop management
-            asyncio.run(main())
+            loop = asyncio.get_event_loop()
+            loop.set_exception_handler(handle_asyncio_exception) # Configura o handler de exceções do loop
+            loop.run_until_complete(main())
+
 
         except KeyboardInterrupt:
             logger.info("Bot interrompido manualmente (KeyboardInterrupt).")
@@ -2126,4 +2138,19 @@ if __name__ == "__main__":
         except Exception as e:
             logger.critical(f"Erro fatal fora do loop principal do bot: {e}", exc_info=True)
         finally:
+            # Garante que o loop seja fechado corretamente em algumas situações
+            # loop = asyncio.get_event_loop() # Não precisa pegar de novo se já tem
+            if loop.is_running():
+                loop.stop()
+            if not loop.is_closed():
+                # Cancela tarefas restantes
+                tasks = [t for t in asyncio.all_tasks(loop=loop) if t is not asyncio.current_task(loop=loop)]
+                if tasks:
+                    logger.info(f"Cancelando {len(tasks)} tarefas pendentes...")
+                    for task in tasks:
+                        task.cancel()
+                    loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+                    logger.info("Tarefas pendentes canceladas.")
+                loop.close()
+                logger.info("Loop de eventos asyncio fechado.")
             logger.info("Programa finalizado.")
