@@ -59,7 +59,7 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # Bot version
-BOT_VERSION = "16.1.0"
+BOT_VERSION = "17.0"
 
 # Cache for reported war ends (using war end time ISO string as key)
 reported_war_ends: Set[str] = set()
@@ -666,39 +666,58 @@ async def register_coc_events(coc_client: coc.EventsClient):
              embed.set_thumbnail(url=clan.badge.url)
         await send_log_embed(embed)
 
+    # ========================================================================================= #
+    # =============================  INÍCIO DA SEÇÃO CORRIGIDA  ============================= #
+    # ========================================================================================= #
     @coc_client.event
     @coc.ClanEvents.member_leave(tags=[CLAN_TAG])
-    async def on_member_leave(old_member: ClanMember, member: ClanMember):
-        # <<< NOVO LOG >>>
-        logger.info(f"EVENTO DETECTADO: on_member_leave para {getattr(member, 'tag', 'TAG DESCONHECIDA')}")
+    async def on_member_leave(old_member: ClanMember, member: ClanMember): # member é o estado 'após', old_member é o estado 'antes'
+        # Usa old_member para obter a tag do membro para o log inicial
+        logger.info(f"EVENTO DETECTADO: on_member_leave para {getattr(old_member, 'tag', 'TAG DESCONHECIDA DO MEMBRO QUE SAIU')}")
         """Handle member leave event."""
-        if not member: # old_member should exist here
-             logger.warning("Evento member_leave recebido sem objeto 'member'.")
-             # Try using old_member if member is missing somehow
-             member = old_member
-             if not member: return # Give up if both missing
 
-        # Use old_member.clan as member.clan might be None if they left
-        clan = old_member.clan if hasattr(old_member, 'clan') and old_member.clan else None
-        if not clan:
-             logger.warning(f"Não foi possível determinar o clã para o evento member_leave de {member.tag}")
-             # Fallback? Get clan data maybe? For now, log and return
-             return
-        logger.info(f"Evento: {member.name} ({member.tag}) saiu do clã {clan.name}.")
+        if not old_member:
+            logger.warning("Evento member_leave: 'old_member' (estado anterior do membro) não fornecido. Não é possível obter detalhes do membro que saiu.")
+            return
+
+        # O clã de onde o membro saiu é obtido de old_member.clan
+        clan_obj = old_member.clan if hasattr(old_member, 'clan') else None
+        clan_name = getattr(clan_obj, 'name', 'Clã Desconhecido')
+        # clan_tag = getattr(clan_obj, 'tag', '') # Não usado diretamente no embed, mas disponível
+
+        # Detalhes do membro que saiu, obtidos de old_member
+        leaving_member_name = getattr(old_member, 'name', 'Membro Desconhecido')
+        leaving_member_tag = getattr(old_member, 'tag', 'Tag Desconhecida')
+        leaving_member_town_hall = getattr(old_member, 'town_hall', '?')
+        leaving_member_exp_level = getattr(old_member, 'exp_level', '?')
+        leaving_member_trophies = getattr(old_member, 'trophies', '?')
+        leaving_member_league = getattr(old_member, 'league', None)
+        league_name = getattr(leaving_member_league, 'name', 'Sem Liga') if leaving_member_league else 'Sem Liga'
+
+        logger.info(f"Evento: {leaving_member_name} ({leaving_member_tag}) saiu do clã {clan_name}.")
+
         embed = discord.Embed(
             title="👋 Membro Saiu",
-            description=f"**{member.name}** (`{member.tag}`) saiu do clã!",
+            description=f"**{leaving_member_name}** (`{leaving_member_tag}`) saiu do clã!",
             color=discord.Color.red()
         )
-        embed.add_field(name="CV", value=getattr(member, 'town_hall', '?'), inline=True)
-        embed.add_field(name="Nível", value=getattr(member, 'exp_level', '?'), inline=True)
-        embed.add_field(name="Troféus", value=getattr(member, 'trophies', '?'), inline=True)
-        if hasattr(member, 'league') and member.league:
-            embed.add_field(name="Liga", value=member.league.name, inline=True)
-        if hasattr(clan, 'badge') and clan.badge:
-             embed.set_author(name=clan.name, icon_url=clan.badge.url)
-             embed.set_thumbnail(url=clan.badge.url)
+        embed.add_field(name="CV", value=leaving_member_town_hall, inline=True)
+        embed.add_field(name="Nível", value=leaving_member_exp_level, inline=True)
+        embed.add_field(name="Troféus", value=leaving_member_trophies, inline=True)
+        embed.add_field(name="Liga", value=league_name, inline=True)
+
+        if clan_obj and hasattr(clan_obj, 'badge') and clan_obj.badge:
+             embed.set_author(name=clan_name, icon_url=clan_obj.badge.url)
+             embed.set_thumbnail(url=clan_obj.badge.url)
+        else:
+            logger.warning(f"Não foi possível obter o emblema do clã {clan_name} ({getattr(clan_obj, 'tag', 'TAG CLÃ DESCONHECIDA')}) para o evento de saída de {leaving_member_name} ({leaving_member_tag}).")
+            # Opcional: definir o nome do clã como autor mesmo sem o ícone
+            # embed.set_author(name=clan_name)
+
         await send_log_embed(embed)
+    # ========================================================================================= #
+    # ==============================  FIM DA SEÇÃO CORRIGIDA  =============================== #
+    # ========================================================================================= #
 
     @coc_client.event
     @coc.ClanEvents.member_donations(tags=[CLAN_TAG])
