@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 17.0 -
+# Versão 17.1 -
 
 import os
 import logging
@@ -59,7 +59,7 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # Bot version
-BOT_VERSION = "17.0"
+BOT_VERSION = "17.1"
 
 # Cache for reported war ends (using war end time ISO string as key)
 reported_war_ends: Set[str] = set()
@@ -511,6 +511,9 @@ async def send_online_status():
         logger.error(f"Erro ao enviar mensagem de status online: {e}", exc_info=True)
 
 # Bot events
+# ========================================================================================= #
+# =============================  INÍCIO DA SEÇÃO MODIFICADA  ============================= #
+# ========================================================================================= #
 @bot.event
 async def on_ready():
     """Handle bot ready event."""
@@ -537,34 +540,13 @@ async def on_ready():
     else:
          logger.warning("Cliente CoC não parece estar pronto no on_ready. Tarefas em segundo plano podem não iniciar.")
 
-
-    # Sync commands - Consider doing this less frequently or via a command
-    # Syncing every on_ready can lead to rate limits if the bot restarts often
-    logger.info("Tentando sincronizar comandos (/) ...")
-    try:
-        synced_commands = []
-        if TEST_GUILD_ID:
-            try:
-                 guild_id_obj = discord.Object(id=int(TEST_GUILD_ID))
-                 synced_commands = await bot.tree.sync(guild=guild_id_obj)
-                 logger.info(f"{len(synced_commands)} comandos (/) sincronizados com o servidor de teste (ID: {TEST_GUILD_ID}).")
-            except (ValueError, TypeError):
-                 logger.error(f"TEST_GUILD_ID ('{TEST_GUILD_ID}') é inválido. Sincronizando globalmente.")
-                 synced_commands = await bot.tree.sync()
-                 logger.info(f"{len(synced_commands)} comandos (/) sincronizados globalmente.")
-        else:
-            synced_commands = await bot.tree.sync()
-            logger.info(f"{len(synced_commands)} comandos (/) sincronizados globalmente.")
-    except discord.Forbidden:
-        logger.error("Erro 403 Forbidden: 'Missing Access' ao sincronizar comandos (/). Verifique as permissões do bot (application.commands).")
-    except discord.HTTPException as e:
-         logger.error(f"Erro HTTP ao sincronizar comandos (/): {e.status} - {e.text}", exc_info=True)
-    except Exception as e:
-        logger.error(f"Erro inesperado ao sincronizar comandos (/): {e}", exc_info=True)
+    # A SINCRONIZAÇÃO DE COMANDOS FOI MOVIDA PARA O setup_hook() PARA MELHOR PRÁTICA.
 
     # <<< NOVO: Envia status online >>>
     await send_online_status()
-
+# ========================================================================================= #
+# ==============================  FIM DA SEÇÃO MODIFICADA  =============================== #
+# ========================================================================================= #
 
 @bot.event
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -666,9 +648,6 @@ async def register_coc_events(coc_client: coc.EventsClient):
              embed.set_thumbnail(url=clan.badge.url)
         await send_log_embed(embed)
 
-    # ========================================================================================= #
-    # =============================  INÍCIO DA SEÇÃO CORRIGIDA  ============================= #
-    # ========================================================================================= #
     @coc_client.event
     @coc.ClanEvents.member_leave(tags=[CLAN_TAG])
     async def on_member_leave(old_member: ClanMember, member: ClanMember): # member é o estado 'após', old_member é o estado 'antes'
@@ -715,9 +694,6 @@ async def register_coc_events(coc_client: coc.EventsClient):
             # embed.set_author(name=clan_name)
 
         await send_log_embed(embed)
-    # ========================================================================================= #
-    # ==============================  FIM DA SEÇÃO CORRIGIDA  =============================== #
-    # ========================================================================================= #
 
     @coc_client.event
     @coc.ClanEvents.member_donations(tags=[CLAN_TAG])
@@ -1944,6 +1920,9 @@ async def setup_web_server():
          logger.error(f"Erro inesperado ao iniciar servidor web: {e}", exc_info=True)
          return None
 
+# ========================================================================================= #
+# =============================  INÍCIO DA SEÇÃO MODIFICADA  ============================= #
+# ========================================================================================= #
 async def setup_hook():
     """Setup hook for the bot, called before bot logs in."""
     logger.info("Executando setup_hook...")
@@ -1982,11 +1961,7 @@ async def setup_hook():
     if not login_success:
          logger.error("Não foi possível logar no CoC após todas as tentativas ou devido a erro/manutenção.")
          # Bot will continue, but CoC features won't work
-         # Alternatively, raise an exception here to stop the bot if CoC login is critical
-         # raise RuntimeError("Falha crítica ao logar no CoC.")
-
-    # --- Register CoC Events (only if login was successful) ---
-    if login_success:
+    else:
          logger.info("Registrando listeners de eventos CoC...")
          await register_coc_events(bot.coc_client)
          if CLAN_TAG:
@@ -1999,9 +1974,6 @@ async def setup_hook():
                   logger.error(f"Erro ao adicionar atualizações de eventos para {CLAN_TAG}: {e}", exc_info=True)
          else:
               logger.warning("CLAN_TAG não definido. Atualizações de eventos CoC não ativadas.")
-    else:
-         logger.warning("Listeners de eventos CoC não registrados devido à falha no login ou manutenção.")
-
 
     # --- Start Health Check Web Server ---
     logger.info("Configurando servidor web para health check...")
@@ -2011,8 +1983,50 @@ async def setup_hook():
     else:
         logger.warning("Falha ao configurar o servidor web.")
 
-    logger.info("setup_hook concluído.")
+    # --- Sincronizar comandos de aplicativo ---
+    # Movido de on_ready() para setup_hook() para melhor prática e robustez.
+    # Os comandos são adicionados à bot.tree no escopo global, então já estarão disponíveis aqui.
+    logger.info("Tentando sincronizar comandos de aplicativo (/) no setup_hook...")
+    synced_commands_list = [] # Renomeada para evitar conflito com o módulo commands
+    try:
+        if TEST_GUILD_ID:
+            try:
+                guild_id_obj = discord.Object(id=int(TEST_GUILD_ID))
+                # Para desenvolvimento, limpar comandos antigos no servidor de teste antes de sincronizar pode ser útil.
+                # bot.tree.clear_commands(guild=guild_id_obj)
+                # await bot.tree.sync(guild=guild_id_obj) # Sincroniza e sobrescreve
+                logger.info(f"Sincronizando comandos para o servidor de teste ID: {TEST_GUILD_ID}")
+                synced_commands_list = await bot.tree.sync(guild=guild_id_obj)
+                logger.info(f"{len(synced_commands_list)} comandos (/) sincronizados com o servidor de teste (ID: {TEST_GUILD_ID}).")
+            except (ValueError, TypeError):
+                logger.error(f"TEST_GUILD_ID ('{TEST_GUILD_ID}') é inválido. Tentando sincronizar globalmente...")
+                synced_commands_list = await bot.tree.sync()
+                logger.info(f"{len(synced_commands_list)} comandos (/) sincronizados globalmente.")
+        else:
+            logger.info("Nenhum TEST_GUILD_ID definido. Sincronizando comandos globalmente...")
+            synced_commands_list = await bot.tree.sync()
+            logger.info(f"{len(synced_commands_list)} comandos (/) sincronizados globalmente.")
 
+        if not synced_commands_list:
+            logger.warning("Nenhum comando de aplicativo foi sincronizado. Verifique as definições e se foram adicionados à tree.")
+        else:
+            # Log dos nomes dos comandos sincronizados para depuração
+            # nomes_comandos = [cmd.name for cmd in synced_commands_list]
+            # logger.info(f"Comandos sincronizados: {nomes_comandos}")
+            pass
+
+
+    except discord.Forbidden as e:
+        logger.error(f"Erro 403 Forbidden ao sincronizar comandos (/): {e}. Verifique as permissões do bot (application.commands).")
+    except discord.HTTPException as e:
+        logger.error(f"Erro HTTP ao sincronizar comandos (/): {e.status} - {e.text}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Erro inesperado ao sincronizar comandos (/) no setup_hook: {e}", exc_info=True)
+
+    logger.info("setup_hook concluído.")
+# ========================================================================================= #
+# ==============================  FIM DA SEÇÃO MODIFICADA  =============================== #
+# ========================================================================================= #
 
 # Main execution block
 async def main():
