@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 17.2 -
+# Versão 17.3 -
 
 import os
 import logging
@@ -59,7 +59,7 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # Bot version
-BOT_VERSION = "17.2"
+BOT_VERSION = "17.3"
 
 # Cache for reported war ends (using war end time ISO string as key)
 reported_war_ends: Set[str] = set()
@@ -405,6 +405,9 @@ async def format_attacks_remaining_embed(war: ClanWar) -> Optional[List[discord.
 
 # --- End refactored display_attacks_remaining ---
 
+# ========================================================================================= #
+# =============================  INÍCIO DA SEÇÃO MODIFICADA  ============================= #
+# ========================================================================================= #
 async def send_missed_attacks_report(war: ClanWar, # Use explicit type
                                     missed_members_details: List[str], # Now expects formatted details
                                     war_type: str) -> None:
@@ -444,27 +447,48 @@ async def send_missed_attacks_report(war: ClanWar, # Use explicit type
 
     # Create base embed safely
     opponent_name = getattr(getattr(war, 'opponent', None), 'name', 'Oponente Desconhecido')
+
+    # --- MODIFICAÇÃO APLICADA AQUI ---
+    # Formatar datas de início e fim da guerra
+    start_time_local_str = "N/A"
+    end_time_local_str = "N/A"
+
+    if hasattr(war, 'start_time') and isinstance(war.start_time, Timestamp):
+        try:
+            start_time_aware = war.start_time.astimezone(TIMEZONE) if war.start_time.tzinfo is None else war.start_time.astimezone(TIMEZONE)
+            start_time_local_str = start_time_aware.strftime('%d/%m/%Y %H:%M')
+        except Exception as e:
+            logger.error(f"Erro ao formatar start_time para relatório de ataques perdidos: {e}")
+            start_time_local_str = "Erro na data"
+
+    if hasattr(war, 'end_time') and isinstance(war.end_time, Timestamp):
+        try:
+            end_time_aware = war.end_time.astimezone(TIMEZONE) if war.end_time.tzinfo is None else war.end_time.astimezone(TIMEZONE)
+            end_time_local_str = end_time_aware.strftime('%d/%m/%Y %H:%M')
+        except Exception as e:
+            logger.error(f"Erro ao formatar end_time para relatório de ataques perdidos: {e}")
+            end_time_local_str = "Erro na data"
+
+    description_text = (
+        f"Membros que não usaram todos os ataques contra **{opponent_name}**.\n\n"
+        f"**Data do Início da Guerra:** {start_time_local_str}\n"
+        f"**Data do Fim da Guerra:** {end_time_local_str}"
+    )
+    # --- FIM DA MODIFICAÇÃO ---
+
     base_embed = discord.Embed(
-        # NOVO: Título como na imagem
         title=f"❌ Ataques Não Realizados - {war_type}",
-        # NOVO: Descrição como na imagem
-        description=f"Membros que não usaram todos os ataques contra **{opponent_name}**:",
+        description=description_text, # Descrição atualizada
         color=discord.Color.red()
     )
-    # NOVO: Thumbnail como na imagem (se disponível)
     if hasattr(war, 'opponent') and hasattr(war.opponent, 'badge') and war.opponent.badge:
-         base_embed.set_thumbnail(url=war.opponent.badge.url) # Usa badge do oponente
+         base_embed.set_thumbnail(url=war.opponent.badge.url)
 
     try:
-        # Fetch channel again for sending
         channel = await bot.fetch_channel(CHANNEL_ID)
         if isinstance(channel, discord.TextChannel):
-             # NOVO: Envia a menção primeiro (se existir)
              if content:
                   await channel.send(content)
-             # Envia os embeds com a lista usando a função splitter
-             # Usa "Membros (Parte X)" como field_name se houver mais de um embed? send_embeds_splitted precisa de ajuste para isso.
-             # Por ora, usa "Membros" como nome do campo.
              await send_embeds_splitted(channel, base_embed, "Membros", missed_members_details)
         else:
              logger.error(f"Canal de log ID {CHANNEL_ID} não é um canal de texto válido para relatório.")
@@ -475,6 +499,9 @@ async def send_missed_attacks_report(war: ClanWar, # Use explicit type
          logger.error(f"Sem permissão para enviar relatório de ataques perdidos no canal {CHANNEL_ID}.")
     except Exception as e:
         logger.error(f"Erro ao enviar relatório de ataques perdidos para o canal {CHANNEL_ID}: {e}", exc_info=True)
+# ========================================================================================= #
+# ==============================  FIM DA SEÇÃO MODIFICADA  =============================== #
+# ========================================================================================= #
 
 # <<< NOVA FUNÇÃO ADICIONADA >>>
 async def send_online_status():
@@ -511,9 +538,6 @@ async def send_online_status():
         logger.error(f"Erro ao enviar mensagem de status online: {e}", exc_info=True)
 
 # Bot events
-# ========================================================================================= #
-# =============================  INÍCIO DA SEÇÃO MODIFICADA  ============================= #
-# ========================================================================================= #
 @bot.event
 async def on_ready():
     """Handle bot ready event."""
@@ -544,9 +568,6 @@ async def on_ready():
 
     # <<< NOVO: Envia status online >>>
     await send_online_status()
-# ========================================================================================= #
-# ==============================  FIM DA SEÇÃO MODIFICADA  =============================== #
-# ========================================================================================= #
 
 @bot.event
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -970,7 +991,6 @@ async def check_war_end_report_task():
                         missed_count = attacks_per_member - attacks_used
                         member_name = getattr(member, 'name', member.tag) # Use tag as fallback name
                         member_th = getattr(member, 'town_hall', '?')
-                        # <<< MODIFICAÇÃO APLICADA AQUI >>>
                         missed_members_details.append(
                             f"**{member_name}** (CV{member_th}): {missed_count} perdido{'s' if missed_count > 1 else ''}"
                         )
@@ -1920,9 +1940,6 @@ async def setup_web_server():
          logger.error(f"Erro inesperado ao iniciar servidor web: {e}", exc_info=True)
          return None
 
-# ========================================================================================= #
-# =============================  INÍCIO DA SEÇÃO MODIFICADA  ============================= #
-# ========================================================================================= #
 async def setup_hook():
     """Setup hook for the bot, called before bot logs in."""
     logger.info("Executando setup_hook...")
@@ -1984,26 +2001,20 @@ async def setup_hook():
         logger.warning("Falha ao configurar o servidor web.")
 
     # --- Sincronizar comandos de aplicativo ---
-    # Movido de on_ready() para setup_hook() para melhor prática e robustez.
-    # Os comandos são adicionados à bot.tree no escopo global, então já estarão disponíveis aqui.
     logger.info("Tentando sincronizar comandos de aplicativo (/) no setup_hook...")
-    synced_commands_list = [] # Renomeada para evitar conflito com o módulo commands
+    synced_commands_list = [] 
     try:
         if TEST_GUILD_ID:
             try:
                 guild_id_obj = discord.Object(id=int(TEST_GUILD_ID))
-                # Para desenvolvimento, limpar comandos antigos no servidor de teste antes de sincronizar pode ser útil.
-                # bot.tree.clear_commands(guild=guild_id_obj)
-                
                 logger.info(f"Copiando comandos globais para o servidor de teste ID: {TEST_GUILD_ID} e sincronizando...")
-                bot.tree.copy_global_to(guild=guild_id_obj)  # <--- LINHA ADICIONADA
+                bot.tree.copy_global_to(guild=guild_id_obj) 
                 synced_commands_list = await bot.tree.sync(guild=guild_id_obj)
                 logger.info(f"{len(synced_commands_list)} comandos (/) sincronizados com o servidor de teste (ID: {TEST_GUILD_ID}).")
-                # Adicione um log para ver os nomes dos comandos, se houver algum
-                if synced_commands_list: # LOG DE DIAGNÓSTICO ADICIONADO
+                if synced_commands_list: 
                     nomes_comandos_sinc = [cmd.name for cmd in synced_commands_list]
                     logger.info(f"Nomes dos comandos sincronizados com o guild: {nomes_comandos_sinc}")
-                elif not synced_commands_list and bot.tree.get_commands(): # Verifica se há comandos globais na tree
+                elif not synced_commands_list and bot.tree.get_commands(): 
                     nomes_comandos_globais = [cmd.name for cmd in bot.tree.get_commands()]
                     logger.warning(f"Nenhum comando sincronizado com o guild, mas a tree global possui: {nomes_comandos_globais}")
 
@@ -2018,13 +2029,7 @@ async def setup_hook():
 
         if not synced_commands_list:
             logger.warning("Nenhum comando de aplicativo foi sincronizado. Verifique as definições e se foram adicionados à tree.")
-        else:
-            # Log dos nomes dos comandos sincronizados para depuração
-            # nomes_comandos = [cmd.name for cmd in synced_commands_list]
-            # logger.info(f"Comandos sincronizados: {nomes_comandos}")
-            pass # Removido o log anterior daqui, pois foi adicionado acima para o caso específico do guild
-
-
+        
     except discord.Forbidden as e:
         logger.error(f"Erro 403 Forbidden ao sincronizar comandos (/): {e}. Verifique as permissões do bot (application.commands).")
     except discord.HTTPException as e:
@@ -2033,9 +2038,6 @@ async def setup_hook():
         logger.error(f"Erro inesperado ao sincronizar comandos (/) no setup_hook: {e}", exc_info=True)
 
     logger.info("setup_hook concluído.")
-# ========================================================================================= #
-# ==============================  FIM DA SEÇÃO MODIFICADA  =============================== #
-# ========================================================================================= #
 
 # Main execution block
 async def main():
@@ -2055,37 +2057,28 @@ async def main():
         except discord.LoginFailure:
              logger.critical("Login no Discord Falhou: Token inválido. Verifique DISCORD_TOKEN.")
         except discord.PrivilegedIntentsRequired as e:
-             # Ensure shard_id is accessed correctly if available
              shard_info = f"(Shard ID: {e.shard_id})" if hasattr(e, 'shard_id') and e.shard_id is not None else ""
              logger.critical(f"Intents Privilegiadas {shard_info} não habilitadas no Portal do Desenvolvedor Discord.")
         except Exception as e:
-            # Catch any other unexpected errors during bot run
             logger.critical(f"Erro crítico durante a execução do bot: {e}", exc_info=True)
         finally:
             logger.info("Iniciando processo de desligamento do bot...")
-            # --- Cleanup ---
-            # Stop background tasks gracefully
             if 'check_war_end_report_task' in globals() and check_war_end_report_task.is_running():
                  logger.info("Parando tarefa 'check_war_end_report_task'...")
                  check_war_end_report_task.cancel()
                  try:
-                     # Wait for the task to acknowledge cancellation
-                     await asyncio.sleep(1) # Give it a moment
+                     await asyncio.sleep(1) 
                      logger.info("Tarefa 'check_war_end_report_task' cancelada.")
                  except asyncio.CancelledError:
                      logger.info("Tarefa 'check_war_end_report_task' foi cancelada com sucesso.")
                  except Exception as e:
                      logger.error(f"Erro durante cancelamento da tarefa 'check_war_end_report_task': {e}")
 
-
-            # Cleanup web server
             if hasattr(bot, "web_runner") and bot.web_runner:
                 logger.info("Limpando servidor web...")
                 await bot.web_runner.cleanup()
                 logger.info("Servidor web limpo.")
 
-            # Close CoC client session
-            # Check if http client exists and is not already closed
             if hasattr(bot, "coc_client") and bot.coc_client.http and hasattr(bot.coc_client.http, 'closed') and not bot.coc_client.http.closed:
                 logger.info("Fechando cliente CoC...")
                 await bot.coc_client.close()
@@ -2094,25 +2087,17 @@ async def main():
                  logger.info("Cliente CoC não foi logado, não há sessão para fechar.")
             else:
                  logger.info("Cliente CoC já estava fechado ou não inicializado.")
-
-
             logger.info("Desligamento do bot concluído.")
 
-
-# Custom asyncio exception handler
 def handle_asyncio_exception(loop, context):
-    # context["message"] will always be there; but context["exception"] may not
     msg = context.get("exception", context["message"])
-    # Log specific details if available (e.g., future)
     future = context.get('future')
     if future:
         logger.error(f"Erro não tratado no loop asyncio (Future: {future}): {msg}", exc_info=context.get('exception'))
     else:
         logger.error(f"Erro não tratado no loop asyncio: {msg}", exc_info=context.get('exception'))
 
-# Run the bot using asyncio
 if __name__ == "__main__":
-    # Pre-run checks
     required_vars = ["DISCORD_TOKEN", "COC_EMAIL", "COC_PASSWORD", "CLAN_TAG", "CHANNEL_ID"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     if missing_vars:
@@ -2120,17 +2105,13 @@ if __name__ == "__main__":
     else:
         try:
             logger.info("Iniciando loop de eventos asyncio para main()...")
-            # Setup asyncio exception handler for better debugging of loop errors
-            # Use asyncio.run for simplified loop management
             loop = asyncio.get_event_loop()
-            loop.set_exception_handler(handle_asyncio_exception) # Configura o handler de exceções do loop
+            loop.set_exception_handler(handle_asyncio_exception) 
             loop.run_until_complete(main())
-
 
         except KeyboardInterrupt:
             logger.info("Bot interrompido manualmente (KeyboardInterrupt).")
         except RuntimeError as e:
-             # Catch potential loop errors during shutdown (e.g., "Event loop is closed")
              if "Event loop is closed" in str(e):
                   logger.info("Loop de eventos fechado durante o desligamento (normal).")
              else:
@@ -2138,12 +2119,10 @@ if __name__ == "__main__":
         except Exception as e:
             logger.critical(f"Erro fatal fora do loop principal do bot: {e}", exc_info=True)
         finally:
-            # Garante que o loop seja fechado corretamente em algumas situações
-            # loop = asyncio.get_event_loop() # Não precisa pegar de novo se já tem
+            loop = asyncio.get_event_loop()
             if loop.is_running():
                 loop.stop()
             if not loop.is_closed():
-                # Cancela tarefas restantes
                 tasks = [t for t in asyncio.all_tasks(loop=loop) if t is not asyncio.current_task(loop=loop)]
                 if tasks:
                     logger.info(f"Cancelando {len(tasks)} tarefas pendentes...")
