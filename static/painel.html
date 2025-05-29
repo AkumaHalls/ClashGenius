@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Clã</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <img id="clanBadgeHeader" src="" alt="Emblema" style="height: 50px; vertical-align: middle; margin-right: 10px; display: none;">
+            <h1>Painel: <span id="clanNameHeader">-</span></h1>
+            <p>Monitoramento em tempo real do seu clã no Clash of Clans</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="clan-info" class="card">
+            <h2><img id="clanBadge" src="" alt="" style="height: 30px; vertical-align: middle; margin-right: 5px; display: none;"> <span id="clanName">-</span> (<span id="clanTag">-</span>)</h2>
+            <div class="grid-container">
+                <p><strong>Nível:</strong> <span id="clanLevel">-</span></p>
+                <p><strong>Pontos:</strong> <span id="clanPoints">-</span> 🏆</p>
+                <p><strong>Membros:</strong> <span id="clanMemberCount">-</span>/50</p>
+                <p><strong>Capital:</strong> <span id="clanCapitalPoints">-</span> 🏆</p>
+                <p><strong>Guerras Vencidas:</strong> <span id="clanWarWins">-</span></p>
+                <p><strong>Localização:</strong> <span id="clanLocation">-</span></p>
+                <p><strong>Tipo:</strong> <span id="clanType">-</span></p>
+            </div>
+            <p><strong>Descrição:</strong> <span id="clanDescription" class="description-box">-</span></p>
+        </section>
+
+        <section id="war-info" class="card">
+            <h2><img id="warClanBadge" src="" alt="" style="height: 30px; vertical-align: middle; margin-right: 5px; display: none;"> Status da Guerra: <span id="warType">-</span> <img id="warOpponentBadge" src="" alt="" style="height: 30px; vertical-align: middle; margin-left: 5px; display: none;"></h2>
+            <p><strong>Estado:</strong> <span id="warStateDescription" class="war-state">-</span></p>
+            <div id="warDetailsActive" style="display: none;">
+                <div class="war-score-container">
+                    <div class="team-score">
+                        <h3><span id="warOurClanName">Nosso Clã</span></h3>
+                        <p><span id="warOurScore">-</span></p>
+                    </div>
+                    <div class="vs">vs</div>
+                    <div class="team-score">
+                        <h3><span id="warOpponentName">Oponente</span></h3>
+                        <p><span id="warOpponentScore">-</span></p>
+                    </div>
+                </div>
+                <p><strong id="warTimeKey">Tempo:</strong> <span id="warTimeValue">-</span> (<span id="warTimeRemaining" class="time-remaining">-</span>)</p>
+            </div>
+            <p id="noWarMessage" style="display: none;">-</p>
+        </section>
+
+        <section id="members-list" class="card">
+            <h2>Membros do Clã (<span id="membersClanName">-</span>)</h2>
+            <div class="table-container">
+                <table id="membersTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nome</th>
+                            <th>CV</th>
+                            <th>Liga</th>
+                            <th>Troféus</th>
+                            <th>Cargo</th>
+                            <th>Doações</th>
+                            <th>Recebidas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="membersTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>Bot Clash Monitor v<span id="botVersion">?</span> | <span id="lastUpdated"></span></p>
+        </div>
+    </footer>
+
+    <script src="/static/js/scripts.js"></script>
+</body>
+</html>
