@@ -1,0 +1,354 @@
+/* Importa fontes do Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Roboto:wght@400;700&display=swap');
+
+:root {
+    --font-body: 'Roboto', sans-serif;
+    --font-title: 'MedievalSharp', cursive; /* Fonte temática para títulos */
+
+    --color-background: #4a3b31; /* Marrom escuro (terra/madeira) */
+    --color-card-background: #f4e9c7; /* Bege claro (pergaminho) */
+    --color-text-main: #3d2c1d; /* Marrom bem escuro para texto */
+    --color-text-header: #f4e9c7; /* Texto claro para header escuro */
+    --color-header-background: #2c1f17; /* Marrom muito escuro para header */
+    --color-border: #8c6b48; /* Marrom médio para bordas */
+    --color-accent: #e67e22; /* Laranja (fogo/destaque) */
+    --color-link: #d4af37; /* Dourado para links e destaques */
+    --color-link-hover: #f7c74a;
+
+    --color-war-our-clan: #27ae60; /* Verde para nosso clã */
+    --color-war-opponent: #c0392b; /* Vermelho para oponente */
+    --color-war-preparation: #f39c12; /* Laranja para preparação */
+    --color-war-inwar: #e74c3c; /* Vermelho para em guerra */
+    --color-war-ended: #2ecc71; /* Verde para finalizada */
+    --color-war-notinwar: #7f8c8d; /* Cinza para sem guerra */
+}
+
+html {
+    scroll-behavior: smooth; /* Rolagem suave para links âncora */
+}
+
+body {
+    font-family: var(--font-body);
+    margin: 0;
+    background-color: var(--color-background);
+    background-image: url('/static/images/bg-texture.png'); /* Adicione uma textura sutil aqui se desejar */
+    color: var(--color-text-main);
+    line-height: 1.6;
+}
+
+.container {
+    width: 95%;
+    max-width: 1300px; /* Um pouco mais largo */
+    margin: auto;
+    padding: 0 15px;
+}
+
+/* Cabeçalho */
+.site-header {
+    background-color: var(--color-header-background);
+    color: var(--color-text-header);
+    padding: 15px 0;
+    border-bottom: 5px solid var(--color-border);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo-title {
+    display: flex;
+    align-items: center;
+}
+
+.header-badge {
+    height: 50px;
+    width: 50px;
+    margin-right: 15px;
+    border: 2px solid var(--color-link);
+    border-radius: 50%;
+}
+
+.site-header h1 {
+    margin: 0;
+    font-family: var(--font-title);
+    font-size: 2.0em; /* Ajuste conforme necessário */
+    font-weight: normal;
+}
+
+/* Navegação Principal */
+.main-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+}
+
+.main-nav li {
+    margin-left: 20px;
+}
+
+.main-nav a {
+    font-family: var(--font-title);
+    color: var(--color-link);
+    text-decoration: none;
+    font-size: 1.2em;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.main-nav a:hover, .main-nav a:focus {
+    color: var(--color-text-header);
+    background-color: var(--color-accent);
+    text-decoration: none;
+}
+
+
+/* Conteúdo Principal */
+main {
+    padding-top: 25px;
+    padding-bottom: 25px;
+}
+
+.card {
+    background-color: var(--color-card-background);
+    margin-bottom: 30px;
+    padding: 25px;
+    border-radius: 10px; /* Bordas mais arredondadas */
+    border: 3px solid var(--color-border);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+.card h2 {
+    font-family: var(--font-title);
+    color: var(--color-text-main);
+    border-bottom: 2px solid var(--color-border);
+    padding-bottom: 10px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.8em; /* Títulos de seção maiores */
+    display: flex;
+    align-items: center;
+}
+
+.section-badge {
+    height: 35px;
+    width: 35px;
+    margin-right: 10px;
+    vertical-align: middle;
+}
+.opponent-badge {
+    margin-left: 10px;
+    margin-right: 0;
+}
+
+
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.grid-container p {
+    margin: 0; /* Removido margin anterior */
+    background-color: rgba(61, 44, 29, 0.05); /* Fundo levemente mais escuro */
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(140, 107, 72, 0.3); /* Borda sutil */
+    font-size: 0.95em;
+}
+
+.grid-container p strong {
+    color: var(--color-text-main);
+    font-weight: 700; /* Fonte Roboto Bold */
+}
+
+.description-box {
+    display: block;
+    background-color: rgba(61, 44, 29, 0.05);
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(140, 107, 72, 0.3);
+    color: var(--color-text-main);
+    font-size: 0.9em;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+/* Scrollbar customizada para caixas com scroll */
+.scrollable-box::-webkit-scrollbar {
+    width: 8px;
+}
+.scrollable-box::-webkit-scrollbar-track {
+    background: rgba(140, 107, 72, 0.2);
+    border-radius: 10px;
+}
+.scrollable-box::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 10px;
+}
+.scrollable-box::-webkit-scrollbar-thumb:hover {
+    background: var(--color-accent);
+}
+
+
+/* Estilos da Guerra */
+.war-card {
+    border-color: var(--color-accent); /* Destaque para o card de guerra */
+}
+
+.war-state {
+    font-weight: bold;
+    padding: 6px 12px;
+    border-radius: 5px;
+    color: white;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    display: inline-block; /* Para o padding funcionar bem */
+    margin-bottom: 15px; /* Espaço abaixo do status */
+}
+.war-state.preparation { background-color: var(--color-war-preparation); }
+.war-state.inwar { background-color: var(--color-war-inwar); } /* JS usa 'inWar', CSS usa 'inwar' */
+.war-state.warended { background-color: var(--color-war-ended); } /* JS usa 'warEnded', CSS usa 'warended' */
+.war-state.notinwar { background-color: var(--color-war-notinwar); }
+.war-state.privatewarlog { background-color: #34495e; } /* Cinza azulado para log privado */
+
+
+.war-score-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    text-align: center;
+    margin: 25px 0;
+    padding: 20px;
+    background-color: rgba(61, 44, 29, 0.05);
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+}
+.team-score h3 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-family: var(--font-title);
+    font-size: 1.4em;
+    color: var(--color-text-main);
+}
+.team-score.our-clan-score h3 { color: var(--color-war-our-clan); }
+.team-score.opponent-score h3 { color: var(--color-war-opponent); }
+
+.team-score p {
+    font-size: 2em; /* Placar maior */
+    font-weight: bold;
+    margin: 0;
+    font-family: var(--font-body); /* Usar Roboto para números */
+}
+.team-score.our-clan-score p { color: var(--color-war-our-clan); }
+.team-score.opponent-score p { color: var(--color-war-opponent); }
+
+.vs-separator {
+    font-family: var(--font-title);
+    font-size: 2.5em; /* Ícone de espadas maior */
+    color: var(--color-accent);
+    padding: 0 15px;
+}
+
+.war-timing {
+    text-align: center;
+    font-size: 1em;
+    color: var(--color-text-main);
+}
+.time-remaining {
+    font-weight: bold;
+    color: var(--color-accent);
+}
+
+/* Tabela de Membros */
+.table-container {
+    overflow-x: auto;
+    max-height: 400px; /* Altura máxima para a tabela, adiciona scroll vertical */
+    border: 1px solid rgba(140, 107, 72, 0.3);
+    border-radius: 6px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0; /* Removido margin-top pois o container já tem */
+    font-size: 0.9em;
+}
+th, td {
+    border: 1px solid rgba(140, 107, 72, 0.3);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: middle;
+}
+th {
+    background-color: var(--color-border); /* Marrom médio para cabeçalho da tabela */
+    color: var(--color-card-background); /* Texto claro */
+    font-family: var(--font-body); /* Fonte Roboto para cabeçalhos de tabela */
+    font-weight: 700; /* Bold */
+    text-transform: uppercase;
+    font-size: 0.85em;
+    position: sticky; /* Cabeçalho fixo ao rolar */
+    top: 0;
+    z-index: 1;
+}
+tbody tr:nth-child(even) {
+    background-color: rgba(61, 44, 29, 0.03);
+}
+tbody tr:hover {
+    background-color: rgba(140, 107, 72, 0.15);
+}
+
+/* Rodapé */
+.site-footer {
+    text-align: center;
+    padding: 25px 0;
+    background-color: var(--color-header-background);
+    color: var(--color-text-header);
+    margin-top: 30px;
+    font-size: 0.9em;
+    border-top: 5px solid var(--color-border);
+}
+.site-footer p {
+    margin: 5px 0;
+}
+
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        text-align: center;
+    }
+    .main-nav ul {
+        flex-direction: column;
+        margin-top: 15px;
+    }
+    .main-nav li {
+        margin-left: 0;
+        margin-bottom: 8px;
+    }
+    .site-header h1 {
+        font-size: 1.8em;
+    }
+    .card h2 {
+        font-size: 1.5em;
+    }
+    .grid-container {
+        grid-template-columns: 1fr;
+    }
+    .war-score-container {
+        flex-direction: column;
+    }
+    .vs-separator { margin: 10px 0; font-size: 2em; }
+    .team-score p { font-size: 1.6em; }
+}

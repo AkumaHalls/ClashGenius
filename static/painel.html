@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Guerra - Clash Genius</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    </head>
+<body>
+    <header class="site-header">
+        <div class="container header-content">
+            <div class="logo-title">
+                <img id="clanBadgeHeader" src="" alt="Emblema" class="header-badge">
+                <h1>Painel de Guerra: <span id="clanNameHeader">-</span></h1>
+            </div>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="#clan-info-nav">Clã</a></li>
+                    <li><a href="#war-info-nav">Guerra</a></li>
+                    <li><a href="#members-list-nav">Membros</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="clan-info-nav" class="card clan-card"> <h2>
+                <img id="clanBadge" src="" alt="" class="section-badge">
+                <span id="clanName">-</span> (<span id="clanTag">-</span>)
+            </h2>
+            <div class="grid-container">
+                <p><strong>Nível:</strong> <span id="clanLevel">-</span></p>
+                <p><strong>Pontos:</strong> <span id="clanPoints">-</span> 🏆</p>
+                <p><strong>Membros:</strong> <span id="clanMemberCount">-</span>/50</p>
+                <p><strong>Capital:</strong> <span id="clanCapitalPoints">-</span> 🏆</p>
+                <p><strong>Guerras Vencidas:</strong> <span id="clanWarWins">-</span> ⚔️</p>
+                <p><strong>Localização:</strong> <span id="clanLocation">-</span></p>
+                <p><strong>Tipo:</strong> <span id="clanType">-</span></p>
+            </div>
+            <p><strong>Descrição:</strong></p>
+            <div id="clanDescription" class="description-box scrollable-box">-</div>
+        </section>
+
+        <section id="war-info-nav" class="card war-card"> <h2>
+                <img id="warClanBadge" src="" alt="" class="section-badge">
+                Status da Guerra: <span id="warType">-</span>
+                <img id="warOpponentBadge" src="" alt="" class="section-badge opponent-badge">
+            </h2>
+            <p><strong>Estado:</strong> <span id="warStateDescription" class="war-state">-</span></p>
+            <div id="warDetailsActive" style="display: none;">
+                <div class="war-score-container">
+                    <div class="team-score our-clan-score">
+                        <h3><span id="warOurClanName">Nosso Clã</span></h3>
+                        <p><span id="warOurScore">-</span></p>
+                    </div>
+                    <div class="vs-separator">⚔️</div>
+                    <div class="team-score opponent-score">
+                        <h3><span id="warOpponentName">Oponente</span></h3>
+                        <p><span id="warOpponentScore">-</span></p>
+                    </div>
+                </div>
+                <p class="war-timing"><strong id="warTimeKey">Tempo:</strong> <span id="warTimeValue">-</span> (<span id="warTimeRemaining" class="time-remaining">-</span>)</p>
+            </div>
+            <p id="noWarMessage" style="display: none;">-</p>
+        </section>
+
+        <section id="members-list-nav" class="card members-card"> <h2>Membros do Clã <span id="membersClanName">-</span></h2>
+            <div class="table-container scrollable-box">
+                <table id="membersTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nome</th>
+                            <th>CV</th>
+                            <th>Liga</th>
+                            <th>Troféus</th>
+                            <th>Cargo</th>
+                            <th>Doações</th>
+                            <th>Recebidas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="membersTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>Clash Genius Bot v<span id="botVersion">?</span> | <span id="lastUpdated"></span></p>
+            <p>Painel de monitoramento do Clã</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/scripts.js"></script>
+</body>
+</html>
