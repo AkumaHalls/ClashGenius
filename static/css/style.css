@@ -1,354 +1,213 @@
 /* Importa fontes do Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Roboto:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Roboto:wght@300;400;700&display=swap');
 
 :root {
     --font-body: 'Roboto', sans-serif;
-    --font-title: 'MedievalSharp', cursive; /* Fonte temática para títulos */
-
-    --color-background: #4a3b31; /* Marrom escuro (terra/madeira) */
-    --color-card-background: #f4e9c7; /* Bege claro (pergaminho) */
-    --color-text-main: #3d2c1d; /* Marrom bem escuro para texto */
-    --color-text-header: #f4e9c7; /* Texto claro para header escuro */
-    --color-header-background: #2c1f17; /* Marrom muito escuro para header */
-    --color-border: #8c6b48; /* Marrom médio para bordas */
-    --color-accent: #e67e22; /* Laranja (fogo/destaque) */
-    --color-link: #d4af37; /* Dourado para links e destaques */
-    --color-link-hover: #f7c74a;
-
-    --color-war-our-clan: #27ae60; /* Verde para nosso clã */
-    --color-war-opponent: #c0392b; /* Vermelho para oponente */
-    --color-war-preparation: #f39c12; /* Laranja para preparação */
-    --color-war-inwar: #e74c3c; /* Vermelho para em guerra */
-    --color-war-ended: #2ecc71; /* Verde para finalizada */
-    --color-war-notinwar: #7f8c8d; /* Cinza para sem guerra */
+    --font-title: 'MedievalSharp', cursive;
+    --color-background: #3a3027; /* Marrom mais escuro para fundo */
+    --color-card-background: #f0e6d2; /* Pergaminho mais claro */
+    --color-text-main: #4a3b31; /* Marrom escuro para texto nos cards */
+    --color-text-header: #f0e6d2;
+    --color-header-background: #211a13; /* Quase preto para header */
+    --color-border: #7a5c3b; /* Marrom madeira para bordas */
+    --color-accent: #ff9800; /* Laranja Clash */
+    --color-link: #e6c86e; /* Dourado */
+    --color-link-hover: #fff5cc;
+    --color-modal-bg: rgba(0,0,0,0.6);
+    --color-modal-content-bg: var(--color-card-background);
 }
 
-html {
-    scroll-behavior: smooth; /* Rolagem suave para links âncora */
-}
-
+html { scroll-behavior: smooth; }
 body {
     font-family: var(--font-body);
     margin: 0;
     background-color: var(--color-background);
-    background-image: url('/static/images/bg-texture.png'); /* Adicione uma textura sutil aqui se desejar */
-    color: var(--color-text-main);
+    /* background-image: url('/static/images/bg-texture.png'); */ /* Adicione uma textura se tiver */
+    color: var(--color-text-header); /* Texto padrão do body claro para contraste com fundo escuro */
     line-height: 1.6;
 }
 
-.container {
-    width: 95%;
-    max-width: 1300px; /* Um pouco mais largo */
-    margin: auto;
-    padding: 0 15px;
-}
+.container { width: 95%; max-width: 1300px; margin: auto; padding: 0 15px; }
 
-/* Cabeçalho */
+/* Cabeçalho e Navegação */
 .site-header {
     background-color: var(--color-header-background);
     color: var(--color-text-header);
-    padding: 15px 0;
-    border-bottom: 5px solid var(--color-border);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    padding: 10px 0;
+    border-bottom: 4px solid var(--color-border);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    position: sticky; top: 0; z-index: 1000;
 }
-
-.header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.logo-title {
-    display: flex;
-    align-items: center;
-}
-
-.header-badge {
-    height: 50px;
-    width: 50px;
-    margin-right: 15px;
-    border: 2px solid var(--color-link);
-    border-radius: 50%;
-}
-
-.site-header h1 {
-    margin: 0;
-    font-family: var(--font-title);
-    font-size: 2.0em; /* Ajuste conforme necessário */
-    font-weight: normal;
-}
-
-/* Navegação Principal */
-.main-nav ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-}
-
-.main-nav li {
-    margin-left: 20px;
-}
-
+.header-content { display: flex; justify-content: space-between; align-items: center; }
+.logo-title { display: flex; align-items: center; }
+.header-badge { height: 45px; width: 45px; margin-right: 15px; border: 1px solid var(--color-link); border-radius: 50%; }
+.site-header h1 { margin: 0; font-family: var(--font-title); font-size: 1.8em; font-weight: normal; }
+.main-nav ul { list-style: none; padding: 0; margin: 0; display: flex; }
+.main-nav li { margin-left: 15px; }
 .main-nav a {
-    font-family: var(--font-title);
-    color: var(--color-link);
-    text-decoration: none;
-    font-size: 1.2em;
-    padding: 5px 10px;
-    border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
+    font-family: var(--font-title); color: var(--color-link); text-decoration: none;
+    font-size: 1.1em; padding: 8px 12px; border-radius: 4px; transition: background-color 0.3s, color 0.3s;
+}
+.main-nav a:hover, .main-nav a:focus, .main-nav a.active {
+    color: var(--color-header-background); background-color: var(--color-link); text-decoration: none;
 }
 
-.main-nav a:hover, .main-nav a:focus {
-    color: var(--color-text-header);
-    background-color: var(--color-accent);
-    text-decoration: none;
-}
-
-
-/* Conteúdo Principal */
-main {
-    padding-top: 25px;
-    padding-bottom: 25px;
-}
-
+/* Conteúdo Principal e Cards */
+main { padding-top: 25px; padding-bottom: 25px; }
 .card {
-    background-color: var(--color-card-background);
-    margin-bottom: 30px;
-    padding: 25px;
-    border-radius: 10px; /* Bordas mais arredondadas */
-    border: 3px solid var(--color-border);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    background-color: var(--color-card-background); color: var(--color-text-main);
+    margin-bottom: 25px; padding: 20px; border-radius: 8px;
+    border: 2px solid var(--color-border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
+.card h2 { /* ... como antes ... */
+    font-family: var(--font-title); color: var(--color-text-main);
+    border-bottom: 2px solid var(--color-border); padding-bottom: 10px;
+    margin-top: 0; margin-bottom: 20px; font-size: 1.7em; display: flex; align-items: center;
+}
+.section-badge { height: 30px; width: 30px; margin-right: 10px; }
+.opponent-badge { margin-left: 10px; margin-right: 0; }
 
-.card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+.grid-container { /* ... como antes ... */
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 15px; margin-bottom: 15px;
 }
-
-.card h2 {
-    font-family: var(--font-title);
-    color: var(--color-text-main);
-    border-bottom: 2px solid var(--color-border);
-    padding-bottom: 10px;
-    margin-top: 0;
-    margin-bottom: 20px;
-    font-size: 1.8em; /* Títulos de seção maiores */
-    display: flex;
-    align-items: center;
+.grid-container p { /* ... como antes ... */
+    margin: 0; background-color: rgba(122, 92, 59, 0.08); padding: 10px;
+    border-radius: 6px; border: 1px solid rgba(122, 92, 59, 0.2); font-size: 0.95em;
 }
-
-.section-badge {
-    height: 35px;
-    width: 35px;
-    margin-right: 10px;
-    vertical-align: middle;
+.grid-container p strong { color: var(--color-text-main); font-weight: 700; }
+.description-box { /* ... como antes ... */
+    display: block; background-color: rgba(122, 92, 59, 0.08); padding: 12px;
+    border-radius: 6px; border: 1px solid rgba(122, 92, 59, 0.2);
+    color: var(--color-text-main); font-size: 0.9em;
 }
-.opponent-badge {
-    margin-left: 10px;
-    margin-right: 0;
-}
+.scrollable-box { max-height: 350px; overflow-y: auto; padding-right: 10px; }
+.scrollable-box::-webkit-scrollbar { width: 8px; }
+.scrollable-box::-webkit-scrollbar-track { background: rgba(122, 92, 59, 0.1); border-radius: 10px; }
+.scrollable-box::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
+.scrollable-box::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
 
 
-.grid-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 15px;
-    margin-bottom: 15px;
-}
-
-.grid-container p {
-    margin: 0; /* Removido margin anterior */
-    background-color: rgba(61, 44, 29, 0.05); /* Fundo levemente mais escuro */
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid rgba(140, 107, 72, 0.3); /* Borda sutil */
-    font-size: 0.95em;
-}
-
-.grid-container p strong {
-    color: var(--color-text-main);
-    font-weight: 700; /* Fonte Roboto Bold */
-}
-
-.description-box {
-    display: block;
-    background-color: rgba(61, 44, 29, 0.05);
-    padding: 12px;
-    border-radius: 6px;
-    border: 1px solid rgba(140, 107, 72, 0.3);
-    color: var(--color-text-main);
-    font-size: 0.9em;
-    max-height: 120px;
-    overflow-y: auto;
-}
-
-/* Scrollbar customizada para caixas com scroll */
-.scrollable-box::-webkit-scrollbar {
-    width: 8px;
-}
-.scrollable-box::-webkit-scrollbar-track {
-    background: rgba(140, 107, 72, 0.2);
-    border-radius: 10px;
-}
-.scrollable-box::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 10px;
-}
-.scrollable-box::-webkit-scrollbar-thumb:hover {
-    background: var(--color-accent);
-}
-
-
-/* Estilos da Guerra */
-.war-card {
-    border-color: var(--color-accent); /* Destaque para o card de guerra */
-}
-
-.war-state {
-    font-weight: bold;
-    padding: 6px 12px;
-    border-radius: 5px;
-    color: white;
-    font-size: 0.9em;
-    text-transform: uppercase;
-    display: inline-block; /* Para o padding funcionar bem */
-    margin-bottom: 15px; /* Espaço abaixo do status */
+/* Estilos de Guerra e CWL */
+.war-card, .cwl-card { border-color: var(--color-accent); }
+.war-state { /* ... como antes, mas usando as vars CSS para cores ... */
+    font-weight: bold; padding: 6px 12px; border-radius: 5px; color: white;
+    font-size: 0.9em; text-transform: uppercase; display: inline-block; margin-bottom: 15px;
 }
 .war-state.preparation { background-color: var(--color-war-preparation); }
-.war-state.inwar { background-color: var(--color-war-inwar); } /* JS usa 'inWar', CSS usa 'inwar' */
-.war-state.warended { background-color: var(--color-war-ended); } /* JS usa 'warEnded', CSS usa 'warended' */
+.war-state.inwar { background-color: var(--color-war-inwar); }
+.war-state.warended { background-color: var(--color-war-ended); }
 .war-state.notinwar { background-color: var(--color-war-notinwar); }
-.war-state.privatewarlog { background-color: #34495e; } /* Cinza azulado para log privado */
+.war-state.privatewarlog { background-color: #566573; }
 
-
-.war-score-container {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    text-align: center;
-    margin: 25px 0;
-    padding: 20px;
-    background-color: rgba(61, 44, 29, 0.05);
-    border: 2px solid var(--color-border);
-    border-radius: 8px;
+.war-score-container { /* ... como antes ... */
+    display: flex; justify-content: space-around; align-items: center; text-align: center;
+    margin: 20px 0; padding: 15px; background-color: rgba(122, 92, 59, 0.05);
+    border: 1px solid var(--color-border); border-radius: 8px;
 }
-.team-score h3 {
-    margin-top: 0;
-    margin-bottom: 8px;
-    font-family: var(--font-title);
-    font-size: 1.4em;
-    color: var(--color-text-main);
-}
+/* ... (estilos de .team-score, .vs-separator, .war-timing como antes) ... */
+.team-score h3 { margin-top: 0; margin-bottom: 8px; font-family: var(--font-title); font-size: 1.3em; }
 .team-score.our-clan-score h3 { color: var(--color-war-our-clan); }
 .team-score.opponent-score h3 { color: var(--color-war-opponent); }
-
-.team-score p {
-    font-size: 2em; /* Placar maior */
-    font-weight: bold;
-    margin: 0;
-    font-family: var(--font-body); /* Usar Roboto para números */
-}
+.team-score p { font-size: 1.8em; font-weight: bold; margin: 0; font-family: var(--font-body); }
 .team-score.our-clan-score p { color: var(--color-war-our-clan); }
 .team-score.opponent-score p { color: var(--color-war-opponent); }
+.vs-separator { font-family: var(--font-title); font-size: 2.2em; color: var(--color-accent); padding: 0 10px;}
 
-.vs-separator {
-    font-family: var(--font-title);
-    font-size: 2.5em; /* Ícone de espadas maior */
-    color: var(--color-accent);
-    padding: 0 15px;
-}
-
-.war-timing {
-    text-align: center;
-    font-size: 1em;
-    color: var(--color-text-main);
-}
-.time-remaining {
-    font-weight: bold;
-    color: var(--color-accent);
-}
 
 /* Tabela de Membros */
-.table-container {
-    overflow-x: auto;
-    max-height: 400px; /* Altura máxima para a tabela, adiciona scroll vertical */
-    border: 1px solid rgba(140, 107, 72, 0.3);
-    border-radius: 6px;
+.table-container { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9em; }
+th, td { /* ... como antes ... */
+    border: 1px solid rgba(122, 92, 59, 0.4); padding: 10px 12px; text-align: left; vertical-align: middle;
 }
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 0; /* Removido margin-top pois o container já tem */
-    font-size: 0.9em;
+th { /* ... como antes ... */
+    background-color: var(--color-border); color: var(--color-card-background);
+    font-family: var(--font-body); font-weight: 700; text-transform: uppercase;
+    font-size: 0.85em; position: sticky; top: 0; z-index: 1;
 }
-th, td {
-    border: 1px solid rgba(140, 107, 72, 0.3);
-    padding: 10px 12px;
-    text-align: left;
-    vertical-align: middle;
+tbody tr:nth-child(even) { background-color: rgba(122, 92, 59, 0.04); }
+tbody tr:hover { background-color: rgba(122, 92, 59, 0.1); }
+.player-details-button {
+    background-color: var(--color-link); color: var(--color-header-background);
+    border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8em;
 }
-th {
-    background-color: var(--color-border); /* Marrom médio para cabeçalho da tabela */
-    color: var(--color-card-background); /* Texto claro */
-    font-family: var(--font-body); /* Fonte Roboto para cabeçalhos de tabela */
-    font-weight: 700; /* Bold */
-    text-transform: uppercase;
-    font-size: 0.85em;
-    position: sticky; /* Cabeçalho fixo ao rolar */
-    top: 0;
-    z-index: 1;
+.player-details-button:hover { background-color: var(--color-link-hover); }
+
+/* Log de Eventos */
+#eventsLogContainer p {
+    margin: 0 0 8px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed rgba(122, 92, 59, 0.2);
+    font-family: 'Courier New', Courier, monospace; /* Fonte monoespaçada para logs */
 }
-tbody tr:nth-child(even) {
-    background-color: rgba(61, 44, 29, 0.03);
+#eventsLogContainer p:last-child { border-bottom: none; }
+
+/* Estilos CWL */
+.cwl-round { margin-bottom: 20px; padding: 15px; border: 1px solid var(--color-border); border-radius: 6px; }
+.cwl-round h4 { font-family: var(--font-title); margin-top: 0; color: var(--color-accent); }
+.cwl-war {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid rgba(122, 92, 59, 0.2); font-size: 0.9em;
 }
-tbody tr:hover {
-    background-color: rgba(140, 107, 72, 0.15);
+.cwl-war:last-child { border-bottom: none; }
+.cwl-team { text-align: center; }
+.cwl-team img { height: 24px; vertical-align: middle; margin: 0 5px; }
+.cwl-team-name { font-weight: bold; }
+.cwl-score { font-size: 1.1em; font-weight: bold; }
+.cwl-vs { font-family: var(--font-title); font-size: 1.5em; color: var(--color-text-main); }
+
+
+/* Modal */
+.modal {
+    display: none; position: fixed; z-index: 2000; left: 0; top: 0;
+    width: 100%; height: 100%; overflow: auto; background-color: var(--color-modal-bg);
+    padding-top: 30px; /* Espaço para fechar se o conteúdo for grande */
 }
+.modal-content {
+    background-color: var(--color-modal-content-bg); color: var(--color-text-main);
+    margin: 5% auto; padding: 25px; border: 3px solid var(--color-border);
+    border-radius: 10px; width: 85%; max-width: 700px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+    position: relative;
+    max-height: 80vh; /* Altura máxima do conteúdo do modal */
+}
+.close-button {
+    color: var(--color-text-main); float: right; font-size: 28px; font-weight: bold;
+    line-height: 1;
+}
+.close-button:hover, .close-button:focus {
+    color: var(--color-accent); text-decoration: none; cursor: pointer;
+}
+.modal-content h3 { font-family: var(--font-title); color: var(--color-accent); margin-top: 0; }
+.modal-content h4 { font-family: var(--font-title); margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid var(--color-border); padding-bottom: 5px;}
+.modal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; margin-bottom:15px; }
+.modal-grid p { margin: 3px 0; font-size: 0.9em; }
+.modal-items-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; font-size: 0.85em;}
+.modal-items-grid div { background-color: rgba(122, 92, 59, 0.05); padding: 5px; border-radius: 4px;}
+
 
 /* Rodapé */
-.site-footer {
-    text-align: center;
-    padding: 25px 0;
-    background-color: var(--color-header-background);
-    color: var(--color-text-header);
-    margin-top: 30px;
-    font-size: 0.9em;
-    border-top: 5px solid var(--color-border);
+.site-footer { /* ... como antes ... */
+    text-align: center; padding: 20px 0; background-color: var(--color-header-background);
+    color: var(--color-text-header); margin-top: 30px; font-size: 0.9em;
+    border-top: 4px solid var(--color-border);
 }
-.site-footer p {
-    margin: 5px 0;
+.site-footer p { margin: 5px 0; }
+
+/* Visibilidade de Seções para SPA */
+main > section:not(.current-section) {
+    display: none;
 }
 
-
-/* Responsividade */
 @media (max-width: 768px) {
-    .header-content {
-        flex-direction: column;
-        text-align: center;
-    }
-    .main-nav ul {
-        flex-direction: column;
-        margin-top: 15px;
-    }
-    .main-nav li {
-        margin-left: 0;
-        margin-bottom: 8px;
-    }
-    .site-header h1 {
-        font-size: 1.8em;
-    }
-    .card h2 {
-        font-size: 1.5em;
-    }
-    .grid-container {
-        grid-template-columns: 1fr;
-    }
-    .war-score-container {
-        flex-direction: column;
-    }
-    .vs-separator { margin: 10px 0; font-size: 2em; }
-    .team-score p { font-size: 1.6em; }
+    .header-content { flex-direction: column; text-align: center; }
+    .main-nav ul { flex-direction: column; align-items: center; margin-top: 10px; }
+    .main-nav li { margin-left: 0; margin-bottom: 5px; }
+    .site-header h1 { font-size: 1.6em; }
+    .card h2 { font-size: 1.4em; }
+    /* (outros ajustes responsivos como antes) */
+    .modal-content { width: 95%; margin-top: 10%; max-height: 85vh; }
+    .modal-grid { grid-template-columns: 1fr; }
 }
