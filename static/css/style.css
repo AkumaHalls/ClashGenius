@@ -3,389 +3,210 @@
 
 :root {
     --font-body: 'Roboto', sans-serif;
-    --font-title: 'MedievalSharp', cursive; /* Fonte temática para títulos */
-
-    --color-background: #4a3b31; /* Marrom escuro (terra/madeira) */
-    --color-card-background: #f4e9c7; /* Bege claro (pergaminho) */
-    --color-text-main: #3d2c1d; /* Marrom bem escuro para texto */
-    --color-text-header: #f4e9c7; /* Texto claro para header escuro */
-    --color-header-background: #2c1f17; /* Marrom muito escuro para header */
-    --color-border: #8c6b48; /* Marrom médio para bordas */
-    --color-accent: #e67e22; /* Laranja (fogo/destaque) */
-    --color-link: #d4af37; /* Dourado para links e destaques */
+    --font-title: 'MedievalSharp', cursive; 
+    --color-background: #4a3b31; 
+    --color-card-background: #f4e9c7; 
+    --color-text-main: #3d2c1d; 
+    --color-text-header: #f4e9c7; 
+    --color-header-background: #2c1f17; 
+    --color-border: #8c6b48; 
+    --color-accent: #e67e22; 
+    --color-link: #d4af37; 
     --color-link-hover: #f7c74a;
-
-    --color-war-our-clan: #27ae60; /* Verde para nosso clã */
-    --color-war-opponent: #c0392b; /* Vermelho para oponente */
-    --color-war-preparation: #f39c12; /* Laranja para preparação */
-    --color-war-inwar: #e74c3c; /* Vermelho para em guerra */
-    --color-war-ended: #2ecc71; /* Verde para finalizada */
-    --color-war-notinwar: #7f8c8d; /* Cinza para sem guerra */
+    --color-war-our-clan: #27ae60; 
+    --color-war-opponent: #c0392b; 
+    --color-war-preparation: #f39c12; 
+    --color-war-inwar: #e74c3c; 
+    --color-war-ended: #2ecc71; 
+    --color-war-notinwar: #7f8c8d;
+    --color-success: #2ecc71; /* Verde para vitória */
+    --color-danger: #e74c3c;  /* Vermelho para derrota */
+    --color-warning: #f39c12; /* Laranja para empate/aviso */
+    --color-info: #3498db;    /* Azul para info */
 }
 
-html {
-    scroll-behavior: smooth; /* Rolagem suave para links âncora */
-}
-
+html { scroll-behavior: smooth; }
 body {
-    font-family: var(--font-body);
-    margin: 0;
+    font-family: var(--font-body); margin: 0;
     background-color: var(--color-background);
-    background-image: url('/static/images/bg-texture.png'); /* Adicione uma textura sutil aqui se desejar */
-    color: var(--color-text-main);
-    line-height: 1.6;
+    background-image: url('/static/images/bg-texture.png'); 
+    color: var(--color-text-main); line-height: 1.6;
 }
-
-.container {
-    width: 95%;
-    max-width: 1300px; /* Um pouco mais largo */
-    margin: auto;
-    padding: 0 15px;
-}
+.container { width: 95%; max-width: 1300px; margin: auto; padding: 0 15px; }
 
 /* Cabeçalho */
 .site-header {
-    background-color: var(--color-header-background);
-    color: var(--color-text-header);
-    padding: 15px 0;
-    border-bottom: 5px solid var(--color-border);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    background-color: var(--color-header-background); color: var(--color-text-header);
+    padding: 10px 0; border-bottom: 5px solid var(--color-border);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 1000;
 }
-
-.header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.logo-title {
-    display: flex;
-    align-items: center;
-}
-
-.header-badge {
-    height: 50px;
-    width: 50px;
-    margin-right: 15px;
-    border: 2px solid var(--color-link);
-    border-radius: 50%;
-}
-
-.site-header h1 {
-    margin: 0;
-    font-family: var(--font-title);
-    font-size: 2.0em; /* Ajuste conforme necessário */
-    font-weight: normal;
-}
-
-/* Navegação Principal */
-.main-nav ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-}
-
-.main-nav li {
-    margin-left: 20px;
-}
-
+.header-content { display: flex; justify-content: space-between; align-items: center; }
+.logo-title { display: flex; align-items: center; }
+.header-badge { height: 40px; width: 40px; margin-right: 10px; border: 1px solid var(--color-link); border-radius: 50%; }
+.site-header h1 { margin: 0; font-family: var(--font-title); font-size: 1.8em; font-weight: normal; }
+.main-nav ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; }
+.main-nav li { margin-left: 15px; margin-bottom: 5px; } /* Adicionado margin-bottom para wrap */
 .main-nav a {
-    font-family: var(--font-title);
-    color: var(--color-link);
-    text-decoration: none;
-    font-size: 1.2em;
-    padding: 5px 10px;
-    border-radius: 4px;
+    font-family: var(--font-title); color: var(--color-link); text-decoration: none;
+    font-size: 1em; padding: 4px 8px; border-radius: 4px;
     transition: background-color 0.3s, color 0.3s;
 }
-
-.main-nav a:hover, .main-nav a:focus {
-    color: var(--color-text-header);
-    background-color: var(--color-accent);
-    text-decoration: none;
-}
-
+.main-nav a:hover, .main-nav a:focus { color: var(--color-text-header); background-color: var(--color-accent); }
 
 /* Conteúdo Principal */
-main {
-    padding-top: 25px;
-    padding-bottom: 25px;
-}
-
+main { padding-top: 20px; padding-bottom: 20px; }
 .card {
-    background-color: var(--color-card-background);
-    margin-bottom: 30px;
-    padding: 25px;
-    border-radius: 10px; /* Bordas mais arredondadas */
-    border: 3px solid var(--color-border);
+    background-color: var(--color-card-background); margin-bottom: 25px; padding: 20px;
+    border-radius: 10px; border: 3px solid var(--color-border);
     box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
-
-.card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-}
-
 .card h2 {
-    font-family: var(--font-title);
-    color: var(--color-text-main);
-    border-bottom: 2px solid var(--color-border);
-    padding-bottom: 10px;
-    margin-top: 0;
-    margin-bottom: 20px;
-    font-size: 1.8em; /* Títulos de seção maiores */
-    display: flex;
-    align-items: center;
+    font-family: var(--font-title); color: var(--color-text-main);
+    border-bottom: 2px solid var(--color-border); padding-bottom: 8px;
+    margin-top: 0; margin-bottom: 15px; font-size: 1.6em; 
+    display: flex; align-items: center;
 }
-
-.section-badge {
-    height: 35px;
-    width: 35px;
-    margin-right: 10px;
-    vertical-align: middle;
+.card h3 {
+    font-family: var(--font-title); color: var(--color-text-main);
+    margin-top: 20px; margin-bottom: 10px; font-size: 1.3em;
+    border-bottom: 1px dashed var(--color-border); padding-bottom: 5px;
 }
-.opponent-badge {
-    margin-left: 10px;
-    margin-right: 0;
-}
-
+.section-badge { height: 30px; width: 30px; margin-right: 8px; vertical-align: middle; }
+.opponent-badge { margin-left: 8px; margin-right: 0; }
 
 .grid-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 15px;
-    margin-bottom: 15px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 12px; margin-bottom: 12px;
 }
-
-.grid-container p {
-    margin: 0; /* Removido margin anterior */
-    background-color: rgba(61, 44, 29, 0.05); /* Fundo levemente mais escuro */
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid rgba(140, 107, 72, 0.3); /* Borda sutil */
-    font-size: 0.95em;
-}
-
-.grid-container p strong {
-    color: var(--color-text-main);
-    font-weight: 700; /* Fonte Roboto Bold */
-}
-
-.description-box {
-    display: block;
-    background-color: rgba(61, 44, 29, 0.05);
-    padding: 12px;
-    border-radius: 6px;
-    border: 1px solid rgba(140, 107, 72, 0.3);
-    color: var(--color-text-main);
+.grid-container p, .list-box p, .capital-districts-grid p, .cwl-clans-grid p {
+    margin: 0; background-color: rgba(61, 44, 29, 0.05); 
+    padding: 8px; border-radius: 6px; border: 1px solid rgba(140, 107, 72, 0.3);
     font-size: 0.9em;
-    max-height: 120px;
-    overflow-y: auto;
 }
+.grid-container p strong { color: var(--color-text-main); font-weight: 700; }
+.description-box, .list-box {
+    background-color: rgba(61, 44, 29, 0.05); padding: 10px;
+    border-radius: 6px; border: 1px solid rgba(140, 107, 72, 0.3);
+    font-size: 0.9em; max-height: 100px; overflow-y: auto; margin-bottom: 15px;
+}
+.list-box { max-height: 200px; } /* Para listas como ataques pendentes */
 
-/* Scrollbar customizada para caixas com scroll */
-.scrollable-box::-webkit-scrollbar {
-    width: 8px;
-}
-.scrollable-box::-webkit-scrollbar-track {
-    background: rgba(140, 107, 72, 0.2);
-    border-radius: 10px;
-}
-.scrollable-box::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 10px;
-}
-.scrollable-box::-webkit-scrollbar-thumb:hover {
-    background: var(--color-accent);
-}
+.scrollable-box::-webkit-scrollbar { width: 8px; }
+.scrollable-box::-webkit-scrollbar-track { background: rgba(140, 107, 72, 0.2); border-radius: 10px; }
+.scrollable-box::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
+.scrollable-box::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
 
-
-/* Estilos da Guerra */
-.war-card {
-    border-color: var(--color-accent); /* Destaque para o card de guerra */
-}
-
+/* Estilos de Guerra (Geral e Status) */
+.war-card, .war-details-card, .attacks-remaining-card, .cwl-card, .war-log-card { border-color: var(--color-accent); }
 .war-state {
-    font-weight: bold;
-    padding: 6px 12px;
-    border-radius: 5px;
-    color: white;
-    font-size: 0.9em;
-    text-transform: uppercase;
-    display: inline-block; /* Para o padding funcionar bem */
-    margin-bottom: 15px; /* Espaço abaixo do status */
+    font-weight: bold; padding: 5px 10px; border-radius: 5px; color: white;
+    font-size: 0.85em; text-transform: uppercase; display: inline-block; margin-bottom: 12px;
 }
 .war-state.preparation { background-color: var(--color-war-preparation); }
-.war-state.inwar { background-color: var(--color-war-inwar); } /* JS usa 'inWar', CSS usa 'inwar' */
-.war-state.warended { background-color: var(--color-war-ended); } /* JS usa 'warEnded', CSS usa 'warended' */
-.war-state.notinwar { background-color: var(--color-war-notinwar); }
-.war-state.privatewarlog { background-color: #34495e; } /* Cinza azulado para log privado */
-
+.war-state.inwar { background-color: var(--color-war-inwar); }
+.war-state.warended { background-color: var(--color-war-ended); }
+.war-state.notinwar, .war-state.notincwl { background-color: var(--color-war-notinwar); }
+.war-state.privatewarlog { background-color: #34495e; }
 
 .war-score-container {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    text-align: center;
-    margin: 25px 0;
-    padding: 20px;
-    background-color: rgba(61, 44, 29, 0.05);
-    border: 2px solid var(--color-border);
-    border-radius: 8px;
+    display: flex; justify-content: space-around; align-items: center; text-align: center;
+    margin: 20px 0; padding: 15px; background-color: rgba(61, 44, 29, 0.05);
+    border: 2px solid var(--color-border); border-radius: 8px;
 }
-.team-score h3 {
-    margin-top: 0;
-    margin-bottom: 8px;
-    font-family: var(--font-title);
-    font-size: 1.4em;
-    color: var(--color-text-main);
-}
+.team-score h3 { margin-top: 0; margin-bottom: 6px; font-family: var(--font-title); font-size: 1.3em; }
 .team-score.our-clan-score h3 { color: var(--color-war-our-clan); }
 .team-score.opponent-score h3 { color: var(--color-war-opponent); }
-
-.team-score p {
-    font-size: 2em; /* Placar maior */
-    font-weight: bold;
-    margin: 0;
-    font-family: var(--font-body); /* Usar Roboto para números */
-}
+.team-score p { font-size: 1.8em; font-weight: bold; margin: 0; font-family: var(--font-body); }
 .team-score.our-clan-score p { color: var(--color-war-our-clan); }
 .team-score.opponent-score p { color: var(--color-war-opponent); }
+.vs-separator { font-family: var(--font-title); font-size: 2.2em; color: var(--color-accent); padding: 0 12px; }
+.war-timing { text-align: center; font-size: 0.95em; color: var(--color-text-main); }
+.time-remaining { font-weight: bold; color: var(--color-accent); }
 
-.vs-separator {
-    font-family: var(--font-title);
-    font-size: 2.5em; /* Ícone de espadas maior */
-    color: var(--color-accent);
-    padding: 0 15px;
-}
-
-.war-timing {
-    text-align: center;
-    font-size: 1em;
-    color: var(--color-text-main);
-}
-.time-remaining {
-    font-weight: bold;
-    color: var(--color-accent);
-}
-
-/* Filtros de Membros */
+/* Tabela de Membros e Filtros */
 .member-filters {
-    display: flex;
-    flex-wrap: wrap; 
-    gap: 10px;
-    margin-bottom: 20px;
-    padding: 10px;
-    background-color: rgba(61, 44, 29, 0.05);
-    border-radius: 6px;
-    border: 1px solid rgba(140, 107, 72, 0.2);
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding: 8px;
+    background-color: rgba(61, 44, 29, 0.05); border-radius: 6px; border: 1px solid rgba(140, 107, 72, 0.2);
 }
-
 .member-filters input[type="text"] {
-    flex-grow: 1; 
-    min-width: 150px; 
-    padding: 8px 10px;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    background-color: #fff; 
-    color: var(--color-text-main);
-    font-family: var(--font-body);
-    font-size: 0.9em;
+    flex-grow: 1; min-width: 140px; padding: 7px 9px; border: 1px solid var(--color-border);
+    border-radius: 4px; background-color: #fff; color: var(--color-text-main);
+    font-family: var(--font-body); font-size: 0.85em;
 }
+.member-filters input[type="text"]::placeholder { color: #888; }
 
-.member-filters input[type="text"]::placeholder {
-    color: #888;
-}
-
-/* Tabela de Membros */
 .table-container {
-    overflow-x: auto;
-    max-height: 750px; /* AUMENTADO de 400px para mostrar mais membros */
-    border: 1px solid rgba(140, 107, 72, 0.3);
-    border-radius: 6px;
+    overflow-x: auto; max-height: 750px; /* Altura da tabela de membros */
+    border: 1px solid rgba(140, 107, 72, 0.3); border-radius: 6px;
 }
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 0; 
-    font-size: 0.9em;
-}
+#currentWarAttacksTableContainer { max-height: 400px; } /* Altura específica para tabela de ataques */
+#warLogTableContainer { max-height: 400px; } /* Altura específica para tabela de log */
+
+table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
 th, td {
-    border: 1px solid rgba(140, 107, 72, 0.3);
-    padding: 10px 12px;
-    text-align: left;
-    vertical-align: middle;
+    border: 1px solid rgba(140, 107, 72, 0.3); padding: 8px 10px;
+    text-align: left; vertical-align: middle;
 }
 th {
-    background-color: var(--color-border); 
-    color: var(--color-card-background); 
-    font-family: var(--font-body); 
-    font-weight: 700; 
-    text-transform: uppercase;
-    font-size: 0.85em;
-    position: sticky; 
-    top: 0;
-    z-index: 1;
+    background-color: var(--color-border); color: var(--color-card-background);
+    font-family: var(--font-body); font-weight: 700; text-transform: uppercase;
+    font-size: 0.8em; position: sticky; top: 0; z-index: 1;
 }
-tbody tr:nth-child(even) {
-    background-color: rgba(61, 44, 29, 0.03);
-}
-tbody tr:hover {
-    background-color: rgba(140, 107, 72, 0.15);
-}
+tbody tr:nth-child(even) { background-color: rgba(61, 44, 29, 0.03); }
+tbody tr:hover { background-color: rgba(140, 107, 72, 0.15); }
+
+/* Estilos para resultado de guerra (Vitória/Derrota/Empate) */
+.war-result-win { color: var(--color-success); font-weight: bold; }
+.war-result-loss { color: var(--color-danger); font-weight: bold; }
+.war-result-tie { color: var(--color-warning); font-weight: bold; }
+
+/* Estilos para estrelas de ataque */
+.stars-0 { color: var(--color-danger); }
+.stars-1 { color: var(--color-warning); }
+.stars-2 { color: var(--color-info); }
+.stars-3 { color: var(--color-success); font-weight: bold; }
+
+/* Capital do Clã */
+.capital-districts-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+/* CWL */
+#cwlRoundsInfo { max-height: 400px; overflow-y: auto; }
+.cwl-round { margin-bottom: 15px; padding: 10px; border: 1px solid var(--color-border); border-radius: 6px; }
+.cwl-round h4 { font-family: var(--font-title); margin-top: 0; font-size: 1.1em; }
+.cwl-war-entry { padding: 8px; border-bottom: 1px dashed rgba(140, 107, 72, 0.3); }
+.cwl-war-entry:last-child { border-bottom: none; }
+.cwl-clans-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.cwl-clans-grid p img { vertical-align: middle; margin-right: 5px; height: 20px; }
+
 
 /* Rodapé */
 .site-footer {
-    text-align: center;
-    padding: 25px 0;
-    background-color: var(--color-header-background);
-    color: var(--color-text-header);
-    margin-top: 30px;
-    font-size: 0.9em;
+    text-align: center; padding: 20px 0; background-color: var(--color-header-background);
+    color: var(--color-text-header); margin-top: 25px; font-size: 0.85em;
     border-top: 5px solid var(--color-border);
 }
-.site-footer p {
-    margin: 5px 0;
-}
-
+.site-footer p { margin: 4px 0; }
 
 /* Responsividade */
+@media (max-width: 992px) { /* Ajuste para telas médias antes de ir para mobile total */
+    .main-nav ul { justify-content: center; }
+    .main-nav li { margin-left: 10px; }
+    .main-nav a { font-size: 0.9em; }
+}
 @media (max-width: 768px) {
-    .header-content {
-        flex-direction: column;
-        text-align: center;
-    }
-    .main-nav ul {
-        flex-direction: column;
-        margin-top: 15px;
-    }
-    .main-nav li {
-        margin-left: 0;
-        margin-bottom: 8px;
-    }
-    .site-header h1 {
-        font-size: 1.8em;
-    }
-    .card h2 {
-        font-size: 1.5em;
-    }
-    .grid-container {
-        grid-template-columns: 1fr;
-    }
-    .war-score-container {
-        flex-direction: column;
-    }
-    .vs-separator { margin: 10px 0; font-size: 2em; }
-    .team-score p { font-size: 1.6em; }
-
-    .member-filters {
-        flex-direction: column; /* Empilha os filtros em telas menores */
-    }
-    .member-filters input[type="text"] {
-        min-width: unset; /* Remove largura mínima para empilhar bem */
-        width: 100%; /* Ocupa toda a largura disponível */
-        box-sizing: border-box; /* Garante que padding não aumente a largura total */
-    }
+    .site-header h1 { font-size: 1.5em; }
+    .header-content { flex-direction: column; text-align: center; }
+    .main-nav { width: 100%; margin-top: 10px; }
+    .main-nav ul { flex-direction: column; }
+    .main-nav li { margin-left: 0; margin-bottom: 6px; text-align: center; }
+    .card h2 { font-size: 1.4em; }
+    .card h3 { font-size: 1.2em; }
+    .grid-container { grid-template-columns: 1fr; }
+    .war-score-container { flex-direction: column; }
+    .vs-separator { margin: 8px 0; font-size: 2em; }
+    .team-score p { font-size: 1.5em; }
+    .member-filters { flex-direction: column; }
+    .member-filters input[type="text"] { min-width: unset; width: 100%; box-sizing: border-box; }
+    .capital-districts-grid { grid-template-columns: 1fr; }
+    .cwl-clans-grid { grid-template-columns: 1fr; }
 }
