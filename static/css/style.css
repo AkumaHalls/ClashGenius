@@ -4,32 +4,39 @@
 :root {
     --font-body: 'Roboto', sans-serif;
     --font-title: 'MedievalSharp', cursive; 
-    --color-background: #4a3b31; 
-    --color-card-background: #f4e9c7; 
-    --color-text-main: #3d2c1d; 
-    --color-text-header: #f4e9c7; 
-    --color-header-background: #2c1f17; 
-    --color-border: #8c6b48; 
-    --color-accent: #e67e22; 
-    --color-link: #d4af37; 
-    --color-link-hover: #f7c74a;
-    --color-war-our-clan: #27ae60; 
-    --color-war-opponent: #c0392b; 
-    --color-war-preparation: #f39c12; 
-    --color-war-inwar: #e74c3c; 
-    --color-war-ended: #2ecc71; 
-    --color-war-notinwar: #7f8c8d;
-    --color-success: #2ecc71; /* Verde para vitória */
-    --color-danger: #e74c3c;  /* Vermelho para derrota */
-    --color-warning: #f39c12; /* Laranja para empate/aviso */
-    --color-info: #3498db;    /* Azul para info */
+    --color-background: #3a2e25; /* Um pouco mais escuro */
+    --color-card-background: #fdf5e6; /* Um bege mais "pergaminho" */
+    --color-text-main: #4a3b31; 
+    --color-text-header: #fdf5e6; 
+    --color-header-background: #2f231b; 
+    --color-border: #805d3f; 
+    --color-accent: #ff7f50; /* Coral como acento */
+    --color-link: #DAA520; /* Goldenrod */
+    --color-link-hover: #f0b93a;
+    --color-war-our-clan: #28a745; /* Verde mais vibrante */
+    --color-war-opponent: #dc3545; /* Vermelho mais vibrante */
+    --color-war-preparation: #ffc107; /* Amarelo */
+    --color-war-inwar: #fd7e14; /* Laranja */
+    --color-war-ended: #17a2b8; /* Ciano */
+    --color-war-notinwar: #6c757d; /* Cinza */
+    --color-success: #28a745; 
+    --color-danger: #dc3545;  
+    --color-warning: #ffc107; 
+    --color-info: #17a2b8;    
+    --color-star-gold: #FFD700;
+    --color-star-empty: #ccc;
+    --color-tab-active-bg: var(--color-border);
+    --color-tab-active-text: var(--color-text-header);
+    --color-tab-inactive-bg: var(--color-card-background);
+    --color-tab-inactive-text: var(--color-text-main);
+    --color-tab-border: var(--color-border);
 }
 
 html { scroll-behavior: smooth; }
 body {
     font-family: var(--font-body); margin: 0;
     background-color: var(--color-background);
-    background-image: url('/static/images/bg-texture.png'); 
+    /* background-image: url('/static/images/bg-texture.png'); */ /* Removido temporariamente */
     color: var(--color-text-main); line-height: 1.6;
 }
 .container { width: 95%; max-width: 1300px; margin: auto; padding: 0 15px; }
@@ -40,158 +47,158 @@ body {
     padding: 10px 0; border-bottom: 5px solid var(--color-border);
     box-shadow: 0 4px 8px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 1000;
 }
-.header-content { display: flex; justify-content: space-between; align-items: center; }
-.logo-title { display: flex; align-items: center; }
+.header-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;}
+.logo-title { display: flex; align-items: center; margin-bottom: 5px; } /* Adicionado margin-bottom para wrap */
 .header-badge { height: 40px; width: 40px; margin-right: 10px; border: 1px solid var(--color-link); border-radius: 50%; }
 .site-header h1 { margin: 0; font-family: var(--font-title); font-size: 1.8em; font-weight: normal; }
 .main-nav ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; }
-.main-nav li { margin-left: 15px; margin-bottom: 5px; } /* Adicionado margin-bottom para wrap */
+.main-nav li { margin-left: 10px; margin-bottom: 5px; } 
 .main-nav a {
     font-family: var(--font-title); color: var(--color-link); text-decoration: none;
-    font-size: 1em; padding: 4px 8px; border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s;
+    font-size: 1em; padding: 5px 10px; border-radius: 4px;
+    transition: background-color 0.3s, color 0.3s; white-space: nowrap;
 }
-.main-nav a:hover, .main-nav a:focus { color: var(--color-text-header); background-color: var(--color-accent); }
+.main-nav a:hover, .main-nav a.active-nav-link { color: var(--color-text-header); background-color: var(--color-accent); }
 
-/* Conteúdo Principal */
+/* Conteúdo Principal e Cards */
 main { padding-top: 20px; padding-bottom: 20px; }
 .card {
     background-color: var(--color-card-background); margin-bottom: 25px; padding: 20px;
-    border-radius: 10px; border: 3px solid var(--color-border);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    border-radius: 8px; border: 2px solid var(--color-border);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
 }
-.card h2 {
-    font-family: var(--font-title); color: var(--color-text-main);
+.card h2 { /* Título principal do card */
+    font-family: var(--font-title); color: var(--color-header-background);
     border-bottom: 2px solid var(--color-border); padding-bottom: 8px;
-    margin-top: 0; margin-bottom: 15px; font-size: 1.6em; 
+    margin-top: 0; margin-bottom: 15px; font-size: 1.7em; 
     display: flex; align-items: center;
 }
-.card h3 {
+.card h3 { /* Subtítulos dentro do card */
     font-family: var(--font-title); color: var(--color-text-main);
-    margin-top: 20px; margin-bottom: 10px; font-size: 1.3em;
+    margin-top: 20px; margin-bottom: 10px; font-size: 1.4em;
     border-bottom: 1px dashed var(--color-border); padding-bottom: 5px;
+}
+.card h4 { /* Títulos menores, como em colunas de estatísticas */
+    font-family: var(--font-body); font-weight: bold; color: var(--color-text-main);
+    margin-top: 5px; margin-bottom: 8px; font-size: 1.1em;
 }
 .section-badge { height: 30px; width: 30px; margin-right: 8px; vertical-align: middle; }
 .opponent-badge { margin-left: 8px; margin-right: 0; }
 
-.grid-container {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 12px; margin-bottom: 12px;
-}
+.grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 12px; }
 .grid-container p, .list-box p, .capital-districts-grid p, .cwl-clans-grid p {
-    margin: 0; background-color: rgba(61, 44, 29, 0.05); 
-    padding: 8px; border-radius: 6px; border: 1px solid rgba(140, 107, 72, 0.3);
+    margin: 0; background-color: rgba(var(--color-text-main-rgb, 61, 44, 29), 0.03); 
+    padding: 8px; border-radius: 6px; border: 1px solid rgba(var(--color-border-rgb, 128, 93, 63), 0.3);
     font-size: 0.9em;
 }
 .grid-container p strong { color: var(--color-text-main); font-weight: 700; }
 .description-box, .list-box {
-    background-color: rgba(61, 44, 29, 0.05); padding: 10px;
-    border-radius: 6px; border: 1px solid rgba(140, 107, 72, 0.3);
+    background-color: rgba(var(--color-text-main-rgb, 61, 44, 29), 0.03); padding: 10px;
+    border-radius: 6px; border: 1px solid rgba(var(--color-border-rgb, 128, 93, 63), 0.3);
     font-size: 0.9em; max-height: 100px; overflow-y: auto; margin-bottom: 15px;
 }
-.list-box { max-height: 200px; } /* Para listas como ataques pendentes */
+.list-box { max-height: 250px; } 
 
 .scrollable-box::-webkit-scrollbar { width: 8px; }
-.scrollable-box::-webkit-scrollbar-track { background: rgba(140, 107, 72, 0.2); border-radius: 10px; }
+.scrollable-box::-webkit-scrollbar-track { background: rgba(var(--color-border-rgb, 128, 93, 63), 0.2); border-radius: 10px; }
 .scrollable-box::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
 .scrollable-box::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
 
-/* Estilos de Guerra (Geral e Status) */
-.war-card, .war-details-card, .attacks-remaining-card, .cwl-card, .war-log-card { border-color: var(--color-accent); }
-.war-state {
-    font-weight: bold; padding: 5px 10px; border-radius: 5px; color: white;
-    font-size: 0.85em; text-transform: uppercase; display: inline-block; margin-bottom: 12px;
-}
+/* Estilos de Guerra (Geral) */
+.war-header { display: flex; align-items: center; margin-bottom: 10px; }
+.war-header-badge { height: 40px; width: 40px; margin: 0 10px; }
+.war-header h2 { margin-bottom: 0; border-bottom: none; font-size: 1.5em; } /* Título dentro do header da guerra */
+.war-timing-overall { text-align: center; font-size: 0.9em; margin-bottom: 15px; }
+.war-state { font-weight: bold; padding: 5px 10px; border-radius: 5px; color: white; font-size: 0.85em; text-transform: uppercase; display: inline-block; margin-bottom: 12px;}
 .war-state.preparation { background-color: var(--color-war-preparation); }
 .war-state.inwar { background-color: var(--color-war-inwar); }
 .war-state.warended { background-color: var(--color-war-ended); }
-.war-state.notinwar, .war-state.notincwl { background-color: var(--color-war-notinwar); }
-.war-state.privatewarlog { background-color: #34495e; }
+.war-state.notinwar, .war-state.notincwl, .war-state.cwlfeaturedisabled, .war-state.warlogfeaturedisabled { background-color: var(--color-war-notinwar); }
+.message-box { padding:10px; background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.05); border: 1px dashed var(--color-border); border-radius: 4px; text-align: center; margin-top:15px;}
 
-.war-score-container {
-    display: flex; justify-content: space-around; align-items: center; text-align: center;
-    margin: 20px 0; padding: 15px; background-color: rgba(61, 44, 29, 0.05);
-    border: 2px solid var(--color-border); border-radius: 8px;
+/* Abas da Guerra */
+.war-tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid var(--color-tab-border); }
+.war-tab-button {
+    padding: 10px 15px; cursor: pointer; background-color: var(--color-tab-inactive-bg);
+    border: 1px solid var(--color-tab-border); border-bottom: none;
+    margin-right: 5px; border-radius: 5px 5px 0 0; color: var(--color-tab-inactive-text);
+    font-family: var(--font-body); font-weight: bold; transition: background-color 0.3s, color 0.3s;
 }
-.team-score h3 { margin-top: 0; margin-bottom: 6px; font-family: var(--font-title); font-size: 1.3em; }
-.team-score.our-clan-score h3 { color: var(--color-war-our-clan); }
-.team-score.opponent-score h3 { color: var(--color-war-opponent); }
-.team-score p { font-size: 1.8em; font-weight: bold; margin: 0; font-family: var(--font-body); }
-.team-score.our-clan-score p { color: var(--color-war-our-clan); }
-.team-score.opponent-score p { color: var(--color-war-opponent); }
-.vs-separator { font-family: var(--font-title); font-size: 2.2em; color: var(--color-accent); padding: 0 12px; }
-.war-timing { text-align: center; font-size: 0.95em; color: var(--color-text-main); }
-.time-remaining { font-weight: bold; color: var(--color-accent); }
+.war-tab-button.active { background-color: var(--color-tab-active-bg); color: var(--color-tab-active-text); border-bottom: 2px solid var(--color-tab-active-bg); margin-bottom: -2px; /* Para sobrepor a borda inferior */ }
+.war-tab-button:hover { background-color: var(--color-accent); color: white; }
+.war-tab-content { display: none; padding-top:15px; }
+.war-tab-content.active { display: block; }
 
-/* Tabela de Membros e Filtros */
-.member-filters {
-    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding: 8px;
-    background-color: rgba(61, 44, 29, 0.05); border-radius: 6px; border: 1px solid rgba(140, 107, 72, 0.2);
+/* Aba Estatísticas da Guerra */
+.war-score-container { display: flex; justify-content: space-around; align-items: center; text-align: center; margin: 20px 0; padding: 15px; background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.02); border: 1px solid var(--color-border); border-radius: 8px;}
+.team-score h4 { margin-top: 0; margin-bottom: 6px; font-family: var(--font-title); font-size: 1.2em; }
+.team-score.our-clan-score h4 { color: var(--color-war-our-clan); }
+.team-score.opponent-score h4 { color: var(--color-war-opponent); }
+.team-score p { font-size: 1.6em; font-weight: bold; margin: 0 0 5px 0; font-family: var(--font-body); }
+.team-score.our-clan-score p:first-of-type { color: var(--color-war-our-clan); } /* Estrelas e Destruição */
+.team-score.opponent-score p:first-of-type { color: var(--color-war-opponent); }
+.team-score p:last-of-type { font-size: 0.9em; font-weight: normal; color: var(--color-text-main); } /* Ataques utilizados */
+.vs-separator { font-family: var(--font-title); font-size: 2em; color: var(--color-accent); padding: 0 10px; }
+.war-averages-container { margin-top: 20px; }
+.star-distribution-container { margin-top: 20px; text-align: center; }
+.star-distribution-container p { font-size: 0.9em; margin: 5px 0; }
+
+/* Aba Eventos (Todos os Ataques) e Histórico de Guerras */
+.medium-table { max-height: 500px; } /* Altura para tabelas de ataques e log */
+#warEventsTable td, #warLogTable td { font-size: 0.85em; }
+.attack-stars { font-weight: bold; }
+.attack-stars .star-filled { color: var(--color-star-gold); }
+.attack-stars .star-empty { color: var(--color-star-empty); }
+
+/* Abas Minha Equipe / Equipe Inimiga */
+.team-members-container { max-height: 600px; }
+.team-member-card {
+    border: 1px solid var(--color-border); border-radius: 6px;
+    padding: 15px; margin-bottom: 15px; background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.02);
 }
-.member-filters input[type="text"] {
-    flex-grow: 1; min-width: 140px; padding: 7px 9px; border: 1px solid var(--color-border);
-    border-radius: 4px; background-color: #fff; color: var(--color-text-main);
-    font-family: var(--font-body); font-size: 0.85em;
-}
+.team-member-card h4 { display: flex; align-items: center; margin-top: 0; font-size: 1.2em; }
+.team-member-card h4 img { height: 30px; margin-right: 8px; } /* CV badge */
+.member-attack-list, .member-defense-list { list-style: none; padding-left: 0; font-size: 0.85em; }
+.member-attack-list li, .member-defense-list li { padding: 5px 0; border-bottom: 1px dotted rgba(var(--color-border-rgb, 128,93,63), 0.3); }
+.member-attack-list li:last-child, .member-defense-list li:last-child { border-bottom: none; }
+.member-attack-list strong, .member-defense-list strong { color: var(--color-text-main); }
+
+/* Tabela de Membros e Filtros (já existentes) */
+.member-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding: 8px; background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.03); border-radius: 6px; border: 1px solid rgba(var(--color-border-rgb, 128,93,63), 0.2); }
+.member-filters input[type="text"] { flex-grow: 1; min-width: 140px; padding: 7px 9px; border: 1px solid var(--color-border); border-radius: 4px; background-color: #fff; color: var(--color-text-main); font-family: var(--font-body); font-size: 0.85em; }
 .member-filters input[type="text"]::placeholder { color: #888; }
+.table-container { overflow-x: auto; max-height: 750px; border: 1px solid rgba(var(--color-border-rgb, 128,93,63), 0.3); border-radius: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9em; } /* Aumentado um pouco para legibilidade */
+th, td { border: 1px solid rgba(var(--color-border-rgb, 128,93,63), 0.3); padding: 9px 11px; text-align: left; vertical-align: middle; }
+th { background-color: var(--color-border); color: var(--color-card-background); font-family: var(--font-body); font-weight: 700; text-transform: uppercase; font-size: 0.8em; position: sticky; top: 0; z-index: 10; }
+tbody tr:nth-child(even) { background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.02); }
+tbody tr:hover { background-color: rgba(var(--color-border-rgb, 128,93,63), 0.1); }
 
-.table-container {
-    overflow-x: auto; max-height: 750px; /* Altura da tabela de membros */
-    border: 1px solid rgba(140, 107, 72, 0.3); border-radius: 6px;
-}
-#currentWarAttacksTableContainer { max-height: 400px; } /* Altura específica para tabela de ataques */
-#warLogTableContainer { max-height: 400px; } /* Altura específica para tabela de log */
-
-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
-th, td {
-    border: 1px solid rgba(140, 107, 72, 0.3); padding: 8px 10px;
-    text-align: left; vertical-align: middle;
-}
-th {
-    background-color: var(--color-border); color: var(--color-card-background);
-    font-family: var(--font-body); font-weight: 700; text-transform: uppercase;
-    font-size: 0.8em; position: sticky; top: 0; z-index: 1;
-}
-tbody tr:nth-child(even) { background-color: rgba(61, 44, 29, 0.03); }
-tbody tr:hover { background-color: rgba(140, 107, 72, 0.15); }
-
-/* Estilos para resultado de guerra (Vitória/Derrota/Empate) */
-.war-result-win { color: var(--color-success); font-weight: bold; }
-.war-result-loss { color: var(--color-danger); font-weight: bold; }
-.war-result-tie { color: var(--color-warning); font-weight: bold; }
-
-/* Estilos para estrelas de ataque */
-.stars-0 { color: var(--color-danger); }
-.stars-1 { color: var(--color-warning); }
-.stars-2 { color: var(--color-info); }
-.stars-3 { color: var(--color-success); font-weight: bold; }
-
-/* Capital do Clã */
+/* CWL e Capital */
 .capital-districts-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-
-/* CWL */
 #cwlRoundsInfo { max-height: 400px; overflow-y: auto; }
 .cwl-round { margin-bottom: 15px; padding: 10px; border: 1px solid var(--color-border); border-radius: 6px; }
 .cwl-round h4 { font-family: var(--font-title); margin-top: 0; font-size: 1.1em; }
-.cwl-war-entry { padding: 8px; border-bottom: 1px dashed rgba(140, 107, 72, 0.3); }
+.cwl-war-entry { padding: 8px; border-bottom: 1px dashed rgba(var(--color-border-rgb, 128,93,63), 0.3); }
 .cwl-war-entry:last-child { border-bottom: none; }
 .cwl-clans-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
 .cwl-clans-grid p img { vertical-align: middle; margin-right: 5px; height: 20px; }
 
-
 /* Rodapé */
-.site-footer {
-    text-align: center; padding: 20px 0; background-color: var(--color-header-background);
-    color: var(--color-text-header); margin-top: 25px; font-size: 0.85em;
-    border-top: 5px solid var(--color-border);
-}
+.site-footer { text-align: center; padding: 20px 0; background-color: var(--color-header-background); color: var(--color-text-header); margin-top: 25px; font-size: 0.85em; border-top: 5px solid var(--color-border); }
 .site-footer p { margin: 4px 0; }
 
+/* Esconder seções por padrão, JS vai mostrar a ativa */
+.content-section { display: none; }
+.content-section.active-section { display: block; }
+
+
 /* Responsividade */
-@media (max-width: 992px) { /* Ajuste para telas médias antes de ir para mobile total */
-    .main-nav ul { justify-content: center; }
-    .main-nav li { margin-left: 10px; }
-    .main-nav a { font-size: 0.9em; }
+@media (max-width: 992px) { 
+    .main-nav ul { justify-content: flex-start; } /* Alinha à esquerda em telas médias */
+    .main-nav li { margin-left: 5px; margin-right: 5px; }
+    .war-header { flex-direction: column; text-align: center;}
+    .war-header-badge { margin-bottom: 5px;}
 }
 @media (max-width: 768px) {
     .site-header h1 { font-size: 1.5em; }
@@ -199,14 +206,15 @@ tbody tr:hover { background-color: rgba(140, 107, 72, 0.15); }
     .main-nav { width: 100%; margin-top: 10px; }
     .main-nav ul { flex-direction: column; }
     .main-nav li { margin-left: 0; margin-bottom: 6px; text-align: center; }
-    .card h2 { font-size: 1.4em; }
-    .card h3 { font-size: 1.2em; }
+    .card h2 { font-size: 1.4em; } .card h3 { font-size: 1.2em; }
     .grid-container { grid-template-columns: 1fr; }
     .war-score-container { flex-direction: column; }
     .vs-separator { margin: 8px 0; font-size: 2em; }
     .team-score p { font-size: 1.5em; }
     .member-filters { flex-direction: column; }
     .member-filters input[type="text"] { min-width: unset; width: 100%; box-sizing: border-box; }
-    .capital-districts-grid { grid-template-columns: 1fr; }
-    .cwl-clans-grid { grid-template-columns: 1fr; }
+    .war-tabs { flex-direction: column; }
+    .war-tab-button { margin-right: 0; margin-bottom: 2px; border-radius: 5px; }
+    .war-tab-button.active { margin-bottom: 2px; border-bottom: 1px solid var(--color-tab-border);}
+
 }
