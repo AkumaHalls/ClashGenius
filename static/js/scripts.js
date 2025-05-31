@@ -38,6 +38,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const botVersionEl = document.getElementById('botVersion');
     const lastUpdatedEl = document.getElementById('lastUpdated');
 
+    // Elementos dos filtros de membros
+    const filterNameInput = document.getElementById('filterName');
+    const filterTHInput = document.getElementById('filterTH');
+    const filterLeagueInput = document.getElementById('filterLeague');
+    const filterTrophiesInput = document.getElementById('filterTrophies');
+    const filterRoleInput = document.getElementById('filterRole');
+
+
     // Função para buscar dados
     async function fetchData(endpoint) {
         try {
@@ -55,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateLastUpdated() {
         const now = new Date();
-        lastUpdatedEl.textContent = `Última atualização: ${now.toLocaleTimeString()}`;
+        lastUpdatedEl.textContent = `Última atualização: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
     }
 
     // Preencher Informações do Clã
@@ -77,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clanLocationEl.textContent = data.location || '-';
         clanTypeEl.textContent = data.type || '-';
         clanDescriptionEl.textContent = data.description || 'Sem descrição.';
-        botVersionEl.textContent = data.version || '?'; // Pega a versão do bot da API do clã
+        botVersionEl.textContent = data.version || '?'; 
 
         if (data.badge_url) {
             clanBadgeHeaderEl.src = data.badge_url;
@@ -106,8 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
         warStateDescriptionEl.className = 'war-state ' + (data.status || 'notInWar').toLowerCase();
 
 
-        if (data.status === "NotInWar" || data.status === "PrivateWarLog") {
-            noWarMessageEl.textContent = data.message || "Nenhuma guerra ativa ou log privado.";
+        if (data.status === "NotInWar" || data.status === "PrivateWarLog" || !data.clan_name) { // Adicionado !data.clan_name para cobrir casos onde a guerra não tem detalhes
+            noWarMessageEl.textContent = data.message || "Nenhuma guerra ativa ou detalhes indisponíveis.";
             noWarMessageEl.style.display = 'block';
             warDetailsActiveEl.style.display = 'none';
             warClanBadgeEl.style.display = 'none';
@@ -139,6 +147,60 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+    
+    // Função para aplicar os filtros de membros
+    function applyMemberFilters() {
+        const nameFilter = filterNameInput.value.toLowerCase();
+        const thFilter = filterTHInput.value.toLowerCase().replace(/\s/g, ''); // Remove espaços, ex: "cv 12" -> "cv12"
+        const leagueFilter = filterLeagueInput.value.toLowerCase();
+        const trophiesFilterText = filterTrophiesInput.value;
+        const roleFilter = filterRoleInput.value.toLowerCase();
+
+        const rows = membersTableBodyEl.getElementsByTagName('tr');
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+            let displayRow = true;
+
+            // Células: # (0), Nome (1), CV (2), Liga (3), Troféus (4), Cargo (5), Doações (6), Recebidas (7)
+            if (cells.length > 5) { 
+                const memberName = cells[1].textContent.toLowerCase();
+                const memberTH = cells[2].textContent.toLowerCase(); // ex: "cv17"
+                const memberLeague = cells[3].textContent.toLowerCase();
+                const memberTrophies = cells[4].textContent; // ex: "5117"
+                const memberRole = cells[5].textContent.toLowerCase();
+
+                if (nameFilter && !memberName.includes(nameFilter)) {
+                    displayRow = false;
+                }
+                if (thFilter && !memberTH.includes(thFilter)) {
+                    displayRow = false;
+                }
+                if (leagueFilter && !memberLeague.includes(leagueFilter)) {
+                    displayRow = false;
+                }
+                // Filtro de troféus simples: verifica se o texto do filtro está contido nos troféus do membro
+                if (trophiesFilterText && !memberTrophies.includes(trophiesFilterText)) {
+                    displayRow = false;
+                }
+                if (roleFilter && !memberRole.includes(roleFilter)) {
+                    displayRow = false;
+                }
+            } else if (row.getElementsByTagName('th').length === 0) { // Não aplicar em linhas de cabeçalho, se houver, nem em linhas malformadas
+                displayRow = false; 
+            }
+
+            row.style.display = displayRow ? '' : 'none';
+        }
+    }
+
+    // Adicionar event listeners aos inputs de filtro
+    filterNameInput.addEventListener('input', applyMemberFilters);
+    filterTHInput.addEventListener('input', applyMemberFilters);
+    filterLeagueInput.addEventListener('input', applyMemberFilters);
+    filterTrophiesInput.addEventListener('input', applyMemberFilters);
+    filterRoleInput.addEventListener('input', applyMemberFilters);
 
     // Preencher Lista de Membros
     function populateMembersList(data) {
@@ -167,6 +229,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             membersTableBodyEl.innerHTML = '<tr><td colspan="8">Nenhum membro encontrado.</td></tr>';
         }
+        // Aplicar filtros após popular a tabela, caso algum filtro já esteja preenchido
+        applyMemberFilters();
     }
 
     // Carregar todos os dados
@@ -178,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         populateWarInfo(warData);
 
         const membersData = await fetchData('members');
-        populateMembersList(membersData);
+        populateMembersList(membersData); // Esta função já chama applyMemberFilters
 
         updateLastUpdated();
     }
