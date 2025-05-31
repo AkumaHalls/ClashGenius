@@ -271,17 +271,45 @@ main {
     color: var(--color-accent);
 }
 
+/* Filtros de Membros */
+.member-filters {
+    display: flex;
+    flex-wrap: wrap; 
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: rgba(61, 44, 29, 0.05);
+    border-radius: 6px;
+    border: 1px solid rgba(140, 107, 72, 0.2);
+}
+
+.member-filters input[type="text"] {
+    flex-grow: 1; 
+    min-width: 150px; 
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background-color: #fff; 
+    color: var(--color-text-main);
+    font-family: var(--font-body);
+    font-size: 0.9em;
+}
+
+.member-filters input[type="text"]::placeholder {
+    color: #888;
+}
+
 /* Tabela de Membros */
 .table-container {
     overflow-x: auto;
-    max-height: 400px; /* Altura máxima para a tabela, adiciona scroll vertical */
+    max-height: 750px; /* AUMENTADO de 400px para mostrar mais membros */
     border: 1px solid rgba(140, 107, 72, 0.3);
     border-radius: 6px;
 }
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 0; /* Removido margin-top pois o container já tem */
+    margin-top: 0; 
     font-size: 0.9em;
 }
 th, td {
@@ -291,13 +319,13 @@ th, td {
     vertical-align: middle;
 }
 th {
-    background-color: var(--color-border); /* Marrom médio para cabeçalho da tabela */
-    color: var(--color-card-background); /* Texto claro */
-    font-family: var(--font-body); /* Fonte Roboto para cabeçalhos de tabela */
-    font-weight: 700; /* Bold */
+    background-color: var(--color-border); 
+    color: var(--color-card-background); 
+    font-family: var(--font-body); 
+    font-weight: 700; 
     text-transform: uppercase;
     font-size: 0.85em;
-    position: sticky; /* Cabeçalho fixo ao rolar */
+    position: sticky; 
     top: 0;
     z-index: 1;
 }
@@ -351,4 +379,13 @@ tbody tr:hover {
     }
     .vs-separator { margin: 10px 0; font-size: 2em; }
     .team-score p { font-size: 1.6em; }
+
+    .member-filters {
+        flex-direction: column; /* Empilha os filtros em telas menores */
+    }
+    .member-filters input[type="text"] {
+        min-width: unset; /* Remove largura mínima para empilhar bem */
+        width: 100%; /* Ocupa toda a largura disponível */
+        box-sizing: border-box; /* Garante que padding não aumente a largura total */
+    }
 }
