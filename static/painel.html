@@ -18,20 +18,19 @@
             </div>
             <nav class="main-nav">
                 <ul>
-                    <li><a href="#clan-info-nav">Clã</a></li>
-                    <li><a href="#war-status-nav">Guerra Status</a></li>
-                    <li><a href="#current-war-details-nav">Guerra Detalhes</a></li>
-                    <li><a href="#war-attacks-remaining-nav">Ataques Pendentes</a></li>
-                    <li><a href="#cwl-info-nav">CWL</a></li>
-                    <li><a href="#war-log-nav">Histórico Guerras</a></li>
-                    <li><a href="#members-list-nav">Membros</a></li>
+                    <li><a href="#clan-info-nav" class="nav-link" data-section="clan-info-nav">Clã</a></li>
+                    <li><a href="#war-details-nav" class="nav-link" data-section="war-details-nav">Guerra</a></li>
+                    <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav">Ataques Pendentes</a></li>
+                    <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav">CWL</a></li>
+                    <li><a href="#war-log-nav" class="nav-link" data-section="war-log-nav">Histórico</a></li>
+                    <li><a href="#members-list-nav" class="nav-link" data-section="members-list-nav">Membros</a></li>
                 </ul>
             </nav>
         </div>
     </header>
 
     <main class="container">
-        <section id="clan-info-nav" class="card clan-card">
+        <section id="clan-info-nav" class="card clan-card content-section">
             <h2>
                 <img id="clanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="section-badge">
                 <span id="clanName">-</span> (<span id="clanTag">-</span>)
@@ -55,82 +54,97 @@
             </div>
         </section>
 
-        <section id="war-status-nav" class="card war-card">
-            <h2>
-                <img id="warStatusClanBadge" src="/static/images/default_badge.png" alt="Emblema Guerra" class="section-badge">
-                Status da Guerra: <span id="warStatusType">-</span>
-                <img id="warStatusOpponentBadge" src="/static/images/default_badge.png" alt="Emblema Oponente" class="section-badge opponent-badge">
-            </h2>
-            <p><strong>Estado:</strong> <span id="warStatusStateDescription" class="war-state">-</span></p>
-            <div id="warStatusDetailsActive" style="display: none;">
+        <section id="war-details-nav" class="card war-details-card content-section" style="display:none;">
+            <div class="war-header">
+                <img id="warDetailClanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="war-header-badge">
+                <h2 id="warDetailTitle">Guerra de Clãs: <span id="warDetailOurClanName">-</span> vs <span id="warDetailOpponentName">-</span></h2>
+                <img id="warDetailOpponentBadge" src="/static/images/default_badge.png" alt="Emblema Oponente" class="war-header-badge">
+            </div>
+            <p class="war-timing-overall"><strong id="warDetailTimeKey">Tempo:</strong> <span id="warDetailTimeValue">-</span> (<span id="warDetailTimeRemaining" class="time-remaining">-</span>)</p>
+            <p><strong>Estado:</strong> <span id="warDetailState" class="war-state">-</span></p>
+
+            <nav class="war-tabs">
+                <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
+                <button class="war-tab-button" data-tab="war-events">Eventos</button>
+                <button class="war-tab-button" data-tab="war-our-team">Minha Equipe</button>
+                <button class="war-tab-button" data-tab="war-opponent-team">Equipe Inimiga</button>
+            </nav>
+
+            <div id="noWarDetailMessage" class="message-box" style="display: none;">Nenhuma guerra ativa ou recente para detalhar.</div>
+
+            <div id="war-stats" class="war-tab-content active">
+                <h3>Placar Geral</h3>
                 <div class="war-score-container">
                     <div class="team-score our-clan-score">
-                        <h3><span id="warStatusOurClanName">Nosso Clã</span></h3>
-                        <p><span id="warStatusOurScore">-</span></p>
+                        <h4 id="statsOurClanName">-</h4>
+                        <p><span id="statsOurStars">-</span>⭐ (<span id="statsOurDestruction">-</span>%)</p>
+                        <p><span id="statsOurAttacksUsed">-</span> ataques</p>
                     </div>
                     <div class="vs-separator">⚔️</div>
                     <div class="team-score opponent-score">
-                        <h3><span id="warStatusOpponentName">Oponente</span></h3>
-                        <p><span id="warStatusOpponentScore">-</span></p>
+                        <h4 id="statsOpponentName">-</h4>
+                        <p><span id="statsOpponentStars">-</span>⭐ (<span id="statsOpponentDestruction">-</span>%)</p>
+                        <p><span id="statsOpponentAttacksUsed">-</span> ataques</p>
                     </div>
                 </div>
-                <p class="war-timing"><strong id="warStatusTimeKey">Tempo:</strong> <span id="warStatusTimeValue">-</span> (<span id="warStatusTimeRemaining" class="time-remaining">-</span>)</p>
-            </div>
-            <p id="noWarStatusMessage" style="display: none;">-</p>
-        </section>
-
-        <section id="current-war-details-nav" class="card war-details-card">
-            <h2>
-                <img id="currentWarClanBadge" src="/static/images/default_badge.png" alt="Emblema Guerra" class="section-badge">
-                Detalhes da Guerra Atual/Última: <span id="currentWarType">-</span>
-                <img id="currentWarOpponentBadge" src="/static/images/default_badge.png" alt="Emblema Oponente" class="section-badge opponent-badge">
-            </h2>
-            <div id="currentWarInfo">
-                <p><strong>Estado:</strong> <span id="currentWarState">-</span></p>
-                <div class="war-score-container">
-                     <div class="team-score our-clan-score">
-                        <h3><span id="currentWarOurClanName">-</span></h3>
-                        <p><span id="currentWarOurScore">-</span></p>
+                <div class="war-averages-container grid-container">
+                    <div>
+                        <h4>Médias (Nosso Clã)</h4>
+                        <p><strong>Estrelas/Ataque:</strong> <span id="statsOurAvgStars">-</span></p>
+                        <p><strong>Duração/Ataque:</strong> <span id="statsOurAvgDuration">-</span></p>
                     </div>
-                    <div class="vs-separator">⚔️</div>
-                    <div class="team-score opponent-score">
-                        <h3><span id="currentWarOpponentName">-</span></h3>
-                        <p><span id="currentWarOpponentScore">-</span></p>
+                    <div>
+                        <h4>Médias (Oponente)</h4>
+                        <p><strong>Estrelas/Ataque:</strong> <span id="statsOpponentAvgStars">-</span></p>
+                        <p><strong>Duração/Ataque:</strong> <span id="statsOpponentAvgDuration">-</span></p>
                     </div>
                 </div>
-                <p class="war-timing"><strong id="currentWarTimeKey">Tempo:</strong> <span id="currentWarTimeValue">-</span> (<span id="currentWarTimeRemaining" class="time-remaining">-</span>)</p>
-                <p><strong>Tamanho:</strong> <span id="currentWarTeamSize">-</span> vs <span id="currentWarTeamSize">-</span> | <strong>Ataques/Membro:</strong> <span id="currentWarAttacksPerMember">-</span></p>
+                <div class="star-distribution-container">
+                    <h4>Distribuição de Estrelas (Nosso Clã)</h4>
+                    <p>3⭐: <span id="statsOurStars3">-</span> | 2⭐: <span id="statsOurStars2">-</span> | 1⭐: <span id="statsOurStars1">-</span> | 0⭐: <span id="statsOurStars0">-</span></p>
+                    <h4>Distribuição de Estrelas (Oponente)</h4>
+                    <p>3⭐: <span id="statsOpponentStars3">-</span> | 2⭐: <span id="statsOpponentStars2">-</span> | 1⭐: <span id="statsOpponentStars1">-</span> | 0⭐: <span id="statsOpponentStars0">-</span></p>
+                </div>
             </div>
-            <h3>Lista de Ataques</h3>
-            <div class="table-container scrollable-box" id="currentWarAttacksTableContainer">
-                <table id="currentWarAttacksTable">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Atacante (CV)</th>
-                            <th>Defensor (CV)</th>
-                            <th>Estrelas</th>
-                            <th>Destruição</th>
-                            <th>Duração</th>
-                        </tr>
-                    </thead>
-                    <tbody id="currentWarAttacksTableBody">
-                        <tr><td colspan="6">Carregando ataques...</td></tr>
-                    </tbody>
-                </table>
+
+            <div id="war-events" class="war-tab-content">
+                <h3>Todos os Ataques (<span id="warTotalAttacksCount">0</span>)</h3>
+                <div class="table-container scrollable-box medium-table">
+                    <table id="warEventsTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Atacante (CV)</th>
+                                <th>Resultado</th>
+                                <th>Defensor (CV)</th>
+                                <th>Duração</th>
+                            </tr>
+                        </thead>
+                        <tbody id="warEventsTableBody"></tbody>
+                    </table>
+                </div>
             </div>
-            <p id="noCurrentWarDetailsMessage" style="display: none;">Nenhuma guerra ativa ou recente para detalhar.</p>
+
+            <div id="war-our-team" class="war-tab-content">
+                <h3>Minha Equipe: <span id="warOurTeamName">-</span></h3>
+                <div id="warOurTeamMembers" class="team-members-container scrollable-box"></div>
+            </div>
+
+            <div id="war-opponent-team" class="war-tab-content">
+                <h3>Equipe Inimiga: <span id="warOpponentTeamName">-</span></h3>
+                <div id="warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
+            </div>
         </section>
 
-        <section id="war-attacks-remaining-nav" class="card attacks-remaining-card">
-            <h2>Ataques Pendentes na Guerra Atual (<span id="attacksRemainingClanName">-</span>)</h2>
+        <section id="attacks-remaining-nav" class="card attacks-remaining-card content-section" style="display:none;">
+            <h2>Ataques Pendentes (<span id="attacksRemainingClanName">-</span>)</h2>
             <div id="attacksRemainingList" class="scrollable-box list-box">
                 <p>Carregando...</p>
             </div>
-            <p id="noWarForAttacksRemainingMessage" style="display: none;">Não há guerra em andamento.</p>
+            <p id="noWarForAttacksRemainingMessage" class="message-box" style="display: none;">Não há guerra em andamento.</p>
         </section>
 
-        <section id="cwl-info-nav" class="card cwl-card">
+        <section id="cwl-info-nav" class="card cwl-card content-section" style="display:none;">
             <h2>Status da Liga de Guerras de Clãs (CWL)</h2>
             <div id="cwlDetails">
                 <p><strong>Status:</strong> <span id="cwlStatusText">Carregando...</span></p>
@@ -139,15 +153,15 @@
                     <h3>Clãs no Grupo</h3>
                     <div id="cwlGroupClans" class="grid-container cwl-clans-grid"></div>
                     <h3>Rodadas</h3>
-                    <div id="cwlRoundsInfo" class="scrollable-box"></div>
+                    <div id="cwlRoundsInfo" class="scrollable-box medium-table"></div>
                 </div>
             </div>
-            <p id="noCwlMessage" style="display: none;">O clã não está em CWL ou informações não disponíveis.</p>
+            <p id="noCwlMessage" class="message-box" style="display: none;">O clã não está em CWL ou informações não disponíveis.</p>
         </section>
 
-        <section id="war-log-nav" class="card war-log-card">
-            <h2>Histórico de Guerras Recentes (Últimas <span id="warLogLimit">10</span>)</h2>
-            <div class="table-container scrollable-box" id="warLogTableContainer">
+        <section id="war-log-nav" class="card war-log-card content-section" style="display:none;">
+            <h2>Histórico de Guerras (Últimas <span id="warLogLimit">10</span>)</h2>
+            <div id="warLogTableContainer" class="table-container scrollable-box medium-table">
                 <table id="warLogTable">
                     <thead>
                         <tr>
@@ -159,15 +173,13 @@
                             <th>Tipo</th>
                         </tr>
                     </thead>
-                    <tbody id="warLogTableBody">
-                        <tr><td colspan="6">Carregando histórico...</td></tr>
-                    </tbody>
+                    <tbody id="warLogTableBody"></tbody>
                 </table>
             </div>
-            <p id="noWarLogMessage" style="display: none;">Log de guerras privado ou não encontrado.</p>
+            <p id="noWarLogMessage" class="message-box" style="display: none;">Histórico de guerras indisponível.</p>
         </section>
         
-        <section id="members-list-nav" class="card members-card">
+        <section id="members-list-nav" class="card members-card content-section" style="display:none;">
             <h2>Membros do Clã <span id="membersClanName">-</span></h2>
             <div class="member-filters">
                 <input type="text" id="filterName" placeholder="Filtrar por Nome...">
@@ -179,20 +191,9 @@
             <div class="table-container scrollable-box">
                 <table id="membersTable">
                     <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Nome</th>
-                            <th>CV</th>
-                            <th>Liga</th>
-                            <th>Troféus</th>
-                            <th>Cargo</th>
-                            <th>Doações</th>
-                            <th>Recebidas</th>
-                        </tr>
+                        <tr><th>#</th><th>Nome</th><th>CV</th><th>Liga</th><th>Troféus</th><th>Cargo</th><th>Doações</th><th>Recebidas</th></tr>
                     </thead>
-                    <tbody id="membersTableBody">
-                        <tr><td colspan="8">Carregando membros...</td></tr>
-                    </tbody>
+                    <tbody id="membersTableBody"></tbody>
                 </table>
             </div>
         </section>
