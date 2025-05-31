@@ -1,11 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = ''; 
-    const DEFAULT_BADGE_URL = '/static/images/default_badge.png'; // Defina um placeholder
+    const DEFAULT_BADGE_URL = '/static/images/default_badge.png'; 
 
     // --- ELEMENTOS DO DOM ---
-    // Clã
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
+    // Clã Info
     const clanNameEl = document.getElementById('clanName');
     const clanTagEl = document.getElementById('clanTag');
     const clanLevelEl = document.getElementById('clanLevel');
@@ -20,46 +20,60 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
 
-    // Status da Guerra (Geral)
-    const warStatusClanBadgeEl = document.getElementById('warStatusClanBadge');
-    const warStatusTypeEl = document.getElementById('warStatusType');
-    const warStatusOpponentBadgeEl = document.getElementById('warStatusOpponentBadge');
-    const warStatusStateDescriptionEl = document.getElementById('warStatusStateDescription');
-    const warStatusDetailsActiveEl = document.getElementById('warStatusDetailsActive');
-    const warStatusOurClanNameEl = document.getElementById('warStatusOurClanName');
-    const warStatusOurScoreEl = document.getElementById('warStatusOurScore');
-    const warStatusOpponentNameEl = document.getElementById('warStatusOpponentName');
-    const warStatusOpponentScoreEl = document.getElementById('warStatusOpponentScore');
-    const warStatusTimeKeyEl = document.getElementById('warStatusTimeKey');
-    const warStatusTimeValueEl = document.getElementById('warStatusTimeValue');
-    const warStatusTimeRemainingEl = document.getElementById('warStatusTimeRemaining');
-    const noWarStatusMessageEl = document.getElementById('noWarStatusMessage');
-
-    // Detalhes da Guerra Atual
-    const currentWarClanBadgeEl = document.getElementById('currentWarClanBadge');
-    const currentWarTypeEl = document.getElementById('currentWarType');
-    const currentWarOpponentBadgeEl = document.getElementById('currentWarOpponentBadge');
-    const currentWarInfoEl = document.getElementById('currentWarInfo');
-    const currentWarStateEl = document.getElementById('currentWarState');
-    const currentWarOurClanNameEl = document.getElementById('currentWarOurClanName');
-    const currentWarOurScoreEl = document.getElementById('currentWarOurScore');
-    const currentWarOpponentNameEl = document.getElementById('currentWarOpponentName');
-    const currentWarOpponentScoreEl = document.getElementById('currentWarOpponentScore');
-    const currentWarTimeKeyEl = document.getElementById('currentWarTimeKey');
-    const currentWarTimeValueEl = document.getElementById('currentWarTimeValue');
-    const currentWarTimeRemainingEl = document.getElementById('currentWarTimeRemaining');
-    const currentWarTeamSizeEl = document.querySelectorAll('#currentWarTeamSize'); // NodeList
-    const currentWarAttacksPerMemberEl = document.getElementById('currentWarAttacksPerMember');
-    const currentWarAttacksTableBodyEl = document.getElementById('currentWarAttacksTableBody');
-    const noCurrentWarDetailsMessageEl = document.getElementById('noCurrentWarDetailsMessage');
+    // Guerra Detalhes (Nova Seção com Abas)
+    const warDetailSection = document.getElementById('war-details-nav');
+    const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
+    const warDetailTitleEl = document.getElementById('warDetailTitle'); // O H2 inteiro
+    const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName'); // Span dentro do H2
+    const warDetailOpponentNameEl = document.getElementById('warDetailOpponentName'); // Span dentro do H2
+    const warDetailOpponentBadgeEl = document.getElementById('warDetailOpponentBadge');
+    const warDetailTimeKeyEl = document.getElementById('warDetailTimeKey');
+    const warDetailTimeValueEl = document.getElementById('warDetailTimeValue');
+    const warDetailTimeRemainingEl = document.getElementById('warDetailTimeRemaining');
+    const warDetailStateEl = document.getElementById('warDetailState');
+    const noWarDetailMessageEl = document.getElementById('noWarDetailMessage');
+    // Abas Guerra
+    const warTabButtons = document.querySelectorAll('.war-tab-button');
+    const warTabContents = document.querySelectorAll('.war-tab-content');
+    // Aba Estatísticas Guerra
+    const statsOurClanNameEl = document.getElementById('statsOurClanName');
+    const statsOurStarsEl = document.getElementById('statsOurStars');
+    const statsOurDestructionEl = document.getElementById('statsOurDestruction');
+    const statsOurAttacksUsedEl = document.getElementById('statsOurAttacksUsed');
+    const statsOpponentNameEl = document.getElementById('statsOpponentName');
+    const statsOpponentStarsEl = document.getElementById('statsOpponentStars');
+    const statsOpponentDestructionEl = document.getElementById('statsOpponentDestruction');
+    const statsOpponentAttacksUsedEl = document.getElementById('statsOpponentAttacksUsed');
+    const statsOurAvgStarsEl = document.getElementById('statsOurAvgStars');
+    const statsOurAvgDurationEl = document.getElementById('statsOurAvgDuration');
+    const statsOpponentAvgStarsEl = document.getElementById('statsOpponentAvgStars');
+    const statsOpponentAvgDurationEl = document.getElementById('statsOpponentAvgDuration');
+    const statsOurStars3El = document.getElementById('statsOurStars3');
+    const statsOurStars2El = document.getElementById('statsOurStars2');
+    const statsOurStars1El = document.getElementById('statsOurStars1');
+    const statsOurStars0El = document.getElementById('statsOurStars0');
+    const statsOpponentStars3El = document.getElementById('statsOpponentStars3');
+    const statsOpponentStars2El = document.getElementById('statsOpponentStars2');
+    const statsOpponentStars1El = document.getElementById('statsOpponentStars1');
+    const statsOpponentStars0El = document.getElementById('statsOpponentStars0');
+    // Aba Eventos Guerra
+    const warTotalAttacksCountEl = document.getElementById('warTotalAttacksCount');
+    const warEventsTableBodyEl = document.getElementById('warEventsTableBody');
+    // Aba Minha Equipe Guerra
+    const warOurTeamNameEl = document.getElementById('warOurTeamName');
+    const warOurTeamMembersEl = document.getElementById('warOurTeamMembers');
+    // Aba Equipe Inimiga Guerra
+    const warOpponentTeamNameEl = document.getElementById('warOpponentTeamName');
+    const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
 
     // Ataques Pendentes
+    const attacksRemainingSection = document.getElementById('attacks-remaining-nav');
     const attacksRemainingClanNameEl = document.getElementById('attacksRemainingClanName');
     const attacksRemainingListEl = document.getElementById('attacksRemainingList');
     const noWarForAttacksRemainingMessageEl = document.getElementById('noWarForAttacksRemainingMessage');
 
     // CWL
-    const cwlDetailsEl = document.getElementById('cwlDetails');
+    const cwlInfoSection = document.getElementById('cwl-info-nav');
     const cwlStatusTextEl = document.getElementById('cwlStatusText');
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
     const cwlSeasonEl = document.getElementById('cwlSeason');
@@ -69,11 +83,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const noCwlMessageEl = document.getElementById('noCwlMessage');
 
     // Histórico de Guerras
-    const warLogLimitEl = document.getElementById('warLogLimit'); // Para mostrar o limite usado
+    const warLogSection = document.getElementById('war-log-nav');
+    const warLogLimitEl = document.getElementById('warLogLimit');
     const warLogTableBodyEl = document.getElementById('warLogTableBody');
     const noWarLogMessageEl = document.getElementById('noWarLogMessage');
-
-    // Membros e Filtros
+    
+    // Membros
+    const membersListSection = document.getElementById('members-list-nav');
     const membersClanNameEl = document.getElementById('membersClanName');
     const membersTableBodyEl = document.getElementById('membersTableBody');
     const filterNameInput = document.getElementById('filterName');
@@ -86,373 +102,344 @@ document.addEventListener('DOMContentLoaded', () => {
     const botVersionEl = document.getElementById('botVersion');
     const lastUpdatedEl = document.getElementById('lastUpdated');
 
+    // Navegação Principal e Seções de Conteúdo
+    const navLinks = document.querySelectorAll('.nav-link');
+    const contentSections = document.querySelectorAll('.content-section');
+
     // --- FUNÇÕES HELPER ---
     async function fetchData(endpoint) {
         try {
             const response = await fetch(`${API_BASE_URL}/api/${endpoint}`);
             if (!response.ok) {
-                console.error(`HTTP error! status: ${response.status} for ${endpoint}`);
-                const errorData = await response.json().catch(() => ({ error: `Falha ao carregar ${endpoint}. Status: ${response.status}` }));
+                const errorData = await response.json().catch(() => ({ error: `Falha: ${response.status}` }));
+                console.error(`HTTP error! status: ${response.status} for ${endpoint}`, errorData);
                 return { error: errorData.error || `Falha ao carregar ${endpoint}. Status: ${response.status}` };
             }
             return await response.json();
         } catch (error) {
             console.error(`Could not fetch data from ${endpoint}:`, error);
-            return { error: `Erro de conexão ao buscar dados de ${endpoint}. Verifique o console para detalhes.` };
+            return { error: `Erro de conexão ao buscar ${endpoint}.` };
         }
     }
 
     function updateLastUpdated() {
         const now = new Date();
-        lastUpdatedEl.textContent = `Última atualização: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+        setText(lastUpdatedEl, `Última atualização: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`);
     }
 
     function setText(element, text, defaultValue = '-') {
-        if (element) element.textContent = text || defaultValue;
+        if (element) element.textContent = text === null || text === undefined || text === '' ? defaultValue : text;
+    }
+    function setHtml(element, htmlContent) {
+        if(element) element.innerHTML = htmlContent;
     }
     function setBadge(element, url) {
-        if (element) {
-            if (url) {
-                element.src = url;
-                element.style.display = 'inline-block';
-            } else {
-                element.src = DEFAULT_BADGE_URL; // Ou esconda: element.style.display = 'none';
-                element.style.display = 'inline-block'; // Mostra placeholder
-            }
-        }
+        if (element) { element.src = url || DEFAULT_BADGE_URL; element.style.display = 'inline-block';}
     }
+    function show(element) { if(element) element.style.display = 'block'; }
+    function hide(element) { if(element) element.style.display = 'none'; }
+    function showFlex(element) { if(element) element.style.display = 'flex';}
+
+
+    // --- NAVEGAÇÃO PRINCIPAL ---
+    function setActiveSection(sectionId) {
+        contentSections.forEach(section => {
+            if (section.id === sectionId) {
+                show(section);
+            } else {
+                hide(section);
+            }
+        });
+        navLinks.forEach(link => {
+            link.classList.toggle('active-nav-link', link.dataset.section === sectionId);
+        });
+        // Salva a seção ativa no localStorage
+        localStorage.setItem('activeSection', sectionId);
+    }
+
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sectionId = link.dataset.section;
+            setActiveSection(sectionId);
+            // Rola para o topo da seção para melhor UX em mobile
+            const sectionElement = document.getElementById(sectionId);
+            if(sectionElement) sectionElement.scrollIntoView({behavior: "smooth"});
+        });
+    });
+    
+    // Carrega a seção ativa do localStorage ou define uma padrão
+    const savedSection = localStorage.getItem('activeSection');
+    if (savedSection && document.getElementById(savedSection)) {
+        setActiveSection(savedSection);
+    } else {
+        setActiveSection('clan-info-nav'); // Seção padrão ao carregar
+    }
+
 
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
-        if (data.error || !data.name) {
-            setText(clanNameHeaderEl, "Erro");
-            setText(clanNameEl, data.error || "N/A");
-            return;
-        }
-        setText(clanNameHeaderEl, data.name);
-        setText(clanNameEl, data.name);
-        setText(clanTagEl, data.tag);
-        setText(clanLevelEl, data.level);
-        setText(clanPointsEl, data.points);
-        setText(clanMemberCountEl, data.member_count);
-        setText(clanWarWinsEl, data.war_wins);
-        setText(clanLocationEl, data.location);
-        setText(clanTypeEl, data.type);
-        setText(clanDescriptionEl, data.description, 'Sem descrição.');
-        setText(botVersionEl, data.version, '?');
-        setBadge(clanBadgeHeaderEl, data.badge_url);
-        setBadge(clanBadgeEl, data.badge_url);
+        if (data.error || !data.name) { setText(clanNameHeaderEl, "Erro"); setText(clanNameEl, data.error || "N/A"); return; }
+        setText(clanNameHeaderEl, data.name); setText(clanNameEl, data.name); setText(clanTagEl, data.tag);
+        setText(clanLevelEl, data.level); setText(clanPointsEl, data.points); setText(clanMemberCountEl, data.member_count);
+        setText(clanWarWinsEl, data.war_wins); setText(clanLocationEl, data.location); setText(clanTypeEl, data.type);
+        setText(clanDescriptionEl, data.description, 'Sem descrição.'); setText(botVersionEl, data.version, '?');
+        setBadge(clanBadgeHeaderEl, data.badge_url); setBadge(clanBadgeEl, data.badge_url);
+        setText(clanCapitalPointsEl, data.capital_points); setText(clanCapitalLeagueEl, data.capital_league);
+        setHtml(clanCapitalDistrictsEl, ''); 
+        if (data.capital_districts && data.capital_districts.length > 0 && data.capital_districts[0].name !== "Distritos da Capital Indisponíveis (erro de importação)") {
+            data.capital_districts.forEach(d => setHtml(clanCapitalDistrictsEl, clanCapitalDistrictsEl.innerHTML + `<p><strong>${d.name || 'N/A'}:</strong> Nv ${d.level || '?'}</p>`));
+        } else if (data.capital_districts && data.capital_districts.length > 0) { // Mensagem de erro de importação
+            setHtml(clanCapitalDistrictsEl, `<p>${data.capital_districts[0].name}</p>`);
+        } else { setHtml(clanCapitalDistrictsEl, '<p>Nenhum distrito encontrado.</p>'); }
+    }
 
-        setText(clanCapitalPointsEl, data.capital_points);
-        setText(clanCapitalLeagueEl, data.capital_league);
-        
-        clanCapitalDistrictsEl.innerHTML = '';
-        if (data.capital_districts && data.capital_districts.length > 0) {
-            data.capital_districts.forEach(district => {
-                const p = document.createElement('p');
-                p.innerHTML = `<strong>${district.name || 'Distrito Desconhecido'}:</strong> Nível ${district.level || '?'}`;
-                clanCapitalDistrictsEl.appendChild(p);
+    // Abas da Guerra - Lógica de Navegação
+    warTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            warTabButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            const tabId = button.dataset.tab;
+            warTabContents.forEach(content => {
+                content.style.display = content.id === tabId ? 'block' : 'none';
             });
-        } else {
-            clanCapitalDistrictsEl.innerHTML = '<p>Nenhum distrito da capital encontrado.</p>';
-        }
+        });
+    });
+    
+    function createStarString(stars) {
+        return '⭐'.repeat(stars) + '⚫'.repeat(Math.max(0, 3 - stars));
     }
 
-    function populateWarStatus(data) { // Visão geral da guerra
-        if (data.error || data.status === "NotInWar" || !data.clan_name) {
-            setText(warStatusTypeEl, data.type || "Guerra");
-            noWarStatusMessageEl.textContent = data.message || data.error || "Nenhuma guerra ativa ou detalhes indisponíveis.";
-            noWarStatusMessageEl.style.display = 'block';
-            warStatusDetailsActiveEl.style.display = 'none';
-            setBadge(warStatusClanBadgeEl, null);
-            setBadge(warStatusOpponentBadgeEl, null);
-            setText(warStatusStateDescriptionEl, data.state_description || data.status || (data.error ? "Erro" : "N/A"));
-            if(warStatusStateDescriptionEl) warStatusStateDescriptionEl.className = 'war-state ' + (data.status || 'notinwar').toLowerCase();
-            return;
-        }
-
-        noWarStatusMessageEl.style.display = 'none';
-        warStatusDetailsActiveEl.style.display = 'block';
-
-        setText(warStatusTypeEl, data.type);
-        setText(warStatusStateDescriptionEl, data.state_description);
-        if(warStatusStateDescriptionEl) warStatusStateDescriptionEl.className = 'war-state ' + (data.status || '').toLowerCase();
-        
-        setBadge(warStatusClanBadgeEl, data.clan_badge_url);
-        setBadge(warStatusOpponentBadgeEl, data.opponent_badge_url);
-
-        setText(warStatusOurClanNameEl, data.clan_name);
-        setText(warStatusOurScoreEl, `${data.clan_stars || 0}⭐ (${data.clan_destruction || '0%'})`);
-        setText(warStatusOpponentNameEl, data.opponent_name);
-        setText(warStatusOpponentScoreEl, `${data.opponent_stars || 0}⭐ (${data.opponent_destruction || '0%'})`);
-        setText(warStatusTimeKeyEl, data.time_key);
-        setText(warStatusTimeValueEl, data.time_value);
-        setText(warStatusTimeRemainingEl, data.time_remaining);
-    }
-
-    function populateCurrentWarDetails(data) {
+    function populateWarDetails(data) {
         if (data.error || !data.war_data) {
-            noCurrentWarDetailsMessageEl.textContent = data.error || "Nenhuma guerra ativa ou recente para detalhar.";
-            noCurrentWarDetailsMessageEl.style.display = 'block';
-            currentWarInfoEl.style.display = 'none';
-            currentWarAttacksTableBodyEl.innerHTML = `<tr><td colspan="6">${data.error || "N/A"}</td></tr>`;
+            show(noWarDetailMessageEl); setText(noWarDetailMessageEl, data.error || "Nenhuma guerra para detalhar.");
+            hide(document.querySelector('#war-details-nav .war-header')); 
+            hide(document.querySelector('#war-details-nav .war-tabs'));
+            warTabContents.forEach(hide); // Esconde todos os conteúdos das abas
             return;
         }
+        hide(noWarDetailMessageEl);
+        show(document.querySelector('#war-details-nav .war-header'));
+        show(document.querySelector('#war-details-nav .war-tabs'));
 
-        noCurrentWarDetailsMessageEl.style.display = 'none';
-        currentWarInfoEl.style.display = 'block';
         const war = data.war_data;
+        // Header da Guerra
+        setText(warDetailOurClanNameEl, war.clan_name);
+        setText(warDetailOpponentNameEl, war.opponent_name);
+        setBadge(warDetailClanBadgeEl, war.clan_badge_url);
+        setBadge(warDetailOpponentBadgeEl, war.opponent_badge_url);
+        setText(warDetailTimeKeyEl, war.time_key);
+        setText(warDetailTimeValueEl, war.time_value);
+        setText(warDetailTimeRemainingEl, war.time_remaining);
+        setText(warDetailStateEl, war.state_description);
+        if(warDetailStateEl) warDetailStateEl.className = 'war-state ' + (war.status || '').toLowerCase();
 
-        setText(currentWarTypeEl, war.type);
-        setBadge(currentWarClanBadgeEl, war.clan_badge_url);
-        setBadge(currentWarOpponentBadgeEl, war.opponent_badge_url);
-        setText(currentWarStateEl, war.state_description);
-        if(currentWarStateEl) currentWarStateEl.className = 'war-state ' + (war.status || '').toLowerCase();
+        // Aba Estatísticas
+        setText(statsOurClanNameEl, war.clan_name);
+        setText(statsOurStarsEl, war.clan_stars);
+        setText(statsOurDestructionEl, war.clan_destruction.replace('%',''));
+        setText(statsOurAttacksUsedEl, `${war.clan_attacks_used}/${war.team_size * war.attacks_per_member}`);
+        setText(statsOpponentNameEl, war.opponent_name);
+        setText(statsOpponentStarsEl, war.opponent_stars);
+        setText(statsOpponentDestructionEl, war.opponent_destruction.replace('%',''));
+        setText(statsOpponentAttacksUsedEl, `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
+        setText(statsOurAvgStarsEl, war.clan_avg_stars);
+        setText(statsOurAvgDurationEl, war.clan_avg_duration);
+        setText(statsOpponentAvgStarsEl, war.opponent_avg_stars);
+        setText(statsOpponentAvgDurationEl, war.opponent_avg_duration);
+        setText(statsOurStars3El, war.clan_star_distribution[3]); setText(statsOurStars2El, war.clan_star_distribution[2]);
+        setText(statsOurStars1El, war.clan_star_distribution[1]); setText(statsOurStars0El, war.clan_star_distribution[0]);
+        setText(statsOpponentStars3El, war.opponent_star_distribution[3]); setText(statsOpponentStars2El, war.opponent_star_distribution[2]);
+        setText(statsOpponentStars1El, war.opponent_star_distribution[1]); setText(statsOpponentStars0El, war.opponent_star_distribution[0]);
 
-        setText(currentWarOurClanNameEl, war.clan_name);
-        setText(currentWarOurScoreEl, `${war.clan_stars || 0}⭐ (${war.clan_destruction || '0%'})`);
-        setText(currentWarOpponentNameEl, war.opponent_name);
-        setText(currentWarOpponentScoreEl, `${war.opponent_stars || 0}⭐ (${war.opponent_destruction || '0%'})`);
-        
-        setText(currentWarTimeKeyEl, war.time_key);
-        setText(currentWarTimeValueEl, war.time_value);
-        setText(currentWarTimeRemainingEl, war.time_remaining);
-
-        currentWarTeamSizeEl.forEach(el => setText(el, war.team_size));
-        setText(currentWarAttacksPerMemberEl, war.attacks_per_member);
-
-        currentWarAttacksTableBodyEl.innerHTML = '';
-        if (data.attacks && data.attacks.length > 0) {
-            data.attacks.forEach(attack => {
-                const row = currentWarAttacksTableBodyEl.insertRow();
-                setText(row.insertCell(), attack.order);
-                setText(row.insertCell(), `${attack.attacker_name || 'Desconhecido'} (CV${attack.attacker_townhall || '?'})`);
-                setText(row.insertCell(), `${attack.defender_name || 'Desconhecido'} (CV${attack.defender_townhall || '?'})`);
-                
-                const starsCell = row.insertCell();
-                setText(starsCell, `${'⭐'.repeat(attack.stars)}${'⚫'.repeat(3 - attack.stars)}`);
-                starsCell.className = `stars-${attack.stars}`;
-
-                setText(row.insertCell(), `${attack.destruction || 0}%`);
-                setText(row.insertCell(), `${attack.duration || 0}s`);
+        // Aba Eventos (Todos os Ataques)
+        setText(warTotalAttacksCountEl, data.all_attacks.length);
+        setHtml(warEventsTableBodyEl, '');
+        if (data.all_attacks && data.all_attacks.length > 0) {
+            data.all_attacks.forEach(att => {
+                const row = warEventsTableBodyEl.insertRow();
+                setText(row.insertCell(), att.order);
+                setText(row.insertCell(), `${att.attacker_name} (CV${att.attacker_townhall})`);
+                const resultCell = row.insertCell();
+                resultCell.innerHTML = `<span class="attack-stars">${createStarString(att.stars)}</span> ${att.destruction}%`;
+                setText(row.insertCell(), `${att.defender_name} (CV${att.defender_townhall})`);
+                setText(row.insertCell(), att.duration);
             });
-        } else {
-            currentWarAttacksTableBodyEl.innerHTML = `<tr><td colspan="6">Nenhum ataque registrado nesta guerra.</td></tr>`;
+        } else { setHtml(warEventsTableBodyEl, '<tr><td colspan="5">Nenhum ataque registrado.</td></tr>'); }
+
+        // Funções auxiliares para popular abas de equipe
+        const populateTeamTabData = (teamMembersData, teamName, teamElement) => {
+            setText(document.getElementById(`war${teamName}TeamName`), war[teamName.toLowerCase() + '_clan_name'] || (teamName === "Our" ? "Nosso Clã" : "Oponente"));
+            setHtml(teamElement, '');
+            if (teamMembersData && teamMembersData.length > 0) {
+                teamMembersData.forEach(member => {
+                    let attacksHtml = '<h5>Ataques Feitos:</h5><ul class="member-attack-list">';
+                    if (member.attacks_made && member.attacks_made.length > 0) {
+                        member.attacks_made.forEach(atk => {
+                            attacksHtml += `<li>${createStarString(atk.stars)} ${atk.destruction}% vs ${atk.defender_name} (CV${atk.defender_townhall})</li>`;
+                        });
+                    } else { attacksHtml += '<li>Nenhum ataque feito.</li>'; }
+                    attacksHtml += '</ul>';
+
+                    let defensesHtml = '<h5>Defesas Recebidas:</h5><ul class="member-defense-list">';
+                    if (member.defenses_received && member.defenses_received.length > 0) {
+                        member.defenses_received.forEach(def => {
+                            defensesHtml += `<li>${createStarString(def.stars)} ${def.destruction}% por ${def.attacker_name} (CV${def.attacker_townhall})</li>`;
+                        });
+                    } else { defensesHtml += '<li>Nenhuma defesa registrada.</li>'; }
+                    defensesHtml += '</ul>';
+                    
+                    const memberCard = document.createElement('div');
+                    memberCard.className = 'team-member-card';
+                    memberCard.innerHTML = `
+                        <h4><img src="/static/images/townhall${member.townhall}.png" alt="CV${member.townhall}" onerror="this.style.display='none'"/> ${member.map_position}. ${member.name} (CV${member.townhall})</h4>
+                        <p>Ataques: ${member.attacks_used}/${war.attacks_per_member}</p>
+                        ${attacksHtml}
+                        ${defensesHtml}
+                    `;
+                    teamElement.appendChild(memberCard);
+                });
+            } else { setHtml(teamElement, '<p>Nenhum membro nesta equipe para a guerra.</p>'); }
+        };
+        
+        // Aba Minha Equipe
+        populateTeamTabData(data.our_clan_members_in_war, "Our", warOurTeamMembersEl);
+        // Aba Equipe Inimiga
+        populateTeamTabData(data.opponent_clan_members_in_war, "Opponent", warOpponentTeamMembersEl);
+
+        // Ativa a primeira aba por padrão se nenhuma estiver ativa
+        if (!document.querySelector('.war-tab-button.active')) {
+            document.querySelector('.war-tab-button[data-tab="war-stats"]').click();
         }
     }
+
 
     function populateWarAttacksRemaining(data) {
-        setText(attacksRemainingClanNameEl, data.clan_name || "Clã");
+        setText(attacksRemainingClanNameEl, data.clan_name);
         if (data.error || !data.members_pending || data.members_pending.length === 0) {
-            attacksRemainingListEl.innerHTML = `<p>${data.message || data.error || "Todos os ataques foram realizados ou não há guerra em andamento."}</p>`;
-            noWarForAttacksRemainingMessageEl.style.display = (data.members_pending && data.members_pending.length > 0) ? 'none' : 'block';
-            if (data.message && !(data.members_pending && data.members_pending.length > 0)) {
-                 noWarForAttacksRemainingMessageEl.textContent = data.message;
-            }
+            setHtml(attacksRemainingListEl, `<p>${data.message || data.error || "Todos os ataques realizados ou não há guerra."}</p>`);
+            show(noWarForAttacksRemainingMessageEl); 
+            setText(noWarForAttacksRemainingMessageEl, data.message || data.error || "Todos os ataques realizados ou não há guerra.");
             return;
         }
-        
-        noWarForAttacksRemainingMessageEl.style.display = 'none';
-        attacksRemainingListEl.innerHTML = '';
-        data.members_pending.forEach(member => {
-            const p = document.createElement('p');
-            p.innerHTML = `<strong>${member.name}</strong> (CV${member.town_hall}) - ${member.attacks_left} ataque(s) restante(s)`;
-            attacksRemainingListEl.appendChild(p);
-        });
+        hide(noWarForAttacksRemainingMessageEl);
+        setHtml(attacksRemainingListEl, '');
+        data.members_pending.forEach(m => setHtml(attacksRemainingListEl, attacksRemainingListEl.innerHTML + `<p><strong>${m.name}</strong> (CV${m.town_hall}) - ${m.attacks_left} atk restante(s)</p>`));
     }
 
     function populateCwlInfo(data) {
-        if (data.error || data.status === "NotInCwl") {
-            noCwlMessageEl.textContent = data.message || data.error || "O clã não está em CWL ou informações não disponíveis.";
-            noCwlMessageEl.style.display = 'block';
-            cwlActiveInfoEl.style.display = 'none';
-            setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
+        if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
+            show(noCwlMessageEl); setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
+            hide(cwlActiveInfoEl); setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
+            if(cwlStatusTextEl) cwlStatusTextEl.className = 'war-state ' + (data.status || 'notincwl').toLowerCase();
             return;
         }
-
-        noCwlMessageEl.style.display = 'none';
-        cwlActiveInfoEl.style.display = 'block';
-        setText(cwlStatusTextEl, "Em CWL");
-        
-        setText(cwlSeasonEl, data.season);
-        setText(cwlGroupStateEl, data.state);
-
-        cwlGroupClansEl.innerHTML = '';
+        hide(noCwlMessageEl); show(cwlActiveInfoEl);
+        setText(cwlStatusTextEl, "Em CWL"); if(cwlStatusTextEl) cwlStatusTextEl.className = 'war-state incwl';
+        setText(cwlSeasonEl, data.season); setText(cwlGroupStateEl, data.state);
+        setHtml(cwlGroupClansEl, '');
         if (data.clans_in_group && data.clans_in_group.length > 0) {
-            data.clans_in_group.forEach(clan => {
-                const p = document.createElement('p');
-                const badgeImg = clan.badge_url ? `<img src="${clan.badge_url}" alt="Emblema" style="height:20px; vertical-align:middle; margin-right:5px;">` : "";
-                p.innerHTML = `${badgeImg}<strong>${clan.name}</strong> (#${clan.tag}) - Nível ${clan.level}`;
-                cwlGroupClansEl.appendChild(p);
-            });
-        } else {
-            cwlGroupClansEl.innerHTML = '<p>Nenhum clã no grupo.</p>';
-        }
-        
-        cwlRoundsInfoEl.innerHTML = '';
+            data.clans_in_group.forEach(c => setHtml(cwlGroupClansEl, cwlGroupClansEl.innerHTML + `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt=""> <strong>${c.name}</strong> (#${c.tag}) Nv ${c.level}</p>`));
+        } else { setHtml(cwlGroupClansEl, '<p>Nenhum clã no grupo.</p>'); }
+        setHtml(cwlRoundsInfoEl, '');
         if (data.rounds && data.rounds.length > 0) {
-            data.rounds.forEach(round => {
-                const roundDiv = document.createElement('div');
-                roundDiv.className = 'cwl-round';
-                const roundTitle = document.createElement('h4');
-                setText(roundTitle, `Rodada ${round.round_number}`);
-                roundDiv.appendChild(roundTitle);
-
-                if (round.wars && round.wars.length > 0) {
-                    round.wars.forEach(war => {
-                        const warP = document.createElement('p');
-                        warP.className = 'cwl-war-entry';
-                        if (war.error) {
-                            setText(warP, `Guerra (${war.war_tag}): ${war.error}`);
-                        } else {
-                            const clanBadge = war.clan_badge_url ? `<img src="${war.clan_badge_url}" alt="" style="height:18px; vertical-align:middle;">` : "";
-                            const oppBadge = war.opponent_badge_url ? `<img src="${war.opponent_badge_url}" alt="" style="height:18px; vertical-align:middle;">` : "";
-                            warP.innerHTML = 
-                                `<strong>${clanBadge} ${war.clan_name}</strong> ${war.clan_stars}⭐ (${war.clan_destruction}) 
-                                 vs 
-                                 ${war.opponent_stars}⭐ (${war.opponent_destruction}) <strong>${oppBadge} ${war.opponent_name}</strong>
-                                 <br><small>Estado: ${war.state} | ${war.time_key}: ${war.time_value} (${war.time_remaining})</small>`;
+            data.rounds.forEach(r => {
+                let roundHtml = `<div class="cwl-round"><h4>Rodada ${r.round_number}</h4>`;
+                if (r.wars && r.wars.length > 0) {
+                    r.wars.forEach(w => {
+                        if(w.error) { roundHtml += `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`; }
+                        else if(w.message) { roundHtml += `<p class="cwl-war-entry">${w.message}</p>`;}
+                        else {
+                            const cBadge = w.clan_badge_url ? `<img src="${w.clan_badge_url}" alt="" style="height:18px; vertical-align:middle;">`:"";
+                            const oBadge = w.opponent_badge_url ? `<img src="${w.opponent_badge_url}" alt="" style="height:18px; vertical-align:middle;">`:"";
+                            roundHtml += `<p class="cwl-war-entry"><strong>${cBadge} ${w.clan_name}</strong> ${w.clan_stars}⭐ (${w.clan_destruction}) vs ${w.opponent_stars}⭐ (${w.opponent_destruction}) <strong>${oBadge} ${w.opponent_name}</strong><br><small>Estado: ${w.state} | ${w.time_key}: ${w.time_value} (${w.time_remaining})</small></p>`;
                         }
-                        roundDiv.appendChild(warP);
                     });
-                } else {
-                    setText(roundDiv.appendChild(document.createElement('p')), "Nenhuma guerra nesta rodada.");
-                }
-                cwlRoundsInfoEl.appendChild(roundDiv);
+                } else { roundHtml += "<p>Nenhuma guerra nesta rodada.</p>"; }
+                roundHtml += "</div>";
+                setHtml(cwlRoundsInfoEl, cwlRoundsInfoEl.innerHTML + roundHtml);
             });
-        } else {
-            setText(cwlRoundsInfoEl, "Nenhuma informação de rodada disponível.");
-        }
+        } else { setHtml(cwlRoundsInfoEl, "Nenhuma info de rodada."); }
     }
 
     function populateWarLog(data) {
-        setText(warLogLimitEl, data.log ? data.log.length : '10'); // Atualiza o limite exibido
-        if (data.error) {
-            noWarLogMessageEl.textContent = data.error;
-            noWarLogMessageEl.style.display = 'block';
-            warLogTableBodyEl.innerHTML = `<tr><td colspan="6">${data.error}</td></tr>`;
+        setText(warLogLimitEl, data.log ? data.log.length : '10');
+        if (data.error || !data.log) {
+            show(noWarLogMessageEl); setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
+            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "N/A"}</td></tr>`);
             return;
         }
-
-        noWarLogMessageEl.style.display = 'none';
-        warLogTableBodyEl.innerHTML = '';
-        if (data.log && data.log.length > 0) {
-            data.log.forEach(entry => {
+        hide(noWarLogMessageEl); setHtml(warLogTableBodyEl, '');
+        if (data.log.length > 0) {
+            data.log.forEach(e => {
                 const row = warLogTableBodyEl.insertRow();
-                setText(row.insertCell(), entry.end_time);
-                
-                const opponentCell = row.insertCell();
-                const oppBadgeImg = entry.opponent_badge_url ? `<img src="${entry.opponent_badge_url}" alt="" style="height:20px; vertical-align:middle; margin-right:5px;">` : "";
-                opponentCell.innerHTML = `${oppBadgeImg}${entry.opponent_name || 'Desconhecido'}`;
-
-                setText(row.insertCell(), `${entry.clan_stars}⭐ (${entry.clan_destruction}%) x ${entry.opponent_stars}⭐ (${entry.opponent_destruction}%)`);
-                
-                const resultCell = row.insertCell();
-                setText(resultCell, entry.result);
-                resultCell.className = entry.result ? `war-result-${entry.result.toLowerCase()}` : '';
-
-                setText(row.insertCell(), entry.team_size);
-                setText(row.insertCell(), entry.is_cwl ? "CWL" : "Normal");
+                setText(row.insertCell(), e.end_time);
+                const oppCell = row.insertCell();
+                const oppBadge = e.opponent_badge_url ? `<img src="${e.opponent_badge_url}" alt="" style="height:20px; vertical-align:middle; margin-right:5px;">` : "";
+                setHtml(oppCell, `${oppBadge}${e.opponent_name || 'N/A'}`);
+                setText(row.insertCell(), `${e.clan_stars}⭐ (${e.clan_destruction}%) vs ${e.opponent_stars}⭐ (${e.opponent_destruction}%)`);
+                const resCell = row.insertCell(); setText(resCell, e.result); resCell.className = e.result ? `war-result-${e.result.toLowerCase()}` : '';
+                setText(row.insertCell(), e.team_size); setText(row.insertCell(), e.is_cwl ? "CWL" : "Normal");
             });
-        } else {
-            warLogTableBodyEl.innerHTML = `<tr><td colspan="6">Nenhum registro de guerra encontrado.</td></tr>`;
-        }
+        } else { setHtml(warLogTableBodyEl, '<tr><td colspan="6">Nenhum registro encontrado.</td></tr>'); }
     }
 
     function applyMemberFilters() {
-        // ... (função de filtro de membros existente, já fornecida anteriormente) ...
         const nameFilter = filterNameInput.value.toLowerCase();
         const thFilter = filterTHInput.value.toLowerCase().replace(/\s/g, '');
         const leagueFilter = filterLeagueInput.value.toLowerCase();
         const trophiesFilterText = filterTrophiesInput.value;
         const roleFilter = filterRoleInput.value.toLowerCase();
-
         const rows = membersTableBodyEl.getElementsByTagName('tr');
-
         for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const cells = row.getElementsByTagName('td');
-            let displayRow = true;
-
+            const row = rows[i]; const cells = row.getElementsByTagName('td'); let displayRow = true;
             if (cells.length > 5) { 
-                const memberName = cells[1].textContent.toLowerCase();
-                const memberTH = cells[2].textContent.toLowerCase();
-                const memberLeague = cells[3].textContent.toLowerCase();
-                const memberTrophies = cells[4].textContent;
-                const memberRole = cells[5].textContent.toLowerCase();
-
-                if (nameFilter && !memberName.includes(nameFilter)) displayRow = false;
-                if (thFilter && !memberTH.includes(thFilter)) displayRow = false;
-                if (leagueFilter && !memberLeague.includes(leagueFilter)) displayRow = false;
-                if (trophiesFilterText && !memberTrophies.includes(trophiesFilterText)) displayRow = false;
-                if (roleFilter && !memberRole.includes(roleFilter)) displayRow = false;
-            } else if (row.getElementsByTagName('th').length === 0) {
-                displayRow = false; 
-            }
+                if (nameFilter && !cells[1].textContent.toLowerCase().includes(nameFilter)) displayRow = false;
+                if (thFilter && !cells[2].textContent.toLowerCase().includes(thFilter)) displayRow = false;
+                if (leagueFilter && !cells[3].textContent.toLowerCase().includes(leagueFilter)) displayRow = false;
+                if (trophiesFilterText && !cells[4].textContent.includes(trophiesFilterText)) displayRow = false;
+                if (roleFilter && !cells[5].textContent.toLowerCase().includes(roleFilter)) displayRow = false;
+            } else if (row.getElementsByTagName('th').length === 0) { displayRow = false;  }
             row.style.display = displayRow ? '' : 'none';
         }
     }
-    
-    filterNameInput.addEventListener('input', applyMemberFilters);
-    filterTHInput.addEventListener('input', applyMemberFilters);
-    filterLeagueInput.addEventListener('input', applyMemberFilters);
-    filterTrophiesInput.addEventListener('input', applyMemberFilters);
-    filterRoleInput.addEventListener('input', applyMemberFilters);
+    if(filterNameInput) filterNameInput.addEventListener('input', applyMemberFilters);
+    if(filterTHInput) filterTHInput.addEventListener('input', applyMemberFilters);
+    if(filterLeagueInput) filterLeagueInput.addEventListener('input', applyMemberFilters);
+    if(filterTrophiesInput) filterTrophiesInput.addEventListener('input', applyMemberFilters);
+    if(filterRoleInput) filterRoleInput.addEventListener('input', applyMemberFilters);
 
     function populateMembersList(data) {
-        // ... (função de popular membros existente, já fornecida anteriormente) ...
         setText(membersClanNameEl, data.clan_name ? `(${data.clan_name})` : '');
-        if (data.error) {
-            membersTableBodyEl.innerHTML = `<tr><td colspan="8">${data.error}</td></tr>`;
-            return;
-        }
-        membersTableBodyEl.innerHTML = '';
+        if (data.error) { setHtml(membersTableBodyEl, `<tr><td colspan="8">${data.error}</td></tr>`); return; }
+        setHtml(membersTableBodyEl, '');
         if (data.members && data.members.length > 0) {
-            data.members.forEach((member, index) => {
-                const row = membersTableBodyEl.insertRow();
-                setText(row.insertCell(), index + 1);
-                setText(row.insertCell(), member.name);
-                setText(row.insertCell(), `CV${member.town_hall || '?'}`);
-                setText(row.insertCell(), member.league);
-                setText(row.insertCell(), member.trophies);
-                setText(row.insertCell(), member.role);
-                setText(row.insertCell(), member.donations);
-                setText(row.insertCell(), member.received);
+            data.members.forEach((m, i) => {
+                const r = membersTableBodyEl.insertRow();
+                setText(r.insertCell(), i + 1); setText(r.insertCell(), m.name); setText(r.insertCell(), `CV${m.town_hall || '?'}`);
+                setText(r.insertCell(), m.league); setText(r.insertCell(), m.trophies); setText(r.insertCell(), m.role);
+                setText(r.insertCell(), m.donations); setText(r.insertCell(), m.received);
             });
-        } else {
-            membersTableBodyEl.innerHTML = '<tr><td colspan="8">Nenhum membro encontrado.</td></tr>';
-        }
+        } else { setHtml(membersTableBodyEl, '<tr><td colspan="8">Nenhum membro.</td></tr>'); }
         applyMemberFilters();
     }
 
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
-        // Usar Promise.all para buscar dados em paralelo onde fizer sentido
-        const [
-            clanData, membersData, warStatusData, 
-            currentWarDetailsData, warAttacksRemainingData, 
-            warLogData, cwlInfoData
-        ] = await Promise.all([
-            fetchData('clan'),
-            fetchData('members'),
-            fetchData('war'), // Visão geral da guerra
-            fetchData('current_war_details'),
-            fetchData('war_attacks_remaining'),
-            fetchData('war_log?limit=10'), // Pega as últimas 10 por padrão
-            fetchData('cwl_info')
+        const [clanData, membersData, currentWarDetailsData, warAttacksRemainingData, warLogData, cwlInfoData] = await Promise.all([
+            fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
+            fetchData('war_attacks_remaining'), fetchData('war_log?limit=10'), fetchData('cwl_info')
         ]);
-
         populateClanInfo(clanData);
         populateMembersList(membersData);
-        populateWarStatus(warStatusData);
-        populateCurrentWarDetails(currentWarDetailsData);
+        // O endpoint /api/war foi removido, current_war_details é mais completo.
+        // A seção de status geral da guerra no HTML antigo não existe mais, os dados estão na nova seção de guerra.
+        populateWarDetails(currentWarDetailsData); 
         populateWarAttacksRemaining(warAttacksRemainingData);
         populateWarLog(warLogData);
         populateCwlInfo(cwlInfoData);
-        
         updateLastUpdated();
     }
-
     loadAllData();
-    setInterval(loadAllData, 60000); // Atualiza a cada 60 segundos
+    setInterval(loadAllData, 60000);
 });
