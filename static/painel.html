@@ -6,7 +6,7 @@
     <title>Painel Avançado - Clash Genius</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -191,7 +191,18 @@
             <div class="table-container scrollable-box">
                 <table id="membersTable">
                     <thead>
-                        <tr><th>#</th><th>Nome</th><th>CV</th><th>Liga</th><th>Troféus</th><th>Cargo</th><th>Doações</th><th>Recebidas</th></tr>
+                        <tr>
+                            <th>#</th>
+                            <th>Nome</th>
+                            <th>CV</th>
+                            <th>Liga</th>
+                            <th>Troféus</th>
+                            <th>Cargo</th>
+                            <th>Doações</th>
+                            <th>Recebidas</th>
+                            <th>Observação</th>
+                            <th>Prioridade & Ações</th>
+                        </tr>
                     </thead>
                     <tbody id="membersTableBody"></tbody>
                 </table>
@@ -205,7 +216,7 @@
             <p>Painel de monitoramento do Clã</p>
         </div>
     </footer>
-
+    <div id="toast-notification" class="toast"></div>
     <script src="/static/js/scripts.js"></script>
 </body>
 </html>
