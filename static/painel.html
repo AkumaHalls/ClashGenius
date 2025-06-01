@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Avançado - Clash Genius</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    </head>
+<body>
+    <header class="site-header">
+        <div class="container header-content">
+            <div class="logo-title">
+                <img id="clanBadgeHeader" src="/static/images/default_badge.png" alt="Emblema" class="header-badge">
+                <h1>Painel do Clã: <span id="clanNameHeader">-</span></h1>
+            </div>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="#clan-info-nav" class="nav-link" data-section="clan-info-nav">Clã</a></li>
+                    <li><a href="#war-details-nav" class="nav-link" data-section="war-details-nav">Guerra</a></li>
+                    <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav">Ataques Pendentes</a></li>
+                    <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav">CWL</a></li>
+                    <li><a href="#war-log-nav" class="nav-link" data-section="war-log-nav">Histórico</a></li>
+                    <li><a href="#members-list-nav" class="nav-link" data-section="members-list-nav">Membros</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="clan-info-nav" class="card clan-card content-section">
+            <h2>
+                <img id="clanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="section-badge">
+                <span id="clanName">-</span> (<span id="clanTag">-</span>)
+            </h2>
+            <div class="grid-container">
+                <p><strong>Nível:</strong> <span id="clanLevel">-</span></p>
+                <p><strong>Pontos:</strong> <span id="clanPoints">-</span> <span class="icon-trophy">🏆</span></p>
+                <p><strong>Membros:</strong> <span id="clanMemberCount">-</span>/50</p>
+                <p><strong>Guerras Vencidas:</strong> <span id="clanWarWins">-</span> <span class="icon-sword">⚔️</span></p>
+                <p><strong>Localização:</strong> <span id="clanLocation">-</span></p>
+                <p><strong>Tipo:</strong> <span id="clanType">-</span></p>
+                <p><strong>Capital Pontos:</strong> <span id="clanCapitalPoints">-</span> <span class="icon-trophy">🏆</span></p>
+                <p><strong>Liga da Capital:</strong> <span id="clanCapitalLeague">-</span></p>
+            </div>
+            <p><strong>Descrição:</strong></p>
+            <div id="clanDescription" class="description-box scrollable-box">-</div>
+
+            <h3>Distritos da Capital</h3>
+            <div id="clanCapitalDistricts" class="grid-container capital-districts-grid">
+                <p>Carregando distritos...</p>
+            </div>
+        </section>
+
+        <section id="war-details-nav" class="card war-details-card content-section" style="display:none;">
+            <div class="war-header">
+                <img id="warDetailClanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="war-header-badge">
+                <h2 id="warDetailTitle"><span id="warDetailOurClanName">-</span> vs <span id="warDetailOpponentName">-</span></h2>
+                <img id="warDetailOpponentBadge" src="/static/images/default_badge.png" alt="Emblema Oponente" class="war-header-badge">
+            </div>
+            <p class="war-timing-overall"><strong id="warDetailTimeKey">Tempo:</strong> <span id="warDetailTimeValue">-</span> (<span id="warDetailTimeRemaining" class="time-remaining">-</span>)</p>
+            <p><strong>Estado:</strong> <span id="warDetailState" class="war-state">-</span></p>
+
+            <nav class="war-tabs">
+                <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
+                <button class="war-tab-button" data-tab="war-events">Eventos</button>
+                <button class="war-tab-button" data-tab="war-our-team">Minha Equipe</button>
+                <button class="war-tab-button" data-tab="war-opponent-team">Equipe Inimiga</button>
+            </nav>
+
+            <div id="noWarDetailMessage" class="message-box" style="display: none;">Nenhuma guerra ativa ou recente para detalhar.</div>
+
+            <div id="war-stats" class="war-tab-content active">
+                <h3>Placar Geral</h3>
+                <div class="war-score-container">
+                    <div class="team-score our-clan-score">
+                        <h4 id="statsOurClanName">-</h4>
+                        <p><span id="statsOurStars">-</span>⭐ (<span id="statsOurDestruction">-</span>%)</p>
+                        <p><span id="statsOurAttacksUsed">-</span> ataques</p>
+                    </div>
+                    <div class="vs-separator">⚔️</div>
+                    <div class="team-score opponent-score">
+                        <h4 id="statsOpponentName">-</h4>
+                        <p><span id="statsOpponentStars">-</span>⭐ (<span id="statsOpponentDestruction">-</span>%)</p>
+                        <p><span id="statsOpponentAttacksUsed">-</span> ataques</p>
+                    </div>
+                </div>
+                <div class="war-averages-container grid-container">
+                    <div>
+                        <h4>Médias (Nosso Clã)</h4>
+                        <p><strong>Estrelas/Ataque:</strong> <span id="statsOurAvgStars">-</span></p>
+                        <p><strong>Duração/Ataque:</strong> <span id="statsOurAvgDuration">-</span></p>
+                    </div>
+                    <div>
+                        <h4>Médias (Oponente)</h4>
+                        <p><strong>Estrelas/Ataque:</strong> <span id="statsOpponentAvgStars">-</span></p>
+                        <p><strong>Duração/Ataque:</strong> <span id="statsOpponentAvgDuration">-</span></p>
+                    </div>
+                </div>
+                <div class="star-distribution-container">
+                    <h4>Distribuição de Estrelas (Nosso Clã)</h4>
+                    <p>3⭐: <span id="statsOurStars3">-</span> | 2⭐: <span id="statsOurStars2">-</span> | 1⭐: <span id="statsOurStars1">-</span> | 0⭐: <span id="statsOurStars0">-</span></p>
+                    <h4>Distribuição de Estrelas (Oponente)</h4>
+                    <p>3⭐: <span id="statsOpponentStars3">-</span> | 2⭐: <span id="statsOpponentStars2">-</span> | 1⭐: <span id="statsOpponentStars1">-</span> | 0⭐: <span id="statsOpponentStars0">-</span></p>
+                </div>
+            </div>
+
+            <div id="war-events" class="war-tab-content">
+                <h3>Todos os Ataques (<span id="warTotalAttacksCount">0</span>)</h3>
+                <div class="table-container scrollable-box medium-table">
+                    <table id="warEventsTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Atacante (CV)</th>
+                                <th>Resultado</th>
+                                <th>Defensor (CV)</th>
+                                <th>Duração</th>
+                            </tr>
+                        </thead>
+                        <tbody id="warEventsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="war-our-team" class="war-tab-content">
+                <h3>Minha Equipe: <span id="warOurTeamName">-</span></h3>
+                <div id="warOurTeamMembers" class="team-members-container scrollable-box"></div>
+            </div>
+
+            <div id="war-opponent-team" class="war-tab-content">
+                <h3>Equipe Inimiga: <span id="warOpponentTeamName">-</span></h3>
+                <div id="warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
+            </div>
+        </section>
+
+        <section id="attacks-remaining-nav" class="card attacks-remaining-card content-section" style="display:none;">
+            <h2>Ataques Pendentes (<span id="attacksRemainingClanName">-</span>)</h2>
+            <div id="attacksRemainingList" class="scrollable-box list-box">
+                <p>Carregando...</p>
+            </div>
+            <p id="noWarForAttacksRemainingMessage" class="message-box" style="display: none;">Não há guerra em andamento.</p>
+        </section>
+
+        <section id="cwl-info-nav" class="card cwl-card content-section" style="display:none;">
+            <h2>Status da Liga de Guerras de Clãs (CWL)</h2>
+            <div id="cwlDetails">
+                <p><strong>Status:</strong> <span id="cwlStatusText">Carregando...</span></p>
+                <div id="cwlActiveInfo" style="display:none;">
+                    <p><strong>Temporada:</strong> <span id="cwlSeason">-</span> | <strong>Estado do Grupo:</strong> <span id="cwlGroupState">-</span></p>
+                    <h3>Clãs no Grupo</h3>
+                    <div id="cwlGroupClans" class="grid-container cwl-clans-grid"></div>
+                    <h3>Rodadas</h3>
+                    <div id="cwlRoundsInfo" class="scrollable-box medium-table"></div>
+                </div>
+            </div>
+            <p id="noCwlMessage" class="message-box" style="display: none;">O clã não está em CWL ou informações não disponíveis.</p>
+        </section>
+
+        <section id="war-log-nav" class="card war-log-card content-section" style="display:none;">
+            <h2>Histórico de Guerras (Últimas <span id="warLogLimit">10</span>)</h2>
+            <div id="warLogTableContainer" class="table-container scrollable-box medium-table">
+                <table id="warLogTable">
+                    <thead>
+                        <tr>
+                            <th>Data Fim</th>
+                            <th>Oponente</th>
+                            <th>Placar (Nosso x Oponente)</th>
+                            <th>Resultado</th>
+                            <th>Tam.</th>
+                            <th>Tipo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="warLogTableBody"></tbody>
+                </table>
+            </div>
+            <p id="noWarLogMessage" class="message-box" style="display: none;">Histórico de guerras indisponível.</p>
+        </section>
+
+        <section id="members-list-nav" class="card members-card content-section" style="display:none;">
+            <h2>Membros do Clã <span id="membersClanName">-</span></h2>
+            <div class="member-filters">
+                <input type="text" id="filterName" placeholder="Filtrar por Nome...">
+                <input type="text" id="filterTH" placeholder="Filtrar por CV (ex: CV12)...">
+                <input type="text" id="filterLeague" placeholder="Filtrar por Liga...">
+                <input type="text" id="filterTrophies" placeholder="Filtrar por Troféus...">
+                <input type="text" id="filterRole" placeholder="Filtrar por Cargo...">
+            </div>
+            <div class="table-container scrollable-box">
+                <table id="membersTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nome</th>
+                            <th>CV</th>
+                            <th>Liga</th>
+                            <th>Troféus</th>
+                            <th>Cargo</th>
+                            <th>Doações</th>
+                            <th>Recebidas</th>
+                            <th>Observação</th> </tr>
+                    </thead>
+                    <tbody id="membersTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>Clash Genius Bot v<span id="botVersion">?</span> | <span id="lastUpdated"></span></p>
+            <p>Painel de monitoramento do Clã</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/scripts.js"></script>
+</body>
+</html>
