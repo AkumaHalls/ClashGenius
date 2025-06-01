@@ -1,11 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const API_BASE_URL = ''; 
-    const DEFAULT_BADGE_URL = '/static/images/default_badge.png'; 
+    const API_BASE_URL = '';
+    const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
 
-    // --- ELEMENTOS DO DOM ---
+    // --- ELEMENTOS DO DOM (mantidos como antes) ---
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
-    // Clã Info
     const clanNameEl = document.getElementById('clanName');
     const clanTagEl = document.getElementById('clanTag');
     const clanLevelEl = document.getElementById('clanLevel');
@@ -19,12 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalPointsEl = document.getElementById('clanCapitalPoints');
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
-
-    // Guerra Detalhes
-    const warDetailSection = document.getElementById('war-details-nav');
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
-    const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName'); 
-    const warDetailOpponentNameEl = document.getElementById('warDetailOpponentName'); 
+    const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
+    const warDetailOpponentNameEl = document.getElementById('warDetailOpponentName');
     const warDetailOpponentBadgeEl = document.getElementById('warDetailOpponentBadge');
     const warDetailTimeKeyEl = document.getElementById('warDetailTimeKey');
     const warDetailTimeValueEl = document.getElementById('warDetailTimeValue');
@@ -59,13 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const warOurTeamMembersEl = document.getElementById('warOurTeamMembers');
     const warOpponentTeamNameEl = document.getElementById('warOpponentTeamName');
     const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
-
-    // Ataques Pendentes
     const attacksRemainingClanNameEl = document.getElementById('attacksRemainingClanName');
     const attacksRemainingListEl = document.getElementById('attacksRemainingList');
     const noWarForAttacksRemainingMessageEl = document.getElementById('noWarForAttacksRemainingMessage');
-
-    // CWL
     const cwlStatusTextEl = document.getElementById('cwlStatusText');
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
     const cwlSeasonEl = document.getElementById('cwlSeason');
@@ -73,13 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const cwlGroupClansEl = document.getElementById('cwlGroupClans');
     const cwlRoundsInfoEl = document.getElementById('cwlRoundsInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
-
-    // Histórico de Guerras
     const warLogLimitEl = document.getElementById('warLogLimit');
     const warLogTableBodyEl = document.getElementById('warLogTableBody');
     const noWarLogMessageEl = document.getElementById('noWarLogMessage');
-    
-    // Membros
     const membersClanNameEl = document.getElementById('membersClanName');
     const membersTableBodyEl = document.getElementById('membersTableBody');
     const filterNameInput = document.getElementById('filterName');
@@ -87,13 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterLeagueInput = document.getElementById('filterLeague');
     const filterTrophiesInput = document.getElementById('filterTrophies');
     const filterRoleInput = document.getElementById('filterRole');
-    
-    // Rodapé
     const botVersionEl = document.getElementById('botVersion');
     const lastUpdatedEl = document.getElementById('lastUpdated');
     const toastNotificationEl = document.getElementById('toast-notification');
-
-    // Navegação Principal e Seções de Conteúdo
     const navLinks = document.querySelectorAll('.nav-link');
     const contentSections = document.querySelectorAll('.content-section');
 
@@ -102,31 +86,30 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(`${API_BASE_URL}/api/${endpoint}`, options);
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: `Falha: ${response.status}` }));
+                let errorData = { error: `Falha na requisição: ${response.status} ${response.statusText}` };
+                try {
+                    errorData = await response.json(); // Tenta pegar o erro do JSON, se houver
+                } catch (e) { /* Ignora se não for JSON */ }
                 console.error(`HTTP error! status: ${response.status} for ${endpoint}`, errorData);
-                showToast(`Erro: ${errorData.error || response.statusText || 'Falha ao carregar dados.'}`, 'error');
+                showToast(`Erro API (${endpoint}): ${errorData.error || response.statusText}`, 'error');
                 return { error: errorData.error || `Falha ao carregar ${endpoint}. Status: ${response.status}` };
             }
             return await response.json();
         } catch (error) {
             console.error(`Could not fetch data from ${endpoint}:`, error);
-            showToast(`Erro de conexão com API.`, 'error');
+            showToast(`Erro de conexão ao buscar ${endpoint}. Verifique o console.`, 'error');
             return { error: `Erro de conexão ao buscar ${endpoint}.` };
         }
     }
 
-    function showToast(message, type = 'info') { // type can be 'info', 'success', 'error'
+    function showToast(message, type = 'info') {
         if (!toastNotificationEl) return;
         toastNotificationEl.textContent = message;
-        toastNotificationEl.className = 'toast show'; // Reset classes
-        if (type === 'success') {
-            toastNotificationEl.classList.add('success');
-        } else if (type === 'error') {
-            toastNotificationEl.classList.add('error');
-        }
+        toastNotificationEl.className = 'toast show';
+        if (type === 'success') toastNotificationEl.classList.add('success');
+        else if (type === 'error') toastNotificationEl.classList.add('error');
         setTimeout(() => { toastNotificationEl.className = toastNotificationEl.className.replace("show", ""); }, 3000);
     }
-
 
     function updateLastUpdated() {
         const now = new Date();
@@ -134,16 +117,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setText(element, text, defaultValue = '-') {
-        if (element) element.textContent = text === null || text === undefined || text === '' ? defaultValue : text;
+        if (element) element.textContent = text === null || text === undefined || text === '' ? defaultValue : String(text);
     }
     function setHtml(element, htmlContent) {
-        if(element) element.innerHTML = htmlContent;
+        if (element) element.innerHTML = htmlContent;
     }
     function setBadge(element, url) {
-        if (element) { element.src = url || DEFAULT_BADGE_URL; element.style.display = 'inline-block';}
+        if (element) { element.src = url || DEFAULT_BADGE_URL; element.style.display = 'inline-block'; }
     }
-    function show(element) { if(element) element.style.display = 'block'; }
-    function hide(element) { if(element) element.style.display = 'none'; }
+    function show(element) { if (element) element.style.display = 'block'; }
+    function hide(element) { if (element) element.style.display = 'none'; }
 
     // --- NAVEGAÇÃO PRINCIPAL ---
     function setActiveSection(sectionId) {
@@ -162,30 +145,45 @@ document.addEventListener('DOMContentLoaded', () => {
             const sectionId = link.dataset.section;
             setActiveSection(sectionId);
             const sectionElement = document.getElementById(sectionId);
-            if(sectionElement) sectionElement.scrollIntoView({behavior: "smooth", block: "start"});
+            if (sectionElement) sectionElement.scrollIntoView({ behavior: "smooth", block: "start" });
         });
     });
-    
+
     const savedSection = localStorage.getItem('activeSection');
     if (savedSection && document.getElementById(savedSection)) {
         setActiveSection(savedSection);
     } else {
-        setActiveSection('clan-info-nav'); 
+        setActiveSection('clan-info-nav');
     }
 
-    // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
+    // --- FUNÇÕES DE POPULAÇÃO DE DADOS (COM MELHOR FEEDBACK DE ERRO) ---
+
+    function displayErrorInSection(sectionElement, errorMessage, specificContainerSelector = null) {
+        if (!sectionElement) return;
+        let container = sectionElement;
+        if (specificContainerSelector) {
+            container = sectionElement.querySelector(specificContainerSelector) || sectionElement;
+        }
+        setHtml(container, `<p class="error-message-big">${errorMessage}</p>`);
+    }
+
     function populateClanInfo(data) {
-        if (data.error || !data.name) { setText(clanNameHeaderEl, "Erro"); setText(clanNameEl, data.error || "N/A"); return; }
+        const sectionElement = document.getElementById('clan-info-nav');
+        if (!data || data.error || !data.name) {
+            displayErrorInSection(sectionElement, data ? data.error : "Não foi possível carregar informações do clã.");
+            setText(clanNameHeaderEl, "Erro"); // Ainda atualiza o header para indicar erro
+            return;
+        }
         setText(clanNameHeaderEl, data.name); setText(clanNameEl, data.name); setText(clanTagEl, data.tag);
         setText(clanLevelEl, data.level); setText(clanPointsEl, data.points); setText(clanMemberCountEl, data.member_count);
         setText(clanWarWinsEl, data.war_wins); setText(clanLocationEl, data.location); setText(clanTypeEl, data.type);
         setText(clanDescriptionEl, data.description, 'Sem descrição.'); setText(botVersionEl, data.version, '?');
         setBadge(clanBadgeHeaderEl, data.badge_url); setBadge(clanBadgeEl, data.badge_url);
         setText(clanCapitalPointsEl, data.capital_points); setText(clanCapitalLeagueEl, data.capital_league);
-        setHtml(clanCapitalDistrictsEl, ''); 
+        setHtml(clanCapitalDistrictsEl, '');
         if (data.capital_districts && data.capital_districts.length > 0 && data.capital_districts[0].name !== "Distritos Indisponíveis (erro import)") {
             data.capital_districts.forEach(d => setHtml(clanCapitalDistrictsEl, clanCapitalDistrictsEl.innerHTML + `<p><strong>${d.name || 'N/A'}:</strong> Nv ${d.level || '?'}</p>`));
-        } else if (data.capital_districts && data.capital_districts.length > 0) { 
+        } else if (data.capital_districts && data.capital_districts.length > 0) {
             setHtml(clanCapitalDistrictsEl, `<p>${data.capital_districts[0].name}</p>`);
         } else { setHtml(clanCapitalDistrictsEl, '<p>Nenhum distrito encontrado.</p>'); }
     }
@@ -200,17 +198,19 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     });
-    
+
     function createStarString(stars) {
         return '⭐'.repeat(stars) + '⚫'.repeat(Math.max(0, 3 - stars));
     }
 
     function populateWarDetails(data) {
-        if (data.error || !data.war_data) {
-            show(noWarDetailMessageEl); setText(noWarDetailMessageEl, data.error || "Nenhuma guerra para detalhar.");
-            hide(document.querySelector('#war-details-nav .war-header')); 
+        const sectionElement = document.getElementById('war-details-nav');
+        if (!data || data.error || !data.war_data) {
+            show(noWarDetailMessageEl);
+            setText(noWarDetailMessageEl, data ? data.error : "Nenhuma guerra para detalhar ou erro ao carregar.");
+            hide(document.querySelector('#war-details-nav .war-header'));
             hide(document.querySelector('#war-details-nav .war-tabs'));
-            warTabContents.forEach(hide); 
+            warTabContents.forEach(hide);
             return;
         }
         hide(noWarDetailMessageEl);
@@ -226,15 +226,16 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(warDetailTimeValueEl, war.time_value);
         setText(warDetailTimeRemainingEl, war.time_remaining);
         setText(warDetailStateEl, war.state_description);
-        if(warDetailStateEl) warDetailStateEl.className = 'war-state ' + (war.status || '').toLowerCase();
+        if (warDetailStateEl) warDetailStateEl.className = 'war-state ' + (war.status || '').toLowerCase();
 
+        // Aba Estatísticas
         setText(statsOurClanNameEl, war.clan_name);
         setText(statsOurStarsEl, war.clan_stars);
-        setText(statsOurDestructionEl, war.clan_destruction.replace('%',''));
+        setText(statsOurDestructionEl, war.clan_destruction.replace('%', ''));
         setText(statsOurAttacksUsedEl, `${war.clan_attacks_used}/${war.team_size * war.attacks_per_member}`);
         setText(statsOpponentNameEl, war.opponent_name);
         setText(statsOpponentStarsEl, war.opponent_stars);
-        setText(statsOpponentDestructionEl, war.opponent_destruction.replace('%',''));
+        setText(statsOpponentDestructionEl, war.opponent_destruction.replace('%', ''));
         setText(statsOpponentAttacksUsedEl, `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
         setText(statsOurAvgStarsEl, war.clan_avg_stars);
         setText(statsOurAvgDurationEl, war.clan_avg_duration);
@@ -245,7 +246,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(statsOpponentStars3El, war.opponent_star_distribution[3]); setText(statsOpponentStars2El, war.opponent_star_distribution[2]);
         setText(statsOpponentStars1El, war.opponent_star_distribution[1]); setText(statsOpponentStars0El, war.opponent_star_distribution[0]);
 
-        setText(warTotalAttacksCountEl, data.all_attacks.length);
+        // Aba Eventos
+        setText(warTotalAttacksCountEl, data.all_attacks ? data.all_attacks.length : 0);
         setHtml(warEventsTableBodyEl, '');
         if (data.all_attacks && data.all_attacks.length > 0) {
             data.all_attacks.forEach(att => {
@@ -262,7 +264,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const populateTeamTabData = (teamMembersData, teamNameKey, teamElement) => {
             const clanNameForTeam = war[`${teamNameKey.toLowerCase()}_name`] || (teamNameKey === "ourClan" ? "Nosso Clã" : "Oponente");
             setText(document.getElementById(`war${teamNameKey === "ourClan" ? "Our" : "Opponent"}TeamName`), clanNameForTeam);
-
             setHtml(teamElement, '');
             if (teamMembersData && teamMembersData.length > 0) {
                 teamMembersData.forEach(member => {
@@ -273,7 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     } else { attacksHtml += '<li>Nenhum ataque feito.</li>'; }
                     attacksHtml += '</ul>';
-
                     let defensesHtml = '<h5>Defesas Recebidas:</h5><ul class="member-defense-list">';
                     if (member.defenses_received && member.defenses_received.length > 0) {
                         member.defenses_received.forEach(def => {
@@ -281,10 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     } else { defensesHtml += '<li>Nenhuma defesa registrada.</li>'; }
                     defensesHtml += '</ul>';
-                    
                     const memberCard = document.createElement('div');
                     memberCard.className = 'team-member-card';
-                    // Tenta carregar a imagem do CV, se não existir, não quebra
                     const townHallImgSrc = `/static/images/townhall${member.townhall}.png`;
                     memberCard.innerHTML = `
                         <h4><img src="${townHallImgSrc}" alt="CV${member.townhall}" onerror="this.style.display='none'; this.alt='CV${member.townhall}'" /> ${member.map_position}. ${member.name} (CV${member.townhall})</h4>
@@ -296,22 +294,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             } else { setHtml(teamElement, '<p>Nenhum membro nesta equipe para a guerra.</p>'); }
         };
-        
         populateTeamTabData(data.our_clan_members_in_war, "ourClan", warOurTeamMembersEl);
         populateTeamTabData(data.opponent_clan_members_in_war, "opponent", warOpponentTeamMembersEl);
 
         if (!document.querySelector('.war-tab-button.active')) {
-             const firstTab = document.querySelector('.war-tab-button[data-tab="war-stats"]');
-             if(firstTab) firstTab.click();
+            const firstTab = document.querySelector('.war-tab-button[data-tab="war-stats"]');
+            if (firstTab) firstTab.click();
         }
     }
 
     function populateWarAttacksRemaining(data) {
+        const sectionElement = document.getElementById('attacks-remaining-nav');
+        if (!data || data.error || !data.members_pending) { // Checa se members_pending existe
+             show(noWarForAttacksRemainingMessageEl);
+             setText(noWarForAttacksRemainingMessageEl, data ? (data.message || data.error) : "Erro ao carregar ataques pendentes.");
+             setHtml(attacksRemainingListEl, ''); // Limpa a lista
+             setText(attacksRemainingClanNameEl, data ? data.clan_name : '-');
+             return;
+        }
+
         setText(attacksRemainingClanNameEl, data.clan_name);
-        if (data.error || !data.members_pending || data.members_pending.length === 0) {
-            setHtml(attacksRemainingListEl, `<p>${data.message || data.error || "Todos os ataques realizados ou não há guerra."}</p>`);
-            show(noWarForAttacksRemainingMessageEl); 
-            setText(noWarForAttacksRemainingMessageEl, data.message || data.error || "Todos os ataques realizados ou não há guerra.");
+        if (data.members_pending.length === 0) {
+            setHtml(attacksRemainingListEl, `<p>${data.message || "Todos os ataques realizados ou não há guerra."}</p>`);
+            show(noWarForAttacksRemainingMessageEl);
+            setText(noWarForAttacksRemainingMessageEl, data.message || "Todos os ataques realizados ou não há guerra.");
             return;
         }
         hide(noWarForAttacksRemainingMessageEl);
@@ -320,14 +326,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateCwlInfo(data) {
-        if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
-            show(noCwlMessageEl); setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
-            hide(cwlActiveInfoEl); setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
-            if(cwlStatusTextEl) cwlStatusTextEl.className = 'war-state ' + (data.status || 'notincwl').toLowerCase();
+        const sectionElement = document.getElementById('cwl-info-nav');
+        if (!data || data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
+            show(noCwlMessageEl); setText(noCwlMessageEl, data ? (data.message || data.error) : "CWL indisponível ou erro ao carregar.");
+            hide(cwlActiveInfoEl); setText(cwlStatusTextEl, data ? (data.message || (data.error ? "Erro" : "Fora da CWL")) : "Carregando...");
+            if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state ' + (data && data.status ? data.status.toLowerCase() : 'notincwl');
             return;
         }
         hide(noCwlMessageEl); show(cwlActiveInfoEl);
-        setText(cwlStatusTextEl, "Em CWL"); if(cwlStatusTextEl) cwlStatusTextEl.className = 'war-state incwl'; // Supondo que 'incwl' seja uma classe válida
+        setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state incwl';
         setText(cwlSeasonEl, data.season); setText(cwlGroupStateEl, data.state);
         setHtml(cwlGroupClansEl, '');
         if (data.clans_in_group && data.clans_in_group.length > 0) {
@@ -339,11 +346,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 let roundHtml = `<div class="cwl-round"><h4>Rodada ${r.round_number}</h4>`;
                 if (r.wars && r.wars.length > 0) {
                     r.wars.forEach(w => {
-                        if(w.error) { roundHtml += `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`; }
-                        else if(w.message) { roundHtml += `<p class="cwl-war-entry">${w.message}</p>`;}
+                        if (w.error) { roundHtml += `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`; }
+                        else if (w.message) { roundHtml += `<p class="cwl-war-entry">${w.message}</p>`; }
                         else {
-                            const cBadge = w.clan_badge_url ? `<img src="${w.clan_badge_url}" alt="Emblema ${w.clan_name}" style="height:18px; vertical-align:middle;">`:"";
-                            const oBadge = w.opponent_badge_url ? `<img src="${w.opponent_badge_url}" alt="Emblema ${w.opponent_name}" style="height:18px; vertical-align:middle;">`:"";
+                            const cBadge = w.clan_badge_url ? `<img src="${w.clan_badge_url}" alt="Emblema ${w.clan_name}" style="height:18px; vertical-align:middle;">` : "";
+                            const oBadge = w.opponent_badge_url ? `<img src="${w.opponent_badge_url}" alt="Emblema ${w.opponent_name}" style="height:18px; vertical-align:middle;">` : "";
                             roundHtml += `<p class="cwl-war-entry"><strong>${cBadge} ${w.clan_name}</strong> ${w.clan_stars}⭐ (${w.clan_destruction}) vs ${w.opponent_stars}⭐ (${w.opponent_destruction}) <strong>${oBadge} ${w.opponent_name}</strong><br><small>Estado: ${w.state} | ${w.time_key}: ${w.time_value} (${w.time_remaining})</small></p>`;
                         }
                     });
@@ -355,10 +362,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateWarLog(data) {
-        setText(warLogLimitEl, data.log ? data.log.length : '10');
-        if (data.error || !data.log) {
-            show(noWarLogMessageEl); setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
-            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "N/A"}</td></tr>`);
+        const sectionElement = document.getElementById('war-log-nav');
+        setText(warLogLimitEl, data && data.log ? data.log.length : '10');
+        if (!data || data.error || !data.log) {
+            show(noWarLogMessageEl); setText(noWarLogMessageEl, data ? data.error : "Log de guerra indisponível ou erro ao carregar.");
+            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data ? data.error : "N/A"}</td></tr>`);
             return;
         }
         hide(noWarLogMessageEl); setHtml(warLogTableBodyEl, '');
@@ -377,35 +385,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function applyMemberFilters() {
+        // ... (lógica de filtro mantida como antes)
         const nameFilter = filterNameInput.value.toLowerCase();
         const thFilter = filterTHInput.value.toLowerCase().replace(/\s/g, '');
         const leagueFilter = filterLeagueInput.value.toLowerCase();
-        const trophiesFilterText = filterTrophiesInput.value; // Mantém como texto para correspondência exata se necessário, ou converte para número se for comparação
+        const trophiesFilterText = filterTrophiesInput.value; 
         const roleFilter = filterRoleInput.value.toLowerCase();
         const rows = membersTableBodyEl.getElementsByTagName('tr');
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i]; const cells = row.getElementsByTagName('td'); let displayRow = true;
-            // A tabela agora tem 10 colunas (0-9)
-            if (cells.length > 7) { // Verifica se a linha tem células de dados (Nome é cells[1], Observação é cells[8])
+            if (cells.length > 7) { 
                 if (nameFilter && !cells[1].textContent.toLowerCase().includes(nameFilter)) displayRow = false;
                 if (thFilter && !cells[2].textContent.toLowerCase().includes(thFilter)) displayRow = false;
                 if (leagueFilter && !cells[3].textContent.toLowerCase().includes(leagueFilter)) displayRow = false;
-                if (trophiesFilterText) { // Adicionar lógica para > < = se necessário
-                    const trophiesValue = parseInt(cells[4].textContent, 10);
-                    if (isNaN(trophiesValue) || !cells[4].textContent.includes(trophiesFilterText)) displayRow = false; // Simples contains por enquanto
+                if (trophiesFilterText) { 
+                    if (!cells[4].textContent.includes(trophiesFilterText)) displayRow = false;
                 }
                 if (roleFilter && !cells[5].textContent.toLowerCase().includes(roleFilter)) displayRow = false;
-            } else if (row.getElementsByTagName('th').length === 0 && cells.length < 2) { // Linha de 'nenhum membro' ou similar
+            } else if (row.getElementsByTagName('th').length === 0 && cells.length < 2) {
                  displayRow = false; 
             }
             row.style.display = displayRow ? '' : 'none';
         }
     }
-    if(filterNameInput) filterNameInput.addEventListener('input', applyMemberFilters);
-    if(filterTHInput) filterTHInput.addEventListener('input', applyMemberFilters);
-    if(filterLeagueInput) filterLeagueInput.addEventListener('input', applyMemberFilters);
-    if(filterTrophiesInput) filterTrophiesInput.addEventListener('input', applyMemberFilters);
-    if(filterRoleInput) filterRoleInput.addEventListener('input', applyMemberFilters);
+    if (filterNameInput) filterNameInput.addEventListener('input', applyMemberFilters);
+    if (filterTHInput) filterTHInput.addEventListener('input', applyMemberFilters);
+    if (filterLeagueInput) filterLeagueInput.addEventListener('input', applyMemberFilters);
+    if (filterTrophiesInput) filterTrophiesInput.addEventListener('input', applyMemberFilters);
+    if (filterRoleInput) filterRoleInput.addEventListener('input', applyMemberFilters);
 
     async function handleSaveObservation(playerTag, observationText, priority) {
         const payload = {
@@ -422,10 +429,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result && result.status === 'success') {
             showToast('Observação salva com sucesso!', 'success');
         } else {
-            showToast(result.message || 'Falha ao salvar observação.', 'error');
+            showToast(result && result.message ? result.message : 'Falha ao salvar observação.', 'error');
         }
     }
-    
+
     function updatePriorityVisuals(textarea, select) {
         const priority = select.value;
         textarea.classList.remove('priority-normal', 'priority-alert', 'priority-critical');
@@ -443,26 +450,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     function populateMembersList(data) {
-        setText(membersClanNameEl, data.clan_name ? `(${data.clan_name})` : '');
-        if (data.error) { setHtml(membersTableBodyEl, `<tr><td colspan="10">${data.error}</td></tr>`); return; }
+        const sectionElement = document.getElementById('members-list-nav');
+        setText(membersClanNameEl, data && data.clan_name ? `(${data.clan_name})` : '');
+        if (!data || data.error) {
+            setHtml(membersTableBodyEl, `<tr><td colspan="10" class="error-message-big">${data ? data.error : "Erro ao carregar membros."}</td></tr>`);
+            return;
+        }
         setHtml(membersTableBodyEl, '');
         if (data.members && data.members.length > 0) {
             data.members.forEach((m, i) => {
                 const r = membersTableBodyEl.insertRow();
-                r.dataset.playerTag = m.tag; // Armazena a tag do jogador na linha
-
-                setText(r.insertCell(), i + 1); 
-                setText(r.insertCell(), m.name); 
+                r.dataset.playerTag = m.tag;
+                setText(r.insertCell(), i + 1);
+                setText(r.insertCell(), m.name);
                 setText(r.insertCell(), `CV${m.town_hall || '?'}`);
-                setText(r.insertCell(), m.league); 
-                setText(r.insertCell(), m.trophies); 
+                setText(r.insertCell(), m.league);
+                setText(r.insertCell(), m.trophies);
                 setText(r.insertCell(), m.role);
-                setText(r.insertCell(), m.donations); 
+                setText(r.insertCell(), m.donations);
                 setText(r.insertCell(), m.received);
 
-                // Coluna de Observação
                 const obsCell = r.insertCell();
                 const obsTextarea = document.createElement('textarea');
                 obsTextarea.className = 'member-observation-text';
@@ -470,7 +478,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 obsTextarea.rows = 2;
                 obsCell.appendChild(obsTextarea);
 
-                // Coluna de Prioridade e Ações
                 const actionCell = r.insertCell();
                 const prioritySelect = document.createElement('select');
                 prioritySelect.className = 'member-observation-priority';
@@ -485,10 +492,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     prioritySelect.appendChild(option);
                 }
                 actionCell.appendChild(prioritySelect);
-                
-                updatePriorityVisuals(obsTextarea, prioritySelect); // Cor inicial
+                updatePriorityVisuals(obsTextarea, prioritySelect);
                 prioritySelect.addEventListener('change', () => updatePriorityVisuals(obsTextarea, prioritySelect));
-
 
                 const saveButton = document.createElement('button');
                 saveButton.className = 'save-observation-btn';
@@ -498,25 +503,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 actionCell.appendChild(saveButton);
             });
-        } else { setHtml(membersTableBodyEl, '<tr><td colspan="10">Nenhum membro para exibir.</td></tr>'); }
-        applyMemberFilters(); // Aplica filtros após popular
+        } else {
+            setHtml(membersTableBodyEl, '<tr><td colspan="10">Nenhum membro para exibir.</td></tr>');
+        }
+        applyMemberFilters();
     }
-
 
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
-        const [clanData, membersData, currentWarDetailsData, warAttacksRemainingData, warLogData, cwlInfoData] = await Promise.all([
-            fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
-            fetchData('war_attacks_remaining'), fetchData('war_log?limit=10'), fetchData('cwl_info')
-        ]);
-        populateClanInfo(clanData);
-        populateMembersList(membersData);
-        populateWarDetails(currentWarDetailsData); 
-        populateWarAttacksRemaining(warAttacksRemainingData);
-        populateWarLog(warLogData);
-        populateCwlInfo(cwlInfoData);
+        console.log("Iniciando carregamento de todos os dados...");
+        const clanPromise = fetchData('clan').then(populateClanInfo);
+        const membersPromise = fetchData('members').then(populateMembersList);
+        const warDetailsPromise = fetchData('current_war_details').then(populateWarDetails);
+        const attacksRemainingPromise = fetchData('war_attacks_remaining').then(populateWarAttacksRemaining);
+        const warLogPromise = fetchData('war_log?limit=10').then(populateWarLog);
+        const cwlInfoPromise = fetchData('cwl_info').then(populateCwlInfo);
+
+        await Promise.all([
+            clanPromise,
+            membersPromise,
+            warDetailsPromise,
+            attacksRemainingPromise,
+            warLogPromise,
+            cwlInfoPromise
+        ]).catch(error => {
+            console.error("Erro geral ao carregar dados para o painel:", error);
+            showToast("Ocorreu um erro ao carregar alguns dados do painel.", "error");
+        });
+        
         updateLastUpdated();
+        console.log("Carregamento de todos os dados concluído.");
     }
+
     loadAllData();
-    setInterval(loadAllData, 60000); // Atualiza a cada 60 segundos
+    setInterval(loadAllData, 60000);
 });
