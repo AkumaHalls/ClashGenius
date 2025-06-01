@@ -1,42 +1,54 @@
 /* Importa fontes do Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Roboto:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
 
 :root {
     --font-body: 'Roboto', sans-serif;
-    --font-title: 'MedievalSharp', cursive; 
-    --color-background: #3a2e25; /* Um pouco mais escuro */
-    --color-card-background: #fdf5e6; /* Um bege mais "pergaminho" */
-    --color-text-main: #4a3b31; 
-    --color-text-header: #fdf5e6; 
-    --color-header-background: #2f231b; 
-    --color-border: #805d3f; 
-    --color-accent: #ff7f50; /* Coral como acento */
-    --color-link: #DAA520; /* Goldenrod */
-    --color-link-hover: #f0b93a;
-    --color-war-our-clan: #28a745; /* Verde mais vibrante */
-    --color-war-opponent: #dc3545; /* Vermelho mais vibrante */
-    --color-war-preparation: #ffc107; /* Amarelo */
-    --color-war-inwar: #fd7e14; /* Laranja */
-    --color-war-ended: #17a2b8; /* Ciano */
-    --color-war-notinwar: #6c757d; /* Cinza */
-    --color-success: #28a745; 
-    --color-danger: #dc3545;  
-    --color-warning: #ffc107; 
-    --color-info: #17a2b8;    
+    --font-title: 'Roboto', sans-serif; 
+    --color-background: #1a1c1d; 
+    --color-card-background: #27292a; 
+    --color-text-main: #e0e0e0; 
+    --color-text-header: #f5f5f5; 
+    --color-header-background: #222425; 
+    --color-border: #3a3c3d; 
+    --color-accent: #00b894; /* Verde similar ao warreport */
+    --color-link: #3498db;   /* Azul para links e alguns destaques */
+    --color-link-hover: #5dade2;
+    --color-war-our-clan: #2ecc71; 
+    --color-war-opponent: #e74c3c; 
+    --color-war-preparation: #f1c40f; 
+    --color-war-inwar: #e67e22;       
+    --color-war-ended: #3498db;       
+    --color-war-notinwar: #7f8c8d;    
+    --color-success: #2ecc71; 
+    --color-danger: #e74c3c;  
+    --color-warning: #f1c40f; 
+    --color-info: #3498db;    
     --color-star-gold: #FFD700;
-    --color-star-empty: #ccc;
-    --color-tab-active-bg: var(--color-border);
-    --color-tab-active-text: var(--color-text-header);
+    --color-star-empty: #555;
+    --color-tab-active-bg: var(--color-accent);
+    --color-tab-active-text: var(--color-header-background);
     --color-tab-inactive-bg: var(--color-card-background);
     --color-tab-inactive-text: var(--color-text-main);
     --color-tab-border: var(--color-border);
+
+    --color-priority-normal-bg: rgba(46, 204, 113, 0.1); /* Verde claro transparente */
+    --color-priority-normal-text: #2ecc71;
+    --color-priority-alert-bg: rgba(241, 196, 15, 0.1); /* Amarelo claro transparente */
+    --color-priority-alert-text: #f1c40f;
+    --color-priority-critical-bg: rgba(231, 76, 60, 0.1); /* Vermelho claro transparente */
+    --color-priority-critical-text: #e74c3c;
+
+    --color-input-background: #3a3c3d;
+    --color-input-text: var(--color-text-main);
+    --color-input-border: #55595c;
+    --color-button-primary-bg: var(--color-accent);
+    --color-button-primary-text: var(--color-header-background);
 }
 
 html { scroll-behavior: smooth; }
 body {
     font-family: var(--font-body); margin: 0;
     background-color: var(--color-background);
-    /* background-image: url('/static/images/bg-texture.png'); */ /* Removido temporariamente */
     color: var(--color-text-main); line-height: 1.6;
 }
 .container { width: 95%; max-width: 1300px; margin: auto; padding: 0 15px; }
@@ -44,108 +56,109 @@ body {
 /* Cabeçalho */
 .site-header {
     background-color: var(--color-header-background); color: var(--color-text-header);
-    padding: 10px 0; border-bottom: 5px solid var(--color-border);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 1000;
+    padding: 10px 0; border-bottom: 3px solid var(--color-border);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 1000;
 }
 .header-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;}
-.logo-title { display: flex; align-items: center; margin-bottom: 5px; } /* Adicionado margin-bottom para wrap */
-.header-badge { height: 40px; width: 40px; margin-right: 10px; border: 1px solid var(--color-link); border-radius: 50%; }
-.site-header h1 { margin: 0; font-family: var(--font-title); font-size: 1.8em; font-weight: normal; }
+.logo-title { display: flex; align-items: center; margin-bottom: 5px; } 
+.header-badge { height: 40px; width: 40px; margin-right: 10px; border: 1px solid var(--color-link); border-radius: 8px; }
+.site-header h1 { margin: 0; font-family: var(--font-title); font-size: 1.6em; font-weight: 500; }
 .main-nav ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; }
-.main-nav li { margin-left: 10px; margin-bottom: 5px; } 
+.main-nav li { margin-left: 5px; margin-bottom: 5px; } 
 .main-nav a {
-    font-family: var(--font-title); color: var(--color-link); text-decoration: none;
-    font-size: 1em; padding: 5px 10px; border-radius: 4px;
-    transition: background-color 0.3s, color 0.3s; white-space: nowrap;
+    font-family: var(--font-title); color: var(--color-text-header); text-decoration: none;
+    font-size: 0.95em; padding: 8px 12px; border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s; white-space: nowrap; font-weight: 500;
 }
-.main-nav a:hover, .main-nav a.active-nav-link { color: var(--color-text-header); background-color: var(--color-accent); }
+.main-nav a:hover, .main-nav a.active-nav-link { color: var(--color-header-background); background-color: var(--color-accent); }
 
 /* Conteúdo Principal e Cards */
 main { padding-top: 20px; padding-bottom: 20px; }
 .card {
     background-color: var(--color-card-background); margin-bottom: 25px; padding: 20px;
-    border-radius: 8px; border: 2px solid var(--color-border);
-    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+    border-radius: 8px; border: 1px solid var(--color-border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
-.card h2 { /* Título principal do card */
-    font-family: var(--font-title); color: var(--color-header-background);
-    border-bottom: 2px solid var(--color-border); padding-bottom: 8px;
-    margin-top: 0; margin-bottom: 15px; font-size: 1.7em; 
+.card h2 { 
+    font-family: var(--font-title); color: var(--color-text-header);
+    border-bottom: 1px solid var(--color-border); padding-bottom: 10px;
+    margin-top: 0; margin-bottom: 20px; font-size: 1.5em; font-weight: 500;
     display: flex; align-items: center;
 }
-.card h3 { /* Subtítulos dentro do card */
+.card h3 { 
     font-family: var(--font-title); color: var(--color-text-main);
-    margin-top: 20px; margin-bottom: 10px; font-size: 1.4em;
-    border-bottom: 1px dashed var(--color-border); padding-bottom: 5px;
+    margin-top: 25px; margin-bottom: 12px; font-size: 1.3em; font-weight: 500;
+    border-bottom: 1px dashed var(--color-border); padding-bottom: 6px;
 }
-.card h4 { /* Títulos menores, como em colunas de estatísticas */
-    font-family: var(--font-body); font-weight: bold; color: var(--color-text-main);
-    margin-top: 5px; margin-bottom: 8px; font-size: 1.1em;
+.card h4 { 
+    font-family: var(--font-body); font-weight: 500; color: var(--color-text-main);
+    margin-top: 8px; margin-bottom: 10px; font-size: 1.1em;
 }
-.section-badge { height: 30px; width: 30px; margin-right: 8px; vertical-align: middle; }
-.opponent-badge { margin-left: 8px; margin-right: 0; }
+.section-badge { height: 30px; width: 30px; margin-right: 10px; vertical-align: middle; border-radius: 6px; }
 
-.grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 15px; }
 .grid-container p, .list-box p, .capital-districts-grid p, .cwl-clans-grid p {
-    margin: 0; background-color: rgba(var(--color-text-main-rgb, 61, 44, 29), 0.03); 
-    padding: 8px; border-radius: 6px; border: 1px solid rgba(var(--color-border-rgb, 128, 93, 63), 0.3);
+    margin: 0; background-color: var(--color-background); 
+    padding: 10px; border-radius: 6px; border: 1px solid var(--color-border);
     font-size: 0.9em;
 }
-.grid-container p strong { color: var(--color-text-main); font-weight: 700; }
+.grid-container p strong { color: var(--color-accent); font-weight: 500; }
 .description-box, .list-box {
-    background-color: rgba(var(--color-text-main-rgb, 61, 44, 29), 0.03); padding: 10px;
-    border-radius: 6px; border: 1px solid rgba(var(--color-border-rgb, 128, 93, 63), 0.3);
+    background-color: var(--color-background); padding: 12px;
+    border-radius: 6px; border: 1px solid var(--color-border);
     font-size: 0.9em; max-height: 100px; overflow-y: auto; margin-bottom: 15px;
 }
 .list-box { max-height: 250px; } 
 
 .scrollable-box::-webkit-scrollbar { width: 8px; }
-.scrollable-box::-webkit-scrollbar-track { background: rgba(var(--color-border-rgb, 128, 93, 63), 0.2); border-radius: 10px; }
-.scrollable-box::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
-.scrollable-box::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
+.scrollable-box::-webkit-scrollbar-track { background: var(--color-border); border-radius: 10px; }
+.scrollable-box::-webkit-scrollbar-thumb { background: var(--color-accent); border-radius: 10px; }
+.scrollable-box::-webkit-scrollbar-thumb:hover { background: var(--color-link-hover); }
 
 /* Estilos de Guerra (Geral) */
-.war-header { display: flex; align-items: center; margin-bottom: 10px; }
-.war-header-badge { height: 40px; width: 40px; margin: 0 10px; }
-.war-header h2 { margin-bottom: 0; border-bottom: none; font-size: 1.5em; } /* Título dentro do header da guerra */
-.war-timing-overall { text-align: center; font-size: 0.9em; margin-bottom: 15px; }
-.war-state { font-weight: bold; padding: 5px 10px; border-radius: 5px; color: white; font-size: 0.85em; text-transform: uppercase; display: inline-block; margin-bottom: 12px;}
-.war-state.preparation { background-color: var(--color-war-preparation); }
+.war-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+.war-header-badge { height: 45px; width: 45px; margin: 0 10px; border-radius: 8px; border: 1px solid var(--color-border); }
+.war-header h2 { margin-bottom: 0; border-bottom: none; font-size: 1.4em; text-align: center; flex-grow: 1; } 
+.war-timing-overall { text-align: center; font-size: 0.95em; margin-bottom: 18px; color: var(--color-text-main); }
+.war-timing-overall .time-remaining { color: var(--color-accent); font-weight: 500;}
+.war-state { font-weight: 500; padding: 6px 12px; border-radius: 5px; color: white; font-size: 0.9em; text-transform: uppercase; display: inline-block; margin-bottom: 15px;}
+.war-state.preparation { background-color: var(--color-war-preparation); color: var(--color-background); }
 .war-state.inwar { background-color: var(--color-war-inwar); }
 .war-state.warended { background-color: var(--color-war-ended); }
 .war-state.notinwar, .war-state.notincwl, .war-state.cwlfeaturedisabled, .war-state.warlogfeaturedisabled { background-color: var(--color-war-notinwar); }
-.message-box { padding:10px; background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.05); border: 1px dashed var(--color-border); border-radius: 4px; text-align: center; margin-top:15px;}
+.message-box { padding:12px; background-color: var(--color-background); border: 1px dashed var(--color-border); border-radius: 6px; text-align: center; margin-top:18px;}
 
 /* Abas da Guerra */
-.war-tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid var(--color-tab-border); }
+.war-tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid var(--color-border); }
 .war-tab-button {
-    padding: 10px 15px; cursor: pointer; background-color: var(--color-tab-inactive-bg);
-    border: 1px solid var(--color-tab-border); border-bottom: none;
-    margin-right: 5px; border-radius: 5px 5px 0 0; color: var(--color-tab-inactive-text);
-    font-family: var(--font-body); font-weight: bold; transition: background-color 0.3s, color 0.3s;
+    padding: 10px 18px; cursor: pointer; background-color: transparent;
+    border: none; border-bottom: 3px solid transparent;
+    margin-right: 8px; color: var(--color-text-main);
+    font-family: var(--font-body); font-weight: 500; font-size: 0.95em;
+    transition: color 0.2s, border-bottom-color 0.2s;
 }
-.war-tab-button.active { background-color: var(--color-tab-active-bg); color: var(--color-tab-active-text); border-bottom: 2px solid var(--color-tab-active-bg); margin-bottom: -2px; /* Para sobrepor a borda inferior */ }
-.war-tab-button:hover { background-color: var(--color-accent); color: white; }
+.war-tab-button.active { color: var(--color-accent); border-bottom-color: var(--color-accent); }
+.war-tab-button:hover { color: var(--color-link-hover); }
 .war-tab-content { display: none; padding-top:15px; }
 .war-tab-content.active { display: block; }
 
 /* Aba Estatísticas da Guerra */
-.war-score-container { display: flex; justify-content: space-around; align-items: center; text-align: center; margin: 20px 0; padding: 15px; background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.02); border: 1px solid var(--color-border); border-radius: 8px;}
-.team-score h4 { margin-top: 0; margin-bottom: 6px; font-family: var(--font-title); font-size: 1.2em; }
+.war-score-container { display: flex; justify-content: space-around; align-items: center; text-align: center; margin: 25px 0; padding: 18px; background-color: var(--color-background); border: 1px solid var(--color-border); border-radius: 8px;}
+.team-score h4 { margin-top: 0; margin-bottom: 8px; font-family: var(--font-title); font-size: 1.25em; font-weight: 500; }
 .team-score.our-clan-score h4 { color: var(--color-war-our-clan); }
 .team-score.opponent-score h4 { color: var(--color-war-opponent); }
-.team-score p { font-size: 1.6em; font-weight: bold; margin: 0 0 5px 0; font-family: var(--font-body); }
-.team-score.our-clan-score p:first-of-type { color: var(--color-war-our-clan); } /* Estrelas e Destruição */
+.team-score p { font-size: 1.7em; font-weight: 700; margin: 0 0 6px 0; font-family: var(--font-body); }
+.team-score.our-clan-score p:first-of-type { color: var(--color-war-our-clan); } 
 .team-score.opponent-score p:first-of-type { color: var(--color-war-opponent); }
-.team-score p:last-of-type { font-size: 0.9em; font-weight: normal; color: var(--color-text-main); } /* Ataques utilizados */
-.vs-separator { font-family: var(--font-title); font-size: 2em; color: var(--color-accent); padding: 0 10px; }
+.team-score p:last-of-type { font-size: 0.9em; font-weight: normal; color: var(--color-text-main); } 
+.vs-separator { font-family: var(--font-title); font-size: 2.2em; color: var(--color-text-main); padding: 0 15px; }
 .war-averages-container { margin-top: 20px; }
 .star-distribution-container { margin-top: 20px; text-align: center; }
-.star-distribution-container p { font-size: 0.9em; margin: 5px 0; }
+.star-distribution-container p { font-size: 0.9em; margin: 6px 0; }
 
 /* Aba Eventos (Todos os Ataques) e Histórico de Guerras */
-.medium-table { max-height: 500px; } /* Altura para tabelas de ataques e log */
-#warEventsTable td, #warLogTable td { font-size: 0.85em; }
+.medium-table { max-height: 500px; } 
+#warEventsTable td, #warLogTable td { font-size: 0.88em; }
 .attack-stars { font-weight: bold; }
 .attack-stars .star-filled { color: var(--color-star-gold); }
 .attack-stars .star-empty { color: var(--color-star-empty); }
@@ -154,39 +167,91 @@ main { padding-top: 20px; padding-bottom: 20px; }
 .team-members-container { max-height: 600px; }
 .team-member-card {
     border: 1px solid var(--color-border); border-radius: 6px;
-    padding: 15px; margin-bottom: 15px; background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.02);
+    padding: 15px; margin-bottom: 15px; background-color: var(--color-background);
 }
-.team-member-card h4 { display: flex; align-items: center; margin-top: 0; font-size: 1.2em; }
-.team-member-card h4 img { height: 30px; margin-right: 8px; } /* CV badge */
+.team-member-card h4 { display: flex; align-items: center; margin-top: 0; font-size: 1.2em; font-weight: 500; }
+.team-member-card h4 img { height: 28px; margin-right: 8px; } /* CV badge */
 .member-attack-list, .member-defense-list { list-style: none; padding-left: 0; font-size: 0.85em; }
-.member-attack-list li, .member-defense-list li { padding: 5px 0; border-bottom: 1px dotted rgba(var(--color-border-rgb, 128,93,63), 0.3); }
+.member-attack-list li, .member-defense-list li { padding: 6px 0; border-bottom: 1px dotted var(--color-border); }
 .member-attack-list li:last-child, .member-defense-list li:last-child { border-bottom: none; }
-.member-attack-list strong, .member-defense-list strong { color: var(--color-text-main); }
+.member-attack-list strong, .member-defense-list strong { color: var(--color-text-main); font-weight: 500; }
 
-/* Tabela de Membros e Filtros (já existentes) */
-.member-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding: 8px; background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.03); border-radius: 6px; border: 1px solid rgba(var(--color-border-rgb, 128,93,63), 0.2); }
-.member-filters input[type="text"] { flex-grow: 1; min-width: 140px; padding: 7px 9px; border: 1px solid var(--color-border); border-radius: 4px; background-color: #fff; color: var(--color-text-main); font-family: var(--font-body); font-size: 0.85em; }
+/* Tabela de Membros e Filtros */
+.member-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; padding: 10px; background-color: var(--color-background); border-radius: 6px; border: 1px solid var(--color-border); }
+.member-filters input[type="text"] { 
+    flex-grow: 1; min-width: 150px; padding: 9px 12px; border: 1px solid var(--color-input-border); 
+    border-radius: 4px; background-color: var(--color-input-background); color: var(--color-input-text); 
+    font-family: var(--font-body); font-size: 0.9em;
+}
 .member-filters input[type="text"]::placeholder { color: #888; }
-.table-container { overflow-x: auto; max-height: 750px; border: 1px solid rgba(var(--color-border-rgb, 128,93,63), 0.3); border-radius: 6px; }
-table { width: 100%; border-collapse: collapse; font-size: 0.9em; } /* Aumentado um pouco para legibilidade */
-th, td { border: 1px solid rgba(var(--color-border-rgb, 128,93,63), 0.3); padding: 9px 11px; text-align: left; vertical-align: middle; }
-th { background-color: var(--color-border); color: var(--color-card-background); font-family: var(--font-body); font-weight: 700; text-transform: uppercase; font-size: 0.8em; position: sticky; top: 0; z-index: 10; }
-tbody tr:nth-child(even) { background-color: rgba(var(--color-text-main-rgb, 61,44,29), 0.02); }
-tbody tr:hover { background-color: rgba(var(--color-border-rgb, 128,93,63), 0.1); }
+.table-container { overflow-x: auto; max-height: 750px; border: 1px solid var(--color-border); border-radius: 6px; background-color: var(--color-card-background); }
+table { width: 100%; border-collapse: collapse; font-size: 0.9em; } 
+th, td { border: 1px solid var(--color-border); padding: 10px 12px; text-align: left; vertical-align: middle; }
+th { background-color: var(--color-header-background); color: var(--color-text-header); font-family: var(--font-body); font-weight: 500; text-transform: uppercase; font-size: 0.8em; position: sticky; top: 0; z-index: 10; }
+tbody tr:nth-child(even) { background-color: var(--color-background); } /* Alterna cor de linha */
+tbody tr:hover { background-color: #333638; }
+
+/* Observações de Membros */
+.member-observation-text {
+    width: 100%; min-height: 50px; padding: 8px; border-radius: 4px;
+    background-color: var(--color-input-background); color: var(--color-input-text);
+    border: 1px solid var(--color-input-border); font-family: var(--font-body); font-size: 0.85em;
+    box-sizing: border-box;
+    transition: background-color 0.3s;
+}
+.member-observation-priority {
+    width: 100%; padding: 8px; border-radius: 4px;
+    background-color: var(--color-input-background); color: var(--color-input-text);
+    border: 1px solid var(--color-input-border); font-family: var(--font-body); font-size: 0.85em;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+    transition: background-color 0.3s;
+}
+.save-observation-btn {
+    padding: 8px 12px; border: none; border-radius: 4px;
+    background-color: var(--color-button-primary-bg); color: var(--color-button-primary-text);
+    font-family: var(--font-body); font-weight: 500; font-size: 0.85em;
+    cursor: pointer; transition: background-color 0.2s;
+    display: block; width: 100%;
+}
+.save-observation-btn:hover { background-color: #00a080; /* Um pouco mais escuro no hover */ }
+
+/* Cores de prioridade para inputs/selects */
+.priority-normal { background-color: var(--color-priority-normal-bg) !important; color: var(--color-priority-normal-text) !important; border-left: 3px solid var(--color-priority-normal-text) !important;}
+.priority-alert { background-color: var(--color-priority-alert-bg) !important; color: var(--color-priority-alert-text) !important; border-left: 3px solid var(--color-priority-alert-text) !important;}
+.priority-critical { background-color: var(--color-priority-critical-bg) !important; color: var(--color-priority-critical-text) !important; border-left: 3px solid var(--color-priority-critical-text) !important;}
 
 /* CWL e Capital */
 .capital-districts-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-#cwlRoundsInfo { max-height: 400px; overflow-y: auto; }
-.cwl-round { margin-bottom: 15px; padding: 10px; border: 1px solid var(--color-border); border-radius: 6px; }
-.cwl-round h4 { font-family: var(--font-title); margin-top: 0; font-size: 1.1em; }
-.cwl-war-entry { padding: 8px; border-bottom: 1px dashed rgba(var(--color-border-rgb, 128,93,63), 0.3); }
+#cwlRoundsInfo { max-height: 400px; overflow-y: auto; padding: 5px; background-color: var(--color-background); border-radius: 6px; border: 1px solid var(--color-border);}
+.cwl-round { margin-bottom: 15px; padding: 12px; border: 1px solid var(--color-border); border-radius: 6px; background-color: var(--color-card-background); }
+.cwl-round h4 { font-family: var(--font-title); margin-top: 0; font-size: 1.15em; color: var(--color-accent); }
+.cwl-war-entry { padding: 8px; border-bottom: 1px dashed var(--color-border); }
 .cwl-war-entry:last-child { border-bottom: none; }
-.cwl-clans-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
-.cwl-clans-grid p img { vertical-align: middle; margin-right: 5px; height: 20px; }
+.cwl-war-entry small { color: #aaa; }
+.cwl-clans-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.cwl-clans-grid p img { vertical-align: middle; margin-right: 6px; height: 22px; border-radius: 4px; }
 
 /* Rodapé */
-.site-footer { text-align: center; padding: 20px 0; background-color: var(--color-header-background); color: var(--color-text-header); margin-top: 25px; font-size: 0.85em; border-top: 5px solid var(--color-border); }
-.site-footer p { margin: 4px 0; }
+.site-footer { text-align: center; padding: 20px 0; background-color: var(--color-header-background); color: var(--color-text-header); margin-top: 25px; font-size: 0.85em; border-top: 3px solid var(--color-border); }
+.site-footer p { margin: 5px 0; }
+
+/* Toast Notification */
+.toast {
+    visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
+    text-align: center; border-radius: 4px; padding: 16px;
+    position: fixed; z-index: 1001; left: 50%; bottom: 30px;
+    transform: translateX(-50%); font-size: 1em;
+    box-shadow: 0px 0px 15px rgba(0,0,0,0.5);
+}
+.toast.show { visibility: visible; -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+.toast.success { background-color: var(--color-success); }
+.toast.error { background-color: var(--color-danger); }
+@-webkit-keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+@keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+@-webkit-keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+@keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
 
 /* Esconder seções por padrão, JS vai mostrar a ativa */
 .content-section { display: none; }
@@ -195,26 +260,30 @@ tbody tr:hover { background-color: rgba(var(--color-border-rgb, 128,93,63), 0.1)
 
 /* Responsividade */
 @media (max-width: 992px) { 
-    .main-nav ul { justify-content: flex-start; } /* Alinha à esquerda em telas médias */
-    .main-nav li { margin-left: 5px; margin-right: 5px; }
+    .main-nav ul { justify-content: flex-start; } 
+    .main-nav li { margin-left: 3px; margin-right: 3px; }
+    .main-nav a { padding: 7px 10px; font-size: 0.9em; }
     .war-header { flex-direction: column; text-align: center;}
-    .war-header-badge { margin-bottom: 5px;}
+    .war-header-badge { margin-bottom: 8px;}
+    .card h2 { font-size: 1.4em; }
+    .card h3 { font-size: 1.2em; }
 }
 @media (max-width: 768px) {
-    .site-header h1 { font-size: 1.5em; }
+    .site-header h1 { font-size: 1.3em; }
     .header-content { flex-direction: column; text-align: center; }
     .main-nav { width: 100%; margin-top: 10px; }
     .main-nav ul { flex-direction: column; }
-    .main-nav li { margin-left: 0; margin-bottom: 6px; text-align: center; }
-    .card h2 { font-size: 1.4em; } .card h3 { font-size: 1.2em; }
+    .main-nav li { margin-left: 0; margin-bottom: 6px; text-align: center; width: 100%; }
+    .main-nav a { display: block; }
     .grid-container { grid-template-columns: 1fr; }
     .war-score-container { flex-direction: column; }
-    .vs-separator { margin: 8px 0; font-size: 2em; }
+    .vs-separator { margin: 10px 0; font-size: 2em; }
     .team-score p { font-size: 1.5em; }
     .member-filters { flex-direction: column; }
     .member-filters input[type="text"] { min-width: unset; width: 100%; box-sizing: border-box; }
-    .war-tabs { flex-direction: column; }
-    .war-tab-button { margin-right: 0; margin-bottom: 2px; border-radius: 5px; }
-    .war-tab-button.active { margin-bottom: 2px; border-bottom: 1px solid var(--color-tab-border);}
-
+    .war-tabs { flex-direction: column; align-items: stretch; }
+    .war-tab-button { margin-right: 0; margin-bottom: 3px; border-radius: 4px; text-align: center; }
+    table, #membersTable { font-size: 0.8em; } /* Reduzir um pouco para caber mais em telas pequenas */
+    th, td {padding: 6px 8px;}
+    .member-observation-text, .member-observation-priority { font-size: 0.8em; }
 }
