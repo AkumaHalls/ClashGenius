@@ -6,9 +6,9 @@
     <title>Painel Avançado - Clash Genius</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
-</head>
+    </head>
 <body>
     <header class="site-header">
         <div class="container header-content">
@@ -37,17 +37,17 @@
             </h2>
             <div class="grid-container">
                 <p><strong>Nível:</strong> <span id="clanLevel">-</span></p>
-                <p><strong>Pontos:</strong> <span id="clanPoints">-</span> 🏆</p>
+                <p><strong>Pontos:</strong> <span id="clanPoints">-</span> <span class="icon-trophy">🏆</span></p>
                 <p><strong>Membros:</strong> <span id="clanMemberCount">-</span>/50</p>
-                <p><strong>Guerras Vencidas:</strong> <span id="clanWarWins">-</span> ⚔️</p>
+                <p><strong>Guerras Vencidas:</strong> <span id="clanWarWins">-</span> <span class="icon-sword">⚔️</span></p>
                 <p><strong>Localização:</strong> <span id="clanLocation">-</span></p>
                 <p><strong>Tipo:</strong> <span id="clanType">-</span></p>
-                <p><strong>Capital Pontos:</strong> <span id="clanCapitalPoints">-</span> 🏆</p>
+                <p><strong>Capital Pontos:</strong> <span id="clanCapitalPoints">-</span> <span class="icon-trophy">🏆</span></p>
                 <p><strong>Liga da Capital:</strong> <span id="clanCapitalLeague">-</span></p>
             </div>
             <p><strong>Descrição:</strong></p>
             <div id="clanDescription" class="description-box scrollable-box">-</div>
-            
+
             <h3>Distritos da Capital</h3>
             <div id="clanCapitalDistricts" class="grid-container capital-districts-grid">
                 <p>Carregando distritos...</p>
@@ -57,7 +57,7 @@
         <section id="war-details-nav" class="card war-details-card content-section" style="display:none;">
             <div class="war-header">
                 <img id="warDetailClanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="war-header-badge">
-                <h2 id="warDetailTitle">Guerra de Clãs: <span id="warDetailOurClanName">-</span> vs <span id="warDetailOpponentName">-</span></h2>
+                <h2 id="warDetailTitle"><span id="warDetailOurClanName">-</span> vs <span id="warDetailOpponentName">-</span></h2>
                 <img id="warDetailOpponentBadge" src="/static/images/default_badge.png" alt="Emblema Oponente" class="war-header-badge">
             </div>
             <p class="war-timing-overall"><strong id="warDetailTimeKey">Tempo:</strong> <span id="warDetailTimeValue">-</span> (<span id="warDetailTimeRemaining" class="time-remaining">-</span>)</p>
@@ -178,7 +178,7 @@
             </div>
             <p id="noWarLogMessage" class="message-box" style="display: none;">Histórico de guerras indisponível.</p>
         </section>
-        
+
         <section id="members-list-nav" class="card members-card content-section" style="display:none;">
             <h2>Membros do Clã <span id="membersClanName">-</span></h2>
             <div class="member-filters">
@@ -200,9 +200,7 @@
                             <th>Cargo</th>
                             <th>Doações</th>
                             <th>Recebidas</th>
-                            <th>Observação</th>
-                            <th>Prioridade & Ações</th>
-                        </tr>
+                            <th>Observação</th> </tr>
                     </thead>
                     <tbody id="membersTableBody"></tbody>
                 </table>
@@ -216,7 +214,7 @@
             <p>Painel de monitoramento do Clã</p>
         </div>
     </footer>
-    <div id="toast-notification" class="toast"></div>
+
     <script src="/static/js/scripts.js"></script>
 </body>
 </html>
