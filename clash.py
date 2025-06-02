@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.11 - Correções Finais NameError, AttributeError get_league_war
+# Versão 19.8.12 - Correção final para AttributeError ao buscar guerras de CWL por tag e NameError
 
 import os
 import logging
@@ -114,7 +114,7 @@ except pytz.UnknownTimeZoneError:
     logger.error("Timezone 'America/Sao_Paulo' desconhecida. Usando UTC como padrão.")
     TIMEZONE = pytz.utc
 
-BOT_VERSION = "19.8.11" # Incrementar versão para esta correção
+BOT_VERSION = "19.8.12"
 PLAYER_NOTES_FILE = "player_notes.json"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
@@ -282,10 +282,9 @@ async def get_current_or_last_war(clan_tag_param: str) -> Optional[ClanWar]:
         if LeagueGroup:
             league_group = await bot.coc_client.get_league_group(clan_tag_param)
             if league_group and getattr(league_group,'state',None) != "notInWar" and hasattr(league_group, 'rounds'):
-                if hasattr(league_group, 'current_wars') and league_group.current_wars: # current_wars é uma lista de WarTag
+                if hasattr(league_group, 'current_wars') and league_group.current_wars:
                     for war_tag_obj in reversed(league_group.current_wars):
                         try:
-                            # Para buscar uma guerra de CWL específica pela tag, usamos o método do cliente principal
                             lg_war = await bot.coc_client.get_league_war(war_tag_obj.tag)
                             if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param) and lg_war.state in ["inWar", "preparation"]:
                                 current_war = lg_war;
@@ -297,12 +296,11 @@ async def get_current_or_last_war(clan_tag_param: str) -> Optional[ClanWar]:
                         except Exception as e:
                             logger.error(f"Erro inesperado ao buscar guerra CWL {war_tag_obj.tag} em current_wars: {e}", exc_info=True)
                             continue
-                # Se não encontrou em current_wars, verifica todas as rodadas
                 for war_tags_in_round in reversed(league_group.rounds):
                     for war_tag_str in war_tags_in_round:
                         if war_tag_str == "#0": continue
                         try:
-                            lg_war = await bot.coc_client.get_league_war(war_tag_str) # CORRIGIDO
+                            lg_war = await bot.coc_client.get_league_war(war_tag_str)
                             if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param) and lg_war.state in ["inWar", "preparation"]:
                                 current_war = lg_war
                                 if lg_war.opponent.tag == clan_tag_param: current_war.clan, current_war.opponent = current_war.opponent, current_war.clan
@@ -313,14 +311,13 @@ async def get_current_or_last_war(clan_tag_param: str) -> Optional[ClanWar]:
                         except Exception as e:
                             logger.error(f"Erro inesperado ao buscar guerra CWL {war_tag_str} em rounds: {e}", exc_info=True)
                             continue
-                # Se nenhuma CWL ativa ou em preparação, pega a última CWL finalizada
                 if not current_war and league_group.rounds:
                     best_ended_cwl_war = None
                     for war_tags_in_round in reversed(league_group.rounds):
                         for war_tag_str in war_tags_in_round:
                             if war_tag_str == "#0": continue
                             try:
-                                lg_war = await bot.coc_client.get_league_war(war_tag_str) # CORRIGIDO
+                                lg_war = await bot.coc_client.get_league_war(war_tag_str)
                                 if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param) and lg_war.state == "warEnded":
                                     if not best_ended_cwl_war or \
                                        (hasattr(lg_war, 'end_time') and hasattr(best_ended_cwl_war, 'end_time') and \
@@ -537,17 +534,40 @@ async def fetch_war_attacks_remaining_for_web_api() -> Dict[str, Any]:
     war = await get_current_or_last_war(CLAN_TAG); clan_name_rem = "N/A"
     our_clan_obj_rem = None
     if war:
-        if war.clan.tag == CLAN_TAG: our_clan_obj_rem = war.clan; clan_name_rem = our_clan_obj_rem.name
-        elif war.opponent.tag == CLAN_TAG: our_clan_obj_rem = war.opponent; clan_name_rem = our_clan_obj_rem.name
-    if not war or war.state != "inWar": return {"message": "Não há guerra em andamento.", "members_pending": [], "clan_name": clan_name_rem}
-    if not our_clan_obj_rem: return {"message": "Erro ao identificar o clã na guerra.", "members_pending": [], "clan_name": "Erro"}
+        if war.clan and war.clan.tag == CLAN_TAG:
+            our_clan_obj_rem = war.clan
+            clan_name_rem = our_clan_obj_rem.name
+        elif war.opponent and war.opponent.tag == CLAN_TAG:
+            our_clan_obj_rem = war.opponent
+            clan_name_rem = our_clan_obj_rem.name
+        
+    if not war or war.state not in ["inWar", "preparation"] or not our_clan_obj_rem:
+        message_to_show = "Não há guerra em andamento ou em preparação."
+        if war and war.state not in ["inWar", "preparation"]:
+            message_to_show = f"A guerra está no estado '{str(war.state)}'. Ataques pendentes são mostrados para 'inWar' ou 'preparation'."
+        elif not our_clan_obj_rem and war:
+             message_to_show = "Erro ao identificar o clã na guerra para listar ataques pendentes."
+        return {"message": message_to_show, "members_pending": [], "clan_name": clan_name_rem}
+
     pending = []
     if hasattr(our_clan_obj_rem, 'members') and our_clan_obj_rem.members:
         for m in our_clan_obj_rem.members:
-            attacks_left = war.attacks_per_member - (len(m.attacks) if m.attacks else 0)
-            if attacks_left > 0: pending.append({"name": m.name, "tag": m.tag, "town_hall": m.town_hall, "attacks_left": attacks_left, "map_position": m.map_position})
+            attacks_left = war.attacks_per_member
+            if war.state == "inWar":
+                attacks_left = war.attacks_per_member - (len(m.attacks) if m.attacks else 0)
+            
+            if attacks_left > 0: 
+                pending.append({
+                    "name": m.name, "tag": m.tag, 
+                    "town_hall": m.town_hall, "attacks_left": attacks_left, 
+                    "map_position": m.map_position
+                })
     pending.sort(key=lambda x: x.get("map_position", 0))
-    return {"message": "Membros com ataques pendentes:", "members_pending": pending, "clan_name": clan_name_rem}
+    
+    message_header = "Membros com ataques pendentes:"
+    if war.state == "preparation":
+        message_header = "Ataques disponíveis (Fase de Preparação):"
+    return {"message": message_header, "members_pending": pending, "clan_name": clan_name_rem}
 
 async def fetch_war_log_for_web_api(limit: int = 10) -> Dict[str, Any]:
     if not CLAN_TAG: return {"error": "CLAN_TAG não configurado."}
@@ -615,7 +635,7 @@ async def fetch_cwl_info_for_web_api() -> Dict[str, Any]:
         
         season_str = "N/A" 
         if hasattr(lg, 'season') and lg.season:
-            season_str = lg.season # lg.season já é uma string
+            season_str = lg.season 
         
         return {
             "status":"InCwl", "state": str(lg.state), 
@@ -928,7 +948,7 @@ async def check_war_end_report_task():
                         except coc.NotFound: 
                             logger.debug(f"Guerra CWL específica {tag_val_cwl_task_inner} não encontrada na task.")
                             continue
-                        except AttributeError as e_attr: # Este erro não deve mais ocorrer com a correção acima
+                        except AttributeError as e_attr: 
                             logger.error(f"AttributeError ao processar guerra CWL {tag_val_cwl_task_inner} na task: {e_attr}", exc_info=True)
                         except Exception as e_inner_cwl: 
                             logger.error(f"Erro ao processar guerra CWL específica {tag_val_cwl_task_inner} na task: {e_inner_cwl}", exc_info=True)
@@ -973,7 +993,7 @@ async def war_attacks(interaction: discord.Interaction):
                 except Exception as e: logger.error(f"Erro ao enviar embed adicional de /guerra ataques: {e}"); break
         else: await interaction.followup.send(f"Erro ao formatar informações de ataques.", ephemeral=True)
     elif current_war_cmd:
-        await interaction.followup.send(f"O clã está em uma guerra, mas o estado atual é '{current_war_cmd.state}'. Ataques restantes são mostrados apenas para guerras 'inWar'.")
+        await interaction.followup.send(f"O clã está em uma guerra, mas o estado atual é '{str(current_war_cmd.state)}'. Ataques restantes são mostrados apenas para guerras 'inWar'.")
     else: await interaction.followup.send("O clã não está em nenhuma guerra ativa (Normal ou Liga) no momento.")
 
 @war_group.command(name="status", description="Exibe o status da guerra atual (Normal ou Liga)")
@@ -988,7 +1008,6 @@ async def war_status(interaction: discord.Interaction):
         elif hasattr(war_to_display, 'type') and war_to_display.type == "friendly": war_type_name_status = "Amistosa"
         else: war_type_name_status = "Guerra Normal"
         
-        # Garante que clan_disp e opp_disp não sejam None antes de acessar atributos
         clan_name_disp = clan_disp.name if clan_disp else "N/A"
         opp_name_disp = opp_disp.name if opp_disp else "N/A"
         
@@ -1009,7 +1028,7 @@ async def war_status(interaction: discord.Interaction):
             embed_status_final.color = discord.Color.blue()
         elif state_disp == "warEnded":
             result_disp = "Empate 🤝"; color_res = discord.Color.greyple()
-            if clan_disp and opp_disp: # Só calcula resultado se ambos os clãs existem
+            if clan_disp and opp_disp:
                 if clan_disp.stars > opp_disp.stars or (clan_disp.stars == opp_disp.stars and clan_disp.destruction > opp_disp.destruction): result_disp = "Vitória ✅"; color_res = discord.Color.green()
                 elif opp_disp.stars > clan_disp.stars or (clan_disp.stars == opp_disp.stars and opp_disp.destruction > clan_disp.destruction): result_disp = "Derrota ❌"; color_res = discord.Color.red()
             embed_status_final.description = f"**Estado:** Guerra Finalizada\n**Resultado:** {result_disp}\n**{time_details_status['time_key']}:** {time_details_status['time_value']}"
