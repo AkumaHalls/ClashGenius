@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.6 - Correção para AttributeError: 'ClanWarLeagueGroup' object has no attribute 'get_league_war'
+# Versão 19.8.7 - Correção para AttributeError get_war e strftime em season
 
 import os
 import logging
@@ -11,11 +11,10 @@ from typing import Dict, List, Optional, Union, Set, Any
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-import coc # Importação principal da biblioteca
+import coc
 import pytz
 from dotenv import load_dotenv
 
-# Configuração do logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -26,7 +25,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("coc_discord_bot")
 
-# ---- IMPORTAÇÕES ESPECÍFICAS DO COC ----
 from coc import (
     ClanWar,
     Player,
@@ -116,7 +114,7 @@ except pytz.UnknownTimeZoneError:
     logger.error("Timezone 'America/Sao_Paulo' desconhecida. Usando UTC como padrão.")
     TIMEZONE = pytz.utc
 
-BOT_VERSION = "19.8.6"
+BOT_VERSION = "19.8.7"
 PLAYER_NOTES_FILE = "player_notes.json"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
@@ -287,8 +285,7 @@ async def get_current_or_last_war(clan_tag_param: str) -> Optional[ClanWar]:
                 if hasattr(league_group, 'current_wars') and league_group.current_wars:
                     for war_tag_obj in reversed(league_group.current_wars):
                         try:
-                            # CORREÇÃO: Usar bot.coc_client.get_war()
-                            lg_war = await bot.coc_client.get_war(war_tag_obj.tag)
+                            lg_war = await bot.coc_client.get_league_war(war_tag_obj.tag) # CORRIGIDO
                             if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param) and lg_war.state in ["inWar", "preparation"]:
                                 current_war = lg_war;
                                 if lg_war.opponent.tag == clan_tag_param: current_war.clan, current_war.opponent = current_war.opponent, current_war.clan
@@ -300,8 +297,7 @@ async def get_current_or_last_war(clan_tag_param: str) -> Optional[ClanWar]:
                     for war_tag_str in war_tags_in_round:
                         if war_tag_str == "#0": continue
                         try:
-                            # CORREÇÃO: Usar bot.coc_client.get_war()
-                            lg_war = await bot.coc_client.get_war(war_tag_str)
+                            lg_war = await bot.coc_client.get_league_war(war_tag_str) # CORRIGIDO
                             if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param) and lg_war.state in ["inWar", "preparation"]:
                                 current_war = lg_war
                                 if lg_war.opponent.tag == clan_tag_param: current_war.clan, current_war.opponent = current_war.opponent, current_war.clan
@@ -315,8 +311,7 @@ async def get_current_or_last_war(clan_tag_param: str) -> Optional[ClanWar]:
                         for war_tag_str in war_tags_in_round:
                             if war_tag_str == "#0": continue
                             try:
-                                # CORREÇÃO: Usar bot.coc_client.get_war()
-                                lg_war = await bot.coc_client.get_war(war_tag_str)
+                                lg_war = await bot.coc_client.get_league_war(war_tag_str) # CORRIGIDO
                                 if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param) and lg_war.state == "warEnded":
                                     if not best_ended_cwl_war or \
                                        (hasattr(lg_war, 'end_time') and hasattr(best_ended_cwl_war, 'end_time') and \
@@ -576,8 +571,7 @@ async def fetch_cwl_info_for_web_api() -> Dict[str, Any]:
                     for war_tag_val in round_tags:
                         if war_tag_val == "#0": r_info["wars"].append({"message":"Rodada de descanso (Bye)."}); continue
                         try:
-                            # CORREÇÃO: Usar bot.coc_client.get_war()
-                            war = await bot.coc_client.get_war(war_tag_val)
+                            war = await bot.coc_client.get_league_war(war_tag_val) # CORRIGIDO
                             our_display_clan, opp_display_clan = (war.clan, war.opponent)
                             if war.clan.tag != CLAN_TAG and war.opponent.tag == CLAN_TAG:
                                 our_display_clan, opp_display_clan = opp_display_clan, our_display_clan
@@ -595,7 +589,20 @@ async def fetch_cwl_info_for_web_api() -> Dict[str, Any]:
         clans_data = []
         if hasattr(lg, 'clans') and lg.clans:
             clans_data = [{"name":c.name, "tag":c.tag, "level":c.level, "badge_url":c.badge.url if hasattr(c.badge, 'url') else None} for c in lg.clans]
-        return {"status":"InCwl", "state":lg.state, "season":lg.season.strftime('%Y-%m') if hasattr(lg,'season') and lg.season else "N/A", "clans_in_group":clans_data, "rounds":rounds_data}
+        
+        # CORREÇÃO para AttributeError: 'str' object has no attribute 'strftime'
+        season_str = lg.season
+        if hasattr(lg, 'season') and isinstance(lg.season, datetime.datetime): # Se for datetime, formata
+             season_str = lg.season.strftime('%Y-%m')
+        elif not hasattr(lg, 'season') or not lg.season: # Se não tiver season ou for vazia
+            season_str = "N/A"
+        # Se já for string, usa diretamente (season_str já é lg.season)
+
+        return {
+            "status":"InCwl", "state":lg.state, 
+            "season": season_str, 
+            "clans_in_group":clans_data, "rounds":rounds_data
+        }
     except coc.NotFound: return {"status": "NotInCwl", "message": "Grupo CWL não encontrado para o clã."}
     except Exception as e: logger.error(f"Erro ao buscar informações da CWL para API web: {e}", exc_info=True); return {"error":str(e), "status": "Error"}
 
@@ -881,8 +888,8 @@ async def check_war_end_report_task():
                     for tag_val_cwl_task_inner in rd_tags_task:
                         if tag_val_cwl_task_inner == "#0": continue
                         try: 
-                            # CORREÇÃO: Usar bot.coc_client.get_war() em vez de lg_task.get_league_war()
-                            cwl_war_task = await bot.coc_client.get_war(tag_val_cwl_task_inner)
+                            # CORREÇÃO: Usar bot.coc_client.get_league_war() para guerras de CWL
+                            cwl_war_task = await bot.coc_client.get_league_war(tag_val_cwl_task_inner)
                             if cwl_war_task and \
                                (cwl_war_task.clan.tag == CLAN_TAG or cwl_war_task.opponent.tag == CLAN_TAG) and \
                                hasattr(cwl_war_task, 'end_time'):
@@ -890,7 +897,7 @@ async def check_war_end_report_task():
                         except coc.NotFound: 
                             logger.debug(f"Guerra CWL específica {tag_val_cwl_task_inner} não encontrada na task.")
                             continue
-                        except AttributeError as e_attr: # Captura o AttributeError específico
+                        except AttributeError as e_attr: 
                             logger.error(f"AttributeError ao processar guerra CWL {tag_val_cwl_task_inner} na task: {e_attr}", exc_info=True)
                         except Exception as e_inner_cwl: 
                             logger.error(f"Erro ao processar guerra CWL específica {tag_val_cwl_task_inner} na task: {e_inner_cwl}", exc_info=True)
