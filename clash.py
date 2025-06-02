@@ -938,7 +938,7 @@ async def check_war_end_report_task():
                     for tag_val_cwl_task_inner in rd_tags_task:
                         if tag_val_cwl_task_inner == "#0": continue
                         try: 
-                            cwl_war_task = await bot.coc_client.get_league_war(tag_val_cwl_task_inner)
+                            cwl_war_task = await bot.coc_client.get_league_war(tag_val_cwl_task_inner) # CORRIGIDO
                             if cwl_war_task and \
                                (cwl_war_task.clan.tag == CLAN_TAG or cwl_war_task.opponent.tag == CLAN_TAG) and \
                                hasattr(cwl_war_task, 'end_time'):
