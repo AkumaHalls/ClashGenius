@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.12 - Correção final para AttributeError ao buscar guerras de CWL por tag e NameError
+# Versão 19.8.13 - Mostra Ataques Pendentes também na fase de Preparação
 
 import os
 import logging
@@ -114,7 +114,7 @@ except pytz.UnknownTimeZoneError:
     logger.error("Timezone 'America/Sao_Paulo' desconhecida. Usando UTC como padrão.")
     TIMEZONE = pytz.utc
 
-BOT_VERSION = "19.8.12"
+BOT_VERSION = "19.8.13"
 PLAYER_NOTES_FILE = "player_notes.json"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
@@ -608,7 +608,6 @@ async def fetch_cwl_info_for_web_api() -> Dict[str, Any]:
                     for war_tag_val in round_tags:
                         if war_tag_val == "#0": r_info["wars"].append({"message":"Rodada de descanso (Bye)."}); continue
                         try:
-                            # CORREÇÃO: Usar bot.coc_client.get_league_war(war_tag)
                             war = await bot.coc_client.get_league_war(war_tag_val) 
                             our_display_clan, opp_display_clan = (war.clan, war.opponent)
                             if war.clan.tag != CLAN_TAG and war.opponent.tag == CLAN_TAG:
@@ -939,7 +938,6 @@ async def check_war_end_report_task():
                     for tag_val_cwl_task_inner in rd_tags_task:
                         if tag_val_cwl_task_inner == "#0": continue
                         try: 
-                            # CORREÇÃO: Usar bot.coc_client.get_league_war()
                             cwl_war_task = await bot.coc_client.get_league_war(tag_val_cwl_task_inner)
                             if cwl_war_task and \
                                (cwl_war_task.clan.tag == CLAN_TAG or cwl_war_task.opponent.tag == CLAN_TAG) and \
