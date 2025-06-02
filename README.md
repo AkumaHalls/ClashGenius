@@ -1,126 +1,132 @@
-# 🎉 ClashGenius - Seu Gênio Assistente e Painel de Guerra para Clash of Clans! (v18.0 Web-Enhanced) 🎉
+# ⚡️💥 ClashGenius v19.8.13 — O Gênio das Guerras chegou! 💥⚡️
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python Badge"/>
-  <img src="https://img.shields.io/badge/discord.py-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord.py Badge"/>
-  <img src="https://img.shields.io/badge/coc.py-FFD700?style=for-the-badge" alt="coc.py Badge"/>
-  <img src="https://img.shields.io/badge/aiohttp-00AFF0?style=for-the-badge&logo=aiohttp&logoColor=white" alt="aiohttp Badge"/>
-</p>
+![Versão](https://img.shields.io/badge/versão-19.8.13-blueviolet?style=flat-square)
+![Status](https://img.shields.io/badge/Projeto-Em%20Desenvolvimento-yellow?style=flat-square)
+![Linguagem](https://img.shields.io/badge/python-3.8+-blue?logo=python&style=flat-square)
+![Licença](https://img.shields.io/github/license/AkumaHalls/ClashGenius?style=flat-square)
+![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-informational?style=flat-square&logo=render)
+![Contribuições](https://img.shields.io/badge/contribuições-bem%20vindas-brightgreen?style=flat-square)
 
-<p align="center">
-  <strong>Domine o campo de batalha com informações em tempo real, diretamente no Discord e agora em um painel web interativo!</strong>
-</p>
-
-E aí, Chefe! 🏰
-Com o **ClashGenius v18.0**, você não apenas leva seu clã para o **próximo nível** com um bot inteligente que monitora tudo **em tempo real**, mas também visualiza todos os dados cruciais em um **PAINEL WEB** com temática de guerra, servido diretamente pelo bot! 🔥
+> 🎉 OPA, CHEFE! Preparado para dominar os campos de batalha do Clash of Clans como nunca antes?!  
+> O **ClashGenius** é seu bot + painel de guerra definitivo, com monitoramento em tempo real, alertas automáticos e um **painel web interativo** que parece ter saído direto de um livro de guerra épico! 🏰🔥
 
 ---
 
-## 🌟 NOVIDADE NA v18.0: Painel Web de Monitoramento! 🌟
+## 🌟 DESTAQUES DO PAINEL WEB
 
-Agora, além dos alertas no Discord, o ClashGenius oferece um **painel web interativo** para você e seu clã acompanharem:
+🎯 **Interatividade Total** para você e seu clã:
 
-* 📊 **Visão Geral do Clã:** Nome, tag, nível, descrição, membros, pontos, e mais.
-* ⚔️ **Status da Guerra Detalhado:** Informações completas sobre a guerra atual (Normal ou CWL), placar, tempo restante, e informações dos oponentes.
-* 🛡️ **Lista de Membros Completa:** Com CV, liga, troféus, doações, e cargos.
-* 🎨 **Temática Imersiva:** Um visual inspirado no universo Clash of Clans e em temas de guerra para uma experiência mais rica!
-* 🌐 **Acesso Fácil:** Basta acessar `https://SEU_DOMINIO.onrender.com/painel` no seu navegador.
-* ⚙️ **Zero Dependências Extras:** O painel é servido diretamente pelo bot Python, sem necessidade de bancos de dados ou serviços adicionais.
-
-<p align="center">
-  <em>(Sugestão: Adicione aqui um screenshot ou GIF do seu painel em ação!)</em>
-  <br>
-  </p>
+- 📊 **Visão Geral do Clã**: nome, tag, nível, descrição, membros, pontos, capital.
+- ⚔️ **Status da Guerra Detalhado**: Normal ou CWL, com placar, tempo, estado e ataques.
+- 🎯 **Ataques Pendentes**: veja quem ainda não atacou (fase de preparação e batalha).
+- 🛡️ **Lista Completa de Membros**: CV, liga, troféus, cargos e OBS personalizadas com cores (🟢 OK, 🟡 Atenção, 🔴 Crítico).
+- 🏆 **Informações da CWL**: dados completos de todas as guerras e participantes.
+- 📜 **Histórico de Guerras**: registro completo das guerras anteriores.
+- 🎨 **Visual Temático** Clash of Clans e warreport.app.
+- 🌐 **Acesso Rápido**: [https://SEU_DOMINIO.onrender.com/painel](https://SEU_DOMINIO.onrender.com/painel)
+- ⚙️ **Servidor Web embutido** com `aiohttp`.
 
 ---
 
-## 🔍 O que há de novo no v18.0?
+## 🔄 CHANGELOG
 
-* 🚀 **NOVO: Painel Web Interativo** para monitoramento visual dos dados do clã, guerra e membros!
-* 🎨 **Interface do Painel Web com Temática de Guerra/Clash of Clans** para uma experiência imersiva.
-* ✅ Sistema event-driven completo com cache e tratamento de erros.
-* ✅ Relatórios automáticos de ataques perdidos (Guerra e CWL).
-* ✅ Alertas com menções para ataques de 1 estrela e membros que não atacaram.
-* ✅ Logs coloridos e profissionais, com datas localizadas para o Brasil.
-* ✅ Sistema de comandos por grupos: `/admin`, `/guerra`, `/info`, `/buscar`, `/rank`.
-* ✅ Exibição separada para Guerras Normais e Ligas (CWL).
-* ✅ Sistema modular de funções e handlers com divisão por responsabilidades.
-* ✅ Mensagens de erro amigáveis e embutidas para cada tipo de falha.
+### v19.8.13 (01/06/2025)
+- ✅ Correção: ataques durante "preparation" agora exibem corretamente.
 
----
+### v19.8.12
+- ✅ Correções de NameError e AttributeError relacionados à CWL e datas.
+- ✅ Ajuste para `str(war.state).capitalize()`.
 
-## 🧠 O que o ClashGenius faz?
+### v19.8.5 - v19.8.11
+- 🐞 Depuração e ajustes para `coc.py==3.9.1`.
+- 🛠️ Robustez no carregamento de `player_notes.json`.
 
-### 👁️ Monitoramento por Eventos (Discord):
-* Entrada e saída de membros.
-* Doações e recebimentos.
-* Mudanças de cargo, troféus e liga.
-* Ataques e defesas em **guerras normais** e **ligas de clãs (CWL)**.
+### v19.8
+- ✨ NOVO: Observações por jogador com cor e persistência em JSON.
+- 🎨 NOVO: Tema web estilo warreport.app.
+- 🔧 NOVO: Rotas de API para observações personalizadas.
 
-### ⚔️ Relatórios Automáticos (Discord):
-* Quando uma guerra termina, o bot verifica e avisa quem **não usou todos os ataques**.
-* Se alguém ataca com apenas **1 estrela**, o bot envia um alerta mencionando um cargo específico (opcional).
-
-### 🖥️ Visualização de Dados (Painel Web):
-* **Dashboard do Clã:** Informações vitais do seu clã em um só lugar.
-* **Status da Guerra em Tempo Real:** Acompanhe o progresso da guerra atual.
-* **Detalhes dos Membros:** Veja a lista completa de membros e suas estatísticas.
-* **Navegação Intuitiva:** Menu para acessar rapidamente as seções de Clã, Guerra e Membros.
+### v18.0 (marco inicial)
+- 🚀 Painel Web Interativo.
+- ✅ Logs coloridos, sistema de alertas, modularização e comandos organizados.
 
 ---
 
-## 📦 Requisitos
+## 🧠 FUNCIONALIDADES INTELIGENTES
 
-* Python 3.8+
-* Conta Supercell ID para gerar API Keys
-* Token do Discord Bot
-* Canal no Discord para logs
-* Um ambiente de hospedagem (como a Render.com, que já suporta o servidor web `aiohttp` do bot)
+### 👁️ EVENTOS MONITORADOS
+- Entrada/saída de membros
+- Doações e cargos
+- Ataques, defesas, estrelas (guerra e CWL)
 
----
+### ⚔️ RELATÓRIOS AUTOMÁTICOS (via Discord)
+- Alerta de ataque perdido com menções
+- Alerta de ataque de 1 estrela com cargo específico
 
-## ⚙️ Como Instalar
-
-1.  **Clone ou baixe o repositório**:
-    ```bash
-    git clone [https://github.com/AkumaHalls/clashgenius.git](https://github.com/AkumaHalls/clashgenius.git) # Substitua pelo seu repositório se for um fork
-    cd clashgenius
-    ```
-
-2.  **Crie um ambiente virtual (recomendado)**:
-    ```bash
-    python -m venv venv
-    # Linux/macOS:
-    source venv/bin/activate
-    # Windows:
-    .\venv\Scripts\activate
-    ```
-
-3.  **Instale as dependências**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-    (Certifique-se de que `aiohttp` e outras dependências como `python-dotenv`, `discord.py`, `coc.py`, `pytz` estão no seu `requirements.txt`)
-
-4.  **Crie o arquivo `.env` com as configurações**:
-    ```env
-    DISCORD_TOKEN=seu_token_aqui
-    COC_EMAIL=seu_email_supercell
-    COC_PASSWORD=sua_senha_supercell
-    CLAN_TAG=#TAG_DO_CLA
-    CHANNEL_ID=ID_DO_CANAL_DE_LOGS_DISCORD
-    ROLE_ID_1STAR_ALERT=ID_DO_CARGO_ALERTA_1_ESTRELA (opcional)
-    ROLE_ID_MISSED_ATTACK=ID_DO_CARGO_ATAQUES_PERDIDOS (opcional)
-    TEST_GUILD_ID=ID_DO_SEU_SERVIDOR_DISCORD_PARA_TESTES_RAPIDOS (opcional)
-    # PORT=8080 (Opcional, a Render define automaticamente, mas pode ser útil para testes locais)
-    ```
-    **Importante:** A pasta `static` com os arquivos `painel.html`, `css/style.css` e `js/scripts.js` deve estar presente no mesmo diretório que o seu script Python principal.
+### 🖥️ DASHBOARD INTERATIVO
+- Acompanhe tudo em tempo real pelo navegador
+- Edição de observações de membros diretamente pelo painel
 
 ---
 
-## ▶️ Rodando o bot
+## 📦 REQUISITOS
 
-Com o ambiente ativado e `.env` configurado, rode:
+- Python 3.8+
+- Conta Supercell ID para API
+- Bot do Discord com token
+- Canal para logs no Discord
+- Ambiente como Render.com
+
+---
+
+## ⚙️ COMO INSTALAR
 
 ```bash
-python clash.py # Ou o nome do seu arquivo python principal
+# Clone o repositório
+git clone https://github.com/AkumaHalls/ClashGenius.git
+cd clashgenius
+
+# Crie um ambiente virtual
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+.env\Scriptsctivate    # Windows
+
+# Instale as dependências
+pip install -r requirements.txt
+```
+
+Crie o arquivo `.env` com:
+
+```env
+DISCORD_TOKEN=seu_token_aqui
+COC_EMAIL=seu_email_supercell
+COC_PASSWORD=sua_senha_supercell
+CLAN_TAG=#TAG_DO_CLA
+CHANNEL_ID=ID_CANAL_DISCORD
+ROLE_ID_1STAR_ALERT=ID_CARGO_1_ESTRELA
+ROLE_ID_MISSED_ATTACK=ID_CARGO_ATQ_PERDIDO
+TEST_GUILD_ID=ID_SERVIDOR_TESTE
+```
+
+A pasta `static/` com `painel.html`, `css/` e `js/` deve estar no mesmo diretório de `clash.py`.
+
+---
+
+## ▶️ RODANDO O BOT
+
+```bash
+python clash.py
+```
+
+---
+
+## 🤝 CONTRIBUIÇÕES
+
+Contribuições são muito bem-vindas!  
+Abra uma issue, envie um PR ou compartilhe ideias!
+
+---
+
+## 📜 LICENÇA
+
+Distribuído sob a licença MIT. Veja `LICENSE` para mais detalhes.
