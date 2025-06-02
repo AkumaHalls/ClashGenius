@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.13 - Mostra Ataques Pendentes também na fase de Preparação
+# Versão 19.8.14 - Prioriza guerra CWL 'inWar' sobre 'preparation' e outras correções
 
 import os
 import logging
@@ -114,7 +114,7 @@ except pytz.UnknownTimeZoneError:
     logger.error("Timezone 'America/Sao_Paulo' desconhecida. Usando UTC como padrão.")
     TIMEZONE = pytz.utc
 
-BOT_VERSION = "19.8.13"
+BOT_VERSION = "19.8.14"
 PLAYER_NOTES_FILE = "player_notes.json"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
@@ -277,80 +277,92 @@ def format_war_time_details(war_obj: ClanWar, time_now_tz: datetime.datetime) ->
     return details
 
 async def get_current_or_last_war(clan_tag_param: str) -> Optional[ClanWar]:
-    current_war: Optional[ClanWar] = None
+    current_war_in_war: Optional[ClanWar] = None
+    current_war_preparation: Optional[ClanWar] = None
+    best_ended_cwl_war: Optional[ClanWar] = None
+
     try:
         if LeagueGroup:
             league_group = await bot.coc_client.get_league_group(clan_tag_param)
-            if league_group and getattr(league_group,'state',None) != "notInWar" and hasattr(league_group, 'rounds'):
+            if league_group and getattr(league_group, 'state', None) != "notInWar" and hasattr(league_group, 'rounds'):
+                
+                # Itera sobre todas as war_tags nas rodadas para encontrar uma "inWar" ou "preparation"
+                # Damos prioridade para "inWar"
+                all_round_war_tags = [tag for round_tags in league_group.rounds for tag in round_tags if tag != "#0"]
+                
+                # Verifica current_wars primeiro (geralmente mais eficiente se a guerra atual estiver lá)
                 if hasattr(league_group, 'current_wars') and league_group.current_wars:
-                    for war_tag_obj in reversed(league_group.current_wars):
+                    for war_tag_obj in reversed(league_group.current_wars): # WarTag object
                         try:
                             lg_war = await bot.coc_client.get_league_war(war_tag_obj.tag)
-                            if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param) and lg_war.state in ["inWar", "preparation"]:
-                                current_war = lg_war;
-                                if lg_war.opponent.tag == clan_tag_param: current_war.clan, current_war.opponent = current_war.opponent, current_war.clan
-                                return current_war
+                            if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param):
+                                if lg_war.state == "inWar":
+                                    current_war_in_war = lg_war
+                                    if lg_war.opponent.tag == clan_tag_param: current_war_in_war.clan, current_war_in_war.opponent = current_war_in_war.opponent, current_war_in_war.clan
+                                    logger.info(f"CWL 'inWar' (from current_wars) encontrada: {current_war_in_war.clan.name} vs {current_war_in_war.opponent.name}")
+                                    return current_war_in_war
+                                elif lg_war.state == "preparation" and not current_war_preparation:
+                                    current_war_preparation = lg_war
+                                    if lg_war.opponent.tag == clan_tag_param: current_war_preparation.clan, current_war_preparation.opponent = current_war_preparation.opponent, current_war_preparation.clan
                         except (coc.NotFound, AttributeError) as e:
-                            logger.debug(f"Erro ao buscar guerra CWL específica {war_tag_obj.tag} em current_wars: {e}")
-                            continue
-                        except Exception as e:
-                            logger.error(f"Erro inesperado ao buscar guerra CWL {war_tag_obj.tag} em current_wars: {e}", exc_info=True)
-                            continue
-                for war_tags_in_round in reversed(league_group.rounds):
-                    for war_tag_str in war_tags_in_round:
-                        if war_tag_str == "#0": continue
+                            logger.debug(f"Erro ao buscar guerra CWL específica {war_tag_obj.tag} de current_wars: {e}")
+                        except Exception as e_inner:
+                            logger.error(f"Erro inesperado ao buscar guerra CWL {war_tag_obj.tag} de current_wars: {e_inner}", exc_info=True)
+                
+                # Se não encontrou "inWar" em current_wars, verifica todas as rodadas
+                if not current_war_in_war:
+                    for war_tag_str in reversed(all_round_war_tags): # Itera das mais recentes para mais antigas
                         try:
                             lg_war = await bot.coc_client.get_league_war(war_tag_str)
-                            if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param) and lg_war.state in ["inWar", "preparation"]:
-                                current_war = lg_war
-                                if lg_war.opponent.tag == clan_tag_param: current_war.clan, current_war.opponent = current_war.opponent, current_war.clan
-                                return current_war
-                        except (coc.NotFound, AttributeError) as e:
-                            logger.debug(f"Erro ao buscar guerra CWL específica {war_tag_str} em rounds: {e}")
-                            continue
-                        except Exception as e:
-                            logger.error(f"Erro inesperado ao buscar guerra CWL {war_tag_str} em rounds: {e}", exc_info=True)
-                            continue
-                if not current_war and league_group.rounds:
-                    best_ended_cwl_war = None
-                    for war_tags_in_round in reversed(league_group.rounds):
-                        for war_tag_str in war_tags_in_round:
-                            if war_tag_str == "#0": continue
-                            try:
-                                lg_war = await bot.coc_client.get_league_war(war_tag_str)
-                                if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param) and lg_war.state == "warEnded":
+                            if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param):
+                                if lg_war.state == "inWar":
+                                    current_war_in_war = lg_war
+                                    if lg_war.opponent.tag == clan_tag_param: current_war_in_war.clan, current_war_in_war.opponent = current_war_in_war.opponent, current_war_in_war.clan
+                                    logger.info(f"CWL 'inWar' (from rounds) encontrada: {current_war_in_war.clan.name} vs {current_war_in_war.opponent.name}")
+                                    return current_war_in_war # Retorna imediatamente
+                                elif lg_war.state == "preparation" and not current_war_preparation:
+                                    current_war_preparation = lg_war
+                                    if lg_war.opponent.tag == clan_tag_param: current_war_preparation.clan, current_war_preparation.opponent = current_war_preparation.opponent, current_war_preparation.clan
+                                elif lg_war.state == "warEnded":
                                     if not best_ended_cwl_war or \
                                        (hasattr(lg_war, 'end_time') and hasattr(best_ended_cwl_war, 'end_time') and \
                                         lg_war.end_time and best_ended_cwl_war.end_time and \
                                         lg_war.end_time.time > best_ended_cwl_war.end_time.time):
                                         best_ended_cwl_war = lg_war
-                            except (coc.NotFound, AttributeError) as e:
-                                logger.debug(f"Erro ao buscar guerra CWL finalizada {war_tag_str}: {e}")
-                                continue
-                            except Exception as e:
-                                logger.error(f"Erro inesperado ao buscar guerra CWL finalizada {war_tag_str}: {e}", exc_info=True)
-                                continue
-                    if best_ended_cwl_war:
-                        if best_ended_cwl_war.opponent.tag == clan_tag_param: best_ended_cwl_war.clan, best_ended_cwl_war.opponent = best_ended_cwl_war.opponent, best_ended_cwl_war.clan
-                        return best_ended_cwl_war
+                        except (coc.NotFound, AttributeError) as e:
+                            logger.debug(f"Erro ao buscar guerra CWL específica {war_tag_str} (get_current_or_last_war - rounds): {e}")
+                        except Exception as e_inner:
+                            logger.error(f"Erro inesperado ao buscar guerra CWL {war_tag_str} (get_current_or_last_war - rounds): {e_inner}", exc_info=True)
+
+                if current_war_preparation: # Se não achou "inWar", mas achou "preparation"
+                    logger.info(f"CWL 'preparation' encontrada: {current_war_preparation.clan.name} vs {current_war_preparation.opponent.name}")
+                    return current_war_preparation
+                
+                if best_ended_cwl_war: # Se só achou guerras finalizadas
+                    if best_ended_cwl_war.opponent.tag == clan_tag_param: best_ended_cwl_war.clan, best_ended_cwl_war.opponent = best_ended_cwl_war.opponent, best_ended_cwl_war.clan
+                    logger.info(f"Última CWL 'warEnded' encontrada: {best_ended_cwl_war.clan.name} vs {best_ended_cwl_war.opponent.name}")
+                    return best_ended_cwl_war
+
     except coc.NotFound:
-        logger.debug(f"Nenhum grupo CWL encontrado para o clã {clan_tag_param}.")
+        logger.debug(f"Nenhum grupo CWL encontrado para o clã {clan_tag_param} (get_current_or_last_war).")
     except AttributeError as e_attr_lg:
         logger.error(f"AttributeError em get_current_or_last_war ao acessar ClanWarLeagueGroup para {clan_tag_param}: {e_attr_lg}. Verifique a importação/versão da coc.py.")
     except Exception as e_cwl:
-        logger.error(f"Erro ao buscar dados da guerra CWL para {clan_tag_param}: {e_cwl}", exc_info=True)
+        logger.error(f"Erro ao buscar dados da guerra CWL (get_current_or_last_war): {e_cwl}", exc_info=True)
 
     try:
         regular_war = await bot.coc_client.get_current_war(clan_tag_param)
-        if regular_war and regular_war.state != "notInWar":
+        if regular_war and regular_war.state != "notInWar": # Pode ser preparation, inWar, ou warEnded
+            logger.info(f"Guerra Regular encontrada: Estado {regular_war.state}")
             return regular_war
     except coc.PrivateWarLog:
         logger.warning(f"Log de guerra regular do clã {clan_tag_param} é privado.")
     except coc.NotFound:
         logger.debug(f"Nenhuma guerra regular ativa ou em preparação encontrada para {clan_tag_param}.")
     except Exception as e_reg:
-        logger.error(f"Erro ao buscar dados da guerra regular para {clan_tag_param}: {e_reg}", exc_info=True)
+        logger.error(f"Erro ao buscar dados da guerra regular: {e_reg}", exc_info=True)
     
+    logger.info(f"Nenhuma guerra ativa (CWL ou Regular) encontrada para {clan_tag_param}.")
     return None
 
 web_api_cache: Dict[str, Dict[str, Any]] = {}
@@ -878,8 +890,7 @@ async def register_coc_events(coc_client: coc.EventsClient):
                 try:
                     log_ch = await bot.fetch_channel(CHANNEL_ID)
                     if log_ch and hasattr(log_ch, 'guild'):
-                        guild_obj_alert = log_ch.guild
-                        role_obj = guild_obj_alert.get_role(int(ROLE_ID_1STAR_ALERT))
+                        role_obj = log_ch.guild.get_role(int(ROLE_ID_1STAR_ALERT))
                         if role_obj: content_msg = f"{role_obj.mention} ⚠️ Ataque fora do padrão!"
                 except Exception as e_alert: logger.error(f"Erro alerta 1 estrela: {e_alert}")
             if our_war_clan_obj and hasattr(our_war_clan_obj, 'badge') and our_war_clan_obj.badge:
@@ -938,7 +949,8 @@ async def check_war_end_report_task():
                     for tag_val_cwl_task_inner in rd_tags_task:
                         if tag_val_cwl_task_inner == "#0": continue
                         try: 
-                            cwl_war_task = await bot.coc_client.get_league_war(tag_val_cwl_task_inner) # CORRIGIDO
+                            # CORREÇÃO: Usar bot.coc_client.get_league_war()
+                            cwl_war_task = await bot.coc_client.get_league_war(tag_val_cwl_task_inner)
                             if cwl_war_task and \
                                (cwl_war_task.clan.tag == CLAN_TAG or cwl_war_task.opponent.tag == CLAN_TAG) and \
                                hasattr(cwl_war_task, 'end_time'):
