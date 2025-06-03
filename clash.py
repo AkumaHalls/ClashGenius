@@ -905,6 +905,99 @@ async def register_coc_events(coc_client: coc.EventsClient):
             await send_log_embed(embed)
     logger.info("Manipuladores de eventos CoC registrados.")
 
+async def send_missed_attacks_report(war: ClanWar, missed_attacks_details: List[str], war_type: str):
+    """
+    Envia um relatório de ataques perdidos para o canal de log.
+    """
+    if not CHANNEL_ID or CHANNEL_ID == 0:
+        logger.warning("CHANNEL_ID não configurado para send_missed_attacks_report.")
+        return
+    
+    if not missed_attacks_details:
+        logger.info(f"Nenhum ataque perdido para relatar na {war_type} (War Tag: {war.tag if hasattr(war, 'tag') else 'N/A'}).")
+        return
+
+    our_clan_in_war: Optional[Clan] = None
+    opponent_clan_in_war: Optional[Clan] = None
+
+    # Identifica nosso clã e o oponente corretamente
+    if war.clan and hasattr(war.clan, 'tag') and war.clan.tag == CLAN_TAG:
+        our_clan_in_war = war.clan
+        opponent_clan_in_war = war.opponent
+    elif war.opponent and hasattr(war.opponent, 'tag') and war.opponent.tag == CLAN_TAG:
+        our_clan_in_war = war.opponent 
+        opponent_clan_in_war = war.clan
+    else:
+        logger.error(f"Não foi possível determinar nosso clã na guerra {war.tag if hasattr(war, 'tag') else 'N/A'} para relatório de ataques perdidos.")
+        return
+
+    our_clan_name_report = getattr(our_clan_in_war, 'name', "Nosso Clã")
+    opponent_clan_name_report = getattr(opponent_clan_in_war, 'name', "Oponente")
+    
+    our_stars = getattr(our_clan_in_war, 'stars', 0)
+    our_destruction = getattr(our_clan_in_war, 'destruction', 0.0)
+    opponent_stars = getattr(opponent_clan_in_war, 'stars', 0)
+    opponent_destruction = getattr(opponent_clan_in_war, 'destruction', 0.0)
+
+    embed = discord.Embed(
+        title=f"🚩 Relatório de Ataques Perdidos - {war_type}",
+        description=f"Guerra entre **{our_clan_name_report}** vs **{opponent_clan_name_report}** finalizada.",
+        color=discord.Color.orange() 
+    )
+
+    embed.add_field(
+        name="Placar Final",
+        value=f"**{our_clan_name_report}**: {our_stars}⭐ ({our_destruction:.2f}%)\n"
+              f"**{opponent_clan_name_report}**: {opponent_stars}⭐ ({opponent_destruction:.2f}%)",
+        inline=False
+    )
+
+    details_text = "\n".join(missed_attacks_details)
+    if len(details_text) > 1024: # Limite de caracteres para valor de campo
+        logger.warning(f"Lista de ataques perdidos para {war_type} ({war.tag if hasattr(war, 'tag') else 'N/A'}) é muito longa ({len(details_text)} caracteres) e será truncada.")
+        details_text = details_text[:1020] + "..." # Trunca para caber
+    
+    embed.add_field(
+        name="Detalhes dos Ataques Perdidos",
+        value=details_text if details_text else "Nenhum detalhe de ataque perdido.",
+        inline=False
+    )
+
+    content_msg_report = None
+    if ROLE_ID_MISSED_ATTACK:
+        try:
+            # Tenta obter o canal do cache primeiro, depois busca se não encontrado
+            log_channel_obj = bot.get_channel(CHANNEL_ID)
+            if not log_channel_obj:
+                 log_channel_obj = await bot.fetch_channel(CHANNEL_ID)
+
+            if log_channel_obj and isinstance(log_channel_obj, discord.TextChannel) and hasattr(log_channel_obj, 'guild'):
+                guild_to_check = log_channel_obj.guild
+                role_to_mention = guild_to_check.get_role(int(ROLE_ID_MISSED_ATTACK))
+                if role_to_mention:
+                    content_msg_report = f"{role_to_mention.mention} Atenção aos ataques perdidos!"
+                else:
+                    logger.warning(f"Cargo com ID {ROLE_ID_MISSED_ATTACK} não encontrado no servidor do canal de log.")
+            elif not log_channel_obj:
+                logger.error(f"Canal de log ID {CHANNEL_ID} não encontrado para menção de cargo.")
+            else:
+                logger.warning(f"Canal de log ID {CHANNEL_ID} não é um canal de texto de servidor, não é possível buscar cargo.")
+        except ValueError:
+            logger.error(f"ROLE_ID_MISSED_ATTACK ('{ROLE_ID_MISSED_ATTACK}') não é um ID numérico válido.")
+        except discord.NotFound:
+            logger.error(f"Canal de log ID {CHANNEL_ID} (para menção de cargo) não encontrado.")
+        except discord.Forbidden:
+            logger.error(f"Sem permissão para buscar o canal de log ID {CHANNEL_ID} ou cargo.")
+        except Exception as e_role_fetch:
+            logger.error(f"Erro ao buscar cargo para relatório de ataques perdidos: {e_role_fetch}", exc_info=True)
+    
+    if our_clan_in_war and hasattr(our_clan_in_war, 'badge') and our_clan_in_war.badge and hasattr(our_clan_in_war.badge, 'url'):
+        embed.set_thumbnail(url=our_clan_in_war.badge.url)
+    
+    # A função send_log_embed já adiciona rodapé e timestamp se não existirem.
+    await send_log_embed(embed, content=content_msg_report)
+
+
 @tasks.loop(minutes=10)
 async def check_war_end_report_task():
     if not bot.coc_client or not bot.coc_client.http: logger.debug("check_war_end_report_task: CoC Client não pronto."); return
@@ -913,25 +1006,39 @@ async def check_war_end_report_task():
 
     async def process_war_for_report(war: ClanWar, war_type: str):
         war_id = war.tag if hasattr(war, 'tag') and war.tag and war.tag != "#0" else \
-                 f"REG-{war.opponent.tag if war.opponent else 'NA'}-{war.end_time.raw_time if war.end_time else 'NA'}"
-        if not war_id or war_id in processed_ids_cycle: return
+                 f"REG-{war.opponent.tag if war.opponent and hasattr(war.opponent, 'tag') else 'NA'}-{war.end_time.raw_time if war.end_time and hasattr(war.end_time, 'raw_time') else 'NA'}"
+        if not war_id or war_id in processed_ids_cycle: return # Evita processar NA-NA se tags/tempos não estiverem disponíveis
+        
+        if war_id == "REG-NA-NA" and war_type == "Guerra Normal": # Heurística para evitar processar guerras inválidas
+            logger.debug(f"check_war_end_report_task: ID de guerra inválido (REG-NA-NA) para {war_type}, pulando.")
+            return
+
         if war.state == "warEnded" and war_id not in reported_war_ends:
             our_clan_obj_task = None
-            if war.clan and war.clan.tag == CLAN_TAG: our_clan_obj_task = war.clan
-            elif war.opponent and war.opponent.tag == CLAN_TAG: our_clan_obj_task = war.opponent
+            # Corrigido para verificar se war.clan e war.opponent existem antes de acessar .tag
+            if war.clan and hasattr(war.clan, 'tag') and war.clan.tag == CLAN_TAG: 
+                our_clan_obj_task = war.clan
+            elif war.opponent and hasattr(war.opponent, 'tag') and war.opponent.tag == CLAN_TAG: 
+                our_clan_obj_task = war.opponent # Nosso clã é o 'opponent' neste objeto war
+            
             if not our_clan_obj_task: 
-                logger.error(f"check_war_end_report_task: Nosso clã não encontrado na guerra {war_id}.")
-                processed_ids_cycle.add(war_id); return
+                logger.error(f"check_war_end_report_task: Nosso clã não encontrado na guerra {war_id} (Estado: {war.state}). Clã: {war.clan.tag if war.clan else 'N/A'}, Oponente: {war.opponent.tag if war.opponent else 'N/A'}")
+                processed_ids_cycle.add(war_id); return # Adiciona ao ciclo para não tentar novamente
+            
             missed_attacks_details = []
             if hasattr(our_clan_obj_task, 'members') and our_clan_obj_task.members:
                 for m in our_clan_obj_task.members:
                     attacks_made = len(m.attacks) if m.attacks else 0
                     attacks_left = war.attacks_per_member - attacks_made
                     if attacks_left > 0: missed_attacks_details.append(f"**{m.name}** (CV{m.town_hall}): {attacks_left} ataque{'s' if attacks_left > 1 else ''} perdido{'s' if attacks_left > 1 else ''}")
+            
+            # Só envia relatório se houver ataques perdidos
             if missed_attacks_details:
                 await send_missed_attacks_report(war, missed_attacks_details, war_type)
                 logger.info(f"Relatório de ataques perdidos enviado para {war_type} ID: {war_id}")
-            else: logger.info(f"check_war_end_report_task: Nenhum ataque perdido em {war_type} (ID: {war_id}).")
+            else: 
+                logger.info(f"check_war_end_report_task: Nenhum ataque perdido em {war_type} (ID: {war_id}).")
+            
             reported_war_ends.add(war_id)
         processed_ids_cycle.add(war_id)
 
@@ -949,10 +1056,10 @@ async def check_war_end_report_task():
                     for tag_val_cwl_task_inner in rd_tags_task:
                         if tag_val_cwl_task_inner == "#0": continue
                         try: 
-                            # CORREÇÃO: Usar bot.coc_client.get_league_war()
                             cwl_war_task = await bot.coc_client.get_league_war(tag_val_cwl_task_inner)
                             if cwl_war_task and \
-                               (cwl_war_task.clan.tag == CLAN_TAG or cwl_war_task.opponent.tag == CLAN_TAG) and \
+                               ((cwl_war_task.clan and cwl_war_task.clan.tag == CLAN_TAG) or \
+                                (cwl_war_task.opponent and cwl_war_task.opponent.tag == CLAN_TAG)) and \
                                hasattr(cwl_war_task, 'end_time'):
                                 await process_war_for_report(cwl_war_task, f"Liga (Rodada {i+1})")
                         except coc.NotFound: 
@@ -993,15 +1100,20 @@ async def war_attacks(interaction: discord.Interaction):
     await interaction.response.defer()
     current_war_cmd: Optional[ClanWar] = await get_current_or_last_war(CLAN_TAG)
     if current_war_cmd and isinstance(current_war_cmd, coc.ClanWar) and current_war_cmd.state == "inWar":
-        embeds_list_cmd = await format_attacks_remaining_embed(current_war_cmd)
-        if embeds_list_cmd:
-            first_embed_cmd = embeds_list_cmd.pop(0); await interaction.followup.send(embed=first_embed_cmd)
-            for embed_item_cmd in embeds_list_cmd:
-                try:
-                    if interaction.channel and isinstance(interaction.channel, discord.abc.Messageable): await interaction.channel.send(embed=embed_item_cmd)
-                    else: logger.warning("interaction.channel não acessível para embeds adicionais de /guerra ataques."); break
-                except Exception as e: logger.error(f"Erro ao enviar embed adicional de /guerra ataques: {e}"); break
-        else: await interaction.followup.send(f"Erro ao formatar informações de ataques.", ephemeral=True)
+        # A função format_attacks_remaining_embed não está definida neste arquivo.
+        # Se este comando for usado, causará um NameError.
+        # Por enquanto, vamos comentar a chamada para evitar um erro imediato
+        # e focar na correção do erro original do traceback.
+        # embeds_list_cmd = await format_attacks_remaining_embed(current_war_cmd)
+        # if embeds_list_cmd:
+        #     first_embed_cmd = embeds_list_cmd.pop(0); await interaction.followup.send(embed=first_embed_cmd)
+        #     for embed_item_cmd in embeds_list_cmd:
+        #         try:
+        #             if interaction.channel and isinstance(interaction.channel, discord.abc.Messageable): await interaction.channel.send(embed=embed_item_cmd)
+        #             else: logger.warning("interaction.channel não acessível para embeds adicionais de /guerra ataques."); break
+        #         except Exception as e: logger.error(f"Erro ao enviar embed adicional de /guerra ataques: {e}"); break
+        # else: await interaction.followup.send(f"Erro ao formatar informações de ataques.", ephemeral=True)
+        await interaction.followup.send("A função para exibir ataques restantes (`format_attacks_remaining_embed`) precisa ser implementada.", ephemeral=True)
     elif current_war_cmd:
         await interaction.followup.send(f"O clã está em uma guerra, mas o estado atual é '{str(current_war_cmd.state)}'. Ataques restantes são mostrados apenas para guerras 'inWar'.")
     else: await interaction.followup.send("O clã não está em nenhuma guerra ativa (Normal ou Liga) no momento.")
@@ -1013,7 +1125,10 @@ async def war_status(interaction: discord.Interaction):
     war_type_name_status = "Guerra"; status_description = "Nenhuma guerra ativa ou recente encontrada."; status_color = discord.Color.greyple()
     if war_to_display and isinstance(war_to_display, coc.ClanWar):
         clan_disp, opp_disp = war_to_display.clan, war_to_display.opponent
-        if war_to_display.clan.tag != CLAN_TAG and war_to_display.opponent.tag == CLAN_TAG: clan_disp, opp_disp = opp_disp, clan_disp
+        # Adicionado verificações para clan_disp e opp_disp antes de acessar .tag
+        if clan_disp and opp_disp and clan_disp.tag != CLAN_TAG and opp_disp.tag == CLAN_TAG: 
+            clan_disp, opp_disp = opp_disp, clan_disp
+        
         if hasattr(war_to_display, 'is_cwl') and war_to_display.is_cwl: war_type_name_status = "Liga (CWL)"
         elif hasattr(war_to_display, 'type') and war_to_display.type == "friendly": war_type_name_status = "Amistosa"
         else: war_type_name_status = "Guerra Normal"
