@@ -93,14 +93,12 @@ body {
     pointer-events: none;
 }
 .loading-badge {
-    width: 130px; /* Tamanho aumentado para a logo */
+    width: 260px; /* Tamanho da logo ajustado */
     height: auto; /* Mantém proporção */
     margin-bottom: 25px;
-    /* border-radius: 10px; Removido para não cortar a imagem se não for quadrada */
-    /* box-shadow: 0 0 20px rgba(49, 130, 206, 0.7); Sombra opcional */
-    animation: pulse-heart 1.2s infinite ease-in-out; /* Animação de pulsar */
+    animation: pulse-heart 1.2s infinite ease-in-out;
 }
-@keyframes pulse-heart { /* Animação de pulsar mais suave */
+@keyframes pulse-heart {
     0% { transform: scale(1); }
     50% { transform: scale(1.08); }
     100% { transform: scale(1); }
@@ -215,7 +213,6 @@ main { padding-top: 25px; padding-bottom: 25px; }
     transform: translateX(0); /* Estado base */
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none; /* Seções inativas não devem ser clicáveis */
-    /* Adicionado para garantir que a altura seja considerada mesmo quando position:absolute */
     box-sizing: border-box;
 }
 
@@ -224,13 +221,13 @@ main { padding-top: 25px; padding-bottom: 25px; }
     opacity: 1;
     transform: translateX(0);
     pointer-events: auto;
-    z-index: 2; 
-    position: relative; /* Para que a altura seja considerada pelo wrapper quando ativa */
+    z-index: 2;
+    position: relative; 
 }
 
 /* Posições iniciais para seções que vão entrar */
 .content-section.slide-in-from-right {
-    transform: translateX(30px); /* Deslize menor para um efeito mais sutil */
+    transform: translateX(30px); 
     opacity: 0;
 }
 .content-section.slide-in-from-left {
@@ -242,7 +239,7 @@ main { padding-top: 25px; padding-bottom: 25px; }
 .content-section.slide-out-left {
     transform: translateX(-30px);
     opacity: 0;
-    z-index: 1; 
+    z-index: 1;
     pointer-events: none;
 }
 .content-section.slide-out-right {
@@ -476,6 +473,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .note-text { max-width: 120px; }
 }
 @media (max-width: 480px) {
+    .loading-badge { width: 180px; } /* Ajuste para telas muito pequenas */
     .site-header h1 { font-size: 1.2em; }
     .card h2 { font-size: 1.2em; } .card h3 { font-size: 1.05em; }
     .team-score p { font-size: 1.3em; }
