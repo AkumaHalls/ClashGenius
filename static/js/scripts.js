@@ -567,32 +567,37 @@ document.addEventListener('DOMContentLoaded', () => {
     if (particleCanvas) {
         const ctx = particleCanvas.getContext('2d');
         let particlesArrayLocal;
-        let mouse = { x: null, y: null, radius: 80 }; // Adicionado raio de interação do mouse
+        let mouse = { x: undefined, y: undefined, radius: 100 }; // Raio de interação do mouse aumentado
 
         const particleSettings = {
             count: 70,
-            maxConnectionDistance: 150,
-            particleColorRGB: '220, 50, 50',
-            lineColorRGB: '200, 50, 50',
-            particleBaseSpeed: 0.25,
-            particleSizeMin: 1.8,         // Ligeiramente maior para mais visibilidade
-            particleSizeMax: 3.5,
-            lineOpacityMultiplier: 0.8,  // Linhas mais visíveis
-            lineWidth: 0.7,
-            edgeSpawnMargin: 60,         // Um pouco mais de margem para spawn
-            baseParticleAlphaMin: 0.4,   // Partículas mais visíveis
-            baseParticleAlphaMax: 0.9,
-            mouseInteractionForce: 0.02, // Força da repulsão do mouse
-            mouseInteractionSpeedBoost: 1.5 // Multiplicador de velocidade perto do mouse
+            maxConnectionDistance: 160,     // Aumentado para mais conexões
+            particleColorRGB: '230, 60, 60', // Vermelho um pouco mais claro/vibrante
+            lineColorRGB: '210, 60, 60',
+            particleBaseSpeed: 0.2,         // Mais lento para movimento de fundo sutil
+            particleSizeMin: 2.0,           // Partículas mais visíveis
+            particleSizeMax: 4.0,
+            lineOpacityMultiplier: 0.9,    // Linhas bem visíveis
+            lineWidth: 0.8,
+            edgeSpawnMargin: 70,           // Mais margem para spawn nas bordas
+            baseParticleAlphaMin: 0.5,     // Partículas mais opacas
+            baseParticleAlphaMax: 0.95,
+            mouseInteractionForce: 0.5,    // Força de repulsão/atração (positiva para repulsão)
+            mouseInteractionSpeedBoost: 2 // Quanto acelera perto do mouse
         };
 
         particleCanvas.addEventListener('mousemove', (event) => {
+            // Ajusta as coordenadas do mouse para serem relativas ao canvas, se necessário
+            // Se o canvas não estiver no canto 0,0 da página, você precisaria de:
+            // const rect = particleCanvas.getBoundingClientRect();
+            // mouse.x = event.clientX - rect.left;
+            // mouse.y = event.clientY - rect.top;
             mouse.x = event.clientX;
             mouse.y = event.clientY;
         });
-        particleCanvas.addEventListener('mouseleave', () => { // Reseta a posição do mouse quando ele sai do canvas
-            mouse.x = null;
-            mouse.y = null;
+        particleCanvas.addEventListener('mouseleave', () => {
+            mouse.x = undefined;
+            mouse.y = undefined;
         });
 
 
@@ -605,12 +610,13 @@ document.addEventListener('DOMContentLoaded', () => {
             constructor(x, y, directionX, directionY, size) {
                 this.x = x;
                 this.y = y;
+                this.baseX = x; // Posição original para retornar após interação
+                this.baseY = y;
                 this.directionX = directionX;
                 this.directionY = directionY;
                 this.size = size;
                 this.baseAlpha = Math.random() * (particleSettings.baseParticleAlphaMax - particleSettings.baseParticleAlphaMin) + particleSettings.baseParticleAlphaMin;
-                this.originalSpeedX = directionX; // Salva velocidade original
-                this.originalSpeedY = directionY;
+                this.density = (Math.random() * 30) + 1; // Para o efeito de repulsão
             }
             draw() {
                 ctx.beginPath();
@@ -619,47 +625,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fill();
             }
             update() {
+                let finalDirectionX = this.directionX;
+                let finalDirectionY = this.directionY;
+
                 // Interação com o mouse
-                let currentSpeedX = this.originalSpeedX;
-                let currentSpeedY = this.originalSpeedY;
-
-                if (mouse.x !== null && mouse.y !== null) {
-                    let dxMouse = this.x - mouse.x;
-                    let dyMouse = this.y - mouse.y;
+                if (mouse.x !== undefined && mouse.y !== undefined) {
+                    let dxMouse = mouse.x - this.x;
+                    let dyMouse = mouse.y - this.y;
                     let distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
-
-                    if (distanceMouse < mouse.radius + this.size) {
-                        // Efeito de repulsão
-                        let forceDirectionX = dxMouse / distanceMouse;
-                        let forceDirectionY = dyMouse / distanceMouse;
-                        let force = (mouse.radius - distanceMouse) / mouse.radius; // Força maior quanto mais perto
-
-                        // Adiciona uma "fuga" e aumenta a velocidade
-                        currentSpeedX = (forceDirectionX * force * particleSettings.mouseInteractionForce * 50) + this.directionX * particleSettings.mouseInteractionSpeedBoost;
-                        currentSpeedY = (forceDirectionY * force * particleSettings.mouseInteractionForce * 50) + this.directionY * particleSettings.mouseInteractionSpeedBoost;
-                        
-                        // Limita a velocidade para não ficar excessiva
-                        const maxSpeed = particleSettings.particleBaseSpeed * 5;
-                        currentSpeedX = Math.max(-maxSpeed, Math.min(maxSpeed, currentSpeedX));
-                        currentSpeedY = Math.max(-maxSpeed, Math.min(maxSpeed, currentSpeedY));
+                    let forceDirectionX = dxMouse / distanceMouse;
+                    let forceDirectionY = dyMouse / distanceMouse;
+                    
+                    // Inverte a força para repulsão
+                    let force = (mouse.radius - distanceMouse) / mouse.radius * this.density * particleSettings.mouseInteractionForce;
+                    
+                    if (distanceMouse < mouse.radius) {
+                        finalDirectionX -= forceDirectionX * force;
+                        finalDirectionY -= forceDirectionY * force;
                     }
                 }
 
-
-                if (this.x + this.size > particleCanvas.width || this.x - this.size < 0) {
+                // Ricochete nas bordas
+                if (this.x + this.size + finalDirectionX > particleCanvas.width || this.x - this.size + finalDirectionX < 0) {
                     this.directionX = -this.directionX;
-                    this.originalSpeedX = -this.originalSpeedX; // Inverte a velocidade original também
-                    currentSpeedX = this.directionX * (mouse.x !== null && Math.abs(this.x - mouse.x) < mouse.radius ? particleSettings.mouseInteractionSpeedBoost : 1);
+                    finalDirectionX = this.directionX; // Atualiza após ricochete
                 }
-                if (this.y + this.size > particleCanvas.height || this.y - this.size < 0) {
+                if (this.y + this.size + finalDirectionY > particleCanvas.height || this.y - this.size + finalDirectionY < 0) {
                     this.directionY = -this.directionY;
-                    this.originalSpeedY = -this.originalSpeedY;
-                    currentSpeedY = this.directionY * (mouse.y !== null && Math.abs(this.y - mouse.y) < mouse.radius ? particleSettings.mouseInteractionSpeedBoost : 1);
+                    finalDirectionY = this.directionY; // Atualiza após ricochete
                 }
 
-                this.x += currentSpeedX;
-                this.y += currentSpeedY;
+                this.x += finalDirectionX;
+                this.y += finalDirectionY;
 
+                // Garante que a partícula permaneça dentro dos limites
                 this.x = Math.max(this.size, Math.min(this.x, particleCanvas.width - this.size));
                 this.y = Math.max(this.size, Math.min(this.y, particleCanvas.height - this.size));
 
@@ -676,25 +675,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 let x, y;
 
                 const side = Math.floor(Math.random() * 4);
-                if (side === 0) {
+                if (side === 0) { // Topo
                     x = Math.random() * particleCanvas.width;
-                    y = Math.random() * margin + size; // Adiciona 'size' para não cortar
-                } else if (side === 1) {
+                    y = Math.random() * margin + size;
+                } else if (side === 1) { // Direita
                     x = particleCanvas.width - (Math.random() * margin) - size;
                     y = Math.random() * particleCanvas.height;
-                } else if (side === 2) {
+                } else if (side === 2) { // Baixo
                     x = Math.random() * particleCanvas.width;
                     y = particleCanvas.height - (Math.random() * margin) - size;
-                } else {
+                } else { // Esquerda
                     x = Math.random() * margin + size;
                     y = Math.random() * particleCanvas.height;
                 }
-
+                
                 x = Math.max(size, Math.min(x, particleCanvas.width - size));
                 y = Math.max(size, Math.min(y, particleCanvas.height - size));
 
-                let directionX = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 2;
-                let directionY = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 2;
+                let directionX = (Math.random() - 0.5) * particleSettings.particleBaseSpeed; // Removido * 2 para ser mais sutil inicialmente
+                let directionY = (Math.random() - 0.5) * particleSettings.particleBaseSpeed;
 
                 particlesArrayLocal.push(new Particle(x, y, directionX, directionY, size));
             }
@@ -727,7 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function animateParticles() {
             requestAnimationFrame(animateParticles);
-
+            
             const now = performance.now();
             const elapsed = now - lastFrameTime;
 
@@ -752,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.addEventListener('resize', () => {
             setupParticleCanvas();
-            initLocalParticles();
+            initLocalParticles(); 
         });
 
     } else {
