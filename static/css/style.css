@@ -86,19 +86,24 @@ body {
     align-items: center;
     z-index: 9999;
     opacity: 1;
-    transition: opacity 0.5s ease-out 0.3s; /* Adiciona um pequeno delay para o fade-out */
+    transition: opacity 0.5s ease-out 0.3s;
 }
 #loading-overlay.hidden {
     opacity: 0;
     pointer-events: none;
 }
 .loading-badge {
-    width: 80px;
-    height: 80px;
-    margin-bottom: 20px;
-    border-radius: 50%;
-    border: 2px solid var(--color-accent);
-    box-shadow: 0 0 15px rgba(49, 130, 206, 0.5);
+    width: 130px; /* Tamanho aumentado para a logo */
+    height: auto; /* Mantém proporção */
+    margin-bottom: 25px;
+    /* border-radius: 10px; Removido para não cortar a imagem se não for quadrada */
+    /* box-shadow: 0 0 20px rgba(49, 130, 206, 0.7); Sombra opcional */
+    animation: pulse-heart 1.2s infinite ease-in-out; /* Animação de pulsar */
+}
+@keyframes pulse-heart { /* Animação de pulsar mais suave */
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
 }
 .loading-spinner {
     border: 5px solid var(--color-border-light);
@@ -197,65 +202,54 @@ main { padding-top: 25px; padding-bottom: 25px; }
 /* Navegação e Animação de Seções */
 .sections-wrapper {
     position: relative;
-    overflow-x: hidden; /* Esconde as seções que deslizam para fora da tela */
+    overflow: hidden; /* Crucial para o efeito de slide */
     min-height: 500px; /* Ajuste conforme o conteúdo ou use JS para ajustar altura */
 }
 
 .content-section {
-    position: absolute; /* Todas as seções no mesmo lugar, controladas por transform e opacity */
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
-    opacity: 0;
-    visibility: hidden; /* Remove do fluxo de renderização até ser ativo */
-    transform: translateX(0); /* Estado base para não interferir */
-    /* A transição para visibility é atrasada para ocorrer após a opacidade/transform */
-    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0.4s;
-    z-index: 1; /* Seções inativas ficam atrás */
+    opacity: 0; /* Começa invisível */
+    transform: translateX(0); /* Estado base */
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none; /* Seções inativas não devem ser clicáveis */
+    /* Adicionado para garantir que a altura seja considerada mesmo quando position:absolute */
+    box-sizing: border-box;
 }
 
 /* Estado ativo (visível no centro) */
-.content-section.active-section, .content-section.active-section-initial {
+.content-section.active-section {
     opacity: 1;
     transform: translateX(0);
-    visibility: visible;
-    /* Transição para visibility é imediata quando se torna ativo */
-    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0s;
-    z-index: 2; /* Seção ativa fica na frente */
-}
-/* Para a primeira carga da seção, sem animação de entrada */
-.content-section.active-section-initial {
-    transition: none !important; /* Remove qualquer transição na carga inicial */
+    pointer-events: auto;
+    z-index: 2; 
+    position: relative; /* Para que a altura seja considerada pelo wrapper quando ativa */
 }
 
-/* Estados de entrada (começam fora da tela e invisíveis, tornam-se visíveis para animar) */
+/* Posições iniciais para seções que vão entrar */
 .content-section.slide-in-from-right {
-    transform: translateX(50px); /* Começa um pouco à direita e com opacidade 0 */
+    transform: translateX(30px); /* Deslize menor para um efeito mais sutil */
     opacity: 0;
-    visibility: visible; /* Torna visível para permitir a animação para dentro */
-    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0s;
 }
 .content-section.slide-in-from-left {
-    transform: translateX(-50px); /* Começa um pouco à esquerda e com opacidade 0 */
+    transform: translateX(-30px);
     opacity: 0;
-    visibility: visible;
-    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0s;
 }
 
-/* Estados de saída (deslizam para fora e tornam-se invisíveis) */
+/* Animações de saída */
 .content-section.slide-out-left {
-    transform: translateX(-50px); /* Desliza um pouco para a esquerda e some */
+    transform: translateX(-30px);
     opacity: 0;
-    visibility: visible; /* Mantém visível durante a animação de saída */
-    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0.4s;
-    z-index: 1;
+    z-index: 1; 
+    pointer-events: none;
 }
 .content-section.slide-out-right {
-    transform: translateX(50px); /* Desliza um pouco para a direita e some */
+    transform: translateX(30px);
     opacity: 0;
-    visibility: visible;
-    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0.4s;
     z-index: 1;
+    pointer-events: none;
 }
 
 
@@ -450,10 +444,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 .site-footer p { margin: 4px 0; }
 .site-footer #botVersion { color: var(--color-text-main); font-weight: 500; }
-
-/* Esconder seções por padrão é feito pelo JS e classes de animação agora */
-/* .content-section { display: none; } */
-/* .content-section.active-section { display: block; } */
 
 
 /* Responsividade */
