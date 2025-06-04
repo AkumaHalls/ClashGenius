@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     contentSections.forEach(section => {
         section.classList.remove('active-section', 'slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right');
         if (section.id === currentActiveSectionId) {
-            section.classList.add('active-section');
+            section.classList.add('active-section'); // Seção inicial é diretamente ativa
         }
     });
     navLinks.forEach(link => {
@@ -178,27 +178,21 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 oldSectionEl.classList.add('slide-out-right');
             }
-            // Remove as classes de animação de saída após a transição para limpar
             oldSectionEl.addEventListener('transitionend', () => {
                 oldSectionEl.classList.remove('slide-out-left', 'slide-out-right');
             }, { once: true });
         }
 
-        // Define a posição inicial da nova seção (fora da tela) e a torna 'ativa' para iniciar a transição
         if (newIndex > oldIndex) {
             newSectionEl.classList.add('slide-in-from-right');
         } else {
             newSectionEl.classList.add('slide-in-from-left');
         }
         
-        // Força um reflow para que a transição seja aplicada a partir do estado 'slide-in-*'
         void newSectionEl.offsetWidth;
 
-        // Adiciona a classe 'active-section' para mover a nova seção para o centro
         newSectionEl.classList.add('active-section');
         
-        // Remove a classe de 'entrada' após a animação para limpar o estado.
-        // A classe 'active-section' por si só já a mantém no lugar (transform: translateX(0), opacity: 1).
         newSectionEl.addEventListener('transitionend', () => {
             newSectionEl.classList.remove('slide-in-from-left', 'slide-in-from-right');
         }, { once: true });
@@ -236,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loadingClanBadgeEl && data.badge_url) { 
             loadingClanBadgeEl.src = data.badge_url;
         } else if (loadingClanBadgeEl) {
-            loadingClanBadgeEl.src = DEFAULT_BADGE_URL; // Garante que o placeholder seja exibido se não houver badge
+            loadingClanBadgeEl.src = DEFAULT_BADGE_URL;
         }
         setText(clanCapitalPointsEl, data.capital_points); setText(clanCapitalLeagueEl, data.capital_league);
         setHtml(clanCapitalDistrictsEl, '');
@@ -581,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             setTimeout(() => {
                 loadingOverlayEl.classList.add('hidden');
-            }, 500); // Aumentei um pouco o delay para dar tempo de ver o logo pulsar
+            }, 500); 
             isFirstLoad = false;
         }
     }
