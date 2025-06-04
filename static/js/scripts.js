@@ -575,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             setTimeout(() => {
                 loadingOverlayEl.classList.add('hidden');
-            }, 500); 
+            }, 1500); // Tempo aumentado para 1.5 segundos
             isFirstLoad = false;
         }
     }
