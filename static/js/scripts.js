@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
-    // const loadingClanBadgeEl = document.getElementById('loadingClanBadge'); // Removida referência
 
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
@@ -556,7 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isFirstLoad && loadingOverlayEl) {
             setTimeout(() => {
                 loadingOverlayEl.classList.add('hidden');
-            }, 2000); // Tempo aumentado para 2 segundos
+            }, 2000);
             isFirstLoad = false;
         }
     }
@@ -568,21 +567,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (particleCanvas) {
         const ctx = particleCanvas.getContext('2d');
         let particlesArrayLocal;
+        let mouse = { x: null, y: null, radius: 80 }; // Adicionado raio de interação do mouse
 
         const particleSettings = {
-            count: 70, // Ajuste conforme necessário para balancear visual e performance
-            maxConnectionDistance: 150, // Aumentada um pouco a distância de conexão
-            particleColorRGB: '220, 50, 50', // Vermelho um pouco mais intenso
-            lineColorRGB: '200, 50, 50',   // Linhas um pouco menos intensas que as partículas
-            particleBaseSpeed: 0.25,      // Velocidade base levemente reduzida
-            particleSizeMin: 1.5,         // Tamanho mínimo aumentado
-            particleSizeMax: 3,          // Tamanho máximo aumentado
-            lineOpacityMultiplier: 0.7,  // Opacidade das linhas aumentada
-            lineWidth: 0.6,              // Espessura da linha aumentada
-            edgeSpawnMargin: 50,         // Margem para spawn de partículas nas bordas
-            baseParticleAlphaMin: 0.3,   // Opacidade mínima das partículas aumentada
-            baseParticleAlphaMax: 0.8    // Opacidade máxima das partículas aumentada
+            count: 70,
+            maxConnectionDistance: 150,
+            particleColorRGB: '220, 50, 50',
+            lineColorRGB: '200, 50, 50',
+            particleBaseSpeed: 0.25,
+            particleSizeMin: 1.8,         // Ligeiramente maior para mais visibilidade
+            particleSizeMax: 3.5,
+            lineOpacityMultiplier: 0.8,  // Linhas mais visíveis
+            lineWidth: 0.7,
+            edgeSpawnMargin: 60,         // Um pouco mais de margem para spawn
+            baseParticleAlphaMin: 0.4,   // Partículas mais visíveis
+            baseParticleAlphaMax: 0.9,
+            mouseInteractionForce: 0.02, // Força da repulsão do mouse
+            mouseInteractionSpeedBoost: 1.5 // Multiplicador de velocidade perto do mouse
         };
+
+        particleCanvas.addEventListener('mousemove', (event) => {
+            mouse.x = event.clientX;
+            mouse.y = event.clientY;
+        });
+        particleCanvas.addEventListener('mouseleave', () => { // Reseta a posição do mouse quando ele sai do canvas
+            mouse.x = null;
+            mouse.y = null;
+        });
+
 
         function setupParticleCanvas() {
             particleCanvas.width = window.innerWidth;
@@ -597,6 +609,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.directionY = directionY;
                 this.size = size;
                 this.baseAlpha = Math.random() * (particleSettings.baseParticleAlphaMax - particleSettings.baseParticleAlphaMin) + particleSettings.baseParticleAlphaMin;
+                this.originalSpeedX = directionX; // Salva velocidade original
+                this.originalSpeedY = directionY;
             }
             draw() {
                 ctx.beginPath();
@@ -605,49 +619,79 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fill();
             }
             update() {
-                // Ricochete nas bordas
+                // Interação com o mouse
+                let currentSpeedX = this.originalSpeedX;
+                let currentSpeedY = this.originalSpeedY;
+
+                if (mouse.x !== null && mouse.y !== null) {
+                    let dxMouse = this.x - mouse.x;
+                    let dyMouse = this.y - mouse.y;
+                    let distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+
+                    if (distanceMouse < mouse.radius + this.size) {
+                        // Efeito de repulsão
+                        let forceDirectionX = dxMouse / distanceMouse;
+                        let forceDirectionY = dyMouse / distanceMouse;
+                        let force = (mouse.radius - distanceMouse) / mouse.radius; // Força maior quanto mais perto
+
+                        // Adiciona uma "fuga" e aumenta a velocidade
+                        currentSpeedX = (forceDirectionX * force * particleSettings.mouseInteractionForce * 50) + this.directionX * particleSettings.mouseInteractionSpeedBoost;
+                        currentSpeedY = (forceDirectionY * force * particleSettings.mouseInteractionForce * 50) + this.directionY * particleSettings.mouseInteractionSpeedBoost;
+                        
+                        // Limita a velocidade para não ficar excessiva
+                        const maxSpeed = particleSettings.particleBaseSpeed * 5;
+                        currentSpeedX = Math.max(-maxSpeed, Math.min(maxSpeed, currentSpeedX));
+                        currentSpeedY = Math.max(-maxSpeed, Math.min(maxSpeed, currentSpeedY));
+                    }
+                }
+
+
                 if (this.x + this.size > particleCanvas.width || this.x - this.size < 0) {
                     this.directionX = -this.directionX;
+                    this.originalSpeedX = -this.originalSpeedX; // Inverte a velocidade original também
+                    currentSpeedX = this.directionX * (mouse.x !== null && Math.abs(this.x - mouse.x) < mouse.radius ? particleSettings.mouseInteractionSpeedBoost : 1);
                 }
                 if (this.y + this.size > particleCanvas.height || this.y - this.size < 0) {
                     this.directionY = -this.directionY;
+                    this.originalSpeedY = -this.originalSpeedY;
+                    currentSpeedY = this.directionY * (mouse.y !== null && Math.abs(this.y - mouse.y) < mouse.radius ? particleSettings.mouseInteractionSpeedBoost : 1);
                 }
-                // Mantém dentro do canvas após ricochete para evitar sair
-                this.x = Math.max(this.size, Math.min(this.x + this.directionX, particleCanvas.width - this.size));
-                this.y = Math.max(this.size, Math.min(this.y + this.directionY, particleCanvas.height - this.size));
-                
+
+                this.x += currentSpeedX;
+                this.y += currentSpeedY;
+
+                this.x = Math.max(this.size, Math.min(this.x, particleCanvas.width - this.size));
+                this.y = Math.max(this.size, Math.min(this.y, particleCanvas.height - this.size));
+
                 this.draw();
             }
         }
 
         function initLocalParticles() {
             particlesArrayLocal = [];
-            const margin = particleSettings.edgeSpawnMargin; // Quão perto da borda elas podem surgir
+            const margin = particleSettings.edgeSpawnMargin;
 
             for (let i = 0; i < particleSettings.count; i++) {
                 let size = Math.random() * (particleSettings.particleSizeMax - particleSettings.particleSizeMin) + particleSettings.particleSizeMin;
                 let x, y;
 
-                // Lógica para distribuir mais nas bordas
-                // Escolhe aleatoriamente uma das 4 bordas para posicionar a partícula
                 const side = Math.floor(Math.random() * 4);
-                if (side === 0) { // Topo
+                if (side === 0) {
                     x = Math.random() * particleCanvas.width;
-                    y = Math.random() * margin;
-                } else if (side === 1) { // Direita
-                    x = particleCanvas.width - (Math.random() * margin);
+                    y = Math.random() * margin + size; // Adiciona 'size' para não cortar
+                } else if (side === 1) {
+                    x = particleCanvas.width - (Math.random() * margin) - size;
                     y = Math.random() * particleCanvas.height;
-                } else if (side === 2) { // Baixo
+                } else if (side === 2) {
                     x = Math.random() * particleCanvas.width;
-                    y = particleCanvas.height - (Math.random() * margin);
-                } else { // Esquerda
-                    x = Math.random() * margin;
+                    y = particleCanvas.height - (Math.random() * margin) - size;
+                } else {
+                    x = Math.random() * margin + size;
                     y = Math.random() * particleCanvas.height;
                 }
-                
-                // Garante que não fiquem presas exatamente na borda inicial
-                x = Math.max(size + 2, Math.min(x, particleCanvas.width - size - 2));
-                y = Math.max(size + 2, Math.min(y, particleCanvas.height - size - 2));
+
+                x = Math.max(size, Math.min(x, particleCanvas.width - size));
+                y = Math.max(size, Math.min(y, particleCanvas.height - size));
 
                 let directionX = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 2;
                 let directionY = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 2;
@@ -666,7 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (distance < particleSettings.maxConnectionDistance) {
                         const opacity = (1 - (distance / particleSettings.maxConnectionDistance)) * particleSettings.lineOpacityMultiplier;
-                        ctx.strokeStyle = `rgba(${particleSettings.lineColorRGB}, ${Math.max(0, opacity)})`; // Garante opacidade não negativa
+                        ctx.strokeStyle = `rgba(${particleSettings.lineColorRGB}, ${Math.max(0, opacity)})`;
                         ctx.lineWidth = particleSettings.lineWidth;
                         ctx.beginPath();
                         ctx.moveTo(particlesArrayLocal[a].x, particlesArrayLocal[a].y);
@@ -678,16 +722,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let lastFrameTime = performance.now();
-        const targetFPS = 30; // Alvo de FPS para a animação de partículas
+        const targetFPS = 30;
         const frameInterval = 1000 / targetFPS;
 
         function animateParticles() {
             requestAnimationFrame(animateParticles);
-            
+
             const now = performance.now();
             const elapsed = now - lastFrameTime;
 
-            // Limita a taxa de atualização para o targetFPS
             if (elapsed > frameInterval) {
                 lastFrameTime = now - (elapsed % frameInterval);
 
@@ -709,7 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.addEventListener('resize', () => {
             setupParticleCanvas();
-            initLocalParticles(); 
+            initLocalParticles();
         });
 
     } else {
