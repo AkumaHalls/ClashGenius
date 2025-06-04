@@ -4,10 +4,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
-    // const loadingClanBadgeEl = document.getElementById('loadingClanBadge'); // Removida referência, pois não manipulamos mais o src
+    // const loadingClanBadgeEl = document.getElementById('loadingClanBadge'); // Removida referência
 
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
-    const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader'); // Badge no header do site
+    const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
     const clanNameEl = document.getElementById('clanName');
     const clanTagEl = document.getElementById('clanTag');
     const clanLevelEl = document.getElementById('clanLevel');
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanLocationEl = document.getElementById('clanLocation');
     const clanTypeEl = document.getElementById('clanType');
     const clanDescriptionEl = document.getElementById('clanDescription');
-    const clanBadgeEl = document.getElementById('clanBadge'); // Badge na seção de info do clã
+    const clanBadgeEl = document.getElementById('clanBadge');
     const clanCapitalPointsEl = document.getElementById('clanCapitalPoints');
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
@@ -554,7 +554,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateLastUpdated();
 
         if (isFirstLoad && loadingOverlayEl) {
-            // A imagem de carregamento agora é definida apenas no HTML.
             setTimeout(() => {
                 loadingOverlayEl.classList.add('hidden');
             }, 2000); // Tempo aumentado para 2 segundos
@@ -568,20 +567,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const particleCanvas = document.getElementById('particle-background');
     if (particleCanvas) {
         const ctx = particleCanvas.getContext('2d');
-        let particlesArrayLocal; // Usar nome diferente para não conflitar com variável global se houver
+        let particlesArrayLocal;
 
-        // Configurações da animação
         const particleSettings = {
-            count: 80, // Reduzido para melhor performance, ajuste conforme necessário
-            maxConnectionDistance: 130,
-            particleColorRGB: '255, 0, 0', // Vermelho RGB
-            lineColorRGB: '255, 0, 0',   // Vermelho RGB
-            particleBaseSpeed: 0.3,
-            particleSizeMin: 1,
-            particleSizeMax: 2.5,
-            lineOpacityMultiplier: 0.6,
-            lineWidth: 0.5,
-            centerBiasFactor: 0.7 // Quão mais forte as partículas são puxadas/iniciadas no centro (0.1 a 1.0)
+            count: 70, // Ajuste conforme necessário para balancear visual e performance
+            maxConnectionDistance: 150, // Aumentada um pouco a distância de conexão
+            particleColorRGB: '220, 50, 50', // Vermelho um pouco mais intenso
+            lineColorRGB: '200, 50, 50',   // Linhas um pouco menos intensas que as partículas
+            particleBaseSpeed: 0.25,      // Velocidade base levemente reduzida
+            particleSizeMin: 1.5,         // Tamanho mínimo aumentado
+            particleSizeMax: 3,          // Tamanho máximo aumentado
+            lineOpacityMultiplier: 0.7,  // Opacidade das linhas aumentada
+            lineWidth: 0.6,              // Espessura da linha aumentada
+            edgeSpawnMargin: 50,         // Margem para spawn de partículas nas bordas
+            baseParticleAlphaMin: 0.3,   // Opacidade mínima das partículas aumentada
+            baseParticleAlphaMax: 0.8    // Opacidade máxima das partículas aumentada
         };
 
         function setupParticleCanvas() {
@@ -596,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.directionX = directionX;
                 this.directionY = directionY;
                 this.size = size;
-                this.baseAlpha = Math.random() * 0.4 + 0.1; // Opacidade base entre 0.1 e 0.5
+                this.baseAlpha = Math.random() * (particleSettings.baseParticleAlphaMax - particleSettings.baseParticleAlphaMin) + particleSettings.baseParticleAlphaMin;
             }
             draw() {
                 ctx.beginPath();
@@ -605,38 +605,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fill();
             }
             update() {
+                // Ricochete nas bordas
                 if (this.x + this.size > particleCanvas.width || this.x - this.size < 0) {
                     this.directionX = -this.directionX;
                 }
                 if (this.y + this.size > particleCanvas.height || this.y - this.size < 0) {
                     this.directionY = -this.directionY;
                 }
-                this.x += this.directionX;
-                this.y += this.directionY;
+                // Mantém dentro do canvas após ricochete para evitar sair
+                this.x = Math.max(this.size, Math.min(this.x + this.directionX, particleCanvas.width - this.size));
+                this.y = Math.max(this.size, Math.min(this.y + this.directionY, particleCanvas.height - this.size));
+                
                 this.draw();
             }
         }
 
         function initLocalParticles() {
             particlesArrayLocal = [];
-            const centerX = particleCanvas.width / 2;
-            const centerY = particleCanvas.height / 2;
-            // Tenta distribuir mais partículas perto do centro
-            const radiusMultiplier = Math.min(centerX, centerY) * particleSettings.centerBiasFactor;
+            const margin = particleSettings.edgeSpawnMargin; // Quão perto da borda elas podem surgir
 
             for (let i = 0; i < particleSettings.count; i++) {
                 let size = Math.random() * (particleSettings.particleSizeMax - particleSettings.particleSizeMin) + particleSettings.particleSizeMin;
-                
-                // Gera posições com uma tendência para o centro usando uma distribuição normal simulada (Box-Muller aproximado)
-                // ou mais simples, um random ponderado.
-                let r = Math.random() * radiusMultiplier + Math.random() * (Math.min(centerX, centerY) * (1 - particleSettings.centerBiasFactor));
-                let angle = Math.random() * Math.PI * 2;
-                let x = centerX + r * Math.cos(angle);
-                let y = centerY + r * Math.sin(angle);
+                let x, y;
 
-                // Garante que comecem dentro do canvas
-                x = Math.max(size, Math.min(x, particleCanvas.width - size));
-                y = Math.max(size, Math.min(y, particleCanvas.height - size));
+                // Lógica para distribuir mais nas bordas
+                // Escolhe aleatoriamente uma das 4 bordas para posicionar a partícula
+                const side = Math.floor(Math.random() * 4);
+                if (side === 0) { // Topo
+                    x = Math.random() * particleCanvas.width;
+                    y = Math.random() * margin;
+                } else if (side === 1) { // Direita
+                    x = particleCanvas.width - (Math.random() * margin);
+                    y = Math.random() * particleCanvas.height;
+                } else if (side === 2) { // Baixo
+                    x = Math.random() * particleCanvas.width;
+                    y = particleCanvas.height - (Math.random() * margin);
+                } else { // Esquerda
+                    x = Math.random() * margin;
+                    y = Math.random() * particleCanvas.height;
+                }
+                
+                // Garante que não fiquem presas exatamente na borda inicial
+                x = Math.max(size + 2, Math.min(x, particleCanvas.width - size - 2));
+                y = Math.max(size + 2, Math.min(y, particleCanvas.height - size - 2));
 
                 let directionX = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 2;
                 let directionY = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 2;
@@ -655,7 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (distance < particleSettings.maxConnectionDistance) {
                         const opacity = (1 - (distance / particleSettings.maxConnectionDistance)) * particleSettings.lineOpacityMultiplier;
-                        ctx.strokeStyle = `rgba(${particleSettings.lineColorRGB}, ${opacity})`;
+                        ctx.strokeStyle = `rgba(${particleSettings.lineColorRGB}, ${Math.max(0, opacity)})`; // Garante opacidade não negativa
                         ctx.lineWidth = particleSettings.lineWidth;
                         ctx.beginPath();
                         ctx.moveTo(particlesArrayLocal[a].x, particlesArrayLocal[a].y);
@@ -666,16 +677,29 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        let lastFrameTime = performance.now();
+        const targetFPS = 30; // Alvo de FPS para a animação de partículas
+        const frameInterval = 1000 / targetFPS;
+
         function animateParticles() {
             requestAnimationFrame(animateParticles);
-            ctx.fillStyle = 'rgba(0,0,0,1)'; // Fundo preto sólido
-            ctx.fillRect(0, 0, particleCanvas.width, particleCanvas.height);
+            
+            const now = performance.now();
+            const elapsed = now - lastFrameTime;
 
-            if (particlesArrayLocal) {
-                particlesArrayLocal.forEach(particle => {
-                    particle.update();
-                });
-                connectLocalParticles();
+            // Limita a taxa de atualização para o targetFPS
+            if (elapsed > frameInterval) {
+                lastFrameTime = now - (elapsed % frameInterval);
+
+                ctx.fillStyle = 'rgba(0,0,0,1)';
+                ctx.fillRect(0, 0, particleCanvas.width, particleCanvas.height);
+
+                if (particlesArrayLocal) {
+                    particlesArrayLocal.forEach(particle => {
+                        particle.update();
+                    });
+                    connectLocalParticles();
+                }
             }
         }
 
@@ -685,7 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.addEventListener('resize', () => {
             setupParticleCanvas();
-            initLocalParticles(); // Reinicializa para novas dimensões
+            initLocalParticles(); 
         });
 
     } else {
