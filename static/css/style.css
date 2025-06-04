@@ -72,6 +72,54 @@ body {
 }
 .container { width: 95%; max-width: 1300px; margin: auto; padding: 0 15px; }
 
+/* Tela de Carregamento */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--color-background);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    opacity: 1;
+    transition: opacity 0.5s ease-out 0.3s; /* Adiciona um pequeno delay para o fade-out */
+}
+#loading-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+.loading-badge {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--color-accent);
+    box-shadow: 0 0 15px rgba(49, 130, 206, 0.5);
+}
+.loading-spinner {
+    border: 5px solid var(--color-border-light);
+    border-top: 5px solid var(--color-accent);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+#loading-overlay p {
+    color: var(--color-text-main);
+    font-size: 1.1em;
+    font-family: var(--font-title);
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+
 /* Cabeçalho */
 .site-header {
     background-color: var(--color-header-background);
@@ -88,7 +136,7 @@ body {
 .main-nav ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; }
 .main-nav li { margin-left: 8px; margin-bottom: 5px; }
 .main-nav a {
-    font-family: var(--font-body); /* Usar fonte do corpo para consistência */
+    font-family: var(--font-body);
     color: var(--color-text-secondary);
     text-decoration: none;
     font-size: 0.95em; padding: 8px 12px; border-radius: var(--border-radius-base);
@@ -126,9 +174,9 @@ main { padding-top: 25px; padding-bottom: 25px; }
 
 .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 15px; }
 .grid-container p, .list-box p, .capital-districts-grid p, .cwl-clans-grid p {
-    margin: 0; background-color: rgba(74, 85, 104, 0.2); /* --color-border com alpha */
+    margin: 0; background-color: rgba(74, 85, 104, 0.2);
     padding: 10px 12px; border-radius: var(--border-radius-base);
-    border: 1px solid transparent; /* Pode remover ou usar --color-border-light */
+    border: 1px solid transparent;
     font-size: 0.9em; color: var(--color-text-secondary);
 }
 .grid-container p strong { color: var(--color-text-main); font-weight: 500; }
@@ -145,6 +193,71 @@ main { padding-top: 25px; padding-bottom: 25px; }
 .scrollable-box::-webkit-scrollbar-track { background: rgba(74, 85, 104, 0.1); border-radius: 10px; }
 .scrollable-box::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
 .scrollable-box::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
+
+/* Navegação e Animação de Seções */
+.sections-wrapper {
+    position: relative;
+    overflow-x: hidden; /* Esconde as seções que deslizam para fora da tela */
+    min-height: 500px; /* Ajuste conforme o conteúdo ou use JS para ajustar altura */
+}
+
+.content-section {
+    position: absolute; /* Todas as seções no mesmo lugar, controladas por transform e opacity */
+    top: 0;
+    left: 0;
+    width: 100%;
+    opacity: 0;
+    visibility: hidden; /* Remove do fluxo de renderização até ser ativo */
+    transform: translateX(0); /* Estado base para não interferir */
+    /* A transição para visibility é atrasada para ocorrer após a opacidade/transform */
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0.4s;
+    z-index: 1; /* Seções inativas ficam atrás */
+}
+
+/* Estado ativo (visível no centro) */
+.content-section.active-section, .content-section.active-section-initial {
+    opacity: 1;
+    transform: translateX(0);
+    visibility: visible;
+    /* Transição para visibility é imediata quando se torna ativo */
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0s;
+    z-index: 2; /* Seção ativa fica na frente */
+}
+/* Para a primeira carga da seção, sem animação de entrada */
+.content-section.active-section-initial {
+    transition: none !important; /* Remove qualquer transição na carga inicial */
+}
+
+/* Estados de entrada (começam fora da tela e invisíveis, tornam-se visíveis para animar) */
+.content-section.slide-in-from-right {
+    transform: translateX(50px); /* Começa um pouco à direita e com opacidade 0 */
+    opacity: 0;
+    visibility: visible; /* Torna visível para permitir a animação para dentro */
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0s;
+}
+.content-section.slide-in-from-left {
+    transform: translateX(-50px); /* Começa um pouco à esquerda e com opacidade 0 */
+    opacity: 0;
+    visibility: visible;
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0s;
+}
+
+/* Estados de saída (deslizam para fora e tornam-se invisíveis) */
+.content-section.slide-out-left {
+    transform: translateX(-50px); /* Desliza um pouco para a esquerda e some */
+    opacity: 0;
+    visibility: visible; /* Mantém visível durante a animação de saída */
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0.4s;
+    z-index: 1;
+}
+.content-section.slide-out-right {
+    transform: translateX(50px); /* Desliza um pouco para a direita e some */
+    opacity: 0;
+    visibility: visible;
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0s 0.4s;
+    z-index: 1;
+}
+
 
 /* Estilos de Guerra (Geral) */
 .war-header { display: flex; align-items: center; justify-content: center; margin-bottom: 15px; gap: 15px; }
@@ -170,7 +283,7 @@ main { padding-top: 25px; padding-bottom: 25px; }
 .war-tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid var(--color-tab-border); }
 .war-tab-button {
     padding: 10px 18px; cursor: pointer; background-color: var(--color-tab-inactive-bg);
-    border: none; border-bottom: 2px solid transparent; /* Borda inferior para indicar ativação */
+    border: none; border-bottom: 2px solid transparent;
     margin-right: 5px; color: var(--color-tab-inactive-text);
     font-family: var(--font-body); font-weight: 500; transition: color 0.2s, border-color 0.2s;
     font-size: 0.95em;
@@ -180,7 +293,7 @@ main { padding-top: 25px; padding-bottom: 25px; }
     border-bottom-color: var(--color-tab-active-bg);
 }
 .war-tab-button:hover { color: var(--color-text-main); }
-.war-tab-content { display: none; padding-top:15px; }
+.war-tab-content { display: none; padding-top:15px; } /* JS controla display */
 .war-tab-content.active { display: block; }
 
 /* Aba Estatísticas da Guerra */
@@ -204,12 +317,12 @@ main { padding-top: 25px; padding-bottom: 25px; }
 .medium-table { max-height: 500px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
 th, td {
-    border-bottom: 1px solid var(--color-border); /* Apenas borda inferior para um visual mais limpo */
+    border-bottom: 1px solid var(--color-border);
     padding: 10px 12px; text-align: left; vertical-align: middle;
     border-left: none; border-right: none;
 }
 th {
-    background-color: rgba(74, 85, 104, 0.3); /* --color-border com alpha */
+    background-color: rgba(74, 85, 104, 0.3);
     color: var(--color-text-header);
     font-family: var(--font-body); font-weight: 600;
     text-transform: uppercase; font-size: 0.75em; letter-spacing: 0.5px;
@@ -218,7 +331,7 @@ th {
 tbody tr:nth-child(even) { background-color: rgba(74, 85, 104, 0.1); }
 tbody tr:hover { background-color: rgba(74, 85, 104, 0.25); }
 td { color: var(--color-text-secondary); }
-td strong, table .highlight { color: var(--color-text-main); font-weight: 500; } /* Para nomes, etc. */
+td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .attack-stars .star-filled { color: var(--color-star-gold); }
 .attack-stars .star-empty { color: var(--color-star-empty); }
 
@@ -240,7 +353,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .member-filters input[type="text"] {
     flex-grow: 1; min-width: 150px; padding: 8px 10px;
     border: 1px solid var(--color-border-light); border-radius: var(--border-radius-base);
-    background-color: #2d3748; /* Mesmo que o card, ou um pouco mais claro */
+    background-color: #2d3748;
     color: var(--color-text-main);
     font-family: var(--font-body); font-size: 0.9em;
     transition: border-color 0.2s;
@@ -267,15 +380,15 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     overflow: hidden;
     text-overflow: ellipsis;
     display: inline-block;
-    max-width: 180px; /* Ajustar conforme necessário */
-    min-height: 20px; /* Para ter altura mesmo vazio */
+    max-width: 180px;
+    min-height: 20px;
 }
 .note-text:hover { background-color: rgba(255,255,255,0.1); }
 .note-input {
-    width: calc(100% - 10px); /* Ajustar padding */
+    width: calc(100% - 10px);
     padding: 3px 5px;
     border: 1px solid var(--color-border-light);
-    background-color: #354154; /* Um pouco mais claro que o card */
+    background-color: #354154;
     color: var(--color-text-main);
     border-radius: 3px;
     font-size: 0.85em;
@@ -285,11 +398,11 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     background-color: transparent;
     border: 1px solid var(--color-border-light);
     color: var(--color-text-secondary);
-    border-radius: 50%; /* Círculos */
+    border-radius: 50%;
     width: 22px; height: 22px;
     cursor: pointer;
     font-size: 12px;
-    line-height: 20px; /* Centralizar conteúdo */
+    line-height: 20px;
     text-align: center;
     transition: background-color 0.2s, border-color 0.2s;
     display: flex; align-items: center; justify-content: center;
@@ -297,16 +410,15 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .priority-btn:hover { border-color: var(--color-accent); }
 .priority-btn.active { border-color: var(--color-text-main); transform: scale(1.1); }
 
-.priority-btn.priority-none { font-size: 14px; } /* 'x' maior */
+.priority-btn.priority-none { font-size: 14px; }
 .priority-btn.priority-green.active { background-color: var(--color-priority-green); border-color: var(--color-priority-green); color: white;}
 .priority-btn.priority-yellow.active { background-color: var(--color-priority-yellow); border-color: var(--color-priority-yellow); color: var(--color-priority-text-dark); }
 .priority-btn.priority-red.active { background-color: var(--color-priority-red); border-color: var(--color-priority-red); color: white;}
 
-/* Cores de fundo para a observação inteira baseada na prioridade */
 .note-priority-none { background-color: var(--color-priority-none-bg); }
-.note-priority-green { background-color: rgba(56, 161, 105, 0.3); /* Verde com alpha */ }
-.note-priority-yellow { background-color: rgba(236, 201, 75, 0.3); /* Amarelo com alpha */ }
-.note-priority-red { background-color: rgba(229, 62, 62, 0.3); /* Vermelho com alpha */ }
+.note-priority-green { background-color: rgba(56, 161, 105, 0.3); }
+.note-priority-yellow { background-color: rgba(236, 201, 75, 0.3); }
+.note-priority-red { background-color: rgba(229, 62, 62, 0.3); }
 
 
 /* CWL e Capital */
@@ -323,7 +435,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .log-opponent-badge { vertical-align: middle; margin-right: 5px; height: 20px; }
 
 
-/* Ícones (placeholders, idealmente usar SVGs ou font icons) */
+/* Ícones */
 .icon-trophy::before { content: '🏆'; margin-left: 4px; }
 .icon-sword::before { content: '⚔️'; margin-left: 4px; }
 
@@ -339,9 +451,9 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .site-footer p { margin: 4px 0; }
 .site-footer #botVersion { color: var(--color-text-main); font-weight: 500; }
 
-/* Esconder seções por padrão, JS vai mostrar a ativa */
-.content-section { display: none; }
-.content-section.active-section { display: block; }
+/* Esconder seções por padrão é feito pelo JS e classes de animação agora */
+/* .content-section { display: none; } */
+/* .content-section.active-section { display: block; } */
 
 
 /* Responsividade */
@@ -368,10 +480,10 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .member-filters input[type="text"] { min-width: unset; width: 100%; box-sizing: border-box; }
     .war-tabs { flex-direction: column; }
     .war-tab-button { margin-right: 0; margin-bottom: 2px; border-radius: var(--border-radius-base); }
-    .war-tab-button.active { border-bottom-color: var(--color-tab-active-bg); } /* Mantém a borda ativa */
+    .war-tab-button.active { border-bottom-color: var(--color-tab-active-bg); }
     th, td { padding: 8px 10px; font-size: 0.85em;}
     th { font-size: 0.7em;}
-    .note-text { max-width: 120px; } /* Ajustar para telas menores */
+    .note-text { max-width: 120px; }
 }
 @media (max-width: 480px) {
     .site-header h1 { font-size: 1.2em; }
@@ -381,4 +493,3 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .note-text { max-width: 100px; }
     .priority-btn { width: 20px; height: 20px; font-size: 10px; line-height: 18px; }
 }
-
