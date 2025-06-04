@@ -1,10 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
-    const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
+    const DEFAULT_BADGE_URL = '/static/images/default_badge.png'; // Mantido para outros usos, mas não para o loading badge principal
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
-    const loadingClanBadgeEl = document.getElementById('loadingClanBadge');
+    // const loadingClanBadgeEl = document.getElementById('loadingClanBadge'); // Não precisamos mais manipular o SRC dele aqui
 
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
 
     // Guerra Detalhes
-    // const warDetailSection = document.getElementById('war-details-nav'); // Não usado diretamente após as mudanças
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
     const warDetailOpponentNameEl = document.getElementById('warDetailOpponentName');
@@ -130,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function setHtml(element, htmlContent) {
         if (element) element.innerHTML = htmlContent;
     }
-    function setBadge(element, url) {
+    function setBadge(element, url) { // Esta função ainda é usada para outros badges no site
         if (element) { element.src = url || DEFAULT_BADGE_URL; element.style.display = 'inline-block'; }
     }
     function show(element) { if (element) element.style.display = 'block'; }
@@ -142,16 +141,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
     let currentActiveIndex = Array.from(navLinks).findIndex(link => link.dataset.section === currentActiveSectionId);
 
-    if (currentActiveIndex === -1) { 
+    if (currentActiveIndex === -1) {
         currentActiveIndex = 0;
         currentActiveSectionId = initialSectionId;
     }
 
-    // Aplica o estado inicial ativo
     contentSections.forEach(section => {
         section.classList.remove('active-section', 'slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right');
         if (section.id === currentActiveSectionId) {
-            section.classList.add('active-section'); // Seção inicial é diretamente ativa
+            section.classList.add('active-section');
         }
     });
     navLinks.forEach(link => {
@@ -166,11 +164,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSectionEl = document.getElementById(newSectionId);
         const oldIndex = currentActiveIndex;
 
-        if (!newSectionEl) return; 
+        if (!newSectionEl) return;
 
-        // Limpa classes de animação da nova seção
         newSectionEl.classList.remove('slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right', 'active-section');
-        
+
         if (oldSectionEl) {
             oldSectionEl.classList.remove('active-section');
             if (newIndex > oldIndex) {
@@ -188,11 +185,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             newSectionEl.classList.add('slide-in-from-left');
         }
-        
+
         void newSectionEl.offsetWidth;
 
         newSectionEl.classList.add('active-section');
-        
+
         newSectionEl.addEventListener('transitionend', () => {
             newSectionEl.classList.remove('slide-in-from-left', 'slide-in-from-right');
         }, { once: true });
@@ -217,21 +214,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
-        if (data.error || !data.name) { 
-            setText(clanNameHeaderEl, "Erro"); setText(clanNameEl, data.error || "N/A"); 
-            if (loadingClanBadgeEl) loadingClanBadgeEl.src = DEFAULT_BADGE_URL;
-            return; 
+        if (data.error || !data.name) {
+            setText(clanNameHeaderEl, "Erro"); setText(clanNameEl, data.error || "N/A");
+            // NÃO atualizamos mais o loadingClanBadgeEl.src aqui
+            return;
         }
         setText(clanNameHeaderEl, data.name); setText(clanNameEl, data.name); setText(clanTagEl, data.tag);
         setText(clanLevelEl, data.level); setText(clanPointsEl, data.points); setText(clanMemberCountEl, data.member_count);
         setText(clanWarWinsEl, data.war_wins); setText(clanLocationEl, data.location); setText(clanTypeEl, data.type);
         setText(clanDescriptionEl, data.description, 'Sem descrição.'); setText(botVersionEl, data.version, '?');
-        setBadge(clanBadgeHeaderEl, data.badge_url); setBadge(clanBadgeEl, data.badge_url);
-        if (loadingClanBadgeEl && data.badge_url) { 
-            loadingClanBadgeEl.src = data.badge_url;
-        } else if (loadingClanBadgeEl) {
-            loadingClanBadgeEl.src = DEFAULT_BADGE_URL;
-        }
+        setBadge(clanBadgeHeaderEl, data.badge_url); // Badge do header continua sendo o do clã
+        setBadge(clanBadgeEl, data.badge_url);       // Badge da seção "Clã Info" continua sendo o do clã
+        // NENHUMA alteração no loadingClanBadgeEl.src aqui
+
         setText(clanCapitalPointsEl, data.capital_points); setText(clanCapitalLeagueEl, data.capital_league);
         setHtml(clanCapitalDistrictsEl, '');
         if (data.capital_districts && data.capital_districts.length > 0 && data.capital_districts[0].name !== "Distritos da Capital Indisponíveis (erro de importação)") {
@@ -367,8 +362,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateCwlInfo(data) {
-        setText(cwlStatusTextEl, "Carregando..."); 
-        if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state'; 
+        setText(cwlStatusTextEl, "Carregando...");
+        if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state';
 
         if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
             show(noCwlMessageEl); setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
@@ -377,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         hide(noCwlMessageEl); show(cwlActiveInfoEl);
-        setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl'); 
+        setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl');
         setText(cwlSeasonEl, data.season); setText(cwlGroupStateEl, data.state);
         setHtml(cwlGroupClansEl, '');
         if (data.clans_in_group && data.clans_in_group.length > 0) {
@@ -430,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nameFilter = filterNameInput.value.toLowerCase();
         const thFilter = filterTHInput.value.toLowerCase().replace(/\s/g, '');
         const leagueFilter = filterLeagueInput.value.toLowerCase();
-        const trophiesFilterText = filterTrophiesInput.value; 
+        const trophiesFilterText = filterTrophiesInput.value;
         const roleFilter = filterRoleInput.value.toLowerCase();
         const rows = membersTableBodyEl.getElementsByTagName('tr');
 
@@ -439,11 +434,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const cells = row.getElementsByTagName('td');
             let displayRow = true;
 
-            if (cells.length > 7) { 
+            if (cells.length > 7) {
                 if (nameFilter && !cells[1].textContent.toLowerCase().includes(nameFilter)) displayRow = false;
                 if (thFilter && !cells[2].textContent.toLowerCase().includes(thFilter)) displayRow = false;
                 if (leagueFilter && !cells[3].textContent.toLowerCase().includes(leagueFilter)) displayRow = false;
-                if (trophiesFilterText) { 
+                if (trophiesFilterText) {
                     const memberTrophies = parseInt(cells[4].textContent, 10);
                     const filterTrophiesNum = parseInt(trophiesFilterText, 10);
                     if (!isNaN(filterTrophiesNum) && memberTrophies !== filterTrophiesNum) {
@@ -453,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if (roleFilter && !cells[5].textContent.toLowerCase().includes(roleFilter)) displayRow = false;
-            } else if (row.getElementsByTagName('th').length === 0) { 
+            } else if (row.getElementsByTagName('th').length === 0) {
                 displayRow = false;
             }
             row.style.display = displayRow ? '' : 'none';
@@ -559,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
             fetchData('war_attacks_remaining'), fetchData('war_log?limit=10'), fetchData('cwl_info')
         ]);
-        populateClanInfo(clanData);
+        populateClanInfo(clanData); // Não mexe mais no loadingClanBadgeEl.src
         populateMembersList(membersData);
         populateWarDetails(currentWarDetailsData);
         populateWarAttacksRemaining(warAttacksRemainingData);
@@ -568,14 +563,11 @@ document.addEventListener('DOMContentLoaded', () => {
         updateLastUpdated();
 
         if (isFirstLoad && loadingOverlayEl) {
-            if (clanData && clanData.badge_url && loadingClanBadgeEl) {
-                loadingClanBadgeEl.src = clanData.badge_url;
-            } else if (loadingClanBadgeEl) {
-                loadingClanBadgeEl.src = DEFAULT_BADGE_URL;
-            }
+            // A imagem de carregamento agora é definida apenas no HTML.
+            // Apenas controlamos o tempo para esconder o overlay.
             setTimeout(() => {
                 loadingOverlayEl.classList.add('hidden');
-            }, 3500); // Tempo aumentado para 1.5 segundos
+            }, 4000); // Tempo aumentado para 2 segundos
             isFirstLoad = false;
         }
     }
