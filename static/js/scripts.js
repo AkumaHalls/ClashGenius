@@ -1,8 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
-    const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
+    const DEFAULT_BADGE_URL = '/static/images/default_badge.png'; // Mantido para outros usos, mas não para o loading badge principal
 
     // --- ELEMENTOS DO DOM ---
+    const loadingOverlayEl = document.getElementById('loading-overlay');
+    // const loadingClanBadgeEl = document.getElementById('loadingClanBadge'); // Não precisamos mais manipular o SRC dele aqui
+
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
     // Clã Info
@@ -21,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
 
     // Guerra Detalhes
-    const warDetailSection = document.getElementById('war-details-nav');
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
     const warDetailOpponentNameEl = document.getElementById('warDetailOpponentName');
@@ -94,6 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const navLinks = document.querySelectorAll('.nav-link');
     const contentSections = document.querySelectorAll('.content-section');
+    let isFirstLoad = true;
+
 
     // --- FUNÇÕES HELPER ---
     async function fetchData(endpoint, options = {}) {
@@ -102,25 +106,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ error: `Falha: ${response.status}` }));
                 console.error(`HTTP error! status: ${response.status} for ${endpoint}`, errorData);
-                // Tenta exibir a mensagem de erro no painel, se houver um local apropriado
-                // (pode ser melhorado para ser mais específico)
-                const errorDisplay = document.getElementById('generalErrorDisplay');
-                if (errorDisplay) setText(errorDisplay, `Erro API: ${errorData.error || response.status}`);
                 return { error: errorData.error || `Falha ao carregar ${endpoint}. Status: ${response.status}` };
             }
-            // Se for um método diferente de GET e a resposta for OK, mas sem JSON (ex: 204 No Content)
             if (options.method && options.method !== 'GET' && response.status === 204) {
-                return { success: true }; // Indica sucesso para operações sem corpo de resposta
+                return { success: true };
             }
             return await response.json();
         } catch (error) {
             console.error(`Could not fetch data from ${endpoint}:`, error);
-            const errorDisplay = document.getElementById('generalErrorDisplay');
-            if (errorDisplay) setText(errorDisplay, `Erro de conexão: ${error.message}`);
             return { error: `Erro de conexão ao buscar ${endpoint}.` };
         }
     }
-
 
     function updateLastUpdated() {
         const now = new Date();
@@ -133,53 +129,104 @@ document.addEventListener('DOMContentLoaded', () => {
     function setHtml(element, htmlContent) {
         if (element) element.innerHTML = htmlContent;
     }
-    function setBadge(element, url) {
+    function setBadge(element, url) { // Esta função ainda é usada para outros badges no site
         if (element) { element.src = url || DEFAULT_BADGE_URL; element.style.display = 'inline-block'; }
     }
     function show(element) { if (element) element.style.display = 'block'; }
     function hide(element) { if (element) element.style.display = 'none'; }
 
 
-    // --- NAVEGAÇÃO PRINCIPAL ---
-    function setActiveSection(sectionId) {
-        contentSections.forEach(section => {
-            if (section.id === sectionId) {
-                show(section);
-            } else {
-                hide(section);
-            }
-        });
-        navLinks.forEach(link => {
-            link.classList.toggle('active-nav-link', link.dataset.section === sectionId);
-        });
-        localStorage.setItem('activeSection', sectionId);
+    // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
+    const initialSectionId = (navLinks.length > 0 && navLinks[0].dataset.section) ? navLinks[0].dataset.section : 'clan-info-nav';
+    let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
+    let currentActiveIndex = Array.from(navLinks).findIndex(link => link.dataset.section === currentActiveSectionId);
+
+    if (currentActiveIndex === -1) {
+        currentActiveIndex = 0;
+        currentActiveSectionId = initialSectionId;
     }
 
+    contentSections.forEach(section => {
+        section.classList.remove('active-section', 'slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right');
+        if (section.id === currentActiveSectionId) {
+            section.classList.add('active-section');
+        }
+    });
     navLinks.forEach(link => {
+        link.classList.toggle('active-nav-link', link.dataset.section === currentActiveSectionId);
+    });
+
+
+    function setActiveSection(newSectionId, newIndex) {
+        if (newSectionId === currentActiveSectionId) return;
+
+        const oldSectionEl = document.getElementById(currentActiveSectionId);
+        const newSectionEl = document.getElementById(newSectionId);
+        const oldIndex = currentActiveIndex;
+
+        if (!newSectionEl) return;
+
+        newSectionEl.classList.remove('slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right', 'active-section');
+
+        if (oldSectionEl) {
+            oldSectionEl.classList.remove('active-section');
+            if (newIndex > oldIndex) {
+                oldSectionEl.classList.add('slide-out-left');
+            } else {
+                oldSectionEl.classList.add('slide-out-right');
+            }
+            oldSectionEl.addEventListener('transitionend', () => {
+                oldSectionEl.classList.remove('slide-out-left', 'slide-out-right');
+            }, { once: true });
+        }
+
+        if (newIndex > oldIndex) {
+            newSectionEl.classList.add('slide-in-from-right');
+        } else {
+            newSectionEl.classList.add('slide-in-from-left');
+        }
+
+        void newSectionEl.offsetWidth;
+
+        newSectionEl.classList.add('active-section');
+
+        newSectionEl.addEventListener('transitionend', () => {
+            newSectionEl.classList.remove('slide-in-from-left', 'slide-in-from-right');
+        }, { once: true });
+
+        navLinks.forEach(link => {
+            link.classList.toggle('active-nav-link', link.dataset.section === newSectionId);
+        });
+
+        localStorage.setItem('activeSection', newSectionId);
+        currentActiveSectionId = newSectionId;
+        currentActiveIndex = newIndex;
+    }
+
+    navLinks.forEach((link, index) => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const sectionId = link.dataset.section;
-            setActiveSection(sectionId);
-            const sectionElement = document.getElementById(sectionId);
-            if (sectionElement) sectionElement.scrollIntoView({ behavior: "smooth" });
+            setActiveSection(sectionId, index);
         });
     });
 
-    const savedSection = localStorage.getItem('activeSection');
-    if (savedSection && document.getElementById(savedSection)) {
-        setActiveSection(savedSection);
-    } else {
-        setActiveSection('clan-info-nav');
-    }
 
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
-        if (data.error || !data.name) { setText(clanNameHeaderEl, "Erro"); setText(clanNameEl, data.error || "N/A"); return; }
+        if (data.error || !data.name) {
+            setText(clanNameHeaderEl, "Erro"); setText(clanNameEl, data.error || "N/A");
+            // NÃO atualizamos mais o loadingClanBadgeEl.src aqui
+            return;
+        }
         setText(clanNameHeaderEl, data.name); setText(clanNameEl, data.name); setText(clanTagEl, data.tag);
         setText(clanLevelEl, data.level); setText(clanPointsEl, data.points); setText(clanMemberCountEl, data.member_count);
         setText(clanWarWinsEl, data.war_wins); setText(clanLocationEl, data.location); setText(clanTypeEl, data.type);
         setText(clanDescriptionEl, data.description, 'Sem descrição.'); setText(botVersionEl, data.version, '?');
-        setBadge(clanBadgeHeaderEl, data.badge_url); setBadge(clanBadgeEl, data.badge_url);
+        setBadge(clanBadgeHeaderEl, data.badge_url); // Badge do header continua sendo o do clã
+        setBadge(clanBadgeEl, data.badge_url);       // Badge da seção "Clã Info" continua sendo o do clã
+        // NENHUMA alteração no loadingClanBadgeEl.src aqui
+
         setText(clanCapitalPointsEl, data.capital_points); setText(clanCapitalLeagueEl, data.capital_league);
         setHtml(clanCapitalDistrictsEl, '');
         if (data.capital_districts && data.capital_districts.length > 0 && data.capital_districts[0].name !== "Distritos da Capital Indisponíveis (erro de importação)") {
@@ -315,14 +362,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateCwlInfo(data) {
+        setText(cwlStatusTextEl, "Carregando...");
+        if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state';
+
         if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
             show(noCwlMessageEl); setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
             hide(cwlActiveInfoEl); setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
-            if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state ' + (data.status || 'notincwl').toLowerCase();
+            if (cwlStatusTextEl) cwlStatusTextEl.classList.add((data.status || 'notincwl').toLowerCase());
             return;
         }
         hide(noCwlMessageEl); show(cwlActiveInfoEl);
-        setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state incwl';
+        setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl');
         setText(cwlSeasonEl, data.season); setText(cwlGroupStateEl, data.state);
         setHtml(cwlGroupClansEl, '');
         if (data.clans_in_group && data.clans_in_group.length > 0) {
@@ -375,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nameFilter = filterNameInput.value.toLowerCase();
         const thFilter = filterTHInput.value.toLowerCase().replace(/\s/g, '');
         const leagueFilter = filterLeagueInput.value.toLowerCase();
-        const trophiesFilterText = filterTrophiesInput.value; // Manter como string para comparação parcial
+        const trophiesFilterText = filterTrophiesInput.value;
         const roleFilter = filterRoleInput.value.toLowerCase();
         const rows = membersTableBodyEl.getElementsByTagName('tr');
 
@@ -384,14 +434,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const cells = row.getElementsByTagName('td');
             let displayRow = true;
 
-            if (cells.length > 7) { // Verifica se há células suficientes (incluindo a de observação)
+            if (cells.length > 7) {
                 if (nameFilter && !cells[1].textContent.toLowerCase().includes(nameFilter)) displayRow = false;
                 if (thFilter && !cells[2].textContent.toLowerCase().includes(thFilter)) displayRow = false;
                 if (leagueFilter && !cells[3].textContent.toLowerCase().includes(leagueFilter)) displayRow = false;
-                if (trophiesFilterText) { // Verifica se o filtro de troféus está preenchido
+                if (trophiesFilterText) {
                     const memberTrophies = parseInt(cells[4].textContent, 10);
                     const filterTrophiesNum = parseInt(trophiesFilterText, 10);
-                     // Se o filtro for um número, compara numericamente, senão, textualmente
                     if (!isNaN(filterTrophiesNum) && memberTrophies !== filterTrophiesNum) {
                         displayRow = false;
                     } else if (isNaN(filterTrophiesNum) && !cells[4].textContent.includes(trophiesFilterText)) {
@@ -399,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if (roleFilter && !cells[5].textContent.toLowerCase().includes(roleFilter)) displayRow = false;
-            } else if (row.getElementsByTagName('th').length === 0) { // Ignora linhas de cabeçalho se por acaso caírem aqui
+            } else if (row.getElementsByTagName('th').length === 0) {
                 displayRow = false;
             }
             row.style.display = displayRow ? '' : 'none';
@@ -412,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (filterRoleInput) filterRoleInput.addEventListener('input', applyMemberFilters);
 
     async function savePlayerNote(playerTag, text, priority) {
-        const cleanTag = playerTag.replace("#", ""); // Remove # para a URL da API
+        const cleanTag = playerTag.replace("#", "");
         const response = await fetchData(`notes/${cleanTag}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -420,19 +469,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (response.error) {
             console.error("Erro ao salvar nota:", response.error);
-            // Adicionar feedback visual de erro para o usuário, se desejado
         } else {
             console.log("Nota salva:", response.message);
-            // Adicionar feedback visual de sucesso, se desejado
-            // Atualizar a interface imediatamente ou recarregar dados dos membros
-            // loadAllData(); // Ou uma atualização mais direcionada
         }
     }
 
-
     function populateMembersList(data) {
         setText(membersClanNameEl, data.clan_name ? `(${data.clan_name})` : '');
-        if (data.error) { setHtml(membersTableBodyEl, `<tr><td colspan="9">${data.error}</td></tr>`); return; } // Colspan 9
+        if (data.error) { setHtml(membersTableBodyEl, `<tr><td colspan="9">${data.error}</td></tr>`); return; }
         setHtml(membersTableBodyEl, '');
         if (data.members && data.members.length > 0) {
             data.members.forEach((m, i) => {
@@ -446,42 +490,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 setText(r.insertCell(), m.donations);
                 setText(r.insertCell(), m.received);
 
-                // Célula de Observação
                 const noteCell = r.insertCell();
                 noteCell.className = 'member-note-cell';
-
                 const noteContainer = document.createElement('div');
                 noteContainer.className = `note-container note-priority-${m.note_priority || 'none'}`;
-
                 const noteTextSpan = document.createElement('span');
                 noteTextSpan.className = 'note-text';
                 noteTextSpan.textContent = m.note || '';
-                noteTextSpan.title = m.note || 'Sem observação'; // Tooltip
+                noteTextSpan.title = m.note || 'Sem observação';
                 noteContainer.appendChild(noteTextSpan);
-
                 const noteInput = document.createElement('input');
                 noteInput.type = 'text';
                 noteInput.className = 'note-input';
                 noteInput.value = m.note || '';
-                noteInput.style.display = 'none'; // Começa escondido
+                noteInput.style.display = 'none';
                 noteContainer.appendChild(noteInput);
-
                 const prioritySelector = document.createElement('div');
                 prioritySelector.className = 'priority-selector';
                 ['none', 'green', 'yellow', 'red'].forEach(prio => {
                     const btn = document.createElement('button');
                     btn.className = `priority-btn priority-${prio}`;
                     btn.dataset.priority = prio;
-                    if (prio === 'none') btn.innerHTML = '&times;'; // 'x' para remover/sem prioridade
-                    else btn.innerHTML = '&#9679;'; // Círculo para cores
-                    
-                    if (prio === (m.note_priority || 'none')) {
-                        btn.classList.add('active');
-                    }
+                    if (prio === 'none') btn.innerHTML = '&times;';
+                    else btn.innerHTML = '&#9679;';
+                    if (prio === (m.note_priority || 'none')) btn.classList.add('active');
                     btn.addEventListener('click', () => {
                         const currentText = noteInput.style.display === 'none' ? noteTextSpan.textContent : noteInput.value;
                         savePlayerNote(m.tag, currentText, prio);
-                        // Atualiza visualmente
                         noteContainer.className = `note-container note-priority-${prio}`;
                         prioritySelector.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
@@ -489,13 +524,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     prioritySelector.appendChild(btn);
                 });
                 noteContainer.appendChild(prioritySelector);
-                
                 noteTextSpan.addEventListener('click', () => {
                     noteTextSpan.style.display = 'none';
                     noteInput.style.display = 'inline-block';
                     noteInput.focus();
                 });
-
                 noteInput.addEventListener('blur', () => {
                     const newText = noteInput.value;
                     const currentPriority = prioritySelector.querySelector('.priority-btn.active')?.dataset.priority || 'none';
@@ -506,15 +539,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     noteTextSpan.style.display = 'inline';
                 });
                  noteInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        noteInput.blur(); // Simula o blur para salvar
-                    }
+                    if (e.key === 'Enter') noteInput.blur();
                 });
-
-
                 noteCell.appendChild(noteContainer);
             });
-        } else { setHtml(membersTableBodyEl, '<tr><td colspan="9">Nenhum membro.</td></tr>'); } // Colspan 9
+        } else { setHtml(membersTableBodyEl, '<tr><td colspan="9">Nenhum membro.</td></tr>'); }
         applyMemberFilters();
     }
 
@@ -525,14 +554,23 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
             fetchData('war_attacks_remaining'), fetchData('war_log?limit=10'), fetchData('cwl_info')
         ]);
-        populateClanInfo(clanData);
-        populateMembersList(membersData); // Agora inclui notas
+        populateClanInfo(clanData); // Não mexe mais no loadingClanBadgeEl.src
+        populateMembersList(membersData);
         populateWarDetails(currentWarDetailsData);
         populateWarAttacksRemaining(warAttacksRemainingData);
         populateWarLog(warLogData);
         populateCwlInfo(cwlInfoData);
         updateLastUpdated();
+
+        if (isFirstLoad && loadingOverlayEl) {
+            // A imagem de carregamento agora é definida apenas no HTML.
+            // Apenas controlamos o tempo para esconder o overlay.
+            setTimeout(() => {
+                loadingOverlayEl.classList.add('hidden');
+            }, 4000); // Tempo aumentado para 2 segundos
+            isFirstLoad = false;
+        }
     }
     loadAllData();
-    setInterval(loadAllData, 60000); // Atualiza a cada 60 segundos
+    setInterval(loadAllData, 60000);
 });
