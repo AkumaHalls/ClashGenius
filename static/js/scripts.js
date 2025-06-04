@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
 
     // Guerra Detalhes
-    const warDetailSection = document.getElementById('war-details-nav');
+    // const warDetailSection = document.getElementById('war-details-nav'); // Não usado diretamente após as mudanças
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
     const warDetailOpponentNameEl = document.getElementById('warDetailOpponentName');
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lastUpdatedEl = document.getElementById('lastUpdated');
 
     const navLinks = document.querySelectorAll('.nav-link');
-    const contentSections = document.querySelectorAll('.content-section'); // Ainda usado para referência, mas a lógica de exibição muda.
+    const contentSections = document.querySelectorAll('.content-section');
     let isFirstLoad = true;
 
 
@@ -138,69 +138,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
-    let currentActiveSectionId = localStorage.getItem('activeSection') || (navLinks.length > 0 ? navLinks[0].dataset.section : 'clan-info-nav');
+    const initialSectionId = (navLinks.length > 0 && navLinks[0].dataset.section) ? navLinks[0].dataset.section : 'clan-info-nav';
+    let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
     let currentActiveIndex = Array.from(navLinks).findIndex(link => link.dataset.section === currentActiveSectionId);
-    if (currentActiveIndex === -1 && navLinks.length > 0) { // Fallback se o ID salvo não for válido
+
+    if (currentActiveIndex === -1) { 
         currentActiveIndex = 0;
-        currentActiveSectionId = navLinks[0].dataset.section;
+        currentActiveSectionId = initialSectionId;
     }
-    
-    // Aplica o estado inicial sem animação na primeira carga
-    const initialSection = document.getElementById(currentActiveSectionId);
-    if (initialSection) {
-        initialSection.classList.add('active-section-initial');
-    }
+
+    // Aplica o estado inicial ativo
+    contentSections.forEach(section => {
+        section.classList.remove('active-section', 'slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right');
+        if (section.id === currentActiveSectionId) {
+            section.classList.add('active-section');
+        }
+    });
     navLinks.forEach(link => {
         link.classList.toggle('active-nav-link', link.dataset.section === currentActiveSectionId);
     });
 
 
     function setActiveSection(newSectionId, newIndex) {
-        const oldSectionId = currentActiveSectionId;
-        const oldSectionEl = document.getElementById(oldSectionId);
+        if (newSectionId === currentActiveSectionId) return;
+
+        const oldSectionEl = document.getElementById(currentActiveSectionId);
         const newSectionEl = document.getElementById(newSectionId);
-
-        if (!newSectionEl || oldSectionId === newSectionId) return;
-
         const oldIndex = currentActiveIndex;
 
-        // Limpa classes de animação de saída e de estado inicial da seção antiga
-        if(oldSectionEl) {
-            oldSectionEl.classList.remove('active-section', 'active-section-initial', 'slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right');
-        }
-        // Limpa classes de animação de entrada e de estado inicial da nova seção
-        newSectionEl.classList.remove('active-section', 'active-section-initial', 'slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right');
+        if (!newSectionEl) return; 
 
-
+        // Limpa classes de animação da nova seção
+        newSectionEl.classList.remove('slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right', 'active-section');
+        
         if (oldSectionEl) {
-            if (newIndex > oldIndex) { // Nova seção está à direita da antiga, antiga sai para esquerda
+            oldSectionEl.classList.remove('active-section');
+            if (newIndex > oldIndex) {
                 oldSectionEl.classList.add('slide-out-left');
-            } else { // Nova seção está à esquerda da antiga, antiga sai para direita
+            } else {
                 oldSectionEl.classList.add('slide-out-right');
             }
-            // O CSS agora usa visibility e atraso na transição, então a remoção imediata da classe de saída não é crítica
-            // mas é bom limpar após a transição para não poluir.
+            // Remove as classes de animação de saída após a transição para limpar
             oldSectionEl.addEventListener('transitionend', () => {
                 oldSectionEl.classList.remove('slide-out-left', 'slide-out-right');
             }, { once: true });
         }
-        
-        // Prepara a nova seção para entrar
-        if (newIndex > oldIndex) { // Nova seção entra da direita
+
+        // Define a posição inicial da nova seção (fora da tela) e a torna 'ativa' para iniciar a transição
+        if (newIndex > oldIndex) {
             newSectionEl.classList.add('slide-in-from-right');
-        } else { // Nova seção entra da esquerda
+        } else {
             newSectionEl.classList.add('slide-in-from-left');
         }
+        
+        // Força um reflow para que a transição seja aplicada a partir do estado 'slide-in-*'
+        void newSectionEl.offsetWidth;
 
-        // Forçar reflow/repaint para a animação de entrada ser aplicada corretamente
-        void newSectionEl.offsetWidth; 
-
-        // Ativa a nova seção (fazendo-a deslizar para o centro e se tornar opaca)
+        // Adiciona a classe 'active-section' para mover a nova seção para o centro
         newSectionEl.classList.add('active-section');
         
-        // A classe de 'entrada' (slide-in-from-*) será removida pela transição para active-section
-        // que tem transform: translateX(0) e opacity: 1.
-        // O importante é que 'active-section' defina o estado final.
+        // Remove a classe de 'entrada' após a animação para limpar o estado.
+        // A classe 'active-section' por si só já a mantém no lugar (transform: translateX(0), opacity: 1).
+        newSectionEl.addEventListener('transitionend', () => {
+            newSectionEl.classList.remove('slide-in-from-left', 'slide-in-from-right');
+        }, { once: true });
 
         navLinks.forEach(link => {
             link.classList.toggle('active-nav-link', link.dataset.section === newSectionId);
@@ -224,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateClanInfo(data) {
         if (data.error || !data.name) { 
             setText(clanNameHeaderEl, "Erro"); setText(clanNameEl, data.error || "N/A"); 
-            if (loadingClanBadgeEl) loadingClanBadgeEl.src = DEFAULT_BADGE_URL; // Badge padrão no loading
+            if (loadingClanBadgeEl) loadingClanBadgeEl.src = DEFAULT_BADGE_URL;
             return; 
         }
         setText(clanNameHeaderEl, data.name); setText(clanNameEl, data.name); setText(clanTagEl, data.tag);
@@ -232,8 +233,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(clanWarWinsEl, data.war_wins); setText(clanLocationEl, data.location); setText(clanTypeEl, data.type);
         setText(clanDescriptionEl, data.description, 'Sem descrição.'); setText(botVersionEl, data.version, '?');
         setBadge(clanBadgeHeaderEl, data.badge_url); setBadge(clanBadgeEl, data.badge_url);
-        if (loadingClanBadgeEl && data.badge_url) { // Atualiza o badge na tela de carregamento
+        if (loadingClanBadgeEl && data.badge_url) { 
             loadingClanBadgeEl.src = data.badge_url;
+        } else if (loadingClanBadgeEl) {
+            loadingClanBadgeEl.src = DEFAULT_BADGE_URL; // Garante que o placeholder seja exibido se não houver badge
         }
         setText(clanCapitalPointsEl, data.capital_points); setText(clanCapitalLeagueEl, data.capital_league);
         setHtml(clanCapitalDistrictsEl, '');
@@ -370,8 +373,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateCwlInfo(data) {
-        setText(cwlStatusTextEl, "Carregando..."); // Reset status text
-        if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state'; // Reset class
+        setText(cwlStatusTextEl, "Carregando..."); 
+        if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state'; 
 
         if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
             show(noCwlMessageEl); setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
@@ -380,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         hide(noCwlMessageEl); show(cwlActiveInfoEl);
-        setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl'); // Specific class for "In CWL"
+        setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl'); 
         setText(cwlSeasonEl, data.season); setText(cwlGroupStateEl, data.state);
         setHtml(cwlGroupClansEl, '');
         if (data.clans_in_group && data.clans_in_group.length > 0) {
@@ -479,8 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Erro ao salvar nota:", response.error);
         } else {
             console.log("Nota salva:", response.message);
-            // Poderia recarregar apenas a seção de membros se a API retornar os dados atualizados
-            // ou invalidar o cache da API de membros e chamar loadAllData() para uma atualização completa.
         }
     }
 
@@ -574,12 +575,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isFirstLoad && loadingOverlayEl) {
             if (clanData && clanData.badge_url && loadingClanBadgeEl) {
-                loadingClanBadgeEl.src = clanData.badge_url; // Garante que o badge correto seja mostrado antes do fade-out
+                loadingClanBadgeEl.src = clanData.badge_url;
+            } else if (loadingClanBadgeEl) {
+                loadingClanBadgeEl.src = DEFAULT_BADGE_URL;
             }
-             // Adiciona um pequeno delay para garantir que o usuário veja o logo atualizado (se houver)
             setTimeout(() => {
                 loadingOverlayEl.classList.add('hidden');
-            }, 300); // Ajuste o tempo conforme necessário
+            }, 500); // Aumentei um pouco o delay para dar tempo de ver o logo pulsar
             isFirstLoad = false;
         }
     }
