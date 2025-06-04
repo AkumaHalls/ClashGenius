@@ -93,14 +93,15 @@ body {
     pointer-events: none;
 }
 .loading-badge {
-    width: 260px; /* Tamanho da logo ajustado */
+    width: 520px; /* Dobrado novamente (260px * 2) */
+    max-width: 90vw; /* Garante que não seja maior que a tela em dispositivos pequenos */
     height: auto; /* Mantém proporção */
     margin-bottom: 25px;
     animation: pulse-heart 1.2s infinite ease-in-out;
 }
 @keyframes pulse-heart {
     0% { transform: scale(1); }
-    50% { transform: scale(1.08); }
+    50% { transform: scale(1.05); } /* Reduzido um pouco o scale para logos grandes */
     100% { transform: scale(1); }
 }
 .loading-spinner {
@@ -222,12 +223,12 @@ main { padding-top: 25px; padding-bottom: 25px; }
     transform: translateX(0);
     pointer-events: auto;
     z-index: 2;
-    position: relative; 
+    position: relative;
 }
 
 /* Posições iniciais para seções que vão entrar */
 .content-section.slide-in-from-right {
-    transform: translateX(30px); 
+    transform: translateX(30px);
     opacity: 0;
 }
 .content-section.slide-in-from-left {
@@ -473,7 +474,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .note-text { max-width: 120px; }
 }
 @media (max-width: 480px) {
-    .loading-badge { width: 180px; } /* Ajuste para telas muito pequenas */
+    .loading-badge { width: 70vw; max-width: 180px; } /* Ajuste dinâmico e máximo para telas muito pequenas */
     .site-header h1 { font-size: 1.2em; }
     .card h2 { font-size: 1.2em; } .card h3 { font-size: 1.05em; }
     .team-score p { font-size: 1.3em; }
