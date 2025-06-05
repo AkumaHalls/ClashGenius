@@ -59,7 +59,11 @@
     --box-shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
-html { scroll-behavior: smooth; }
+html {
+    height: 100%; /* Garante que o html ocupe toda a altura */
+    scroll-behavior: smooth;
+}
+
 body {
     font-family: var(--font-body);
     margin: 0;
@@ -67,22 +71,34 @@ body {
     color: var(--color-text-main);
     line-height: 1.6;
     font-size: 16px;
-    position: relative; /* Para o z-index do canvas funcionar corretamente */
+    position: relative;
+    display: flex; /* Para o sticky footer */
+    flex-direction: column; /* Para o sticky footer */
+    min-height: 100%; /* Garante que o body ocupe pelo menos toda a altura da viewport */
 }
 
 /* Canvas para animação de partículas */
 #particle-background {
-    position: fixed; /* Fixa no viewport */
+    position: fixed; 
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: -1; /* Coloca atrás de todo o conteúdo */
-    /* background-color: #000000; O JavaScript já desenha o fundo preto */
+    z-index: -1; 
 }
 
 
-.container { width: 95%; max-width: 1300px; margin: auto; padding: 0 15px; position:relative; z-index: 1; /* Garante que o conteúdo fique sobre o canvas */ }
+.container {
+    width: 95%;
+    max-width: 1300px;
+    margin-left: auto; /* Centraliza com margin-left e margin-right auto */
+    margin-right: auto;
+    padding-left: 15px; /* Adiciona padding horizontal */
+    padding-right: 15px;
+    position:relative;
+    z-index: 1;
+    box-sizing: border-box; /* Garante que padding não aumente a largura total */
+}
 
 
 /* Tela de Carregamento */
@@ -92,7 +108,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: var(--color-background); /* Pode ser o mesmo do body ou um pouco diferente */
+    background-color: var(--color-background);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -106,9 +122,9 @@ body {
     pointer-events: none;
 }
 .loading-badge {
-    width: 520px; 
-    max-width: 90vw; 
-    height: auto; 
+    width: 520px;
+    max-width: 90vw;
+    height: auto;
     margin-bottom: 25px;
     animation: pulse-heart 1.2s infinite ease-in-out;
 }
@@ -141,11 +157,15 @@ body {
 .site-header {
     background-color: var(--color-header-background);
     color: var(--color-text-header);
-    padding: 12px 0;
+    padding-top: 12px; /* Ajustado */
+    padding-bottom: 12px; /* Ajustado */
     border-bottom: 1px solid var(--color-border);
     box-shadow: var(--box-shadow-base);
-    position: sticky; top: 0; z-index: 1000; /* Header sobre o conteúdo mas abaixo do loading */
+    position: sticky; top: 0; z-index: 1000;
+    width: 100%; /* Garante que o header ocupe toda a largura */
+    box-sizing: border-box;
 }
+/* O .container dentro do header já centraliza o conteúdo */
 .header-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;}
 .logo-title { display: flex; align-items: center; margin-bottom: 5px; }
 .header-badge { height: 36px; width: 36px; margin-right: 12px; border: 1px solid var(--color-border); border-radius: 50%; }
@@ -164,7 +184,17 @@ body {
 .main-nav a.active-nav-link { color: #ffffff; background-color: var(--color-accent); }
 
 /* Conteúdo Principal e Cards */
-main { padding-top: 25px; padding-bottom: 25px; position: relative; z-index: 1; } /* Garante que main fique sobre o canvas */
+main.container {
+    padding-top: 25px;
+    padding-bottom: 25px;
+    position: relative;
+    z-index: 1;
+    flex-grow: 1; /* Faz o main crescer para empurrar o footer */
+    width: 100%; /* Para que o .container interno respeite a largura máxima */
+    max-width: 1300px; /* Mantém a largura máxima do conteúdo */
+    margin-left: auto; /* Centraliza */
+    margin-right: auto; /* Centraliza */
+}
 .card {
     background-color: var(--color-card-background);
     margin-bottom: 25px; padding: 20px 25px;
@@ -214,20 +244,22 @@ main { padding-top: 25px; padding-bottom: 25px; position: relative; z-index: 1; 
 /* Navegação e Animação de Seções */
 .sections-wrapper {
     position: relative;
-    overflow: hidden; 
-    min-height: 500px; 
+    overflow: hidden;
+    /* min-height: 500px; Removido para permitir que o conteúdo defina a altura */
+    width: 100%;
+    flex-grow: 1; /* Adicionado para que o wrapper preencha o espaço no main */
+    display: flex; /* Para que a seção ativa possa ditar a altura */
 }
 
 .content-section {
-    position: absolute;
-    top: 0;
-    left: 0;
+    /* position: absolute; Removido para seções não ativas */
     width: 100%;
-    opacity: 0; 
-    transform: translateX(0); 
+    opacity: 0;
+    transform: translateX(0);
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    pointer-events: none; 
+    pointer-events: none;
     box-sizing: border-box;
+    display: none; /* Esconde por padrão */
 }
 
 .content-section.active-section {
@@ -235,29 +267,36 @@ main { padding-top: 25px; padding-bottom: 25px; position: relative; z-index: 1; 
     transform: translateX(0);
     pointer-events: auto;
     z-index: 2;
-    position: relative; 
+    position: relative; /* Importante para o fluxo normal e altura */
+    display: block; /* Mostra a seção ativa */
 }
 
+/* Posições iniciais para seções que vão entrar ANTES de .active-section ser totalmente aplicado */
 .content-section.slide-in-from-right {
-    transform: translateX(30px); 
+    transform: translateX(30px);
     opacity: 0;
+    display: block; /* Precisa estar 'block' para animar */
 }
 .content-section.slide-in-from-left {
     transform: translateX(-30px);
     opacity: 0;
+    display: block; /* Precisa estar 'block' para animar */
 }
 
+/* Animações de saída */
 .content-section.slide-out-left {
     transform: translateX(-30px);
     opacity: 0;
     z-index: 1;
     pointer-events: none;
+    display: block; /* Mantém 'block' durante a animação de saída */
 }
 .content-section.slide-out-right {
     transform: translateX(30px);
     opacity: 0;
     z-index: 1;
     pointer-events: none;
+    display: block; /* Mantém 'block' durante a animação de saída */
 }
 
 
@@ -295,7 +334,7 @@ main { padding-top: 25px; padding-bottom: 25px; position: relative; z-index: 1; 
     border-bottom-color: var(--color-tab-active-bg);
 }
 .war-tab-button:hover { color: var(--color-text-main); }
-.war-tab-content { display: none; padding-top:15px; } 
+.war-tab-content { display: none; padding-top:15px; }
 .war-tab-content.active { display: block; }
 
 /* Aba Estatísticas da Guerra */
@@ -444,12 +483,17 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 
 /* Rodapé */
 .site-footer {
-    text-align: center; padding: 20px 0;
+    text-align: center;
+    padding: 20px 0;
     background-color: var(--color-footer-background);
     color: var(--color-text-secondary);
-    margin-top: 30px; font-size: 0.85em;
+    /* margin-top: auto;  Para sticky footer com flexbox no body */
+    font-size: 0.85em;
     border-top: 1px solid var(--color-border);
-    position: relative; z-index: 1; /* Garante que o rodapé fique sobre o canvas */
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    box-sizing: border-box;
 }
 .site-footer p { margin: 4px 0; }
 .site-footer #botVersion { color: var(--color-text-main); font-weight: 500; }
@@ -485,7 +529,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .note-text { max-width: 120px; }
 }
 @media (max-width: 480px) {
-    .loading-badge { width: 70vw; max-width: 300px; } /* Ajustado para telas bem pequenas, mas ainda grande */
+    .loading-badge { width: 70vw; max-width: 300px; }
     .site-header h1 { font-size: 1.2em; }
     .card h2 { font-size: 1.2em; } .card h3 { font-size: 1.05em; }
     .team-score p { font-size: 1.3em; }
