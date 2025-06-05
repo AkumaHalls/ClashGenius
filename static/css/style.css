@@ -60,21 +60,21 @@
 }
 
 html {
-    height: 100%; /* Garante que o html ocupe toda a altura */
+    height: 100%; 
     scroll-behavior: smooth;
 }
 
 body {
     font-family: var(--font-body);
     margin: 0;
-    background-color: #000000; /* Fundo preto principal para o body */
+    background-color: #000000; 
     color: var(--color-text-main);
     line-height: 1.6;
     font-size: 16px;
-    position: relative;
-    display: flex; /* Para o sticky footer */
-    flex-direction: column; /* Para o sticky footer */
-    min-height: 100%; /* Garante que o body ocupe pelo menos toda a altura da viewport */
+    position: relative; 
+    display: flex; 
+    flex-direction: column; 
+    min-height: 100%; 
 }
 
 /* Canvas para animação de partículas */
@@ -91,13 +91,13 @@ body {
 .container {
     width: 95%;
     max-width: 1300px;
-    margin-left: auto; /* Centraliza com margin-left e margin-right auto */
+    margin-left: auto; 
     margin-right: auto;
-    padding-left: 15px; /* Adiciona padding horizontal */
+    padding-left: 15px; 
     padding-right: 15px;
     position:relative;
     z-index: 1;
-    box-sizing: border-box; /* Garante que padding não aumente a largura total */
+    box-sizing: border-box; 
 }
 
 
@@ -157,15 +157,15 @@ body {
 .site-header {
     background-color: var(--color-header-background);
     color: var(--color-text-header);
-    padding-top: 12px; /* Ajustado */
-    padding-bottom: 12px; /* Ajustado */
+    padding-top: 12px; 
+    padding-bottom: 12px; 
     border-bottom: 1px solid var(--color-border);
     box-shadow: var(--box-shadow-base);
     position: sticky; top: 0; z-index: 1000;
-    width: 100%; /* Garante que o header ocupe toda a largura */
+    width: 100%; 
     box-sizing: border-box;
 }
-/* O .container dentro do header já centraliza o conteúdo */
+
 .header-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;}
 .logo-title { display: flex; align-items: center; margin-bottom: 5px; }
 .header-badge { height: 36px; width: 36px; margin-right: 12px; border: 1px solid var(--color-border); border-radius: 50%; }
@@ -189,11 +189,11 @@ main.container {
     padding-bottom: 25px;
     position: relative;
     z-index: 1;
-    flex-grow: 1; /* Faz o main crescer para empurrar o footer */
-    width: 100%; /* Para que o .container interno respeite a largura máxima */
-    max-width: 1300px; /* Mantém a largura máxima do conteúdo */
-    margin-left: auto; /* Centraliza */
-    margin-right: auto; /* Centraliza */
+    flex-grow: 1; 
+    width: 100%; 
+    max-width: 1300px; 
+    margin-left: auto; 
+    margin-right: auto; 
 }
 .card {
     background-color: var(--color-card-background);
@@ -245,58 +245,57 @@ main.container {
 .sections-wrapper {
     position: relative;
     overflow: hidden;
-    /* min-height: 500px; Removido para permitir que o conteúdo defina a altura */
     width: 100%;
-    flex-grow: 1; /* Adicionado para que o wrapper preencha o espaço no main */
-    display: flex; /* Para que a seção ativa possa ditar a altura */
+    flex-grow: 1; 
+    display: block; /* Alterado para block, a altura será definida pela seção ativa */
 }
 
 .content-section {
-    /* position: absolute; Removido para seções não ativas */
     width: 100%;
     opacity: 0;
-    transform: translateX(0);
+    transform: translateX(100%); /* Estado inicial: fora da tela à direita */
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
     box-sizing: border-box;
-    display: none; /* Esconde por padrão */
+    position: absolute; /* Todas são absolutas para sobreposição durante a transição */
+    top: 0;
+    left: 0;
+    visibility: hidden; /* Escondidas até serem ativadas */
 }
 
 .content-section.active-section {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0); /* Posição final no centro */
     pointer-events: auto;
     z-index: 2;
-    position: relative; /* Importante para o fluxo normal e altura */
-    display: block; /* Mostra a seção ativa */
+    position: relative; /* Apenas a ativa é relative para definir a altura do wrapper */
+    visibility: visible;
 }
 
-/* Posições iniciais para seções que vão entrar ANTES de .active-section ser totalmente aplicado */
-.content-section.slide-in-from-right {
-    transform: translateX(30px);
+/* Prepara para entrar da esquerda */
+.content-section.slide-prepare.slide-from-left {
+    transform: translateX(-100%);
     opacity: 0;
-    display: block; /* Precisa estar 'block' para animar */
+    visibility: visible; /* Torna visível para animar */
 }
-.content-section.slide-in-from-left {
-    transform: translateX(-30px);
+
+/* Prepara para entrar da direita */
+.content-section.slide-prepare.slide-from-right {
+    transform: translateX(100%);
     opacity: 0;
-    display: block; /* Precisa estar 'block' para animar */
+    visibility: visible; /* Torna visível para animar */
 }
 
 /* Animações de saída */
-.content-section.slide-out-left {
-    transform: translateX(-30px);
+.content-section.slide-out-to-left {
+    transform: translateX(-100%);
     opacity: 0;
-    z-index: 1;
-    pointer-events: none;
-    display: block; /* Mantém 'block' durante a animação de saída */
+    visibility: visible; /* Mantém visível durante a animação de saída */
 }
-.content-section.slide-out-right {
-    transform: translateX(30px);
+.content-section.slide-out-to-right {
+    transform: translateX(100%);
     opacity: 0;
-    z-index: 1;
-    pointer-events: none;
-    display: block; /* Mantém 'block' durante a animação de saída */
+    visibility: visible; /* Mantém visível durante a animação de saída */
 }
 
 
@@ -487,13 +486,13 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     padding: 20px 0;
     background-color: var(--color-footer-background);
     color: var(--color-text-secondary);
-    /* margin-top: auto;  Para sticky footer com flexbox no body */
     font-size: 0.85em;
     border-top: 1px solid var(--color-border);
     position: relative;
     z-index: 1;
     width: 100%;
     box-sizing: border-box;
+    /* margin-top: auto; /* Se body é flex-column, isso ajuda a empurrar para baixo */
 }
 .site-footer p { margin: 4px 0; }
 .site-footer #botVersion { color: var(--color-text-main); font-weight: 500; }
