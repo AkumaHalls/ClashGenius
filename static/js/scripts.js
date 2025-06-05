@@ -124,8 +124,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function setBadge(element, url) {
         if (element) { element.src = url || DEFAULT_BADGE_URL; element.style.display = 'inline-block'; }
     }
-    function show(element) { if (element) element.style.display = 'block'; }
-    function hide(element) { if (element) element.style.display = 'none'; }
+    // Funções show/hide não são mais usadas diretamente para seções principais
+    // function show(element) { if (element) element.style.display = 'block'; }
+    // function hide(element) { if (element) element.style.display = 'none'; }
 
 
     // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
@@ -138,10 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentActiveSectionId = initialSectionId;
     }
 
+    // Configuração inicial da seção ativa
     contentSections.forEach(section => {
-        section.classList.remove('active-section', 'slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right');
+        section.classList.remove('active-section', 'slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right');
         if (section.id === currentActiveSectionId) {
-            section.classList.add('active-section');
+            section.classList.add('active-section'); // Apenas adiciona a classe ativa, o CSS cuida do display
         }
     });
     navLinks.forEach(link => {
@@ -158,33 +160,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!newSectionEl) return;
 
-        newSectionEl.classList.remove('slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right', 'active-section');
+        // Limpa classes de animação anteriores da nova seção
+        newSectionEl.classList.remove('slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right', 'active-section');
 
+        // Anima a saída da seção antiga
         if (oldSectionEl) {
-            oldSectionEl.classList.remove('active-section');
+            oldSectionEl.classList.remove('active-section'); // Remove o estado ativo
             if (newIndex > oldIndex) {
-                oldSectionEl.classList.add('slide-out-left');
+                oldSectionEl.classList.add('slide-out-to-left');
             } else {
-                oldSectionEl.classList.add('slide-out-right');
+                oldSectionEl.classList.add('slide-out-to-right');
             }
-            oldSectionEl.addEventListener('transitionend', () => {
-                oldSectionEl.classList.remove('slide-out-left', 'slide-out-right');
+            // Listener para limpar classes de saída após a animação
+            oldSectionEl.addEventListener('transitionend', function handleOldOut() {
+                oldSectionEl.classList.remove('slide-out-to-left', 'slide-out-to-right');
+                oldSectionEl.removeEventListener('transitionend', handleOldOut);
             }, { once: true });
         }
 
+        // Prepara a nova seção para entrar (define a posição inicial da animação)
+        newSectionEl.classList.add('slide-prepare');
         if (newIndex > oldIndex) {
-            newSectionEl.classList.add('slide-in-from-right');
+            newSectionEl.classList.add('slide-from-right');
         } else {
-            newSectionEl.classList.add('slide-in-from-left');
+            newSectionEl.classList.add('slide-from-left');
         }
 
+        // Força um reflow para o navegador aplicar o estado 'prepare'
         void newSectionEl.offsetWidth;
 
-        newSectionEl.classList.add('active-section');
-
-        newSectionEl.addEventListener('transitionend', () => {
-            newSectionEl.classList.remove('slide-in-from-left', 'slide-in-from-right');
-        }, { once: true });
+        // Inicia a animação de entrada da nova seção
+        newSectionEl.classList.remove('slide-prepare', 'slide-from-left', 'slide-from-right');
+        newSectionEl.classList.add('active-section'); // Adiciona active-section para animar para o estado final
 
         navLinks.forEach(link => {
             link.classList.toggle('active-nav-link', link.dataset.section === newSectionId);
@@ -203,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-
+    // ... (resto das funções populate... loadAllData, etc. como na versão anterior)
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
         if (data.error || !data.name) {
@@ -242,16 +249,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateWarDetails(data) {
+        const warDetailContainer = document.querySelector('#war-details-nav'); // Container principal da seção de guerra
+        const warHeader = warDetailContainer.querySelector('.war-header');
+        const warTabsNav = warDetailContainer.querySelector('.war-tabs');
+
         if (data.error || !data.war_data) {
-            show(noWarDetailMessageEl); setText(noWarDetailMessageEl, data.error || "Nenhuma guerra para detalhar.");
-            hide(document.querySelector('#war-details-nav .war-header'));
-            hide(document.querySelector('#war-details-nav .war-tabs'));
+            if (noWarDetailMessageEl) show(noWarDetailMessageEl); setText(noWarDetailMessageEl, data.error || "Nenhuma guerra para detalhar.");
+            if (warHeader) hide(warHeader);
+            if (warTabsNav) hide(warTabsNav);
             warTabContents.forEach(hide);
             return;
         }
-        hide(noWarDetailMessageEl);
-        show(document.querySelector('#war-details-nav .war-header'));
-        show(document.querySelector('#war-details-nav .war-tabs'));
+        if (noWarDetailMessageEl) hide(noWarDetailMessageEl);
+        if (warHeader) show(warHeader);
+        if (warTabsNav) show(warTabsNav);
+
 
         const war = data.war_data;
         setText(warDetailOurClanNameEl, war.clan_name);
@@ -332,21 +344,33 @@ document.addEventListener('DOMContentLoaded', () => {
         populateTeamTabData(data.our_clan_members_in_war, "Our", warOurTeamMembersEl);
         populateTeamTabData(data.opponent_clan_members_in_war, "Opponent", warOpponentTeamMembersEl);
 
-        if (!document.querySelector('.war-tab-button.active')) {
-            const firstTab = document.querySelector('.war-tab-button[data-tab="war-stats"]');
-            if (firstTab) firstTab.click();
+        // Garante que a primeira aba (Estatísticas) seja mostrada se nenhuma estiver ativa
+        let activeWarTab = false;
+        warTabContents.forEach(tc => { if(tc.style.display === 'block') activeWarTab = true; });
+        if (!activeWarTab) {
+            const firstWarTabButton = document.querySelector('.war-tab-button[data-tab="war-stats"]');
+            const firstWarTabContent = document.getElementById('war-stats');
+            if (firstWarTabButton && firstWarTabContent) {
+                warTabButtons.forEach(btn => btn.classList.remove('active'));
+                warTabContents.forEach(tc => tc.style.display = 'none');
+                firstWarTabButton.classList.add('active');
+                firstWarTabContent.style.display = 'block';
+            }
         }
     }
 
     function populateWarAttacksRemaining(data) {
         setText(attacksRemainingClanNameEl, data.clan_name);
+        const attacksRemainingSection = document.getElementById('attacks-remaining-nav');
         if (data.error || !data.members_pending || data.members_pending.length === 0) {
             setHtml(attacksRemainingListEl, `<p>${data.message || data.error || "Todos os ataques realizados ou não há guerra."}</p>`);
-            show(noWarForAttacksRemainingMessageEl);
-            setText(noWarForAttacksRemainingMessageEl, data.message || data.error || "Todos os ataques realizados ou não há guerra.");
+             if (noWarForAttacksRemainingMessageEl) {
+                show(noWarForAttacksRemainingMessageEl);
+                setText(noWarForAttacksRemainingMessageEl, data.message || data.error || "Todos os ataques realizados ou não há guerra.");
+            }
             return;
         }
-        hide(noWarForAttacksRemainingMessageEl);
+        if (noWarForAttacksRemainingMessageEl) hide(noWarForAttacksRemainingMessageEl);
         setHtml(attacksRemainingListEl, '');
         data.members_pending.forEach(m => setHtml(attacksRemainingListEl, attacksRemainingListEl.innerHTML + `<p><strong>${m.name}</strong> (CV${m.town_hall}) - ${m.attacks_left} atk restante(s)</p>`));
     }
@@ -356,12 +380,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state';
 
         if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
-            show(noCwlMessageEl); setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
-            hide(cwlActiveInfoEl); setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
+            if(noCwlMessageEl) show(noCwlMessageEl); setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
+            if(cwlActiveInfoEl) hide(cwlActiveInfoEl); setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
             if (cwlStatusTextEl) cwlStatusTextEl.classList.add((data.status || 'notincwl').toLowerCase());
             return;
         }
-        hide(noCwlMessageEl); show(cwlActiveInfoEl);
+        if(noCwlMessageEl) hide(noCwlMessageEl); if(cwlActiveInfoEl) show(cwlActiveInfoEl);
         setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl');
         setText(cwlSeasonEl, data.season); setText(cwlGroupStateEl, data.state);
         setHtml(cwlGroupClansEl, '');
@@ -392,11 +416,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateWarLog(data) {
         setText(warLogLimitEl, data.log ? data.log.length : '10');
         if (data.error || !data.log) {
-            show(noWarLogMessageEl); setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
+            if(noWarLogMessageEl) show(noWarLogMessageEl); setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
             setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "N/A"}</td></tr>`);
             return;
         }
-        hide(noWarLogMessageEl); setHtml(warLogTableBodyEl, '');
+        if(noWarLogMessageEl) hide(noWarLogMessageEl); setHtml(warLogTableBodyEl, '');
         if (data.log.length > 0) {
             data.log.forEach(e => {
                 const row = warLogTableBodyEl.insertRow();
@@ -566,43 +590,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const particleCanvas = document.getElementById('particle-background');
     if (particleCanvas) {
         const ctx = particleCanvas.getContext('2d');
-        let particlesArrayLocal = []; 
-        let mouse = { x: undefined, y: undefined, radius: 150 }; // Raio de interação aumentado
+        let particlesArrayLocal = [];
+        let mouse = { x: undefined, y: undefined, radius: 150 };
 
         const particleSettings = {
-            count: 100,                 // Número de partículas
-            maxConnectionDistance: 150,
-            particleColorRGB: '200, 40, 40',
-            lineColorRGB: '180, 40, 40',
-            particleBaseSpeed: 0.4,    // Aumentada ligeiramente a velocidade base
-            particleMinSpeedFactor: 0.5, // Fator mínimo para velocidade aleatória
-            particleSizeMin: 1.5,
-            particleSizeMax: 3.5,
+            count: 110, // Aumentado para mais densidade
+            maxConnectionDistance: 160,
+            particleColorRGB: '210, 45, 45', // Vermelho levemente ajustado
+            lineColorRGB: '190, 45, 45',
+            particleBaseSpeed: 0.3,
+            particleMinSpeedFactor: 0.5,
+            particleSizeMin: 1.6,
+            particleSizeMax: 3.6,
             lineOpacityMultiplier: 0.7,
             lineWidth: 0.6,
-            edgeSpawnMargin: 15,        // Margem bem pequena para spawn próximo às bordas
-            baseParticleAlphaMin: 0.4,
-            baseParticleAlphaMax: 0.9,
-            mouseInteractionForce: 1.0,   // Aumentada força de repulsão
-            mouseRepelFactor: 2.5,      // Aumentado fator de repulsão
-            friction: 0.96              // Amortecimento
+            edgeSpawnMargin: 20,
+            baseParticleAlphaMin: 0.35,
+            baseParticleAlphaMax: 0.85,
+            mouseInteractionForce: 1.1,    // Ajustada força
+            mouseRepelFactor: 2.3,
+            friction: 0.975             // Amortecimento ligeiramente menor
         };
-        
-        function getMousePos(canvasDom, event) {
-            const rect = canvasDom.getBoundingClientRect();
+
+        function getMousePosForCanvas(event) {
+            // Como o canvas é fixed e cobre a tela, clientX/Y são as coordenadas da viewport
+            // Não é necessário getBoundingClientRect() aqui.
             return {
-                x: event.clientX - rect.left,
-                y: event.clientY - rect.top
+                x: event.clientX,
+                y: event.clientY
             };
         }
 
-        particleCanvas.addEventListener('mousemove', (event) => {
-            const pos = getMousePos(particleCanvas, event);
+        window.addEventListener('mousemove', (event) => {
+            const pos = getMousePosForCanvas(event);
             mouse.x = pos.x;
             mouse.y = pos.y;
         });
 
-        particleCanvas.addEventListener('mouseleave', () => {
+        window.addEventListener('mouseout', () => {
             mouse.x = undefined;
             mouse.y = undefined;
         });
@@ -611,7 +636,6 @@ document.addEventListener('DOMContentLoaded', () => {
         function setupParticleCanvas() {
             particleCanvas.width = window.innerWidth;
             particleCanvas.height = window.innerHeight;
-            // Não reinicializar partículas aqui para que elas continuem de onde pararam
         }
 
         class Particle {
@@ -632,61 +656,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fill();
             }
             update() {
-                let currentDirX = this.directionX;
-                let currentDirY = this.directionY;
+                let dX = this.directionX;
+                let dY = this.directionY;
 
-                // Interação com o mouse
                 if (mouse.x !== undefined && mouse.y !== undefined) {
                     let dxMouse = this.x - mouse.x;
                     let dyMouse = this.y - mouse.y;
                     let distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
 
-                    if (distanceMouse < mouse.radius + this.size && distanceMouse > 0) { // Evita divisão por zero
+                    if (distanceMouse < mouse.radius + this.size && distanceMouse > 0) {
                         const force = (mouse.radius - distanceMouse) / mouse.radius;
                         const angle = Math.atan2(dyMouse, dxMouse);
-
-                        currentDirX += Math.cos(angle) * force * particleSettings.mouseInteractionForce * particleSettings.mouseRepelFactor;
-                        currentDirY += Math.sin(angle) * force * particleSettings.mouseInteractionForce * particleSettings.mouseRepelFactor;
+                        const repelForce = force * particleSettings.mouseInteractionForce * particleSettings.mouseRepelFactor;
+                        
+                        dX += Math.cos(angle) * repelForce;
+                        dY += Math.sin(angle) * repelForce;
                     }
                 }
-                
-                // Aplica amortecimento para que a velocidade extra do mouse diminua
-                currentDirX *= particleSettings.friction;
-                currentDirY *= particleSettings.friction;
 
-                // Mantém uma velocidade base mínima e restaura para direção base
-                const currentSpeed = Math.sqrt(currentDirX * currentDirX + currentDirY * currentDirY);
-                const baseSpeed = particleSettings.particleBaseSpeed;
+                dX *= particleSettings.friction;
+                dY *= particleSettings.friction;
 
-                if (currentSpeed < baseSpeed * 0.3) {
-                    const recoveryFactor = 0.05; // Quão rápido volta para a base
-                    currentDirX += (this.baseDirectionX - currentDirX) * recoveryFactor;
-                    currentDirY += (this.baseDirectionY - currentDirY) * recoveryFactor;
+                const speed = Math.sqrt(dX * dX + dY * dY);
+                const baseSpeedMagnitude = Math.sqrt(this.baseDirectionX * this.baseDirectionX + this.baseDirectionY * this.baseDirectionY) || particleSettings.particleBaseSpeed * particleSettings.particleMinSpeedFactor;
+
+                if (speed < baseSpeedMagnitude * 0.3 && speed > 0.001) {
+                    const recoveryFactor = 0.03;
+                    dX += (this.baseDirectionX - dX) * recoveryFactor;
+                    dY += (this.baseDirectionY - dY) * recoveryFactor;
+                } else if (speed < 0.01) {
+                    dX = this.baseDirectionX * (Math.random() * 0.4 + 0.6); // Pequeno impulso na direção base
+                    dY = this.baseDirectionY * (Math.random() * 0.4 + 0.6);
+                    if(Math.abs(dX) < 0.01 && Math.abs(dY) < 0.01) { // Se base também for zero
+                        dX = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 0.2;
+                        dY = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 0.2;
+                    }
                 }
-                 // Se a velocidade base for zero e a atual também, dá um pequeno empurrão
-                if (Math.abs(this.baseDirectionX) < 0.01 && Math.abs(this.baseDirectionY) < 0.01 && currentSpeed < 0.01) {
-                    this.baseDirectionX = (Math.random() - 0.5) * baseSpeed * 0.5;
-                    this.baseDirectionY = (Math.random() - 0.5) * baseSpeed * 0.5;
-                }
 
-
-                // Ricochete nas bordas
-                if (this.x + this.size + currentDirX > particleCanvas.width || this.x - this.size + currentDirX < 0) {
-                    currentDirX *= -1;
-                    this.baseDirectionX *= -1; 
+                if (this.x + this.size + dX > particleCanvas.width || this.x - this.size + dX < 0) {
+                    dX *= -1;
+                    this.baseDirectionX *= -1;
                 }
-                if (this.y + this.size + currentDirY > particleCanvas.height || this.y - this.size + currentDirY < 0) {
-                    currentDirY *= -1;
+                if (this.y + this.size + dY > particleCanvas.height || this.y - this.size + dY < 0) {
+                    dY *= -1;
                     this.baseDirectionY *= -1;
                 }
-                
-                this.directionX = currentDirX;
-                this.directionY = currentDirY;
 
+                this.directionX = dX;
+                this.directionY = dY;
                 this.x += this.directionX;
                 this.y += this.directionY;
-                
-                // Força a partícula a ficar dentro dos limites para evitar que "escape"
+
                 this.x = Math.max(this.size, Math.min(this.x, particleCanvas.width - this.size));
                 this.y = Math.max(this.size, Math.min(this.y, particleCanvas.height - this.size));
 
@@ -702,8 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             for (let i = 0; i < particleSettings.count; i++) {
                 let size = Math.random() * (particleSettings.particleSizeMax - particleSettings.particleSizeMin) + particleSettings.particleSizeMin;
-                let x, y;
-                let dirX, dirY;
+                let x, y, dirX, dirY;
 
                 const side = Math.floor(Math.random() * 4);
                 const speedFactor = (Math.random() * (1 - particleSettings.particleMinSpeedFactor)) + particleSettings.particleMinSpeedFactor;
@@ -712,29 +731,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (side === 0) { // Topo
                     x = Math.random() * W;
                     y = Math.random() * margin + size;
-                    dirX = (Math.random() - 0.5) * 2; 
-                    dirY = Math.random() * 0.8 + 0.2; // Garante que vá para baixo
+                    dirX = (Math.random() - 0.5) * 2;
+                    dirY = Math.random() * 0.7 + 0.3; // Mais forte para baixo
                 } else if (side === 1) { // Direita
                     x = W - (Math.random() * margin) - size;
                     y = Math.random() * H;
-                    dirX = -(Math.random() * 0.8 + 0.2); // Garante que vá para esquerda
+                    dirX = -(Math.random() * 0.7 + 0.3); // Mais forte para esquerda
                     dirY = (Math.random() - 0.5) * 2;
                 } else if (side === 2) { // Baixo
                     x = Math.random() * W;
                     y = H - (Math.random() * margin) - size;
                     dirX = (Math.random() - 0.5) * 2;
-                    dirY = -(Math.random() * 0.8 + 0.2); // Garante que vá para cima
+                    dirY = -(Math.random() * 0.7 + 0.3); // Mais forte para cima
                 } else { // Esquerda
                     x = Math.random() * margin + size;
                     y = Math.random() * H;
-                    dirX = Math.random() * 0.8 + 0.2; // Garante que vá para direita
+                    dirX = (Math.random() * 0.7 + 0.3);  // Mais forte para direita
                     dirY = (Math.random() - 0.5) * 2;
                 }
-                
+
                 const magnitude = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
                 dirX = (dirX / magnitude) * speed;
                 dirY = (dirY / magnitude) * speed;
-                
+
                 particlesArrayLocal.push(new Particle(x, y, dirX, dirY, size));
             }
         }
@@ -761,7 +780,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let lastFrameTime = performance.now();
-        const targetFPS = 30; 
+        const targetFPS = 30;
         const frameInterval = 1000 / targetFPS;
 
         function animateParticles() {
