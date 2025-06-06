@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.14 - Prioriza guerra CWL 'inWar' sobre 'preparation' e outras correções
+# Versão 19.8.14 - Prioriza guerra CWL 'inWar' sobre 'preparation' e outras correções , efeito na tela adicionado
 
 import os
 import logging

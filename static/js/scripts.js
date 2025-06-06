@@ -1,14 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
-    const DEFAULT_BADGE_URL = '/static/images/default_badge.png'; // Mantido para outros usos, mas não para o loading badge principal
+    const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
-    // const loadingClanBadgeEl = document.getElementById('loadingClanBadge'); // Não precisamos mais manipular o SRC dele aqui
 
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
-    // Clã Info
     const clanNameEl = document.getElementById('clanName');
     const clanTagEl = document.getElementById('clanTag');
     const clanLevelEl = document.getElementById('clanLevel');
@@ -23,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
 
-    // Guerra Detalhes
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
     const warDetailOpponentNameEl = document.getElementById('warDetailOpponentName');
@@ -62,12 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const warOpponentTeamNameEl = document.getElementById('warOpponentTeamName');
     const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
 
-    // Ataques Pendentes
     const attacksRemainingClanNameEl = document.getElementById('attacksRemainingClanName');
     const attacksRemainingListEl = document.getElementById('attacksRemainingList');
     const noWarForAttacksRemainingMessageEl = document.getElementById('noWarForAttacksRemainingMessage');
 
-    // CWL
     const cwlStatusTextEl = document.getElementById('cwlStatusText');
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
     const cwlSeasonEl = document.getElementById('cwlSeason');
@@ -76,12 +71,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cwlRoundsInfoEl = document.getElementById('cwlRoundsInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
 
-    // Histórico de Guerras
     const warLogLimitEl = document.getElementById('warLogLimit');
     const warLogTableBodyEl = document.getElementById('warLogTableBody');
     const noWarLogMessageEl = document.getElementById('noWarLogMessage');
 
-    // Membros
     const membersClanNameEl = document.getElementById('membersClanName');
     const membersTableBodyEl = document.getElementById('membersTableBody');
     const filterNameInput = document.getElementById('filterName');
@@ -90,7 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterTrophiesInput = document.getElementById('filterTrophies');
     const filterRoleInput = document.getElementById('filterRole');
 
-    // Rodapé
     const botVersionEl = document.getElementById('botVersion');
     const lastUpdatedEl = document.getElementById('lastUpdated');
 
@@ -129,11 +121,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function setHtml(element, htmlContent) {
         if (element) element.innerHTML = htmlContent;
     }
-    function setBadge(element, url) { // Esta função ainda é usada para outros badges no site
+    function setBadge(element, url) {
         if (element) { element.src = url || DEFAULT_BADGE_URL; element.style.display = 'inline-block'; }
     }
-    function show(element) { if (element) element.style.display = 'block'; }
-    function hide(element) { if (element) element.style.display = 'none'; }
+    // Simplificando, não usaremos mais show/hide diretamente para seções principais. O CSS e as classes de animação cuidam disso.
+    // function show(element) { if (element) element.style.display = 'block'; }
+    // function hide(element) { if (element) element.style.display = 'none'; }
 
 
     // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
@@ -146,10 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentActiveSectionId = initialSectionId;
     }
 
+    // Configuração inicial da seção ativa
     contentSections.forEach(section => {
-        section.classList.remove('active-section', 'slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right');
+        section.classList.remove('active-section', 'slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right');
         if (section.id === currentActiveSectionId) {
-            section.classList.add('active-section');
+            section.classList.add('active-section'); // Apenas adiciona a classe ativa, o CSS cuida do display/visibilidade
         }
     });
     navLinks.forEach(link => {
@@ -164,35 +158,43 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSectionEl = document.getElementById(newSectionId);
         const oldIndex = currentActiveIndex;
 
-        if (!newSectionEl) return;
+        if (!newSectionEl) {
+            console.error("Nova seção não encontrada:", newSectionId);
+            return;
+        }
 
-        newSectionEl.classList.remove('slide-out-left', 'slide-out-right', 'slide-in-from-left', 'slide-in-from-right', 'active-section');
-
+        // Limpa classes de animação anteriores da nova seção
+        newSectionEl.classList.remove('slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right');
+        
+        // Anima a saída da seção antiga
         if (oldSectionEl) {
             oldSectionEl.classList.remove('active-section');
             if (newIndex > oldIndex) {
-                oldSectionEl.classList.add('slide-out-left');
+                oldSectionEl.classList.add('slide-out-to-left');
             } else {
-                oldSectionEl.classList.add('slide-out-right');
+                oldSectionEl.classList.add('slide-out-to-right');
             }
-            oldSectionEl.addEventListener('transitionend', () => {
-                oldSectionEl.classList.remove('slide-out-left', 'slide-out-right');
+            // Remove as classes de animação de saída após a transição para limpar o estado
+            oldSectionEl.addEventListener('transitionend', function handleOldOut() {
+                oldSectionEl.classList.remove('slide-out-to-left', 'slide-out-to-right');
+                oldSectionEl.removeEventListener('transitionend', handleOldOut); // Importante remover o listener
             }, { once: true });
         }
 
+        // Prepara a nova seção para entrar (define a posição inicial da animação)
+        newSectionEl.classList.add('slide-prepare'); // Classe para garantir que esteja pronta para animar
         if (newIndex > oldIndex) {
-            newSectionEl.classList.add('slide-in-from-right');
+            newSectionEl.classList.add('slide-from-right');
         } else {
-            newSectionEl.classList.add('slide-in-from-left');
+            newSectionEl.classList.add('slide-from-left');
         }
 
+        // Força um reflow para o navegador aplicar o estado 'prepare'
         void newSectionEl.offsetWidth;
 
-        newSectionEl.classList.add('active-section');
-
-        newSectionEl.addEventListener('transitionend', () => {
-            newSectionEl.classList.remove('slide-in-from-left', 'slide-in-from-right');
-        }, { once: true });
+        // Inicia a animação de entrada da nova seção
+        newSectionEl.classList.remove('slide-prepare', 'slide-from-left', 'slide-from-right');
+        newSectionEl.classList.add('active-section'); // Adiciona active-section para animar para o estado final
 
         navLinks.forEach(link => {
             link.classList.toggle('active-nav-link', link.dataset.section === newSectionId);
@@ -211,21 +213,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-
+    // ... (RESTANTE DAS FUNÇÕES populateClanInfo, populateWarDetails, etc. permanecem como antes)
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
         if (data.error || !data.name) {
             setText(clanNameHeaderEl, "Erro"); setText(clanNameEl, data.error || "N/A");
-            // NÃO atualizamos mais o loadingClanBadgeEl.src aqui
             return;
         }
         setText(clanNameHeaderEl, data.name); setText(clanNameEl, data.name); setText(clanTagEl, data.tag);
         setText(clanLevelEl, data.level); setText(clanPointsEl, data.points); setText(clanMemberCountEl, data.member_count);
         setText(clanWarWinsEl, data.war_wins); setText(clanLocationEl, data.location); setText(clanTypeEl, data.type);
         setText(clanDescriptionEl, data.description, 'Sem descrição.'); setText(botVersionEl, data.version, '?');
-        setBadge(clanBadgeHeaderEl, data.badge_url); // Badge do header continua sendo o do clã
-        setBadge(clanBadgeEl, data.badge_url);       // Badge da seção "Clã Info" continua sendo o do clã
-        // NENHUMA alteração no loadingClanBadgeEl.src aqui
+        setBadge(clanBadgeHeaderEl, data.badge_url);
+        setBadge(clanBadgeEl, data.badge_url);
 
         setText(clanCapitalPointsEl, data.capital_points); setText(clanCapitalLeagueEl, data.capital_league);
         setHtml(clanCapitalDistrictsEl, '');
@@ -242,7 +242,10 @@ document.addEventListener('DOMContentLoaded', () => {
             button.classList.add('active');
             const tabId = button.dataset.tab;
             warTabContents.forEach(content => {
-                content.style.display = content.id === tabId ? 'block' : 'none';
+                // As sub-abas dentro da seção "Guerra" usam display block/none
+                if (content.closest('#war-details-nav')) { // Verifica se é uma sub-aba de guerra
+                     content.style.display = content.id === tabId ? 'block' : 'none';
+                }
             });
         });
     });
@@ -252,16 +255,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateWarDetails(data) {
+        const warDetailContainer = document.getElementById('war-details-nav');
+        const warHeader = warDetailContainer.querySelector('.war-header');
+        const warTabsNav = warDetailContainer.querySelector('.war-tabs');
+        const noWarMsg = document.getElementById('noWarDetailMessage');
+
+
         if (data.error || !data.war_data) {
-            show(noWarDetailMessageEl); setText(noWarDetailMessageEl, data.error || "Nenhuma guerra para detalhar.");
-            hide(document.querySelector('#war-details-nav .war-header'));
-            hide(document.querySelector('#war-details-nav .war-tabs'));
-            warTabContents.forEach(hide);
+            if (noWarMsg) { noWarMsg.style.display = 'block'; setText(noWarMsg, data.error || "Nenhuma guerra para detalhar.");}
+            if (warHeader) warHeader.style.display = 'none';
+            if (warTabsNav) warTabsNav.style.display = 'none';
+            warTabContents.forEach(tab => tab.style.display = 'none'); // Esconde todas as sub-abas
             return;
         }
-        hide(noWarDetailMessageEl);
-        show(document.querySelector('#war-details-nav .war-header'));
-        show(document.querySelector('#war-details-nav .war-tabs'));
+        if (noWarMsg) noWarMsg.style.display = 'none';
+        if (warHeader) warHeader.style.display = 'flex'; // ou 'block' dependendo do seu CSS
+        if (warTabsNav) warTabsNav.style.display = 'flex';
+
 
         const war = data.war_data;
         setText(warDetailOurClanNameEl, war.clan_name);
@@ -342,9 +352,17 @@ document.addEventListener('DOMContentLoaded', () => {
         populateTeamTabData(data.our_clan_members_in_war, "Our", warOurTeamMembersEl);
         populateTeamTabData(data.opponent_clan_members_in_war, "Opponent", warOpponentTeamMembersEl);
 
-        if (!document.querySelector('.war-tab-button.active')) {
-            const firstTab = document.querySelector('.war-tab-button[data-tab="war-stats"]');
-            if (firstTab) firstTab.click();
+        let activeWarTabFound = false;
+        warTabButtons.forEach(btn => { if (btn.classList.contains('active')) activeWarTabFound = true; });
+        if (!activeWarTabFound) {
+            const firstWarTabButton = document.querySelector('.war-tab-button[data-tab="war-stats"]');
+            const firstWarTabContent = document.getElementById('war-stats');
+             if (firstWarTabButton && firstWarTabContent) {
+                warTabButtons.forEach(btn => btn.classList.remove('active'));
+                warTabContents.forEach(tc => tc.style.display = 'none'); // Esconde todos primeiro
+                firstWarTabButton.classList.add('active');
+                firstWarTabContent.style.display = 'block'; // Mostra o primeiro
+            }
         }
     }
 
@@ -352,11 +370,13 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(attacksRemainingClanNameEl, data.clan_name);
         if (data.error || !data.members_pending || data.members_pending.length === 0) {
             setHtml(attacksRemainingListEl, `<p>${data.message || data.error || "Todos os ataques realizados ou não há guerra."}</p>`);
-            show(noWarForAttacksRemainingMessageEl);
-            setText(noWarForAttacksRemainingMessageEl, data.message || data.error || "Todos os ataques realizados ou não há guerra.");
+            if(noWarForAttacksRemainingMessageEl) {
+                noWarForAttacksRemainingMessageEl.style.display = 'block';
+                setText(noWarForAttacksRemainingMessageEl, data.message || data.error || "Todos os ataques realizados ou não há guerra.");
+            }
             return;
         }
-        hide(noWarForAttacksRemainingMessageEl);
+        if(noWarForAttacksRemainingMessageEl) noWarForAttacksRemainingMessageEl.style.display = 'none';
         setHtml(attacksRemainingListEl, '');
         data.members_pending.forEach(m => setHtml(attacksRemainingListEl, attacksRemainingListEl.innerHTML + `<p><strong>${m.name}</strong> (CV${m.town_hall}) - ${m.attacks_left} atk restante(s)</p>`));
     }
@@ -366,12 +386,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state';
 
         if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
-            show(noCwlMessageEl); setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
-            hide(cwlActiveInfoEl); setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
+            if(noCwlMessageEl) noCwlMessageEl.style.display = 'block'; setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
+            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none'; setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
             if (cwlStatusTextEl) cwlStatusTextEl.classList.add((data.status || 'notincwl').toLowerCase());
             return;
         }
-        hide(noCwlMessageEl); show(cwlActiveInfoEl);
+        if(noCwlMessageEl) noCwlMessageEl.style.display = 'none'; if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
         setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl');
         setText(cwlSeasonEl, data.season); setText(cwlGroupStateEl, data.state);
         setHtml(cwlGroupClansEl, '');
@@ -402,11 +422,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateWarLog(data) {
         setText(warLogLimitEl, data.log ? data.log.length : '10');
         if (data.error || !data.log) {
-            show(noWarLogMessageEl); setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
+            if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'block'; setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
             setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "N/A"}</td></tr>`);
             return;
         }
-        hide(noWarLogMessageEl); setHtml(warLogTableBodyEl, '');
+        if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none'; setHtml(warLogTableBodyEl, '');
         if (data.log.length > 0) {
             data.log.forEach(e => {
                 const row = warLogTableBodyEl.insertRow();
@@ -550,27 +570,267 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
-        const [clanData, membersData, currentWarDetailsData, warAttacksRemainingData, warLogData, cwlInfoData] = await Promise.all([
-            fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
-            fetchData('war_attacks_remaining'), fetchData('war_log?limit=10'), fetchData('cwl_info')
-        ]);
-        populateClanInfo(clanData); // Não mexe mais no loadingClanBadgeEl.src
-        populateMembersList(membersData);
-        populateWarDetails(currentWarDetailsData);
-        populateWarAttacksRemaining(warAttacksRemainingData);
-        populateWarLog(warLogData);
-        populateCwlInfo(cwlInfoData);
-        updateLastUpdated();
-
-        if (isFirstLoad && loadingOverlayEl) {
-            // A imagem de carregamento agora é definida apenas no HTML.
-            // Apenas controlamos o tempo para esconder o overlay.
-            setTimeout(() => {
-                loadingOverlayEl.classList.add('hidden');
-            }, 4000); // Tempo aumentado para 2 segundos
-            isFirstLoad = false;
+        try {
+            const [clanData, membersData, currentWarDetailsData, warAttacksRemainingData, warLogData, cwlInfoData] = await Promise.all([
+                fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
+                fetchData('war_attacks_remaining'), fetchData('war_log?limit=10'), fetchData('cwl_info')
+            ]);
+            populateClanInfo(clanData);
+            populateMembersList(membersData);
+            populateWarDetails(currentWarDetailsData);
+            populateWarAttacksRemaining(warAttacksRemainingData);
+            populateWarLog(warLogData);
+            populateCwlInfo(cwlInfoData);
+            updateLastUpdated();
+        } catch (error) {
+            console.error("Erro ao carregar todos os dados:", error);
+            // Poderia exibir uma mensagem de erro geral para o usuário aqui
+        } finally {
+            if (isFirstLoad && loadingOverlayEl) {
+                setTimeout(() => {
+                    loadingOverlayEl.classList.add('hidden');
+                }, 500); // Reduzido o tempo, pois o carregamento infinito era o problema maior
+                isFirstLoad = false;
+            }
         }
     }
     loadAllData();
     setInterval(loadAllData, 60000);
+
+    // --- ANIMAÇÃO DE PARTÍCULAS DE FUNDO ---
+    const particleCanvas = document.getElementById('particle-background');
+    if (particleCanvas) {
+        const ctx = particleCanvas.getContext('2d');
+        let particlesArrayLocal = []; 
+        let mouse = { x: undefined, y: undefined, radius: 120 }; 
+
+        const particleSettings = {
+            count: 100, 
+            maxConnectionDistance: 160, 
+            particleColorRGB: '200, 40, 40', 
+            lineColorRGB: '180, 40, 40',   
+            particleBaseSpeed: 0.3,    
+            particleMinSpeedFactor: 0.5, 
+            particleSizeMin: 1.8,         
+            particleSizeMax: 3.8,
+            lineOpacityMultiplier: 0.65,  
+            lineWidth: 0.65,
+            edgeSpawnMargin: 25,        
+            baseParticleAlphaMin: 0.35,   
+            baseParticleAlphaMax: 0.85,
+            mouseInteractionForce: 0.9,    
+            mouseRepelFactor: 2.2,       
+            friction: 0.975              
+        };
+        
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = event.clientX;
+            mouse.y = event.clientY;
+        });
+
+        window.addEventListener('mouseout', () => { 
+            mouse.x = undefined;
+            mouse.y = undefined;
+        });
+
+
+        function setupParticleCanvas() {
+            particleCanvas.width = window.innerWidth;
+            particleCanvas.height = window.innerHeight;
+        }
+
+        class Particle {
+            constructor(x, y, dirX, dirY, size) {
+                this.x = x;
+                this.y = y;
+                this.baseDirectionX = dirX; 
+                this.baseDirectionY = dirY;
+                this.directionX = dirX;
+                this.directionY = dirY;
+                this.size = size;
+                this.baseAlpha = Math.random() * (particleSettings.baseParticleAlphaMax - particleSettings.baseParticleAlphaMin) + particleSettings.baseParticleAlphaMin;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+                ctx.fillStyle = `rgba(${particleSettings.particleColorRGB}, ${this.baseAlpha})`;
+                ctx.fill();
+            }
+            update() {
+                let dX = this.directionX;
+                let dY = this.directionY;
+
+                if (mouse.x !== undefined && mouse.y !== undefined) {
+                    let dxMouse = this.x - mouse.x;
+                    let dyMouse = this.y - mouse.y;
+                    let distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+
+                    if (distanceMouse < mouse.radius + this.size && distanceMouse > 0) {
+                        const force = (mouse.radius - distanceMouse) / mouse.radius;
+                        const angle = Math.atan2(dyMouse, dxMouse); 
+                        const repelForce = force * particleSettings.mouseInteractionForce * particleSettings.mouseRepelFactor;
+                        
+                        dX += Math.cos(angle) * repelForce;
+                        dY += Math.sin(angle) * repelForce;
+                    }
+                }
+                
+                dX *= particleSettings.friction;
+                dY *= particleSettings.friction;
+
+                const speed = Math.sqrt(dX * dX + dY * dY);
+                const baseSpeedMagnitude = particleSettings.particleBaseSpeed * particleSettings.particleMinSpeedFactor; // Usa o fator mínimo como referência
+
+                if (speed < baseSpeedMagnitude && speed > 0.01) { 
+                     const recoveryFactor = 0.02; // Mais suave
+                     dX += (this.baseDirectionX * speedFactorFromSide - dX) * recoveryFactor; // Tenta voltar para a velocidade base orientada
+                     dY += (this.baseDirectionY * speedFactorFromSide - dY) * recoveryFactor;
+                } else if (speed < 0.01) { 
+                    // Recalcula uma nova direção base sutil se parar completamente
+                    const newAngle = Math.random() * Math.PI * 2;
+                    this.baseDirectionX = Math.cos(newAngle) * baseSpeedMagnitude * 0.5;
+                    this.baseDirectionY = Math.sin(newAngle) * baseSpeedMagnitude * 0.5;
+                    dX = this.baseDirectionX;
+                    dY = this.baseDirectionY;
+                }
+                // Variável speedFactorFromSide não está definida aqui, vamos usar uma abordagem mais simples
+                if (speed < baseSpeedMagnitude * 0.5 && speed > 0.01) { // Se muito lento, tenta voltar à velocidade base
+                    const recoveryFactor = 0.03;
+                    dX += (this.baseDirectionX - dX) * recoveryFactor;
+                    dY += (this.baseDirectionY - dY) * recoveryFactor;
+                } else if (speed < 0.01) { // Se parou, dá um empurrãozinho
+                    dX = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 0.5;
+                    dY = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 0.5;
+                    this.baseDirectionX = dX; // Atualiza base para nova direção
+                    this.baseDirectionY = dY;
+                }
+
+
+                if (this.x + this.size + dX > particleCanvas.width || this.x - this.size + dX < 0) {
+                    dX *= -1;
+                    this.baseDirectionX *= -1; 
+                }
+                if (this.y + this.size + dY > particleCanvas.height || this.y - this.size + dY < 0) {
+                    dY *= -1;
+                    this.baseDirectionY *= -1;
+                }
+                
+                this.directionX = dX;
+                this.directionY = dY;
+                this.x += this.directionX;
+                this.y += this.directionY;
+                
+                this.x = Math.max(this.size, Math.min(this.x, particleCanvas.width - this.size));
+                this.y = Math.max(this.size, Math.min(this.y, particleCanvas.height - this.size));
+
+                this.draw();
+            }
+        }
+        
+        let speedFactorFromSide = 1; // Variável global para uso em Particle update
+
+        function initLocalParticles() {
+            particlesArrayLocal = [];
+            const margin = particleSettings.edgeSpawnMargin;
+            const W = particleCanvas.width;
+            const H = particleCanvas.height;
+
+            for (let i = 0; i < particleSettings.count; i++) {
+                let size = Math.random() * (particleSettings.particleSizeMax - particleSettings.particleSizeMin) + particleSettings.particleSizeMin;
+                let x, y;
+                let dirX, dirY;
+
+                const side = Math.floor(Math.random() * 4);
+                speedFactorFromSide = (Math.random() * (1 - particleSettings.particleMinSpeedFactor)) + particleSettings.particleMinSpeedFactor; // Definido aqui
+                const speed = particleSettings.particleBaseSpeed * speedFactorFromSide;
+
+
+                if (side === 0) { 
+                    x = Math.random() * W;
+                    y = Math.random() * margin + size;
+                    dirX = (Math.random() - 0.5) * 2; 
+                    dirY = (Math.random() * 0.7 + 0.3); 
+                } else if (side === 1) { 
+                    x = W - (Math.random() * margin) - size;
+                    y = Math.random() * H;
+                    dirX = -(Math.random() * 0.7 + 0.3); 
+                    dirY = (Math.random() - 0.5) * 2;
+                } else if (side === 2) { 
+                    x = Math.random() * W;
+                    y = H - (Math.random() * margin) - size;
+                    dirX = (Math.random() - 0.5) * 2;
+                    dirY = -(Math.random() * 0.7 + 0.3); 
+                } else { 
+                    x = Math.random() * margin + size;
+                    y = Math.random() * H;
+                    dirX = (Math.random() * 0.7 + 0.3);  
+                    dirY = (Math.random() - 0.5) * 2;
+                }
+                
+                const magnitude = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+                dirX = (dirX / magnitude) * speed;
+                dirY = (dirY / magnitude) * speed;
+                
+                particlesArrayLocal.push(new Particle(x, y, dirX, dirY, size));
+            }
+        }
+
+        function connectLocalParticles() {
+            if (!particlesArrayLocal) return;
+            for (let a = 0; a < particlesArrayLocal.length; a++) {
+                for (let b = a + 1; b < particlesArrayLocal.length; b++) {
+                    let dx = particlesArrayLocal[a].x - particlesArrayLocal[b].x;
+                    let dy = particlesArrayLocal[a].y - particlesArrayLocal[b].y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < particleSettings.maxConnectionDistance) {
+                        const opacity = (1 - (distance / particleSettings.maxConnectionDistance)) * particleSettings.lineOpacityMultiplier;
+                        ctx.strokeStyle = `rgba(${particleSettings.lineColorRGB}, ${Math.max(0, opacity)})`;
+                        ctx.lineWidth = particleSettings.lineWidth;
+                        ctx.beginPath();
+                        ctx.moveTo(particlesArrayLocal[a].x, particlesArrayLocal[a].y);
+                        ctx.lineTo(particlesArrayLocal[b].x, particlesArrayLocal[b].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        let lastFrameTime = performance.now();
+        const targetFPS = 30; 
+        const frameInterval = 1000 / targetFPS;
+
+        function animateParticles() {
+            requestAnimationFrame(animateParticles);
+            
+            const now = performance.now();
+            const elapsed = now - lastFrameTime;
+
+            if (elapsed > frameInterval) {
+                lastFrameTime = now - (elapsed % frameInterval);
+
+                ctx.fillStyle = 'rgba(0,0,0,1)';
+                ctx.fillRect(0, 0, particleCanvas.width, particleCanvas.height);
+
+                if (particlesArrayLocal) {
+                    particlesArrayLocal.forEach(particle => {
+                        particle.update();
+                    });
+                    connectLocalParticles();
+                }
+            }
+        }
+
+        setupParticleCanvas();
+        initLocalParticles();
+        animateParticles();
+
+        window.addEventListener('resize', () => {
+            setupParticleCanvas();
+            initLocalParticles(); 
+        });
+
+    } else {
+        console.error("Elemento canvas #particle-background não encontrado para animação de fundo.");
+    }
 });
