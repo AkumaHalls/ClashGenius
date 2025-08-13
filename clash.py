@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.22-DB-R-FIX3 - Reestrutura eventos para classe e adiciona mais monitores.
+# Versão 19.8.23-DB-R-FIX4 - Adiciona listener para ataques de CWL.
 
 import os
 import logging
@@ -118,7 +118,7 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # --- CONFIGURAÇÕES GLOBAIS DO BOT ---
-BOT_VERSION = "19.8.22-DB-R-FIX3"
+BOT_VERSION = "19.8.23-DB-R-FIX4"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
@@ -597,12 +597,13 @@ class ClashGeniusEvents(coc.EventsClient):
         await send_log_embed(embed)
         logger.info(f"Log de saída enviado para {member.name}.")
 
-    async def on_war_attack(self, attack, war):
+    async def _handle_war_attack(self, attack, war, war_type="Guerra"):
+        """Função auxiliar para processar ataques de guerra (Normal e CWL)."""
         if not hasattr(attack, 'attacker') or not hasattr(attack.attacker, 'clan') or not hasattr(attack.attacker.clan, 'tag'): return
         if attack.attacker.clan.tag != CLAN_TAG: return
 
         embed = discord.Embed(
-            title="⚔️ Ataque na Guerra Realizado!",
+            title=f"⚔️ Ataque na {war_type} Realizado!",
             description=f"**{attack.attacker.name}** (CV{attack.attacker.town_hall}) atacou **{attack.defender.name}** (CV{attack.defender.town_hall})",
             color=discord.Color.orange()
         )
@@ -617,7 +618,13 @@ class ClashGeniusEvents(coc.EventsClient):
             inline=False
         )
         await send_log_embed(embed)
-        logger.info(f"Log de ataque na guerra enviado para {attack.attacker.name}.")
+        logger.info(f"Log de ataque na {war_type} enviado para {attack.attacker.name}.")
+
+    async def on_war_attack(self, attack, war):
+        await self._handle_war_attack(attack, war, "Guerra")
+
+    async def on_cwl_war_attack(self, attack, war):
+        await self._handle_war_attack(attack, war, "CWL")
 
     async def on_clan_member_role_change(self, old_member, new_member):
         embed = discord.Embed(
