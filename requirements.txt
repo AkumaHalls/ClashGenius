@@ -3,3 +3,4 @@ coc.py==3.9.1
 python-dotenv
 aiohttp
 pytz
+motor
