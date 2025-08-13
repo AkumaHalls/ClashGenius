@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.23-DB-R-FIX4 - Adiciona listener para ataques de CWL.
+# Versão 19.8.24-DB-R-FIX5 - Garante que os listeners de eventos são adicionados após o bot estar pronto.
 
 import os
 import logging
@@ -118,7 +118,7 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # --- CONFIGURAÇÕES GLOBAIS DO BOT ---
-BOT_VERSION = "19.8.23-DB-R-FIX4"
+BOT_VERSION = "19.8.24-DB-R-FIX5"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
@@ -534,9 +534,16 @@ async def on_ready():
     """
     logger.info(f"Bot {bot.user.name} online! Versão: {BOT_VERSION}")
     
-    # Aguarda um pouco para garantir que o cliente CoC esteja pronto
-    await asyncio.sleep(5) 
-    
+    # --- MUDANÇA CRÍTICA ---
+    # Adiciona os listeners de eventos DEPOIS do bot estar pronto.
+    try:
+        bot.coc_client.add_clan_updates(CLAN_TAG)
+        bot.coc_client.add_war_updates(CLAN_TAG)
+        logger.info(f"Monitoramento e eventos ativados para o clã {CLAN_TAG}")
+    except Exception as e:
+        logger.error(f"Erro ao adicionar listeners de evento no on_ready: {e}", exc_info=True)
+        return
+
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
@@ -686,11 +693,6 @@ async def setup_hook():
         await bot.coc_client.login(os.getenv("COC_EMAIL"), os.getenv("COC_PASSWORD"))
         logger.info("Login no CoC bem-sucedido.")
         
-        # Adiciona a tag do clã para monitoramento
-        bot.coc_client.add_clan_updates(CLAN_TAG)
-        bot.coc_client.add_war_updates(CLAN_TAG)
-        logger.info(f"Monitoramento e eventos ativados para o clã {CLAN_TAG}")
-
     except Exception as e:
         logger.error(f"Falha no login do CoC: {e}", exc_info=True)
         return
