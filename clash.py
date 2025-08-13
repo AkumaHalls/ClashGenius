@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.26-DB-R-FIX7 - Corrige o nome do método para adicionar listeners de eventos.
+# Versão 19.8.28-DB-R-FINAL - Adota o padrão de eventos da documentação coc.py.
 
 import os
 import logging
@@ -118,9 +118,12 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # --- CONFIGURAÇÕES GLOBAIS DO BOT ---
-BOT_VERSION = "19.8.26-DB-R-FIX7"
+BOT_VERSION = "19.8.28-DB-R-FINAL"
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+coc_client = coc.EventsClient()
+
 player_short_term_cache: Dict[str, Player] = {}
 clan_cache: Dict[str, Dict[str, Any]] = {}
 WEB_API_CACHE_DURATION_SECONDS = 45
@@ -128,7 +131,7 @@ CACHE_DURATION_SECONDS = 300
 web_api_cache: Dict[str, Dict[str, Any]] = {}
 
 # --- FUNÇÕES DE BUSCA DE DADOS (API CoC) ---
-async def get_clan_data_base(coc_client, tag: str) -> Clan:
+async def get_clan_data_base(tag: str) -> Clan:
     if not coc_client or not coc_client.http: raise ValueError("Cliente CoC não inicializado ou não logado.")
     try:
         if not tag.startswith("#"): tag = f"#{tag}"
@@ -140,7 +143,7 @@ async def get_clan_data_base(coc_client, tag: str) -> Clan:
     except coc.Forbidden: raise ValueError("Acesso proibido à API CoC.")
     except Exception as e: logger.error(f"Erro ao buscar clã {tag}: {e}", exc_info=True); raise ValueError(f"Erro ao buscar clã: {e}")
 
-async def get_player_data(coc_client, tag: str) -> Player:
+async def get_player_data(tag: str) -> Player:
     normalized_tag = tag if tag.startswith("#") else f"#{tag}"
     if normalized_tag in player_short_term_cache: return player_short_term_cache[normalized_tag]
     if not coc_client or not coc_client.http: raise ValueError("Cliente CoC não inicializado.")
@@ -155,7 +158,7 @@ async def get_player_data(coc_client, tag: str) -> Player:
     except coc.Forbidden: raise ValueError("Acesso proibido à API CoC.")
     except Exception as e: logger.error(f"Erro ao buscar jogador {normalized_tag}: {e}", exc_info=True); raise ValueError(f"Erro ao buscar jogador: {e}")
 
-async def get_clan_data_with_cache(coc_client, tag: str) -> Clan:
+async def get_clan_data_with_cache(tag: str) -> Clan:
     normalized_tag = tag if tag.startswith("#") else f"#{tag}"
     now = datetime.datetime.now()
     if normalized_tag in clan_cache:
@@ -163,18 +166,18 @@ async def get_clan_data_with_cache(coc_client, tag: str) -> Clan:
         if "timestamp" in cache_entry and isinstance(cache_entry["timestamp"], datetime.datetime):
             if (now - cache_entry["timestamp"]).total_seconds() < CACHE_DURATION_SECONDS:
                 return cache_entry["data"]
-    clan_data_val = await get_clan_data_base(coc_client, normalized_tag)
+    clan_data_val = await get_clan_data_base(normalized_tag)
     clan_cache[normalized_tag] = {"data": clan_data_val, "timestamp": now}
     return clan_data_val
 
 # --- FUNÇÃO CENTRAL DE LOGS NO DISCORD ---
-async def send_log_embed(bot_instance, embed_to_log: discord.Embed, content: str = None) -> None:
+async def send_log_embed(embed_to_log: discord.Embed, content: str = None) -> None:
     if not CHANNEL_ID or CHANNEL_ID == 0: logger.warning("CHANNEL_ID não configurado para send_log_embed."); return
     if not hasattr(embed_to_log, 'footer') or not embed_to_log.footer or not getattr(embed_to_log.footer, 'text', None):
-         embed_to_log.set_footer(text=f"Bot: {bot_instance.user.name} | v{BOT_VERSION} • {datetime.datetime.now(TIMEZONE).strftime('%d/%m/%Y %H:%M')}")
+         embed_to_log.set_footer(text=f"Bot: {bot.user.name} | v{BOT_VERSION} • {datetime.datetime.now(TIMEZONE).strftime('%d/%m/%Y %H:%M')}")
     if not embed_to_log.timestamp: embed_to_log.timestamp = datetime.datetime.now(TIMEZONE)
     try:
-        channel_log_obj = await bot_instance.fetch_channel(CHANNEL_ID)
+        channel_log_obj = await bot.fetch_channel(CHANNEL_ID)
         if isinstance(channel_log_obj, discord.TextChannel): await channel_log_obj.send(content=content, embed=embed_to_log)
         else: logger.error(f"Canal de log ID {CHANNEL_ID} não é um canal de texto.")
     except discord.NotFound: logger.error(f"Canal de log ID {CHANNEL_ID} não encontrado.")
@@ -202,7 +205,7 @@ def format_war_time_details(war_obj: ClanWar, time_now_tz: datetime.datetime) ->
             else: details["time_remaining"] = "-"
     return details
 
-async def get_current_or_last_war(coc_client, clan_tag_param: str) -> Optional[ClanWar]:
+async def get_current_or_last_war(clan_tag_param: str) -> Optional[ClanWar]:
     current_war_in_war: Optional[ClanWar] = None
     current_war_preparation: Optional[ClanWar] = None
     best_ended_cwl_war: Optional[ClanWar] = None
@@ -270,10 +273,10 @@ async def get_cached_web_data(key: str, func_to_fetch_data: callable, *args: Any
     web_api_cache[key] = {"data": data, "timestamp": now}
     return data
 
-async def fetch_clan_info_for_web_api(bot_instance) -> Dict[str, Any]:
+async def fetch_clan_info_for_web_api() -> Dict[str, Any]:
     if not CLAN_TAG: return {"error": "CLAN_TAG não configurado."}
     try:
-        clan = await get_clan_data_with_cache(bot_instance.coc_client, CLAN_TAG)
+        clan = await get_clan_data_with_cache(CLAN_TAG)
         districts = []
         if CapitalDistrict and hasattr(clan, 'capital_districts') and clan.capital_districts:
             for d in clan.capital_districts: districts.append({"name": d.name, "level": d.hall_level})
@@ -288,15 +291,15 @@ async def fetch_clan_info_for_web_api(bot_instance) -> Dict[str, Any]:
         logger.error(f"Erro ao buscar informações do clã para API web: {e}", exc_info=True)
         return {"error": str(e), "name": "Erro ao carregar dados do clã"}
 
-async def fetch_clan_members_for_web_api(bot_instance) -> Dict[str, Any]:
+async def fetch_clan_members_for_web_api() -> Dict[str, Any]:
     if not CLAN_TAG: return {"error": "CLAN_TAG não configurado."}
     try:
-        clan = await get_clan_data_with_cache(bot_instance.coc_client, CLAN_TAG)
+        clan = await get_clan_data_with_cache(CLAN_TAG)
         members_data = []
         player_notes = {}
-        if bot_instance.db is not None and hasattr(clan, 'members') and clan.members:
+        if bot.db is not None and hasattr(clan, 'members') and clan.members:
             member_tags = [m.tag for m in clan.members]
-            notes_cursor = bot_instance.db.players.find({"_id": {"$in": member_tags}}, {"_id": 1, "notes": 1})
+            notes_cursor = bot.db.players.find({"_id": {"$in": member_tags}}, {"_id": 1, "notes": 1})
             async for doc in notes_cursor:
                 player_notes[doc["_id"]] = doc.get("notes", {"text": "", "priority": "none"})
         if hasattr(clan, 'members') and clan.members:
@@ -312,18 +315,18 @@ async def fetch_clan_members_for_web_api(bot_instance) -> Dict[str, Any]:
         logger.error(f"Erro ao buscar membros do clã para API web: {e}", exc_info=True)
         return {"error": str(e)}
 
-async def get_member_war_details_async(bot_instance, member: ClanMember, war_obj_ref: ClanWar) -> Dict[str, Any]:
+async def get_member_war_details_async(member: ClanMember, war_obj_ref: ClanWar) -> Dict[str, Any]:
     member_attacks_data = []
     if member.attacks:
         for atk in member.attacks:
-            try: p_def = player_short_term_cache.get(atk.defender_tag) or await get_player_data(bot_instance.coc_client, atk.defender_tag)
+            try: p_def = player_short_term_cache.get(atk.defender_tag) or await get_player_data(atk.defender_tag)
             except ValueError: p_def = None
             member_attacks_data.append({"defender_tag": atk.defender_tag, "defender_name": p_def.name if p_def else atk.defender_tag,
                                         "defender_townhall": p_def.town_hall if p_def else '?', "stars": atk.stars, "destruction": atk.destruction, "order": atk.order})
     member_defenses_data = []
     if hasattr(member, 'defenses') and member.defenses:
             for defense in member.defenses:
-                try: p_att = player_short_term_cache.get(defense.attacker_tag) or await get_player_data(bot_instance.coc_client, defense.attacker_tag)
+                try: p_att = player_short_term_cache.get(defense.attacker_tag) or await get_player_data(defense.attacker_tag)
                 except ValueError: p_att = None
                 member_defenses_data.append({"attacker_tag": defense.attacker_tag, "attacker_name": p_att.name if p_att else defense.attacker_tag,
                                             "attacker_townhall": p_att.town_hall if p_att else '?', "stars": defense.stars, "destruction": defense.destruction, "order": defense.order})
@@ -331,25 +334,25 @@ async def get_member_war_details_async(bot_instance, member: ClanMember, war_obj
             "attacks_remaining": war_obj_ref.attacks_per_member - (len(member.attacks) if member.attacks else 0), "attacks_made": member_attacks_data,
             "defenses_received": member_defenses_data, "best_opponent_attack": {"stars": member.best_opponent_attack.stars, "attacker_tag": member.best_opponent_attack.attacker_tag} if member.best_opponent_attack else None}
 
-async def fetch_current_war_details_for_web_api(bot_instance) -> Dict[str, Any]:
+async def fetch_current_war_details_for_web_api() -> Dict[str, Any]:
     if not CLAN_TAG: return {"error": "CLAN_TAG não configurado.", "war_data": None}
     player_short_term_cache.clear()
     try:
-        war = await get_current_or_last_war(bot_instance.coc_client, CLAN_TAG)
+        war = await get_current_or_last_war(CLAN_TAG)
         if not war or getattr(war, 'state', "notInWar") == "notInWar":
             return {"error": "Nenhuma guerra para detalhar.", "war_data": None}
         our_clan_obj, opp_clan_obj = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
         time_details_coc = format_war_time_details(war, datetime.datetime.now(TIMEZONE))
         our_clan_members_in_war, opponent_clan_members_in_war, all_attacks = [], [], []
         if our_clan_obj and hasattr(our_clan_obj, 'members') and our_clan_obj.members:
-            our_clan_members_in_war = sorted([await get_member_war_details_async(bot_instance, m, war) for m in our_clan_obj.members], key=lambda m: m["map_position"])
+            our_clan_members_in_war = sorted([await get_member_war_details_async(m, war) for m in our_clan_obj.members], key=lambda m: m["map_position"])
         if opp_clan_obj and hasattr(opp_clan_obj, 'members') and opp_clan_obj.members:
-            opponent_clan_members_in_war = sorted([await get_member_war_details_async(bot_instance, m, war) for m in opp_clan_obj.members], key=lambda m: m["map_position"])
+            opponent_clan_members_in_war = sorted([await get_member_war_details_async(m, war) for m in opp_clan_obj.members], key=lambda m: m["map_position"])
         if war.attacks:
             for attack in sorted(war.attacks, key=lambda a: a.order):
-                try: p_att = await get_player_data(bot_instance.coc_client, attack.attacker_tag); att_name, att_th = p_att.name, p_att.town_hall
+                try: p_att = await get_player_data(attack.attacker_tag); att_name, att_th = p_att.name, p_att.town_hall
                 except ValueError: att_name, att_th = attack.attacker_tag, '?'
-                try: p_def = await get_player_data(bot_instance.coc_client, attack.defender_tag); def_name, def_th = p_def.name, p_def.town_hall
+                try: p_def = await get_player_data(attack.defender_tag); def_name, def_th = p_def.name, p_def.town_hall
                 except ValueError: def_name, def_th = attack.defender_tag, '?'
                 all_attacks.append({"order": attack.order, "attacker_tag": attack.attacker_tag, "attacker_name": att_name, "attacker_townhall": att_th, "defender_tag": attack.defender_tag,
                                      "defender_name": def_name, "defender_townhall": def_th, "stars": attack.stars, "destruction": attack.destruction, "duration": getattr(attack, 'duration', 'N/A')})
@@ -375,9 +378,9 @@ async def fetch_current_war_details_for_web_api(bot_instance) -> Dict[str, Any]:
         logger.error(f"Erro ao processar detalhes da guerra: {e}", exc_info=True)
         return {"error": f"Erro ao buscar detalhes da guerra: {e}", "war_data": None}
 
-async def fetch_war_attacks_remaining_for_web_api(bot_instance) -> Dict[str, Any]:
+async def fetch_war_attacks_remaining_for_web_api() -> Dict[str, Any]:
     if not CLAN_TAG: return {"error": "CLAN_TAG não configurado."}
-    war = await get_current_or_last_war(bot_instance.coc_client, CLAN_TAG)
+    war = await get_current_or_last_war(CLAN_TAG)
     if not war or war.state not in ["inWar", "preparation"]:
         return {"message": "Não há guerra em andamento ou em preparação.", "members_pending": []}
     our_clan_obj_rem = war.clan if war.clan.tag == CLAN_TAG else war.opponent
@@ -388,11 +391,11 @@ async def fetch_war_attacks_remaining_for_web_api(bot_instance) -> Dict[str, Any
             if attacks_left > 0: pending.append({"name": m.name, "tag": m.tag, "town_hall": m.town_hall, "attacks_left": attacks_left, "map_position": m.map_position})
     return {"message": "Membros com ataques pendentes:", "members_pending": sorted(pending, key=lambda x: x.get("map_position", 0)), "clan_name": our_clan_obj_rem.name}
 
-async def fetch_war_log_for_web_api(bot_instance, limit: int = 10) -> Dict[str, Any]:
+async def fetch_war_log_for_web_api(limit: int = 10) -> Dict[str, Any]:
     if not CLAN_TAG: return {"error": "CLAN_TAG não configurado."}
     if not WarLogEntry: return {"error": "Histórico de Guerras indisponível.", "log": []}
     try:
-        log_entries = await bot_instance.coc_client.get_war_log(CLAN_TAG, limit=limit)
+        log_entries = await coc_client.get_war_log(CLAN_TAG, limit=limit)
         entries = []
         for entry in log_entries:
             res = "N/A"
@@ -421,11 +424,11 @@ async def fetch_war_log_for_web_api(bot_instance, limit: int = 10) -> Dict[str, 
         logger.error(f"Erro ao buscar histórico de guerras: {e}", exc_info=True)
         return {"error": str(e), "log": []}
 
-async def fetch_cwl_info_for_web_api(bot_instance) -> Dict[str, Any]:
+async def fetch_cwl_info_for_web_api() -> Dict[str, Any]:
     if not CLAN_TAG: return {"error": "CLAN_TAG não configurado."}
     if not LeagueGroup: return {"status": "CwlFeatureDisabled", "message": "Funcionalidade de CWL indisponível."}
     try:
-        lg = await bot_instance.coc_client.get_league_group(CLAN_TAG)
+        lg = await coc_client.get_league_group(CLAN_TAG)
         if not lg or lg.state == "notInWar": return {"status": "NotInCwl", "message": "Clã não está em CWL."}
         rounds_data = []
         for i, round_tags in enumerate(lg.rounds):
@@ -433,7 +436,7 @@ async def fetch_cwl_info_for_web_api(bot_instance) -> Dict[str, Any]:
             for war_tag_val in round_tags:
                 if war_tag_val == "#0": r_info["wars"].append({"message":"Rodada de descanso."}); continue
                 try:
-                    war = await bot_instance.coc_client.get_league_war(war_tag_val)
+                    war = await coc_client.get_league_war(war_tag_val)
                     our, opp = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
                     td = format_war_time_details(war, datetime.datetime.now(TIMEZONE))
                     r_info["wars"].append({"war_tag": war_tag_val, "state": str(war.state), "clan_name": our.name, "clan_stars": our.stars, "clan_destruction":f"{our.destruction:.2f}%",
@@ -447,25 +450,23 @@ async def fetch_cwl_info_for_web_api(bot_instance) -> Dict[str, Any]:
     except Exception as e: logger.error(f"Erro ao buscar CWL: {e}", exc_info=True); return {"error":str(e), "status": "Error"}
 
 # --- ROTEAMENTO DA API WEB ---
-async def api_clan_info_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_clan_info", fetch_clan_info_for_web_api, request.app['bot']))
-async def api_members_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_members", fetch_clan_members_for_web_api, request.app['bot']))
-async def api_current_war_details_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_war_details", fetch_current_war_details_for_web_api, request.app['bot']))
-async def api_war_attacks_remaining_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_attacks_remaining", fetch_war_attacks_remaining_for_web_api, request.app['bot']))
-async def api_war_log_handler(request: web.Request) -> web.Response: limit = int(request.query.get("limit","10")); return web.json_response(await get_cached_web_data(f"web_war_log_{limit}", fetch_war_log_for_web_api, request.app['bot'], limit))
-async def api_cwl_info_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_cwl_info", fetch_cwl_info_for_web_api, request.app['bot']))
+async def api_clan_info_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_clan_info", fetch_clan_info_for_web_api))
+async def api_members_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_members", fetch_clan_members_for_web_api))
+async def api_current_war_details_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_war_details", fetch_current_war_details_for_web_api))
+async def api_war_attacks_remaining_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_attacks_remaining", fetch_war_attacks_remaining_for_web_api))
+async def api_war_log_handler(request: web.Request) -> web.Response: limit = int(request.query.get("limit","10")); return web.json_response(await get_cached_web_data(f"web_war_log_{limit}", fetch_war_log_for_web_api, limit))
+async def api_cwl_info_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_cwl_info", fetch_cwl_info_for_web_api))
 
 async def api_get_player_note_handler(request: web.Request) -> web.Response:
-    bot_instance = request.app['bot']
-    if bot_instance.db is None: return web.json_response({"error": "Database not connected"}, status=503)
+    if bot.db is None: return web.json_response({"error": "Database not connected"}, status=503)
     player_tag = request.match_info.get('player_tag', None)
     if not player_tag: return web.json_response({"error": "Player tag não fornecida"}, status=400)
     player_tag_fmt = f"#{player_tag}" if not player_tag.startswith("#") else player_tag
-    note_doc = await bot_instance.db.players.find_one({"_id": player_tag_fmt})
+    note_doc = await bot.db.players.find_one({"_id": player_tag_fmt})
     return web.json_response(note_doc.get("notes", {"text": "", "priority": "none"}) if note_doc else {"text": "", "priority": "none"})
 
 async def api_save_player_note_handler(request: web.Request) -> web.Response:
-    bot_instance = request.app['bot']
-    if bot_instance.db is None: return web.json_response({"error": "Database not connected"}, status=503)
+    if bot.db is None: return web.json_response({"error": "Database not connected"}, status=503)
     player_tag = request.match_info.get('player_tag', None)
     if not player_tag: return web.json_response({"error": "Player tag não fornecida"}, status=400)
     player_tag_fmt = f"#{player_tag}" if not player_tag.startswith("#") else player_tag
@@ -478,18 +479,18 @@ async def api_save_player_note_handler(request: web.Request) -> web.Response:
         
         if note_text:
             try:
-                player = await get_player_data(bot_instance.coc_client, player_tag_fmt)
+                player = await get_player_data(player_tag_fmt)
                 player_name = player.name
             except Exception:
-                existing_doc = await bot_instance.db.players.find_one({"_id": player_tag_fmt})
+                existing_doc = await bot.db.players.find_one({"_id": player_tag_fmt})
                 player_name = existing_doc.get("name", "Desconhecido") if existing_doc else "Desconhecido"
             
             update_op = {'$set': {'name': player_name, 'notes': {'text': note_text, 'priority': note_priority}, 'last_updated': datetime.datetime.now(pytz.utc)}}
-            await bot_instance.db.players.update_one({'_id': player_tag_fmt}, update_op, upsert=True)
+            await bot.db.players.update_one({'_id': player_tag_fmt}, update_op, upsert=True)
             logger.info(f"Nota salva/atualizada no DB para {player_tag_fmt}")
         else:
             update_op = {'$unset': {'notes': ""}}
-            await bot_instance.db.players.update_one({'_id': player_tag_fmt}, update_op)
+            await bot.db.players.update_one({'_id': player_tag_fmt}, update_op)
             logger.info(f"Nota removida do DB para {player_tag_fmt}")
 
         if f"web_clan_members_{CLAN_TAG}" in web_api_cache: del web_api_cache[f"web_clan_members_{CLAN_TAG}"]
@@ -504,9 +505,9 @@ async def handle_panel_index(request: web.Request) -> web.FileResponse | web.Res
     try: return web.FileResponse(index_path)
     except FileNotFoundError: return web.Response(text="Painel não encontrado.", status=404)
 
-async def setup_web_server(bot_instance) -> Optional[web.AppRunner]:
+async def setup_web_server() -> Optional[web.AppRunner]:
     app = web.Application()
-    app['bot'] = bot_instance
+    app['bot'] = bot
     app.router.add_get("/api/clan", api_clan_info_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
@@ -525,163 +526,158 @@ async def setup_web_server(bot_instance) -> Optional[web.AppRunner]:
     logger.info(f"Servidor web iniciado na porta {site._port}")
     return runner
 
-# --- CLASSE PRINCIPAL DO BOT ---
-class ClashGeniusBot(commands.Bot):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.coc_client = coc.EventsClient()
-        self.db_client = None
-        self.db = None
-        self.web_runner = None
+# --- EVENTOS DO COC (DEFINIDOS COMO FUNÇÕES GLOBAIS) ---
+@coc.ClanEvents.member_join()
+async def on_clan_member_join(member, clan):
+    if clan.tag != CLAN_TAG: return
+    embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
+    embed.add_field(name="CV", value=member.town_hall, inline=True)
+    embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
+    embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
+    await send_log_embed(bot, embed)
+    logger.info(f"Log de entrada enviado para {member.name}.")
 
-        # --- CORREÇÃO APLICADA AQUI ---
-        # Adiciona os eventos do CoC ao cliente usando o método correto `add_listeners`
-        self.coc_client.add_listeners(
-            self.on_clan_member_join,
-            self.on_clan_member_leave,
-            self._handle_war_attack,
-            self._handle_cwl_war_attack,
-            self.on_clan_member_role_change,
-            self.on_clan_member_trophies_change,
-            self.on_clan_member_league_change
-        )
+@coc.ClanEvents.member_leave()
+async def on_clan_member_leave(member, clan):
+    if clan.tag != CLAN_TAG: return
+    embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** ({member.tag}) saiu do clã.", color=discord.Color.dark_grey())
+    embed.add_field(name="CV", value=member.town_hall, inline=True)
+    embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
+    await send_log_embed(bot, embed)
+    logger.info(f"Log de saída enviado para {member.name}.")
 
-    async def setup_hook(self):
-        logger.info("Executando setup_hook...")
-        mongo_url = os.getenv("MONGO_DB_URL")
-        if mongo_url:
-            try:
-                self.db_client = motor.motor_asyncio.AsyncIOMotorClient(mongo_url)
-                self.db = self.db_client.get_default_database()
-                await self.db.command('ping')
-                logger.info(f"Conectado ao MongoDB: {self.db.name}")
-            except Exception as e:
-                logger.error(f"Falha ao conectar ao MongoDB: {e}", exc_info=True)
-                self.db_client = None; self.db = None
-        else:
-            logger.error("MONGO_DB_URL não definida. DB desabilitado.")
-            self.db_client = None; self.db = None
-        
-        try:
-            await self.coc_client.login(os.getenv("COC_EMAIL"), os.getenv("COC_PASSWORD"))
-            logger.info("Login no CoC bem-sucedido.")
-        except Exception as e:
-            logger.error(f"Falha no login do CoC: {e}", exc_info=True)
+async def _handle_war_attack_logic(attack, war, war_type="Guerra"):
+    if not hasattr(attack, 'attacker') or not hasattr(attack.attacker, 'clan') or not hasattr(attack.attacker.clan, 'tag'): return
+    if attack.attacker.clan.tag != CLAN_TAG: return
+
+    embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
+    stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
+    our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
+    opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
+
+    embed.description = (
+        f"**{attack.attacker.name}** atacou **{attack.defender.name}**\n"
+        f"`CV{attack.attacker.town_hall} vs CV{attack.defender.town_hall}`"
+    )
+    embed.add_field(name="Resultado do Ataque", value=f"{stars} **{attack.destruction}%**", inline=False)
+    embed.add_field(
+        name="Placar Atual",
+        value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐",
+        inline=True
+    )
+    embed.add_field(
+        name="Ataques Usados",
+        value=f"{our_clan.attacks_used} / {war.team_size * war.attacks_per_member}",
+        inline=True
+    )
+    await send_log_embed(bot, embed)
+    logger.info(f"Log de ataque na {war_type} enviado para {attack.attacker.name}.")
+
+@coc.WarEvents.attack()
+async def on_war_attack(attack, war):
+    await _handle_war_attack_logic(attack, war, "Guerra")
+
+@coc.WarEvents.attack(is_cwl=True)
+async def on_cwl_war_attack(attack, war):
+    await _handle_war_attack_logic(attack, war, "CWL")
+
+@coc.ClanEvents.member_role()
+async def on_clan_member_role_change(old_member, new_member):
+    embed = discord.Embed(title="✨ Mudança de Cargo", description=f"O cargo de **{new_member.name}** foi alterado.", color=discord.Color.purple())
+    embed.add_field(name="Cargo Antigo", value=old_member.role.name.capitalize(), inline=True)
+    embed.add_field(name="Novo Cargo", value=new_member.role.name.capitalize(), inline=True)
+    await send_log_embed(bot, embed)
+    logger.info(f"Log de mudança de cargo para {new_member.name}.")
+
+@coc.ClanEvents.member_trophies()
+async def on_clan_member_trophies_change(old_member, new_member):
+    diff = new_member.trophies - old_member.trophies
+    action = "ganhou" if diff > 0 else "perdeu"
+    color = discord.Color.green() if diff > 0 else discord.Color.red()
+    embed = discord.Embed(description=f"**{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})", color=color)
+    await send_log_embed(bot, embed)
+    logger.info(f"Log de mudança de troféus para {new_member.name}.")
+
+@coc.ClanEvents.member_league()
+async def on_clan_member_league_change(old_member, new_member):
+    embed = discord.Embed(title="🛡️ Mudança de Liga", description=f"**{new_member.name}** mudou de liga!", color=0x6E2C00)
+    embed.add_field(name="Liga Anterior", value=old_member.league.name, inline=True)
+    embed.add_field(name="Nova Liga", value=new_member.league.name, inline=True)
+    if hasattr(new_member.league, 'icon') and hasattr(new_member.league.icon, 'medium'):
+        embed.set_thumbnail(url=new_member.league.icon.medium)
+    await send_log_embed(bot, embed)
+    logger.info(f"Log de mudança de liga para {new_member.name}.")
+
+# --- INICIALIZAÇÃO DO BOT ---
+@bot.event
+async def on_ready():
+    logger.info(f"Bot {bot.user.name} online! Versão: {BOT_VERSION}")
+    
+    try:
+        clan = await get_clan_data_with_cache(CLAN_TAG)
+        if not clan:
+            logger.error("Não foi possível obter dados do clã no on_ready para o embed de status.")
             return
 
-        self.web_runner = await setup_web_server(self)
-
-    async def on_ready(self):
-        logger.info(f"Bot {self.user.name} online! Versão: {BOT_VERSION}")
-        
-        try:
-            self.coc_client.add_clan_updates(CLAN_TAG)
-            self.coc_client.add_war_updates(CLAN_TAG)
-            logger.info(f"Monitoramento e eventos ativados para o clã {CLAN_TAG}")
-        except Exception as e:
-            logger.error(f"Erro ao adicionar listeners de evento no on_ready: {e}", exc_info=True)
-            return
-
-        try:
-            clan = await get_clan_data_with_cache(self.coc_client, CLAN_TAG)
-            if not clan:
-                logger.error("Não foi possível obter dados do clã no on_ready para o embed de status.")
-                return
-
-            embed = discord.Embed(
-                title=f"✅ ClashGenius Online | {clan.name}",
-                description=f"Monitoramento ativado para o clã **{clan.name} ({clan.tag})**.",
-                color=discord.Color.green()
-            )
-            embed.add_field(name="📊 Status do Clã", value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", inline=True)
-            embed.add_field(name="⚙️ Status do Bot", value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK", inline=True)
-            if clan.badge and hasattr(clan.badge, 'url'):
-                embed.set_thumbnail(url=clan.badge.url)
-
-            await send_log_embed(self, embed)
-            logger.info("Embed de inicialização enviado com sucesso.")
-        except Exception as e:
-            logger.error(f"Erro ao criar e enviar o embed de inicialização: {e}", exc_info=True)
-
-    # --- EVENTOS DO COC ---
-    async def on_clan_member_join(self, member, clan):
-        if clan.tag != CLAN_TAG: return
-        embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
-        embed.add_field(name="CV", value=member.town_hall, inline=True)
-        embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
-        embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
-        await send_log_embed(self, embed)
-        logger.info(f"Log de entrada enviado para {member.name}.")
-
-    async def on_clan_member_leave(self, member, clan):
-        if clan.tag != CLAN_TAG: return
-        embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** ({member.tag}) saiu do clã.", color=discord.Color.dark_grey())
-        embed.add_field(name="CV", value=member.town_hall, inline=True)
-        embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
-        await send_log_embed(self, embed)
-        logger.info(f"Log de saída enviado para {member.name}.")
-
-    async def _handle_war_attack_logic(self, attack, war, war_type="Guerra"):
-        if not hasattr(attack, 'attacker') or not hasattr(attack.attacker, 'clan') or not hasattr(attack.attacker.clan, 'tag'): return
-        if attack.attacker.clan.tag != CLAN_TAG: return
-
-        embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
-        stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
-        our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-        opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
-
-        embed.description = (
-            f"**{attack.attacker.name}** atacou **{attack.defender.name}**\n"
-            f"`CV{attack.attacker.town_hall} vs CV{attack.defender.town_hall}`"
+        embed = discord.Embed(
+            title=f"✅ ClashGenius Online | {clan.name}",
+            description=f"Monitoramento ativado para o clã **{clan.name} ({clan.tag})**.",
+            color=discord.Color.green()
         )
-        embed.add_field(name="Resultado do Ataque", value=f"{stars} **{attack.destruction}%**", inline=False)
-        embed.add_field(
-            name="Placar Atual",
-            value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐",
-            inline=True
-        )
-        embed.add_field(
-            name="Ataques Usados",
-            value=f"{our_clan.attacks_used} / {war.team_size * war.attacks_per_member}",
-            inline=True
-        )
-        await send_log_embed(self, embed)
-        logger.info(f"Log de ataque na {war_type} enviado para {attack.attacker.name}.")
+        embed.add_field(name="📊 Status do Clã", value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", inline=True)
+        embed.add_field(name="⚙️ Status do Bot", value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK", inline=True)
+        if clan.badge and hasattr(clan.badge, 'url'):
+            embed.set_thumbnail(url=clan.badge.url)
 
-    async def _handle_war_attack(self, attack, war):
-        await self._handle_war_attack_logic(attack, war, "Guerra")
-
-    async def _handle_cwl_war_attack(self, attack, war):
-        await self._handle_war_attack_logic(attack, war, "CWL")
-
-    async def on_clan_member_role_change(self, old_member, new_member):
-        embed = discord.Embed(title="✨ Mudança de Cargo", description=f"O cargo de **{new_member.name}** foi alterado.", color=discord.Color.purple())
-        embed.add_field(name="Cargo Antigo", value=old_member.role.name.capitalize(), inline=True)
-        embed.add_field(name="Novo Cargo", value=new_member.role.name.capitalize(), inline=True)
-        await send_log_embed(self, embed)
-        logger.info(f"Log de mudança de cargo para {new_member.name}.")
-
-    async def on_clan_member_trophies_change(self, old_member, new_member):
-        diff = new_member.trophies - old_member.trophies
-        action = "ganhou" if diff > 0 else "perdeu"
-        color = discord.Color.green() if diff > 0 else discord.Color.red()
-        embed = discord.Embed(description=f"**{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})", color=color)
-        await send_log_embed(self, embed)
-        logger.info(f"Log de mudança de troféus para {new_member.name}.")
-
-    async def on_clan_member_league_change(self, old_member, new_member):
-        embed = discord.Embed(title="🛡️ Mudança de Liga", description=f"**{new_member.name}** mudou de liga!", color=0x6E2C00)
-        embed.add_field(name="Liga Anterior", value=old_member.league.name, inline=True)
-        embed.add_field(name="Nova Liga", value=new_member.league.name, inline=True)
-        if hasattr(new_member.league, 'icon') and hasattr(new_member.league.icon, 'medium'):
-            embed.set_thumbnail(url=new_member.league.icon.medium)
-        await send_log_embed(self, embed)
-        logger.info(f"Log de mudança de liga para {new_member.name}.")
+        await send_log_embed(embed)
+        logger.info("Embed de inicialização enviado com sucesso.")
+    except Exception as e:
+        logger.error(f"Erro ao criar e enviar o embed de inicialização: {e}", exc_info=True)
 
 async def main():
-    bot_instance = ClashGeniusBot(command_prefix="!", intents=intents)
-    async with bot_instance:
-        await bot_instance.start(DISCORD_TOKEN)
+    # Adiciona os clientes e base de dados ao bot para acesso global
+    bot.coc_client = coc_client
+    bot.db = None
+    bot.db_client = None
+
+    mongo_url = os.getenv("MONGO_DB_URL")
+    if mongo_url:
+        try:
+            bot.db_client = motor.motor_asyncio.AsyncIOMotorClient(mongo_url)
+            bot.db = bot.db_client.get_default_database()
+            await bot.db.command('ping')
+            logger.info(f"Conectado ao MongoDB: {bot.db.name}")
+        except Exception as e:
+            logger.error(f"Falha ao conectar ao MongoDB: {e}", exc_info=True)
+    else:
+        logger.error("MONGO_DB_URL não definida. DB desabilitado.")
+
+    try:
+        await coc_client.login(os.getenv("COC_EMAIL"), os.getenv("COC_PASSWORD"))
+        logger.info("Login no CoC bem-sucedido.")
+    except Exception as e:
+        logger.error(f"Falha no login do CoC: {e}", exc_info=True)
+        return
+
+    coc_client.add_clan_updates(CLAN_TAG)
+    coc_client.add_war_updates(CLAN_TAG)
+    
+    # Regista os eventos decorados
+    coc_client.add_events(
+        on_clan_member_join,
+        on_clan_member_leave,
+        on_war_attack,
+        on_cwl_war_attack,
+        on_clan_member_role_change,
+        on_clan_member_trophies_change,
+        on_clan_member_league_change
+    )
+    logger.info("Todos os eventos do CoC foram registados.")
+
+    # Inicia o servidor web e o bot
+    async with bot:
+        bot.web_runner = await setup_web_server()
+        await bot.start(DISCORD_TOKEN)
 
 if __name__ == "__main__":
     if not all(os.getenv(var) for var in ["DISCORD_TOKEN", "COC_EMAIL", "COC_PASSWORD", "CLAN_TAG"]):
