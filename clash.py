@@ -400,13 +400,11 @@ async def setup_web_server() -> Optional[web.AppRunner]:
         return None
 
 # Comando de teste para verificar se eventos funcionam
-@bot.slash_command(name="test_events", description="Testa se os eventos estão funcionando")
-async def test_events(interaction: discord.Interaction):
+@bot.command(name="test_events", description="Testa se os eventos estão funcionando")
+async def test_events(ctx):
     try:
-        await interaction.response.defer()
-        
         if not coc_client:
-            await interaction.followup.send("❌ Cliente CoC não inicializado!")
+            await ctx.send("❌ Cliente CoC não inicializado!")
             return
         
         # Buscar dados atuais do clã
@@ -421,10 +419,22 @@ async def test_events(interaction: discord.Interaction):
         embed.add_field(name="Membros", value=f"{clan.member_count}/50", inline=True)
         embed.add_field(name="Eventos", value="✅ Registrados", inline=True)
         
-        await interaction.followup.send(embed=embed)
+        await ctx.send(embed=embed)
         
     except Exception as e:
-        await interaction.followup.send(f"❌ Erro no teste: {e}")
+        await ctx.send(f"❌ Erro no teste: {e}")
+
+# Comando para sincronizar slash commands (se necessário no futuro)
+@bot.command(name="sync", hidden=True)
+async def sync_commands(ctx):
+    """Sincroniza slash commands - apenas para desenvolvimento"""
+    if ctx.author.id != 123456789:  # Substitua pelo seu ID do Discord
+        return
+    try:
+        synced = await bot.tree.sync()
+        await ctx.send(f"✅ {len(synced)} comandos sincronizados!")
+    except Exception as e:
+        await ctx.send(f"❌ Erro ao sincronizar: {e}")
 
 # --- FUNÇÃO PRINCIPAL DE EXECUÇÃO ---
 async def main():
