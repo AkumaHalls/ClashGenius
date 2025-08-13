@@ -259,53 +259,56 @@ async def setup_coc_events():
         if hasattr(coc_client, '_session') and coc_client._session and not coc_client._session.closed:
             await coc_client.close()
         
-        # CORREÇÃO 6: Criar novo EventsClient
-        global coc_client
-        coc_client = coc.EventsClient()
+        # CORREÇÃO 6: Criar novo EventsClient sem redeclarar global
+        events_client = coc.EventsClient()
         
         # Login
-        await coc_client.login(COC_EMAIL, COC_PASSWORD)
+        await events_client.login(COC_EMAIL, COC_PASSWORD)
         logger.info("Login no CoC EventsClient bem-sucedido.")
         
         # CORREÇÃO 7: Registrar eventos usando decoradores corretos
-        coc_client.add_clan_updates(CLAN_TAG)
-        coc_client.add_war_updates(CLAN_TAG)
+        events_client.add_clan_updates(CLAN_TAG)
+        events_client.add_war_updates(CLAN_TAG)
         
         # Registrar os eventos
-        @coc_client.event
+        @events_client.event
         @coc.ClanEvents.member_join()
         async def _(member, clan):
             await on_clan_member_join(member, clan)
             
-        @coc_client.event
+        @events_client.event
         @coc.ClanEvents.member_leave()
         async def _(member, clan):
             await on_clan_member_leave(member, clan)
             
-        @coc_client.event
+        @events_client.event
         @coc.WarEvents.attack()
         async def _(attack, war):
             await on_war_attack(attack, war)
             
-        @coc_client.event
+        @events_client.event
         @coc.ClanEvents.member_role()
         async def _(old_member, new_member):
             await on_clan_member_role_change(old_member, new_member)
             
-        @coc_client.event
+        @events_client.event
         @coc.ClanEvents.member_trophies()
         async def _(old_member, new_member):
             await on_clan_member_trophies_change(old_member, new_member)
             
-        @coc_client.event
+        @events_client.event
         @coc.ClanEvents.member_league()
         async def _(old_member, new_member):
             await on_clan_member_league_change(old_member, new_member)
         
+        # Atualizar a referência global
+        global coc_client
+        coc_client = events_client
+        
         logger.info("Todos os eventos do CoC foram registrados com sucesso!")
         
         # CORREÇÃO 8: Testar conexão
-        test_clan = await coc_client.get_clan(CLAN_TAG)
+        test_clan = await events_client.get_clan(CLAN_TAG)
         logger.info(f"Teste de conexão bem-sucedido: {test_clan.name} tem {test_clan.member_count} membros")
         
     except Exception as e:
