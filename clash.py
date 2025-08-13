@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.18-DB - Adiciona tratamento para clãs deletados no histórico de guerras.
+# Versão 19.8.19-DB-R - Funcionalidades de log no Discord e embed de status reativadas.
 
 import os
 import logging
@@ -35,6 +35,7 @@ from coc import (
     ClanMember
 )
 
+# Bloco de importação para compatibilidade com versões do coc.py
 WarLogEntry = None
 LeagueGroup = None
 CapitalDistrict = None
@@ -91,6 +92,7 @@ except Exception as e_import_general:
     LeagueGroup = LeagueGroup or None
     CapitalDistrict = CapitalDistrict or None
 
+# Carrega variáveis de ambiente do arquivo .env
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 COC_EMAIL = os.getenv("COC_EMAIL")
@@ -115,7 +117,8 @@ except pytz.UnknownTimeZoneError:
     logger.error("Timezone 'America/Sao_Paulo' desconhecida. Usando UTC como padrão.")
     TIMEZONE = pytz.utc
 
-BOT_VERSION = "19.8.18-DB"
+# --- CONFIGURAÇÕES GLOBAIS DO BOT ---
+BOT_VERSION = "19.8.19-DB-R"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
@@ -126,7 +129,7 @@ WEB_API_CACHE_DURATION_SECONDS = 45
 CACHE_DURATION_SECONDS = 300
 web_api_cache: Dict[str, Dict[str, Any]] = {}
 
-
+# --- FUNÇÕES DE BUSCA DE DADOS (API CoC) ---
 async def get_clan_data_base(tag: str) -> Clan:
     if not bot.coc_client or not bot.coc_client.http: raise ValueError("Cliente CoC não inicializado ou não logado.")
     try:
@@ -166,6 +169,7 @@ async def get_clan_data_with_cache(tag: str) -> Clan:
     clan_cache[normalized_tag] = {"data": clan_data_val, "timestamp": now}
     return clan_data_val
 
+# --- FUNÇÃO CENTRAL DE LOGS NO DISCORD ---
 async def send_log_embed(embed_to_log: discord.Embed, content: str = None) -> None:
     if not CHANNEL_ID or CHANNEL_ID == 0: logger.warning("CHANNEL_ID não configurado para send_log_embed."); return
     if not hasattr(embed_to_log, 'footer') or not embed_to_log.footer or not getattr(embed_to_log.footer, 'text', None):
@@ -179,6 +183,7 @@ async def send_log_embed(embed_to_log: discord.Embed, content: str = None) -> No
     except discord.Forbidden: logger.error(f"Sem permissão no canal de log ID {CHANNEL_ID}.")
     except Exception as e: logger.error(f"Erro ao enviar embed para log ID {CHANNEL_ID}: {e}", exc_info=True)
 
+# --- FUNÇÕES DE LÓGICA DE GUERRA ---
 def format_war_time_details(war_obj: ClanWar, time_now_tz: datetime.datetime) -> Dict[str, Any]:
     details: Dict[str, Any] = { "time_key": "N/A", "time_value": "N/A", "time_remaining": "N/A", "start_time_iso": None, "end_time_iso": None }
     if hasattr(war_obj, 'state') and war_obj.state == "preparation":
@@ -255,6 +260,7 @@ async def get_current_or_last_war(clan_tag_param: str) -> Optional[ClanWar]:
         logger.error(f"Erro ao buscar dados da guerra regular: {e_reg}", exc_info=True)
     return None
 
+# --- FUNÇÕES PARA O PAINEL WEB (API) ---
 async def get_cached_web_data(key: str, func_to_fetch_data: callable, *args: Any) -> Any:
     now = datetime.datetime.now()
     if key in web_api_cache:
@@ -391,16 +397,13 @@ async def fetch_war_log_for_web_api(limit: int = 10) -> Dict[str, Any]:
         log_entries = await bot.coc_client.get_war_log(CLAN_TAG, limit=limit)
         entries = []
         for entry in log_entries:
-            # +++ CORREÇÃO APLICADA AQUI +++
             res = "N/A"
-            # Verifica o resultado da guerra de forma segura
             if entry.clan and entry.clan.tag == CLAN_TAG:
                 if entry.result: res = "Vitória" if entry.result == "win" else "Derrota" if entry.result == "lose" else "Empate"
             elif entry.opponent and entry.opponent.tag == CLAN_TAG:
                 if entry.result: res = "Derrota" if entry.result == "win" else "Vitória" if entry.result == "lose" else "Empate"
             
             entries.append({
-                # Adiciona verificações para evitar erro se o clã ou oponente for None
                 "clan_name": entry.clan.name if entry.clan else "Clã Desconhecido",
                 "clan_stars": entry.clan.stars if entry.clan else 0,
                 "clan_destruction": entry.clan.destruction if entry.clan else 0.0,
@@ -445,6 +448,7 @@ async def fetch_cwl_info_for_web_api() -> Dict[str, Any]:
     except coc.NotFound: return {"status": "NotInCwl", "message": "Grupo CWL não encontrado."}
     except Exception as e: logger.error(f"Erro ao buscar CWL: {e}", exc_info=True); return {"error":str(e), "status": "Error"}
 
+# --- ROTEAMENTO DA API WEB ---
 async def api_clan_info_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_clan_info", fetch_clan_info_for_web_api))
 async def api_members_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_members", fetch_clan_members_for_web_api))
 async def api_current_war_details_handler(request: web.Request) -> web.Response: return web.json_response(await get_cached_web_data("web_war_details", fetch_current_war_details_for_web_api))
@@ -521,10 +525,114 @@ async def setup_web_server() -> Optional[web.AppRunner]:
     logger.info(f"Servidor web iniciado na porta {site._port}")
     return runner
 
+# --- EVENTOS DO DISCORD E COC (FUNCIONALIDADES REATIVADAS) ---
 @bot.event
 async def on_ready():
+    """
+    Executado quando o bot se conecta ao Discord.
+    Envia um embed de status para o canal de logs.
+    """
     logger.info(f"Bot {bot.user.name} online! Versão: {BOT_VERSION}")
+    
+    # Aguarda um pouco para garantir que o cliente CoC esteja pronto
+    await asyncio.sleep(5) 
+    
+    try:
+        clan = await get_clan_data_with_cache(CLAN_TAG)
+        if not clan:
+            logger.error("Não foi possível obter dados do clã no on_ready para o embed de status.")
+            return
 
+        embed = discord.Embed(
+            title=f"✅ ClashGenius Online | {clan.name}",
+            description=f"Monitoramento ativado para o clã **{clan.name} ({clan.tag})**.",
+            color=discord.Color.green()
+        )
+        embed.add_field(
+            name="📊 Status do Clã",
+            value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}",
+            inline=True
+        )
+        embed.add_field(
+            name="⚙️ Status do Bot",
+            value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK",
+            inline=True
+        )
+        if clan.badge and hasattr(clan.badge, 'url'):
+            embed.set_thumbnail(url=clan.badge.url)
+
+        await send_log_embed(embed)
+        logger.info("Embed de inicialização enviado com sucesso.")
+
+    except Exception as e:
+        logger.error(f"Erro ao criar e enviar o embed de inicialização: {e}", exc_info=True)
+
+
+@bot.coc_client.event
+async def on_clan_member_join(member, clan):
+    """
+    Registra a entrada de um novo membro no clã.
+    """
+    if clan.tag != CLAN_TAG:
+        return
+    
+    embed = discord.Embed(
+        title="➡️ Novo Membro no Clã",
+        description=f"**{member.name}** ({member.tag}) entrou no clã.",
+        color=discord.Color.blue()
+    )
+    embed.add_field(name="CV", value=member.town_hall, inline=True)
+    embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
+    embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
+    await send_log_embed(embed)
+    logger.info(f"Log de entrada enviado para {member.name}.")
+
+@bot.coc_client.event
+async def on_clan_member_leave(member, clan):
+    """
+    Registra a saída de um membro do clã.
+    """
+    if clan.tag != CLAN_TAG:
+        return
+
+    embed = discord.Embed(
+        title="⬅️ Membro Saiu do Clã",
+        description=f"**{member.name}** ({member.tag}) saiu do clã.",
+        color=discord.Color.dark_grey()
+    )
+    embed.add_field(name="CV", value=member.town_hall, inline=True)
+    embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
+    await send_log_embed(embed)
+    logger.info(f"Log de saída enviado para {member.name}.")
+
+
+@bot.coc_client.event
+async def on_war_attack(attack, war):
+    """
+    Registra um ataque realizado na guerra pelo nosso clã.
+    """
+    if attack.attacker.clan.tag != CLAN_TAG:
+        return
+
+    embed = discord.Embed(
+        title="⚔️ Ataque na Guerra Realizado!",
+        description=f"**{attack.attacker.name}** (CV{attack.attacker.town_hall}) atacou **{attack.defender.name}** (CV{attack.defender.town_hall})",
+        color=discord.Color.orange()
+    )
+    stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
+    embed.add_field(name="Resultado", value=f"{stars} **{attack.destruction}%**", inline=False)
+    
+    our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
+    opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
+    embed.add_field(
+        name="Placar Atual",
+        value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐",
+        inline=False
+    )
+    await send_log_embed(embed)
+    logger.info(f"Log de ataque na guerra enviado para {attack.attacker.name}.")
+
+# --- INICIALIZAÇÃO DO BOT ---
 async def setup_hook():
     logger.info("Executando setup_hook...")
     mongo_url = os.getenv("MONGO_DB_URL")
@@ -541,10 +649,16 @@ async def setup_hook():
         logger.error("MONGO_DB_URL não definida. DB desabilitado.")
         bot.db_client = None; bot.db = None
     
+    # Inicializa o cliente de eventos do CoC e o adiciona ao bot
     bot.coc_client = coc.EventsClient()
     try:
         await bot.coc_client.login(os.getenv("COC_EMAIL"), os.getenv("COC_PASSWORD"))
         logger.info("Login no CoC bem-sucedido.")
+        # Adiciona a tag do clã para monitoramento
+        bot.coc_client.add_clan_updates(CLAN_TAG)
+        bot.coc_client.add_war_updates(CLAN_TAG)
+        logger.info(f"Monitoramento ativado para o clã {CLAN_TAG}")
+
     except Exception as e:
         logger.error(f"Falha no login do CoC: {e}")
         return
