@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.2-FIXED - Eventos CoC corrigidos e funcionais
+# Versão 20.1.3-FIXED - Erro global coc_client completamente resolvido
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.2-FIXED"
+BOT_VERSION = "20.1.3-FIXED"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -46,8 +46,9 @@ intents.guilds = True
 
 # --- Inicialização dos Clientes ---
 bot = commands.Bot(command_prefix="!", intents=intents)
-# CORREÇÃO 1: Usar Client em vez de EventsClient inicialmente
-coc_client = coc.Client()
+# CORREÇÃO: Inicializar como None, será criado depois
+coc_client = None
+events_client = None
 
 # --- Caches em Memória ---
 player_short_term_cache: Dict[str, Any] = {}
@@ -82,6 +83,11 @@ async def send_log_embed(embed_to_log: discord.Embed, content: str = None) -> No
 
 # --- FUNÇÕES DE BUSCA DE DADOS (API CoC) ---
 async def get_player_data(tag: str) -> Any:
+    global coc_client
+    if not coc_client:
+        logger.error("coc_client não inicializado")
+        return None
+        
     normalized_tag = coc.utils.correct_tag(tag)
     if normalized_tag in player_short_term_cache:
         return player_short_term_cache[normalized_tag]
@@ -95,6 +101,11 @@ async def get_player_data(tag: str) -> Any:
         return None
 
 async def get_clan_data_with_cache(tag: str) -> Any:
+    global coc_client
+    if not coc_client:
+        logger.error("coc_client não inicializado")
+        return None
+        
     normalized_tag = coc.utils.correct_tag(tag)
     now = datetime.datetime.now()
     
@@ -113,7 +124,6 @@ async def get_clan_data_with_cache(tag: str) -> Any:
         return None
 
 # --- DEFINIÇÃO DOS EVENTOS DO COC ---
-# CORREÇÃO 2: Definir os eventos como funções normais primeiro
 async def on_clan_member_join(member, clan):
     try:
         logger.info(f"Evento disparado: {member.name} entrou no clã {clan.name}")
@@ -189,7 +199,7 @@ async def on_clan_member_role_change(old_member, new_member):
 async def on_clan_member_trophies_change(old_member, new_member):
     try:
         diff = new_member.trophies - old_member.trophies
-        # CORREÇÃO 3: Só notificar mudanças significativas
+        # Só notificar mudanças significativas
         if abs(diff) < 10:  # Ignorar pequenas mudanças
             return
             
@@ -220,53 +230,26 @@ async def on_clan_member_league_change(old_member, new_member):
     except Exception as e:
         logger.error(f"Erro no evento member_league_change: {e}", exc_info=True)
 
-# --- EVENTO ON_READY DO BOT DO DISCORD ---
-@bot.event
-async def on_ready():
-    logger.info(f"Bot {bot.user.name} online! Versão: {BOT_VERSION}")
-    try:
-        clan = await coc_client.get_clan(CLAN_TAG)
-        embed = discord.Embed(
-            title=f"✅ ClashGenius Online | {clan.name}", 
-            description=f"Monitoramento ativado para o clã **{clan.name} ({clan.tag})**.", 
-            color=discord.Color.green()
-        )
-        embed.add_field(
-            name="📊 Status do Clã", 
-            value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", 
-            inline=True
-        )
-        embed.add_field(
-            name="⚙️ Status do Bot", 
-            value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK", 
-            inline=True
-        )
-        if clan.badge:
-            embed.set_thumbnail(url=clan.badge.url)
-        await send_log_embed(embed)
-        
-        # CORREÇÃO 4: Iniciar monitoramento após o bot estar ready
-        await setup_coc_events()
-        
-    except Exception as e:
-        logger.error(f"Erro ao enviar o embed de inicialização: {e}", exc_info=True)
-
 # --- CONFIGURAÇÃO DOS EVENTOS COC ---
 async def setup_coc_events():
-    """CORREÇÃO 5: Função dedicada para configurar eventos após inicialização"""
+    """Função para configurar eventos CoC após bot estar ready"""
+    global coc_client, events_client
+    
     try:
-        # Fechar cliente atual se existir
-        if hasattr(coc_client, '_session') and coc_client._session and not coc_client._session.closed:
+        logger.info("Iniciando configuração dos eventos CoC...")
+        
+        # Fechar cliente anterior se existir
+        if coc_client and hasattr(coc_client, '_session') and coc_client._session and not coc_client._session.closed:
             await coc_client.close()
         
-        # CORREÇÃO 6: Criar novo EventsClient sem redeclarar global
+        # Criar EventsClient
         events_client = coc.EventsClient()
         
         # Login
         await events_client.login(COC_EMAIL, COC_PASSWORD)
         logger.info("Login no CoC EventsClient bem-sucedido.")
         
-        # CORREÇÃO 7: Registrar eventos usando decoradores corretos
+        # Registrar eventos usando decoradores corretos
         events_client.add_clan_updates(CLAN_TAG)
         events_client.add_war_updates(CLAN_TAG)
         
@@ -301,18 +284,49 @@ async def setup_coc_events():
         async def _(old_member, new_member):
             await on_clan_member_league_change(old_member, new_member)
         
-        # Atualizar a referência global
-        global coc_client
+        # Atualizar referência global
         coc_client = events_client
         
         logger.info("Todos os eventos do CoC foram registrados com sucesso!")
         
-        # CORREÇÃO 8: Testar conexão
-        test_clan = await events_client.get_clan(CLAN_TAG)
+        # Testar conexão
+        test_clan = await coc_client.get_clan(CLAN_TAG)
         logger.info(f"Teste de conexão bem-sucedido: {test_clan.name} tem {test_clan.member_count} membros")
         
     except Exception as e:
         logger.error(f"Erro ao configurar eventos CoC: {e}", exc_info=True)
+
+# --- EVENTO ON_READY DO BOT DO DISCORD ---
+@bot.event
+async def on_ready():
+    logger.info(f"Bot {bot.user.name} online! Versão: {BOT_VERSION}")
+    try:
+        # Primeiro, configurar os eventos CoC
+        await setup_coc_events()
+        
+        # Depois, enviar mensagem de status
+        clan = await coc_client.get_clan(CLAN_TAG)
+        embed = discord.Embed(
+            title=f"✅ ClashGenius Online | {clan.name}", 
+            description=f"Monitoramento ativado para o clã **{clan.name} ({clan.tag})**.", 
+            color=discord.Color.green()
+        )
+        embed.add_field(
+            name="📊 Status do Clã", 
+            value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", 
+            inline=True
+        )
+        embed.add_field(
+            name="⚙️ Status do Bot", 
+            value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK", 
+            inline=True
+        )
+        if clan.badge:
+            embed.set_thumbnail(url=clan.badge.url)
+        await send_log_embed(embed)
+        
+    except Exception as e:
+        logger.error(f"Erro ao enviar o embed de inicialização: {e}", exc_info=True)
 
 # --- ROTINAS E HANDLERS DO PAINEL WEB ---
 async def get_cached_web_data(key: str, func, *args):
@@ -385,11 +399,15 @@ async def setup_web_server() -> Optional[web.AppRunner]:
         logger.error(f"Erro ao configurar servidor web: {e}", exc_info=True)
         return None
 
-# CORREÇÃO 9: Comando de teste para verificar se eventos funcionam
+# Comando de teste para verificar se eventos funcionam
 @bot.slash_command(name="test_events", description="Testa se os eventos estão funcionando")
 async def test_events(interaction: discord.Interaction):
     try:
         await interaction.response.defer()
+        
+        if not coc_client:
+            await interaction.followup.send("❌ Cliente CoC não inicializado!")
+            return
         
         # Buscar dados atuais do clã
         clan = await coc_client.get_clan(CLAN_TAG)
@@ -410,10 +428,14 @@ async def test_events(interaction: discord.Interaction):
 
 # --- FUNÇÃO PRINCIPAL DE EXECUÇÃO ---
 async def main():
-    # CORREÇÃO 10: Melhor gestão de recursos e ordem de inicialização
+    """Função principal - inicialização sequencial"""
+    global coc_client
     web_runner = None
     
     try:
+        # Inicializar cliente CoC básico para testes iniciais
+        coc_client = coc.Client()
+        
         # Adiciona os clientes ao bot para acesso global
         bot.coc_client = coc_client
         bot.db = None
@@ -431,7 +453,7 @@ async def main():
         else:
             logger.warning("MONGO_DB_URL não definida. A base de dados está desativada.")
 
-        # Login inicial no cliente CoC (será refeito depois)
+        # Login inicial no cliente CoC básico
         try:
             await coc_client.login(COC_EMAIL, COC_PASSWORD)
             logger.info("Login inicial no CoC bem-sucedido.")
@@ -457,9 +479,11 @@ async def main():
         try:
             if web_runner:
                 await web_runner.cleanup()
-            if hasattr(coc_client, 'close'):
+            if coc_client and hasattr(coc_client, 'close'):
                 await coc_client.close()
-            if bot.db_client:
+            if events_client and hasattr(events_client, 'close'):
+                await events_client.close()
+            if hasattr(bot, 'db_client') and bot.db_client:
                 bot.db_client.close()
         except Exception as e:
             logger.error(f"Erro no cleanup: {e}")
