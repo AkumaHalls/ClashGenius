@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.21-DB-R-FIX2 - Corrige o registo de eventos com decoradores.
+# Versão 19.8.22-DB-R-FIX3 - Reestrutura eventos para classe e adiciona mais monitores.
 
 import os
 import logging
@@ -118,12 +118,11 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # --- CONFIGURAÇÕES GLOBAIS DO BOT ---
-BOT_VERSION = "19.8.21-DB-R-FIX2"
+BOT_VERSION = "19.8.22-DB-R-FIX3"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-coc_client = coc.EventsClient() # <<-- MUDANÇA 1: Cliente CoC criado aqui
 player_short_term_cache: Dict[str, Player] = {}
 clan_cache: Dict[str, Dict[str, Any]] = {}
 WEB_API_CACHE_DURATION_SECONDS = 45
@@ -526,7 +525,7 @@ async def setup_web_server() -> Optional[web.AppRunner]:
     logger.info(f"Servidor web iniciado na porta {site._port}")
     return runner
 
-# --- EVENTOS DO DISCORD E COC (FUNCIONALIDADES REATIVADAS) ---
+# --- EVENTOS DO DISCORD ---
 @bot.event
 async def on_ready():
     """
@@ -568,72 +567,93 @@ async def on_ready():
     except Exception as e:
         logger.error(f"Erro ao criar e enviar o embed de inicialização: {e}", exc_info=True)
 
-# --- FUNÇÕES DE EVENTOS DO COC (CORRIGIDO) ---
-@coc_client.event # <<-- MUDANÇA 2: Usando decorador no cliente global
-async def on_clan_member_join(member, clan):
+# --- CLASSE PARA LIDAR COM EVENTOS DO COC ---
+class ClashGeniusEvents(coc.EventsClient):
     """
-    Registra a entrada de um novo membro no clã.
+    Esta classe lida com todos os eventos do Clash of Clans.
     """
-    if clan.tag != CLAN_TAG:
-        return
-    
-    embed = discord.Embed(
-        title="➡️ Novo Membro no Clã",
-        description=f"**{member.name}** ({member.tag}) entrou no clã.",
-        color=discord.Color.blue()
-    )
-    embed.add_field(name="CV", value=member.town_hall, inline=True)
-    embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
-    embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
-    await send_log_embed(embed)
-    logger.info(f"Log de entrada enviado para {member.name}.")
+    async def on_clan_member_join(self, member, clan):
+        if clan.tag != CLAN_TAG: return
+        embed = discord.Embed(
+            title="➡️ Novo Membro no Clã",
+            description=f"**{member.name}** ({member.tag}) entrou no clã.",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="CV", value=member.town_hall, inline=True)
+        embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
+        embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
+        await send_log_embed(embed)
+        logger.info(f"Log de entrada enviado para {member.name}.")
 
-@coc_client.event # <<-- MUDANÇA 2: Usando decorador no cliente global
-async def on_clan_member_leave(member, clan):
-    """
-    Registra a saída de um membro do clã.
-    """
-    if clan.tag != CLAN_TAG:
-        return
+    async def on_clan_member_leave(self, member, clan):
+        if clan.tag != CLAN_TAG: return
+        embed = discord.Embed(
+            title="⬅️ Membro Saiu do Clã",
+            description=f"**{member.name}** ({member.tag}) saiu do clã.",
+            color=discord.Color.dark_grey()
+        )
+        embed.add_field(name="CV", value=member.town_hall, inline=True)
+        embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
+        await send_log_embed(embed)
+        logger.info(f"Log de saída enviado para {member.name}.")
 
-    embed = discord.Embed(
-        title="⬅️ Membro Saiu do Clã",
-        description=f"**{member.name}** ({member.tag}) saiu do clã.",
-        color=discord.Color.dark_grey()
-    )
-    embed.add_field(name="CV", value=member.town_hall, inline=True)
-    embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
-    await send_log_embed(embed)
-    logger.info(f"Log de saída enviado para {member.name}.")
+    async def on_war_attack(self, attack, war):
+        if not hasattr(attack, 'attacker') or not hasattr(attack.attacker, 'clan') or not hasattr(attack.attacker.clan, 'tag'): return
+        if attack.attacker.clan.tag != CLAN_TAG: return
 
-@coc_client.event # <<-- MUDANÇA 2: Usando decorador no cliente global
-async def on_war_attack(attack, war):
-    """
-    Registra um ataque realizado na guerra pelo nosso clã.
-    """
-    if not hasattr(attack, 'attacker') or not hasattr(attack.attacker, 'clan') or not hasattr(attack.attacker.clan, 'tag'):
-        return
+        embed = discord.Embed(
+            title="⚔️ Ataque na Guerra Realizado!",
+            description=f"**{attack.attacker.name}** (CV{attack.attacker.town_hall}) atacou **{attack.defender.name}** (CV{attack.defender.town_hall})",
+            color=discord.Color.orange()
+        )
+        stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
+        embed.add_field(name="Resultado", value=f"{stars} **{attack.destruction}%**", inline=False)
         
-    if attack.attacker.clan.tag != CLAN_TAG:
-        return
+        our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
+        opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
+        embed.add_field(
+            name="Placar Atual",
+            value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐",
+            inline=False
+        )
+        await send_log_embed(embed)
+        logger.info(f"Log de ataque na guerra enviado para {attack.attacker.name}.")
 
-    embed = discord.Embed(
-        title="⚔️ Ataque na Guerra Realizado!",
-        description=f"**{attack.attacker.name}** (CV{attack.attacker.town_hall}) atacou **{attack.defender.name}** (CV{attack.defender.town_hall})",
-        color=discord.Color.orange()
-    )
-    stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
-    embed.add_field(name="Resultado", value=f"{stars} **{attack.destruction}%**", inline=False)
-    
-    our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-    opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
-    embed.add_field(
-        name="Placar Atual",
-        value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐",
-        inline=False
-    )
-    await send_log_embed(embed)
-    logger.info(f"Log de ataque na guerra enviado para {attack.attacker.name}.")
+    async def on_clan_member_role_change(self, old_member, new_member):
+        embed = discord.Embed(
+            title="✨ Mudança de Cargo",
+            description=f"O cargo de **{new_member.name}** foi alterado.",
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="Cargo Antigo", value=old_member.role.name.capitalize(), inline=True)
+        embed.add_field(name="Novo Cargo", value=new_member.role.name.capitalize(), inline=True)
+        await send_log_embed(embed)
+        logger.info(f"Log de mudança de cargo para {new_member.name}.")
+
+    async def on_clan_member_trophies_change(self, old_member, new_member):
+        diff = new_member.trophies - old_member.trophies
+        action = "ganhou" if diff > 0 else "perdeu"
+        color = discord.Color.green() if diff > 0 else discord.Color.red()
+        
+        embed = discord.Embed(
+            description=f"**{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})",
+            color=color
+        )
+        await send_log_embed(embed)
+        logger.info(f"Log de mudança de troféus para {new_member.name}.")
+
+    async def on_clan_member_league_change(self, old_member, new_member):
+        embed = discord.Embed(
+            title="🛡️ Mudança de Liga",
+            description=f"**{new_member.name}** mudou de liga!",
+            color=0x6E2C00 # Cor marrom para ligas
+        )
+        embed.add_field(name="Liga Anterior", value=old_member.league.name, inline=True)
+        embed.add_field(name="Nova Liga", value=new_member.league.name, inline=True)
+        if hasattr(new_member.league, 'icon') and hasattr(new_member.league.icon, 'medium'):
+            embed.set_thumbnail(url=new_member.league.icon.medium)
+        await send_log_embed(embed)
+        logger.info(f"Log de mudança de liga para {new_member.name}.")
 
 # --- INICIALIZAÇÃO DO BOT ---
 async def setup_hook():
@@ -653,7 +673,7 @@ async def setup_hook():
         bot.db_client = None; bot.db = None
     
     # Adiciona o cliente CoC (já com eventos) ao bot
-    bot.coc_client = coc_client # <<-- MUDANÇA 3: Atribui o cliente global ao bot
+    bot.coc_client = ClashGeniusEvents()
 
     try:
         await bot.coc_client.login(os.getenv("COC_EMAIL"), os.getenv("COC_PASSWORD"))
@@ -665,7 +685,7 @@ async def setup_hook():
         logger.info(f"Monitoramento e eventos ativados para o clã {CLAN_TAG}")
 
     except Exception as e:
-        logger.error(f"Falha no login do CoC: {e}", exc_info=True) # Adicionado exc_info para mais detalhes
+        logger.error(f"Falha no login do CoC: {e}", exc_info=True)
         return
 
     bot.web_runner = await setup_web_server()
