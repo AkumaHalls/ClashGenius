@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.18-DB - Adiciona tratamento para clãs deletados no histórico de guerras.#
+# Versão 19.8.18-DB - Adiciona tratamento para clãs deletados no histórico de guerras.
 
 import os
 import logging
