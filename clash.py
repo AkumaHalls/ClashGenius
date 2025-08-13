@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.19-DB-R - Funcionalidades de log no Discord e embed de status reativadas.
+# Versão 19.8.20-DB-R-FIX - Corrige o erro AttributeError para registro de eventos.
 
 import os
 import logging
@@ -118,7 +118,7 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # --- CONFIGURAÇÕES GLOBAIS DO BOT ---
-BOT_VERSION = "19.8.19-DB-R"
+BOT_VERSION = "19.8.20-DB-R-FIX"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
@@ -567,8 +567,7 @@ async def on_ready():
     except Exception as e:
         logger.error(f"Erro ao criar e enviar o embed de inicialização: {e}", exc_info=True)
 
-
-@bot.coc_client.event
+# --- FUNÇÕES DE EVENTOS DO COC (CORRIGIDO) ---
 async def on_clan_member_join(member, clan):
     """
     Registra a entrada de um novo membro no clã.
@@ -587,7 +586,6 @@ async def on_clan_member_join(member, clan):
     await send_log_embed(embed)
     logger.info(f"Log de entrada enviado para {member.name}.")
 
-@bot.coc_client.event
 async def on_clan_member_leave(member, clan):
     """
     Registra a saída de um membro do clã.
@@ -606,11 +604,13 @@ async def on_clan_member_leave(member, clan):
     logger.info(f"Log de saída enviado para {member.name}.")
 
 
-@bot.coc_client.event
 async def on_war_attack(attack, war):
     """
     Registra um ataque realizado na guerra pelo nosso clã.
     """
+    if not hasattr(attack, 'attacker') or not hasattr(attack.attacker, 'clan') or not hasattr(attack.attacker.clan, 'tag'):
+        return
+        
     if attack.attacker.clan.tag != CLAN_TAG:
         return
 
@@ -654,10 +654,19 @@ async def setup_hook():
     try:
         await bot.coc_client.login(os.getenv("COC_EMAIL"), os.getenv("COC_PASSWORD"))
         logger.info("Login no CoC bem-sucedido.")
+
+        # --- CORREÇÃO APLICADA AQUI ---
+        # Adiciona os listeners de eventos diretamente ao cliente CoC
+        bot.coc_client.add_events(
+            on_clan_member_join,
+            on_clan_member_leave,
+            on_war_attack
+        )
+        
         # Adiciona a tag do clã para monitoramento
         bot.coc_client.add_clan_updates(CLAN_TAG)
         bot.coc_client.add_war_updates(CLAN_TAG)
-        logger.info(f"Monitoramento ativado para o clã {CLAN_TAG}")
+        logger.info(f"Monitoramento e eventos ativados para o clã {CLAN_TAG}")
 
     except Exception as e:
         logger.error(f"Falha no login do CoC: {e}")
