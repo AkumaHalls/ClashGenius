@@ -247,55 +247,52 @@ main.container {
     overflow: hidden;
     width: 100%;
     flex-grow: 1; 
-    display: block; /* Alterado para block, a altura será definida pela seção ativa */
+    display: block;
 }
 
 .content-section {
     width: 100%;
     opacity: 0;
-    transform: translateX(100%); /* Estado inicial: fora da tela à direita */
+    transform: translateX(100%);
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
     box-sizing: border-box;
-    position: absolute; /* Todas são absolutas para sobreposição durante a transição */
+    position: absolute;
     top: 0;
     left: 0;
-    visibility: hidden; /* Escondidas até serem ativadas */
+    visibility: hidden;
 }
 
 .content-section.active-section {
     opacity: 1;
-    transform: translateX(0); /* Posição final no centro */
+    transform: translateX(0);
     pointer-events: auto;
     z-index: 2;
-    position: relative; /* Apenas a ativa é relative para definir a altura do wrapper */
+    position: relative;
     visibility: visible;
 }
 
-/* Prepara para entrar da esquerda */
 .content-section.slide-prepare.slide-from-left {
     transform: translateX(-100%);
     opacity: 0;
-    visibility: visible; /* Torna visível para animar */
+    visibility: visible;
 }
 
-/* Prepara para entrar da direita */
 .content-section.slide-prepare.slide-from-right {
     transform: translateX(100%);
     opacity: 0;
-    visibility: visible; /* Torna visível para animar */
+    visibility: visible;
 }
 
-/* Animações de saída */
 .content-section.slide-out-to-left {
     transform: translateX(-100%);
     opacity: 0;
-    visibility: visible; /* Mantém visível durante a animação de saída */
+    visibility: visible;
 }
 .content-section.slide-out-to-right {
     transform: translateX(100%);
     opacity: 0;
-    visibility: visible; /* Mantém visível durante a animação de saída */
+    visibility: visible;
 }
 
 
@@ -376,7 +373,10 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .attack-stars .star-empty { color: var(--color-star-empty); }
 
 /* Abas Minha Equipe / Equipe Inimiga */
-.team-members-container { max-height: 600px; }
+.team-members-container {
+    max-height: 600px;
+    overflow-y: auto; /* <<<--- CORREÇÃO APLICADA AQUI ---<<< */
+}
 .team-member-card {
     border: 1px solid var(--color-border); border-radius: var(--border-radius-base);
     padding: 15px; margin-bottom: 15px; background-color: rgba(74, 85, 104, 0.15);
@@ -492,7 +492,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     z-index: 1;
     width: 100%;
     box-sizing: border-box;
-    /* margin-top: auto; /* Se body é flex-column, isso ajuda a empurrar para baixo */
 }
 .site-footer p { margin: 4px 0; }
 .site-footer #botVersion { color: var(--color-text-main); font-weight: 500; }

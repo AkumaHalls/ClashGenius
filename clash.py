@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.17-DB - Adiciona lógica para remover notas vazias do DB com $unset.
+# Versão 19.8.18-DB - Adiciona tratamento para clãs deletados no histórico de guerras.
 
 import os
 import logging
@@ -115,7 +115,7 @@ except pytz.UnknownTimeZoneError:
     logger.error("Timezone 'America/Sao_Paulo' desconhecida. Usando UTC como padrão.")
     TIMEZONE = pytz.utc
 
-BOT_VERSION = "19.8.17-DB"
+BOT_VERSION = "19.8.18-DB"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
@@ -389,13 +389,36 @@ async def fetch_war_log_for_web_api(limit: int = 10) -> Dict[str, Any]:
     if not WarLogEntry: return {"error": "Histórico de Guerras indisponível.", "log": []}
     try:
         log_entries = await bot.coc_client.get_war_log(CLAN_TAG, limit=limit)
-        entries = [{"end_time": entry.end_time.time.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M'), "opponent_name": entry.opponent.name,
-                    "clan_stars": entry.clan.stars, "clan_destruction": f"{entry.clan.destruction:.2f}", "opponent_stars": entry.opponent.stars,
-                    "opponent_destruction": f"{entry.opponent.destruction:.2f}", "result": "Vitória" if entry.result == "win" else "Derrota" if entry.result == "lose" else "Empate",
-                    "team_size": entry.team_size, "is_cwl": getattr(entry, 'is_league_entry', False), "opponent_badge_url": entry.opponent.badge.url} for entry in log_entries]
+        entries = []
+        for entry in log_entries:
+            # +++ CORREÇÃO APLICADA AQUI +++
+            res = "N/A"
+            # Verifica o resultado da guerra de forma segura
+            if entry.clan and entry.clan.tag == CLAN_TAG:
+                if entry.result: res = "Vitória" if entry.result == "win" else "Derrota" if entry.result == "lose" else "Empate"
+            elif entry.opponent and entry.opponent.tag == CLAN_TAG:
+                if entry.result: res = "Derrota" if entry.result == "win" else "Vitória" if entry.result == "lose" else "Empate"
+            
+            entries.append({
+                # Adiciona verificações para evitar erro se o clã ou oponente for None
+                "clan_name": entry.clan.name if entry.clan else "Clã Desconhecido",
+                "clan_stars": entry.clan.stars if entry.clan else 0,
+                "clan_destruction": entry.clan.destruction if entry.clan else 0.0,
+                "clan_badge_url": entry.clan.badge.url if entry.clan and hasattr(entry.clan.badge, 'url') else None,
+                "opponent_name": entry.opponent.name if entry.opponent else "Clã Deletado",
+                "opponent_stars": entry.opponent.stars if entry.opponent else 0,
+                "opponent_destruction": entry.opponent.destruction if entry.opponent else 0.0,
+                "opponent_badge_url": entry.opponent.badge.url if entry.opponent and hasattr(entry.opponent.badge, 'url') else None,
+                "team_size": entry.team_size,
+                "end_time": entry.end_time.time.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M') if entry.end_time and hasattr(entry.end_time, 'time') else "N/A",
+                "result": res,
+                "is_cwl": getattr(entry, 'is_league_entry', False) or getattr(entry, 'is_cwl', False)
+            })
         return {"log": entries}
     except coc.PrivateWarLog: return {"error": "Log de guerras do clã é privado."}
-    except Exception as e: logger.error(f"Erro ao buscar histórico de guerras: {e}", exc_info=True); return {"error": str(e), "log": []}
+    except Exception as e:
+        logger.error(f"Erro ao buscar histórico de guerras: {e}", exc_info=True)
+        return {"error": str(e), "log": []}
 
 async def fetch_cwl_info_for_web_api() -> Dict[str, Any]:
     if not CLAN_TAG: return {"error": "CLAN_TAG não configurado."}
