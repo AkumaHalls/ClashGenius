@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.20-DB-R-FIX - Corrige o erro AttributeError para registro de eventos.
+# Versão 19.8.21-DB-R-FIX2 - Corrige o registo de eventos com decoradores.
 
 import os
 import logging
@@ -118,11 +118,12 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # --- CONFIGURAÇÕES GLOBAIS DO BOT ---
-BOT_VERSION = "19.8.20-DB-R-FIX"
+BOT_VERSION = "19.8.21-DB-R-FIX2"
 reported_war_ends: Set[str] = set()
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+coc_client = coc.EventsClient() # <<-- MUDANÇA 1: Cliente CoC criado aqui
 player_short_term_cache: Dict[str, Player] = {}
 clan_cache: Dict[str, Dict[str, Any]] = {}
 WEB_API_CACHE_DURATION_SECONDS = 45
@@ -568,6 +569,7 @@ async def on_ready():
         logger.error(f"Erro ao criar e enviar o embed de inicialização: {e}", exc_info=True)
 
 # --- FUNÇÕES DE EVENTOS DO COC (CORRIGIDO) ---
+@coc_client.event # <<-- MUDANÇA 2: Usando decorador no cliente global
 async def on_clan_member_join(member, clan):
     """
     Registra a entrada de um novo membro no clã.
@@ -586,6 +588,7 @@ async def on_clan_member_join(member, clan):
     await send_log_embed(embed)
     logger.info(f"Log de entrada enviado para {member.name}.")
 
+@coc_client.event # <<-- MUDANÇA 2: Usando decorador no cliente global
 async def on_clan_member_leave(member, clan):
     """
     Registra a saída de um membro do clã.
@@ -603,7 +606,7 @@ async def on_clan_member_leave(member, clan):
     await send_log_embed(embed)
     logger.info(f"Log de saída enviado para {member.name}.")
 
-
+@coc_client.event # <<-- MUDANÇA 2: Usando decorador no cliente global
 async def on_war_attack(attack, war):
     """
     Registra um ataque realizado na guerra pelo nosso clã.
@@ -649,19 +652,12 @@ async def setup_hook():
         logger.error("MONGO_DB_URL não definida. DB desabilitado.")
         bot.db_client = None; bot.db = None
     
-    # Inicializa o cliente de eventos do CoC e o adiciona ao bot
-    bot.coc_client = coc.EventsClient()
+    # Adiciona o cliente CoC (já com eventos) ao bot
+    bot.coc_client = coc_client # <<-- MUDANÇA 3: Atribui o cliente global ao bot
+
     try:
         await bot.coc_client.login(os.getenv("COC_EMAIL"), os.getenv("COC_PASSWORD"))
         logger.info("Login no CoC bem-sucedido.")
-
-        # --- CORREÇÃO APLICADA AQUI ---
-        # Adiciona os listeners de eventos diretamente ao cliente CoC
-        bot.coc_client.add_events(
-            on_clan_member_join,
-            on_clan_member_leave,
-            on_war_attack
-        )
         
         # Adiciona a tag do clã para monitoramento
         bot.coc_client.add_clan_updates(CLAN_TAG)
@@ -669,7 +665,7 @@ async def setup_hook():
         logger.info(f"Monitoramento e eventos ativados para o clã {CLAN_TAG}")
 
     except Exception as e:
-        logger.error(f"Falha no login do CoC: {e}")
+        logger.error(f"Falha no login do CoC: {e}", exc_info=True) # Adicionado exc_info para mais detalhes
         return
 
     bot.web_runner = await setup_web_server()
