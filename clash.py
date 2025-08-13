@@ -604,7 +604,6 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro ao criar e enviar o embed de inicialização: {e}", exc_info=True)
 
     # --- EVENTOS DO COC ---
-    @coc.ClientEvents.listener()
     async def on_clan_member_join(self, member, clan):
         if clan.tag != CLAN_TAG: return
         embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
@@ -614,7 +613,6 @@ class ClashGeniusBot(commands.Bot):
         await send_log_embed(self, embed)
         logger.info(f"Log de entrada enviado para {member.name}.")
 
-    @coc.ClientEvents.listener()
     async def on_clan_member_leave(self, member, clan):
         if clan.tag != CLAN_TAG: return
         embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** ({member.tag}) saiu do clã.", color=discord.Color.dark_grey())
@@ -650,15 +648,12 @@ class ClashGeniusBot(commands.Bot):
         await send_log_embed(self, embed)
         logger.info(f"Log de ataque na {war_type} enviado para {attack.attacker.name}.")
 
-    @coc.ClientEvents.listener("on_war_attack")
     async def _handle_war_attack(self, attack, war):
         await self._handle_war_attack_logic(attack, war, "Guerra")
 
-    @coc.ClientEvents.listener("on_cwl_war_attack")
     async def _handle_cwl_war_attack(self, attack, war):
         await self._handle_war_attack_logic(attack, war, "CWL")
 
-    @coc.ClientEvents.listener()
     async def on_clan_member_role_change(self, old_member, new_member):
         embed = discord.Embed(title="✨ Mudança de Cargo", description=f"O cargo de **{new_member.name}** foi alterado.", color=discord.Color.purple())
         embed.add_field(name="Cargo Antigo", value=old_member.role.name.capitalize(), inline=True)
@@ -666,7 +661,6 @@ class ClashGeniusBot(commands.Bot):
         await send_log_embed(self, embed)
         logger.info(f"Log de mudança de cargo para {new_member.name}.")
 
-    @coc.ClientEvents.listener()
     async def on_clan_member_trophies_change(self, old_member, new_member):
         diff = new_member.trophies - old_member.trophies
         action = "ganhou" if diff > 0 else "perdeu"
@@ -675,7 +669,6 @@ class ClashGeniusBot(commands.Bot):
         await send_log_embed(self, embed)
         logger.info(f"Log de mudança de troféus para {new_member.name}.")
 
-    @coc.ClientEvents.listener()
     async def on_clan_member_league_change(self, old_member, new_member):
         embed = discord.Embed(title="🛡️ Mudança de Liga", description=f"**{new_member.name}** mudou de liga!", color=0x6E2C00)
         embed.add_field(name="Liga Anterior", value=old_member.league.name, inline=True)
