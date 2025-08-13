@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.29-DB-R-FINAL2 - Unifica o listener de ataques de guerra.
+# Versão 19.8.30-DB-R-FINAL3 - Reestrutura completa para seguir a documentação do coc.py.
 
 import os
 import logging
@@ -118,7 +118,7 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # --- CONFIGURAÇÕES GLOBAIS DO BOT ---
-BOT_VERSION = "19.8.29-DB-R-FINAL2"
+BOT_VERSION = "19.8.30-DB-R-FINAL"
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
 bot = commands.Bot(command_prefix="!", intents=intents)
