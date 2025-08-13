@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.16-DB - Correção do truth value testing para o objeto de banco de dados.
+# Versão 19.8.16-DB - Correção do truth value testing para o objeto de banco de dados.#
 
 import os
 import logging
