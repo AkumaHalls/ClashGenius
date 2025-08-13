@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 19.8.28-DB-R-FINAL - Adota o padrão de eventos da documentação coc.py.
+# Versão 19.8.29-DB-R-FINAL2 - Unifica o listener de ataques de guerra.
 
 import os
 import logging
@@ -118,7 +118,7 @@ except pytz.UnknownTimeZoneError:
     TIMEZONE = pytz.utc
 
 # --- CONFIGURAÇÕES GLOBAIS DO BOT ---
-BOT_VERSION = "19.8.28-DB-R-FINAL"
+BOT_VERSION = "19.8.29-DB-R-FINAL2"
 intents = discord.Intents.default()
 intents.message_content = True; intents.members = True; intents.guilds = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -546,10 +546,11 @@ async def on_clan_member_leave(member, clan):
     await send_log_embed(bot, embed)
     logger.info(f"Log de saída enviado para {member.name}.")
 
-async def _handle_war_attack_logic(attack, war, war_type="Guerra"):
+async def _handle_war_attack_logic(attack, war):
     if not hasattr(attack, 'attacker') or not hasattr(attack.attacker, 'clan') or not hasattr(attack.attacker.clan, 'tag'): return
     if attack.attacker.clan.tag != CLAN_TAG: return
 
+    war_type = "CWL" if war.is_cwl else "Guerra"
     embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
     stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
     our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
@@ -575,11 +576,7 @@ async def _handle_war_attack_logic(attack, war, war_type="Guerra"):
 
 @coc.WarEvents.attack()
 async def on_war_attack(attack, war):
-    await _handle_war_attack_logic(attack, war, "Guerra")
-
-@coc.WarEvents.attack(is_cwl=True)
-async def on_cwl_war_attack(attack, war):
-    await _handle_war_attack_logic(attack, war, "CWL")
+    await _handle_war_attack_logic(attack, war)
 
 @coc.ClanEvents.member_role()
 async def on_clan_member_role_change(old_member, new_member):
@@ -667,7 +664,6 @@ async def main():
         on_clan_member_join,
         on_clan_member_leave,
         on_war_attack,
-        on_cwl_war_attack,
         on_clan_member_role_change,
         on_clan_member_trophies_change,
         on_clan_member_league_change
