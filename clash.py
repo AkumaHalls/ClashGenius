@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.12-FINAL-STABLE - Lógica de busca de guerra do código antigo restaurada para máxima compatibilidade.
+# Versão 20.1.13-FINAL-STABLE - Função on_war_attack do código antigo restaurada para máxima estabilidade.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.12-FINAL-STABLE"
+BOT_VERSION = "20.1.13-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -160,33 +160,37 @@ async def on_clan_member_leave(member, clan):
     except Exception as e:
         logger.error(f"Erro no evento member_leave: {e}", exc_info=True)
 
-async def on_war_attack(attack, war):
-    try:
-        if not attack or not hasattr(attack, 'attacker') or not attack.attacker:
-            return
-
-        is_our_attack = hasattr(attack.attacker, 'clan') and attack.attacker.clan and attack.attacker.clan.tag == CLAN_TAG
-        if not is_our_attack:
-            return
-
-        logger.info(f"Evento disparado: Ataque de {attack.attacker.name}")
-        
-        war_type = "CWL" if war.is_cwl else "Guerra"
-        embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
-        stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
-        our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-        opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
-
-        embed.description = (
-            f"**{attack.attacker.name}** atacou **{attack.defender.name}**\n"
-            f"`CV{attack.attacker.town_hall} vs CV{attack.defender.town_hall}`"
-        )
-        embed.add_field(name="Resultado do Ataque", value=f"{stars} **{attack.destruction}%**", inline=False)
-        embed.add_field(name="Placar Atual", value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐", inline=True)
-        embed.add_field(name="Ataques Usados", value=f"{our_clan.attacks_used} / {war.team_size * war.attacks_per_member}", inline=True)
+@coc_client.event
+@coc.WarEvents.war_attack(tags=[CLAN_TAG])
+async def on_war_attack(attack: coc.WarAttack, war: coc.ClanWar):
+    if not all(hasattr(attack, attr) for attr in ['attacker_tag', 'defender_tag', 'stars', 'destruction', 'order']):
+        logger.warning(f"Evento de ataque de guerra incompleto. War Tag: {getattr(war, 'tag', 'N/A')}"); return
+    player_short_term_cache.clear()
+    try: attacker = await get_player_data(attack.attacker_tag); att_clan_tag = attacker.clan.tag if attacker.clan else None
+    except ValueError: att_clan_tag = None; attacker = None
+    try: defender = await get_player_data(attack.defender_tag); def_clan_tag = defender.clan.tag if defender.clan else None
+    except ValueError: def_clan_tag = None; defender = None
+    is_our_attack = att_clan_tag == CLAN_TAG; is_our_defense = def_clan_tag == CLAN_TAG
+    if not (is_our_attack or is_our_defense): return
+    att_name = attacker.name if attacker else attack.attacker_tag; att_th_val = attacker.town_hall if attacker else '?'
+    def_name = defender.name if defender else attack.defender_tag; def_th_val = defender.town_hall if defender else '?'
+    stars_str = "⭐" * attack.stars + "⚫" * (3 - attack.stars); content_msg = None
+    our_war_clan_obj = war.clan if war.clan and war.clan.tag == CLAN_TAG else war.opponent if war.opponent and war.opponent.tag == CLAN_TAG else None
+    enemy_war_clan_obj = war.opponent if war.clan and war.clan.tag == CLAN_TAG else war.clan if war.opponent and war.opponent.tag == CLAN_TAG else None
+    if is_our_attack:
+        logger.info(f"Evento Guerra: {att_name} atacou {def_name} - {attack.stars}*, {attack.destruction}%.")
+        embed = discord.Embed(title=f"⚔️ Ataque Realizado (Guerra)", description=f"**{att_name}** (CV{att_th_val}) atacou **{def_name}** (CV{def_th_val})", color=discord.Color.blue())
+        embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
+        if our_war_clan_obj and hasattr(our_war_clan_obj, 'badge') and our_war_clan_obj.badge:
+             embed.set_author(name=our_war_clan_obj.name, icon_url=our_war_clan_obj.badge.url); embed.set_thumbnail(url=our_war_clan_obj.badge.url)
+        await send_log_embed(embed, content_msg)
+    elif is_our_defense:
+        logger.info(f"Evento Guerra: {def_name} foi atacado por {att_name} - {attack.stars}*, {attack.destruction}%.")
+        embed = discord.Embed(title=f"🛡️ Defesa Recebida (Guerra)", description=f"**{def_name}** (CV{def_th_val}) foi atacado por **{att_name}** (CV{att_th_val})", color=discord.Color.orange())
+        embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
+        if enemy_war_clan_obj and hasattr(enemy_war_clan_obj, 'badge') and enemy_war_clan_obj.badge:
+             embed.set_author(name=enemy_war_clan_obj.name, icon_url=enemy_war_clan_obj.badge.url); embed.set_thumbnail(url=enemy_war_clan_obj.badge.url)
         await send_log_embed(embed)
-    except Exception as e:
-        logger.error(f"Erro no evento war_attack: {e}", exc_info=True)
 
 async def on_clan_member_role_change(old_member, new_member):
     try:
