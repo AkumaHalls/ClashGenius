@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.11-FINAL-STABLE - Correção final para o evento de ataque de guerra.
+# Versão 20.1.12-FINAL-STABLE - Lógica de busca de guerra do código antigo restaurada para máxima compatibilidade.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.11-FINAL-STABLE"
+BOT_VERSION = "20.1.12-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -162,7 +162,6 @@ async def on_clan_member_leave(member, clan):
 
 async def on_war_attack(attack, war):
     try:
-        # BLINDAGEM: Garante que o ataque e o atacante são válidos
         if not attack or not hasattr(attack, 'attacker') or not attack.attacker:
             return
 
@@ -317,19 +316,37 @@ def format_war_time_details(war_obj, time_now_tz):
                 details["time_remaining"] = "Finalizando..."
     return details
 
-async def get_current_or_last_war(clan_tag_param):
+async def get_current_or_last_war(clan_tag_param: str) -> Optional[coc.ClanWar]:
     if not coc_client: return None
+    try:
+        # Lógica do código antigo para priorizar CWL
+        league_group = await coc_client.get_league_group(clan_tag_param)
+        if league_group and league_group.state != "notInWar":
+            # Prioriza guerra 'inWar'
+            for war_tag_obj in reversed(getattr(league_group, 'current_wars', [])):
+                lg_war = await coc_client.get_league_war(war_tag_obj.tag)
+                if lg_war and lg_war.state == "inWar":
+                    return lg_war
+            # Se não houver 'inWar', procura 'preparation'
+            for war_tag_obj in reversed(getattr(league_group, 'current_wars', [])):
+                lg_war = await coc_client.get_league_war(war_tag_obj.tag)
+                if lg_war and lg_war.state == "preparation":
+                    return lg_war
+            # Se não, pega a última guerra finalizada da CWL
+            all_tags = [tag for rd in league_group.rounds for tag in rd if tag != "#0"]
+            if all_tags:
+                return await coc_client.get_league_war(all_tags[-1])
+    except coc.NotFound:
+        pass # Continua para guerra normal
+    except Exception as e:
+        logger.error(f"Erro ao buscar guerra CWL (lógica antiga): {e}")
+
     try:
         return await coc_client.get_current_war(clan_tag_param)
     except (coc.NotFound, coc.PrivateWarLog):
-        try:
-            wars = await coc_client.get_clan_wars(clan_tag_param, limit=5)
-            cwl_war = next((war for war in wars if war.is_cwl), None)
-            return cwl_war if cwl_war else (wars[0] if wars else None)
-        except (coc.NotFound, IndexError):
-            return None
+        return None
     except Exception as e:
-        logger.error(f"Erro ao buscar guerra: {e}")
+        logger.error(f"Erro ao buscar guerra regular: {e}")
         return None
 
 async def fetch_clan_info_for_web():
