@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.14-FINAL-STABLE - Lógica de busca de guerra do código antigo totalmente restaurada para máxima estabilidade.
+# Versão 20.1.15-FINAL-STABLE - Correção definitiva do erro de serialização JSON na aba de Guerra.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.14-FINAL-STABLE"
+BOT_VERSION = "20.1.15-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -453,7 +453,8 @@ async def fetch_current_war_details_for_web():
 
         return {
             "war_data": {
-                "status": war.state, "state_description": str(war.state).capitalize(),
+                "status": str(war.state), # CORREÇÃO: Converter o estado da guerra para string
+                "state_description": str(war.state).capitalize(),
                 "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0), "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
                 "clan_badge_url": getattr(our_clan.badge, 'url', None) if hasattr(our_clan, 'badge') else None, "clan_attacks_used": getattr(our_clan, 'attacks_used', 0),
                 "opponent_name": opp_clan_name, "opponent_stars": getattr(opp_clan, 'stars', 0), "opponent_destruction": f"{getattr(opp_clan, 'destruction', 0.0):.2f}%",
@@ -528,7 +529,7 @@ async def fetch_cwl_info_for_web():
                     if not war: continue
                     our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
                     r_info["wars"].append({
-                        "state": war.state,
+                        "state": str(war.state),
                         "clan_name": our_clan.name, "clan_stars": our_clan.stars, "clan_destruction": f"{our_clan.destruction:.2f}%", "clan_badge_url": our_clan.badge.url,
                         "opponent_name": opp_clan.name, "opponent_stars": opp_clan.stars, "opponent_destruction": f"{opp_clan.destruction:.2f}%", "opponent_badge_url": opp_clan.badge.url,
                         **format_war_time_details(war, datetime.datetime.now(TIMEZONE))
@@ -536,7 +537,7 @@ async def fetch_cwl_info_for_web():
                 except Exception as e:
                     r_info["wars"].append({"error": f"Erro ao carregar guerra {war_tag}: {e}"})
             rounds_data.append(r_info)
-        return {"status": "InCwl", "state": lg.state, "season": lg.season, "clans_in_group": [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in lg.clans], "rounds": rounds_data}
+        return {"status": "InCwl", "state": str(lg.state), "season": lg.season, "clans_in_group": [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in lg.clans], "rounds": rounds_data}
     except coc.NotFound:
         return {"status": "NotInCwl", "message": "Grupo CWL não encontrado."}
     except Exception as e:
