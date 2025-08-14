@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.7-FINAL-PATCH - Máxima robustez no painel web para evitar erros 500 e NoneType.
+# Versão 20.1.8-FINAL-STABLE - Blindagem final contra erros 'NoneType' no painel web.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.7-FINAL-PATCH"
+BOT_VERSION = "20.1.8-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -320,7 +320,6 @@ async def get_current_or_last_war(clan_tag_param):
     except (coc.NotFound, coc.PrivateWarLog):
         try:
             wars = await coc_client.get_clan_wars(clan_tag_param, limit=5)
-            # Retorna a primeira guerra CWL que encontrar, ou a primeira guerra normal se não houver CWL
             cwl_war = next((war for war in wars if war.is_cwl), None)
             return cwl_war if cwl_war else (wars[0] if wars else None)
         except (coc.NotFound, IndexError):
@@ -348,6 +347,7 @@ async def fetch_clan_members_for_web():
     notes = await load_player_notes_from_db()
     members_data = []
     for m in sorted(clan.members, key=lambda x: x.trophies, reverse=True):
+        if not m: continue # BLINDAGEM: Pula se o membro for nulo
         note = notes.get(m.tag, {})
         members_data.append({
             "name": m.name, "tag": m.tag, "town_hall": m.town_hall,
@@ -368,6 +368,7 @@ async def fetch_current_war_details_for_web():
 
     all_attacks_data = []
     for attack in war.attacks:
+        if not attack: continue # BLINDAGEM
         attacker = war.get_member(attack.attacker_tag)
         defender = war.get_member(attack.defender_tag)
         all_attacks_data.append({
@@ -381,28 +382,34 @@ async def fetch_current_war_details_for_web():
 
     def get_team_details(team):
         if not team or not hasattr(team, 'members'): return []
-        return sorted([{
-            "name": m.name, "townhall": m.town_hall, "map_position": m.map_position,
-            "attacks_used": len(m.attacks),
-            "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
-            "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
-        } for m in team.members], key=lambda x: x['map_position'])
+        details = []
+        for m in team.members:
+            if not m: continue # BLINDAGEM
+            details.append({
+                "name": m.name, "townhall": m.town_hall, "map_position": m.map_position,
+                "attacks_used": len(m.attacks),
+                "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
+                "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
+            })
+        return sorted(details, key=lambda x: x['map_position'])
+
 
     def get_star_dist(attacks):
         dist = {i: 0 for i in range(4)}
-        for a in attacks: dist[a.stars] += 1
+        for a in attacks: 
+            if a: dist[a.stars] += 1
         return dist
 
-    our_attacks = [a for a in war.attacks if getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
-    opp_attacks = [a for a in war.attacks if getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
+    our_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
+    opp_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
 
     return {
         "war_data": {
             "status": war.state, "state_description": str(war.state).capitalize(),
-            "clan_name": our_clan_name, "clan_stars": our_clan.stars, "clan_destruction": f"{our_clan.destruction:.2f}%",
-            "clan_badge_url": getattr(our_clan.badge, 'url', None), "clan_attacks_used": our_clan.attacks_used,
-            "opponent_name": opp_clan_name, "opponent_stars": opp_clan.stars, "opponent_destruction": f"{opp_clan.destruction:.2f}%",
-            "opponent_badge_url": getattr(opp_clan.badge, 'url', None), "opponent_attacks_used": opp_clan.attacks_used,
+            "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0), "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
+            "clan_badge_url": getattr(our_clan.badge, 'url', None) if hasattr(our_clan, 'badge') else None, "clan_attacks_used": getattr(our_clan, 'attacks_used', 0),
+            "opponent_name": opp_clan_name, "opponent_stars": getattr(opp_clan, 'stars', 0), "opponent_destruction": f"{getattr(opp_clan, 'destruction', 0.0):.2f}%",
+            "opponent_badge_url": getattr(opp_clan.badge, 'url', None) if hasattr(opp_clan, 'badge') else None, "opponent_attacks_used": getattr(opp_clan, 'attacks_used', 0),
             **format_war_time_details(war, datetime.datetime.now(TIMEZONE)),
             "attacks_per_member": war.attacks_per_member, "team_size": war.team_size,
             "clan_star_distribution": get_star_dist(our_attacks),
@@ -431,18 +438,14 @@ async def fetch_war_log_for_web(limit: int = 10):
         log = await coc_client.get_war_log(CLAN_TAG, limit=limit)
         entries = []
         for e in log:
-            # Adicionando verificações para evitar 'NoneType' error
-            clan_stars = getattr(e.clan, 'stars', 0)
-            opp_stars = getattr(e.opponent, 'stars', 0)
-            clan_destruction = getattr(e.clan, 'destruction', 0.0)
-            opp_destruction = getattr(e.opponent, 'destruction', 0.0)
+            if not e or not e.clan or not e.opponent: continue # BLINDAGEM
             
             entries.append({
                 "end_time": e.end_time.time.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M'),
-                "opponent_name": getattr(e.opponent, 'name', 'Oponente Desconhecido'),
-                "opponent_badge_url": getattr(e.opponent.badge, 'url', None) if hasattr(e.opponent, 'badge') else None,
-                "clan_stars": clan_stars, "clan_destruction": f"{clan_destruction:.2f}",
-                "opponent_stars": opp_stars, "opponent_destruction": f"{opp_destruction:.2f}",
+                "opponent_name": e.opponent.name,
+                "opponent_badge_url": e.opponent.badge.url,
+                "clan_stars": e.clan.stars, "clan_destruction": f"{e.clan.destruction:.2f}",
+                "opponent_stars": e.opponent.stars, "opponent_destruction": f"{e.opponent.destruction:.2f}",
                 "result": "Vitória" if e.result == "win" else "Derrota" if e.result == "lose" else "Empate",
                 "team_size": e.team_size, "is_cwl": e.is_league_entry
             })
@@ -466,6 +469,7 @@ async def fetch_cwl_info_for_web():
                     continue
                 try:
                     war = await coc_client.get_league_war(war_tag)
+                    if not war: continue # BLINDAGEM
                     our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
                     r_info["wars"].append({
                         "state": war.state,
