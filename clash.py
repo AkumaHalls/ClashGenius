@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.10-FINAL-STABLE - Correção final para a aba de Guerra.
+# Versão 20.1.11-FINAL-STABLE - Correção final para o evento de ataque de guerra.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.10-FINAL-STABLE"
+BOT_VERSION = "20.1.11-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -162,6 +162,10 @@ async def on_clan_member_leave(member, clan):
 
 async def on_war_attack(attack, war):
     try:
+        # BLINDAGEM: Garante que o ataque e o atacante são válidos
+        if not attack or not hasattr(attack, 'attacker') or not attack.attacker:
+            return
+
         is_our_attack = hasattr(attack.attacker, 'clan') and attack.attacker.clan and attack.attacker.clan.tag == CLAN_TAG
         if not is_our_attack:
             return
@@ -371,7 +375,6 @@ async def fetch_current_war_details_for_web():
         war = await get_current_or_last_war(CLAN_TAG)
         if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
         
-        # BLINDAGEM FINAL: Garante que ambos os clãs na guerra existem
         if not war.clan or not war.opponent:
             return {"error": "Dados da guerra incompletos (clã ou oponente faltando)."}
 
