@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.13-FINAL-STABLE - Função on_war_attack do código antigo restaurada para máxima estabilidade.
+# Versão 20.1.14-FINAL-STABLE - Lógica de busca de guerra do código antigo totalmente restaurada para máxima estabilidade.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.13-FINAL-STABLE"
+BOT_VERSION = "20.1.14-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -124,7 +124,7 @@ async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
         logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
         return None
 
-# --- DEFINIÇÃO DOS EVENTOS DO COC (Versão do ClashGenius-dv2) ---
+# --- DEFINIÇÃO DOS EVENTOS DO COC ---
 async def on_clan_member_join(member, clan):
     try:
         logger.info(f"Evento disparado: {member.name} entrou no clã {clan.name}")
@@ -160,37 +160,33 @@ async def on_clan_member_leave(member, clan):
     except Exception as e:
         logger.error(f"Erro no evento member_leave: {e}", exc_info=True)
 
-@coc_client.event
-@coc.WarEvents.war_attack(tags=[CLAN_TAG])
-async def on_war_attack(attack: coc.WarAttack, war: coc.ClanWar):
-    if not all(hasattr(attack, attr) for attr in ['attacker_tag', 'defender_tag', 'stars', 'destruction', 'order']):
-        logger.warning(f"Evento de ataque de guerra incompleto. War Tag: {getattr(war, 'tag', 'N/A')}"); return
-    player_short_term_cache.clear()
-    try: attacker = await get_player_data(attack.attacker_tag); att_clan_tag = attacker.clan.tag if attacker.clan else None
-    except ValueError: att_clan_tag = None; attacker = None
-    try: defender = await get_player_data(attack.defender_tag); def_clan_tag = defender.clan.tag if defender.clan else None
-    except ValueError: def_clan_tag = None; defender = None
-    is_our_attack = att_clan_tag == CLAN_TAG; is_our_defense = def_clan_tag == CLAN_TAG
-    if not (is_our_attack or is_our_defense): return
-    att_name = attacker.name if attacker else attack.attacker_tag; att_th_val = attacker.town_hall if attacker else '?'
-    def_name = defender.name if defender else attack.defender_tag; def_th_val = defender.town_hall if defender else '?'
-    stars_str = "⭐" * attack.stars + "⚫" * (3 - attack.stars); content_msg = None
-    our_war_clan_obj = war.clan if war.clan and war.clan.tag == CLAN_TAG else war.opponent if war.opponent and war.opponent.tag == CLAN_TAG else None
-    enemy_war_clan_obj = war.opponent if war.clan and war.clan.tag == CLAN_TAG else war.clan if war.opponent and war.opponent.tag == CLAN_TAG else None
-    if is_our_attack:
-        logger.info(f"Evento Guerra: {att_name} atacou {def_name} - {attack.stars}*, {attack.destruction}%.")
-        embed = discord.Embed(title=f"⚔️ Ataque Realizado (Guerra)", description=f"**{att_name}** (CV{att_th_val}) atacou **{def_name}** (CV{def_th_val})", color=discord.Color.blue())
-        embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
-        if our_war_clan_obj and hasattr(our_war_clan_obj, 'badge') and our_war_clan_obj.badge:
-             embed.set_author(name=our_war_clan_obj.name, icon_url=our_war_clan_obj.badge.url); embed.set_thumbnail(url=our_war_clan_obj.badge.url)
-        await send_log_embed(embed, content_msg)
-    elif is_our_defense:
-        logger.info(f"Evento Guerra: {def_name} foi atacado por {att_name} - {attack.stars}*, {attack.destruction}%.")
-        embed = discord.Embed(title=f"🛡️ Defesa Recebida (Guerra)", description=f"**{def_name}** (CV{def_th_val}) foi atacado por **{att_name}** (CV{att_th_val})", color=discord.Color.orange())
-        embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
-        if enemy_war_clan_obj and hasattr(enemy_war_clan_obj, 'badge') and enemy_war_clan_obj.badge:
-             embed.set_author(name=enemy_war_clan_obj.name, icon_url=enemy_war_clan_obj.badge.url); embed.set_thumbnail(url=enemy_war_clan_obj.badge.url)
+async def on_war_attack(attack, war):
+    try:
+        if not attack or not hasattr(attack, 'attacker') or not attack.attacker:
+            return
+
+        is_our_attack = hasattr(attack.attacker, 'clan') and attack.attacker.clan and attack.attacker.clan.tag == CLAN_TAG
+        if not is_our_attack:
+            return
+
+        logger.info(f"Evento disparado: Ataque de {attack.attacker.name}")
+        
+        war_type = "CWL" if war.is_cwl else "Guerra"
+        embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
+        stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
+        our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
+        opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
+
+        embed.description = (
+            f"**{attack.attacker.name}** atacou **{attack.defender.name}**\n"
+            f"`CV{attack.attacker.town_hall} vs CV{attack.defender.town_hall}`"
+        )
+        embed.add_field(name="Resultado do Ataque", value=f"{stars} **{attack.destruction}%**", inline=False)
+        embed.add_field(name="Placar Atual", value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐", inline=True)
+        embed.add_field(name="Ataques Usados", value=f"{our_clan.attacks_used} / {war.team_size * war.attacks_per_member}", inline=True)
         await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento war_attack: {e}", exc_info=True)
 
 async def on_clan_member_role_change(old_member, new_member):
     try:
@@ -322,36 +318,51 @@ def format_war_time_details(war_obj, time_now_tz):
 
 async def get_current_or_last_war(clan_tag_param: str) -> Optional[coc.ClanWar]:
     if not coc_client: return None
-    try:
-        # Lógica do código antigo para priorizar CWL
-        league_group = await coc_client.get_league_group(clan_tag_param)
-        if league_group and league_group.state != "notInWar":
-            # Prioriza guerra 'inWar'
-            for war_tag_obj in reversed(getattr(league_group, 'current_wars', [])):
-                lg_war = await coc_client.get_league_war(war_tag_obj.tag)
-                if lg_war and lg_war.state == "inWar":
-                    return lg_war
-            # Se não houver 'inWar', procura 'preparation'
-            for war_tag_obj in reversed(getattr(league_group, 'current_wars', [])):
-                lg_war = await coc_client.get_league_war(war_tag_obj.tag)
-                if lg_war and lg_war.state == "preparation":
-                    return lg_war
-            # Se não, pega a última guerra finalizada da CWL
-            all_tags = [tag for rd in league_group.rounds for tag in rd if tag != "#0"]
-            if all_tags:
-                return await coc_client.get_league_war(all_tags[-1])
-    except coc.NotFound:
-        pass # Continua para guerra normal
-    except Exception as e:
-        logger.error(f"Erro ao buscar guerra CWL (lógica antiga): {e}")
+    
+    current_war_in_war: Optional[coc.ClanWar] = None
+    current_war_preparation: Optional[coc.ClanWar] = None
+    best_ended_cwl_war: Optional[coc.ClanWar] = None
 
     try:
-        return await coc_client.get_current_war(clan_tag_param)
-    except (coc.NotFound, coc.PrivateWarLog):
-        return None
+        league_group = await coc_client.get_league_group(clan_tag_param)
+        if league_group and getattr(league_group, 'state', None) != "notInWar" and hasattr(league_group, 'rounds'):
+            all_round_war_tags = [tag for round_tags in league_group.rounds for tag in round_tags if tag != "#0"]
+            
+            for war_tag_str in reversed(all_round_war_tags):
+                try:
+                    lg_war = await coc_client.get_league_war(war_tag_str)
+                    if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param):
+                        if lg_war.state == "inWar":
+                            current_war_in_war = lg_war
+                            return current_war_in_war
+                        elif lg_war.state == "preparation" and not current_war_preparation:
+                            current_war_preparation = lg_war
+                        elif lg_war.state == "warEnded":
+                            if not best_ended_cwl_war or (hasattr(lg_war, 'end_time') and hasattr(best_ended_cwl_war, 'end_time') and lg_war.end_time.time > best_ended_cwl_war.end_time.time):
+                                best_ended_cwl_war = lg_war
+                except (coc.NotFound, AttributeError):
+                    continue
+            
+            if current_war_preparation:
+                return current_war_preparation
+            if best_ended_cwl_war:
+                return best_ended_cwl_war
+
+    except coc.NotFound:
+        pass
     except Exception as e:
-        logger.error(f"Erro ao buscar guerra regular: {e}")
-        return None
+        logger.error(f"Erro ao buscar dados da CWL: {e}", exc_info=True)
+
+    try:
+        regular_war = await coc_client.get_current_war(clan_tag_param)
+        if regular_war and regular_war.state != "notInWar":
+            return regular_war
+    except (coc.PrivateWarLog, coc.NotFound):
+        pass
+    except Exception as e:
+        logger.error(f"Erro ao buscar guerra regular: {e}", exc_info=True)
+    
+    return None
 
 async def fetch_clan_info_for_web():
     try:
