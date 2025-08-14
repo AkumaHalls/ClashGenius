@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.8-FINAL-STABLE - Blindagem final contra erros 'NoneType' no painel web.
+# Versão 20.1.9-FINAL-STABLE - Correção definitiva de erro no MongoDB e blindagem final do painel.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.8-FINAL-STABLE"
+BOT_VERSION = "20.1.9-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -58,7 +58,8 @@ WEB_API_CACHE_DURATION_SECONDS = 45
 
 # --- FUNÇÕES DE BANCO DE DADOS (MongoDB) ---
 async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
-    if not hasattr(bot, 'db') or not bot.db:
+    # CORREÇÃO: Usar 'is None' para checar a conexão com o banco de dados.
+    if not hasattr(bot, 'db') or bot.db is None:
         logger.warning("Banco de dados não disponível, não é possível carregar as notas.")
         return {}
     try:
@@ -71,7 +72,8 @@ async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
         return {}
 
 async def save_player_note_to_db(player_tag: str, text: str, priority: str):
-    if not hasattr(bot, 'db') or not bot.db:
+    # CORREÇÃO: Usar 'is None' para checar a conexão com o banco de dados.
+    if not hasattr(bot, 'db') or bot.db is None:
         logger.error("Banco de dados não disponível, não é possível salvar a nota.")
         raise ConnectionError("Banco de dados não conectado.")
     try:
@@ -329,116 +331,133 @@ async def get_current_or_last_war(clan_tag_param):
         return None
 
 async def fetch_clan_info_for_web():
-    clan = await get_clan_data_with_cache(CLAN_TAG)
-    if not clan: return {"error": "Não foi possível carregar os dados do clã."}
-    return {
-        "name": clan.name, "tag": clan.tag, "level": clan.level, "points": clan.points,
-        "capital_points": getattr(clan, 'capital_points', 'N/A'), "member_count": clan.member_count,
-        "description": clan.description, "war_wins": getattr(clan, 'war_wins', 'N/A'),
-        "location": getattr(clan.location, 'name', 'N/A') if clan.location else 'N/A',
-        "type": str(clan.type).capitalize(), "badge_url": clan.badge.url, "version": BOT_VERSION,
-        "capital_districts": [{"name": d.name, "level": d.hall_level} for d in getattr(clan, 'capital_districts', [])],
-        "capital_league": getattr(clan.capital_league, 'name', 'N/A') if hasattr(clan, 'capital_league') else 'N/A'
-    }
+    try:
+        clan = await get_clan_data_with_cache(CLAN_TAG)
+        if not clan: return {"error": "Não foi possível carregar os dados do clã."}
+        return {
+            "name": clan.name, "tag": clan.tag, "level": clan.level, "points": clan.points,
+            "capital_points": getattr(clan, 'capital_points', 'N/A'), "member_count": clan.member_count,
+            "description": clan.description, "war_wins": getattr(clan, 'war_wins', 'N/A'),
+            "location": getattr(clan.location, 'name', 'N/A') if clan.location else 'N/A',
+            "type": str(clan.type).capitalize(), "badge_url": clan.badge.url, "version": BOT_VERSION,
+            "capital_districts": [{"name": d.name, "level": d.hall_level} for d in getattr(clan, 'capital_districts', [])],
+            "capital_league": getattr(clan.capital_league, 'name', 'N/A') if hasattr(clan, 'capital_league') else 'N/A'
+        }
+    except Exception as e:
+        logger.error(f"Erro em fetch_clan_info_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar dados do clã."}
+
 
 async def fetch_clan_members_for_web():
-    clan = await get_clan_data_with_cache(CLAN_TAG)
-    if not clan: return {"error": "Não foi possível carregar os membros do clã."}
-    notes = await load_player_notes_from_db()
-    members_data = []
-    for m in sorted(clan.members, key=lambda x: x.trophies, reverse=True):
-        if not m: continue # BLINDAGEM: Pula se o membro for nulo
-        note = notes.get(m.tag, {})
-        members_data.append({
-            "name": m.name, "tag": m.tag, "town_hall": m.town_hall,
-            "league": getattr(m.league, 'name', 'Sem Liga'), "trophies": m.trophies,
-            "role": str(m.role).capitalize(), "donations": m.donations, "received": m.received,
-            "note": note.get("text", ""), "note_priority": note.get("priority", "none")
-        })
-    return {"members": members_data, "clan_name": clan.name}
+    try:
+        clan = await get_clan_data_with_cache(CLAN_TAG)
+        if not clan: return {"error": "Não foi possível carregar os membros do clã."}
+        notes = await load_player_notes_from_db()
+        members_data = []
+        for m in sorted(clan.members, key=lambda x: x.trophies, reverse=True):
+            if not m: continue
+            note = notes.get(m.tag, {})
+            members_data.append({
+                "name": m.name, "tag": m.tag, "town_hall": m.town_hall,
+                "league": getattr(m.league, 'name', 'Sem Liga'), "trophies": m.trophies,
+                "role": str(m.role).capitalize(), "donations": m.donations, "received": m.received,
+                "note": note.get("text", ""), "note_priority": note.get("priority", "none")
+            })
+        return {"members": members_data, "clan_name": clan.name}
+    except Exception as e:
+        logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar lista de membros."}
 
 async def fetch_current_war_details_for_web():
-    war = await get_current_or_last_war(CLAN_TAG)
-    if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
+    try:
+        war = await get_current_or_last_war(CLAN_TAG)
+        if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
 
-    our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
-    
-    our_clan_name = getattr(our_clan, 'name', 'Nosso Clã')
-    opp_clan_name = getattr(opp_clan, 'name', 'Oponente')
+        our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
+        
+        our_clan_name = getattr(our_clan, 'name', 'Nosso Clã')
+        opp_clan_name = getattr(opp_clan, 'name', 'Oponente')
 
-    all_attacks_data = []
-    for attack in war.attacks:
-        if not attack: continue # BLINDAGEM
-        attacker = war.get_member(attack.attacker_tag)
-        defender = war.get_member(attack.defender_tag)
-        all_attacks_data.append({
-            "order": attack.order,
-            "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
-            "attacker_townhall": getattr(attacker, 'town_hall', '?'),
-            "defender_name": getattr(defender, 'name', attack.defender_tag),
-            "defender_townhall": getattr(defender, 'town_hall', '?'),
-            "stars": attack.stars, "destruction": attack.destruction, "duration": f"{attack.duration}s"
-        })
-
-    def get_team_details(team):
-        if not team or not hasattr(team, 'members'): return []
-        details = []
-        for m in team.members:
-            if not m: continue # BLINDAGEM
-            details.append({
-                "name": m.name, "townhall": m.town_hall, "map_position": m.map_position,
-                "attacks_used": len(m.attacks),
-                "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
-                "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
+        all_attacks_data = []
+        for attack in war.attacks:
+            if not attack: continue
+            attacker = war.get_member(attack.attacker_tag)
+            defender = war.get_member(attack.defender_tag)
+            all_attacks_data.append({
+                "order": attack.order,
+                "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
+                "attacker_townhall": getattr(attacker, 'town_hall', '?'),
+                "defender_name": getattr(defender, 'name', attack.defender_tag),
+                "defender_townhall": getattr(defender, 'town_hall', '?'),
+                "stars": attack.stars, "destruction": attack.destruction, "duration": f"{attack.duration}s"
             })
-        return sorted(details, key=lambda x: x['map_position'])
 
+        def get_team_details(team):
+            if not team or not hasattr(team, 'members'): return []
+            details = []
+            for m in team.members:
+                if not m: continue
+                details.append({
+                    "name": m.name, "townhall": m.town_hall, "map_position": m.map_position,
+                    "attacks_used": len(m.attacks),
+                    "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
+                    "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
+                })
+            return sorted(details, key=lambda x: x['map_position'])
 
-    def get_star_dist(attacks):
-        dist = {i: 0 for i in range(4)}
-        for a in attacks: 
-            if a: dist[a.stars] += 1
-        return dist
+        def get_star_dist(attacks):
+            dist = {i: 0 for i in range(4)}
+            for a in attacks: 
+                if a: dist[a.stars] += 1
+            return dist
 
-    our_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
-    opp_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
+        our_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
+        opp_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
 
-    return {
-        "war_data": {
-            "status": war.state, "state_description": str(war.state).capitalize(),
-            "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0), "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
-            "clan_badge_url": getattr(our_clan.badge, 'url', None) if hasattr(our_clan, 'badge') else None, "clan_attacks_used": getattr(our_clan, 'attacks_used', 0),
-            "opponent_name": opp_clan_name, "opponent_stars": getattr(opp_clan, 'stars', 0), "opponent_destruction": f"{getattr(opp_clan, 'destruction', 0.0):.2f}%",
-            "opponent_badge_url": getattr(opp_clan.badge, 'url', None) if hasattr(opp_clan, 'badge') else None, "opponent_attacks_used": getattr(opp_clan, 'attacks_used', 0),
-            **format_war_time_details(war, datetime.datetime.now(TIMEZONE)),
-            "attacks_per_member": war.attacks_per_member, "team_size": war.team_size,
-            "clan_star_distribution": get_star_dist(our_attacks),
-            "opponent_star_distribution": get_star_dist(opp_attacks),
-            "clan_avg_stars": f"{our_clan.stars / len(our_attacks):.2f}" if our_attacks else "0.00",
-            "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks):.2f}" if opp_attacks else "0.00",
-            "clan_avg_duration": f"{sum(a.duration for a in our_attacks) / len(our_attacks):.1f}s" if our_attacks else "0s",
-            "opponent_avg_duration": f"{sum(a.duration for a in opp_attacks) / len(opp_attacks):.1f}s" if opp_attacks else "0s",
-        },
-        "all_attacks": all_attacks_data,
-        "our_clan_members_in_war": get_team_details(our_clan),
-        "opponent_clan_members_in_war": get_team_details(opp_clan)
-    }
+        return {
+            "war_data": {
+                "status": war.state, "state_description": str(war.state).capitalize(),
+                "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0), "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
+                "clan_badge_url": getattr(our_clan.badge, 'url', None) if hasattr(our_clan, 'badge') else None, "clan_attacks_used": getattr(our_clan, 'attacks_used', 0),
+                "opponent_name": opp_clan_name, "opponent_stars": getattr(opp_clan, 'stars', 0), "opponent_destruction": f"{getattr(opp_clan, 'destruction', 0.0):.2f}%",
+                "opponent_badge_url": getattr(opp_clan.badge, 'url', None) if hasattr(opp_clan, 'badge') else None, "opponent_attacks_used": getattr(opp_clan, 'attacks_used', 0),
+                **format_war_time_details(war, datetime.datetime.now(TIMEZONE)),
+                "attacks_per_member": war.attacks_per_member, "team_size": war.team_size,
+                "clan_star_distribution": get_star_dist(our_attacks),
+                "opponent_star_distribution": get_star_dist(opp_attacks),
+                "clan_avg_stars": f"{our_clan.stars / len(our_attacks):.2f}" if our_attacks else "0.00",
+                "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks):.2f}" if opp_attacks else "0.00",
+                "clan_avg_duration": f"{sum(a.duration for a in our_attacks) / len(our_attacks):.1f}s" if our_attacks else "0s",
+                "opponent_avg_duration": f"{sum(a.duration for a in opp_attacks) / len(opp_attacks):.1f}s" if opp_attacks else "0s",
+            },
+            "all_attacks": all_attacks_data,
+            "our_clan_members_in_war": get_team_details(our_clan),
+            "opponent_clan_members_in_war": get_team_details(opp_clan)
+        }
+    except Exception as e:
+        logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar dados da guerra."}
+
 
 async def fetch_war_attacks_remaining_for_web():
-    war = await get_current_or_last_war(CLAN_TAG)
-    if not war or war.state not in ["inWar", "preparation"]:
-        return {"message": "Não há guerra em andamento ou preparação."}
-    our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-    pending = [{"name": m.name, "town_hall": m.town_hall, "attacks_left": war.attacks_per_member - len(m.attacks)} for m in sorted(our_clan.members, key=lambda x: x.map_position) if war.attacks_per_member - len(m.attacks) > 0]
-    return {"members_pending": pending, "clan_name": our_clan.name}
+    try:
+        war = await get_current_or_last_war(CLAN_TAG)
+        if not war or war.state not in ["inWar", "preparation"]:
+            return {"message": "Não há guerra em andamento ou preparação."}
+        our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
+        pending = [{"name": m.name, "town_hall": m.town_hall, "attacks_left": war.attacks_per_member - len(m.attacks)} for m in sorted(our_clan.members, key=lambda x: x.map_position) if war.attacks_per_member - len(m.attacks) > 0]
+        return {"members_pending": pending, "clan_name": our_clan.name}
+    except Exception as e:
+        logger.error(f"Erro em fetch_war_attacks_remaining_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar ataques pendentes."}
 
 async def fetch_war_log_for_web(limit: int = 10):
-    if not coc_client: return {"error": "Cliente CoC não inicializado."}
     try:
+        if not coc_client: return {"error": "Cliente CoC não inicializado."}
         log = await coc_client.get_war_log(CLAN_TAG, limit=limit)
         entries = []
         for e in log:
-            if not e or not e.clan or not e.opponent: continue # BLINDAGEM
+            if not e or not e.clan or not e.opponent: continue
             
             entries.append({
                 "end_time": e.end_time.time.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M'),
@@ -451,12 +470,12 @@ async def fetch_war_log_for_web(limit: int = 10):
             })
         return {"log": entries}
     except Exception as e:
-        logger.error(f"Erro ao buscar log de guerra: {e}")
-        return {"error": str(e)}
+        logger.error(f"Erro em fetch_war_log_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar histórico de guerras."}
 
 async def fetch_cwl_info_for_web():
-    if not coc_client: return {"error": "Cliente CoC não inicializado."}
     try:
+        if not coc_client: return {"error": "Cliente CoC não inicializado."}
         lg = await coc_client.get_league_group(CLAN_TAG)
         if lg.state == "notInWar": return {"status": "NotInCwl", "message": "Clã não está em CWL."}
         
@@ -469,7 +488,7 @@ async def fetch_cwl_info_for_web():
                     continue
                 try:
                     war = await coc_client.get_league_war(war_tag)
-                    if not war: continue # BLINDAGEM
+                    if not war: continue
                     our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
                     r_info["wars"].append({
                         "state": war.state,
@@ -484,8 +503,8 @@ async def fetch_cwl_info_for_web():
     except coc.NotFound:
         return {"status": "NotInCwl", "message": "Grupo CWL não encontrado."}
     except Exception as e:
-        logger.error(f"Erro ao buscar info CWL: {e}")
-        return {"error": str(e)}
+        logger.error(f"Erro em fetch_cwl_info_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar dados da CWL."}
 
 # --- Handlers da API ---
 async def api_clan_info_handler(request): return web.json_response(await get_cached_web_data("web_clan_info", fetch_clan_info_for_web))
