@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.5-FINAL - Correções de robustez para o painel web e conexão com MongoDB.
+# Versão 20.1.6-STABLE - Eventos do Discord e Painel Web totalmente restaurados e estabilizados.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.5-FINAL"
+BOT_VERSION = "20.1.6-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -124,59 +124,115 @@ async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
         logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
         return None
 
-# --- DEFINIÇÃO DOS EVENTOS DO COC ---
+# --- DEFINIÇÃO DOS EVENTOS DO COC (Versão do ClashGenius-dv2) ---
 async def on_clan_member_join(member, clan):
-    if clan.tag != CLAN_TAG: return
-    embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
-    embed.add_field(name="CV", value=member.town_hall, inline=True)
-    embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
-    embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
-    await send_log_embed(embed)
+    try:
+        logger.info(f"Evento disparado: {member.name} entrou no clã {clan.name}")
+        if clan.tag != CLAN_TAG: 
+            return
+            
+        embed = discord.Embed(
+            title="➡️ Novo Membro no Clã", 
+            description=f"**{member.name}** ({member.tag}) entrou no clã.", 
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="CV", value=member.town_hall, inline=True)
+        embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
+        embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_join: {e}", exc_info=True)
 
 async def on_clan_member_leave(member, clan):
-    if clan.tag != CLAN_TAG: return
-    embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** ({member.tag}) saiu do clã.", color=discord.Color.dark_grey())
-    embed.add_field(name="CV", value=member.town_hall, inline=True)
-    embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
-    await send_log_embed(embed)
+    try:
+        logger.info(f"Evento disparado: {member.name} saiu do clã {clan.name}")
+        if clan.tag != CLAN_TAG: 
+            return
+            
+        embed = discord.Embed(
+            title="⬅️ Membro Saiu do Clã", 
+            description=f"**{member.name}** ({member.tag}) saiu do clã.", 
+            color=discord.Color.dark_grey()
+        )
+        embed.add_field(name="CV", value=member.town_hall, inline=True)
+        embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_leave: {e}", exc_info=True)
 
 async def on_war_attack(attack, war):
-    is_our_attack = attack.attacker.clan and attack.attacker.clan.tag == CLAN_TAG
-    if not is_our_attack: return
-    
-    war_type = "CWL" if war.is_cwl else "Guerra"
-    embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
-    stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
-    our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-    opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
-    embed.description = f"**{attack.attacker.name}** atacou **{attack.defender.name}**\n`CV{attack.attacker.town_hall} vs CV{attack.defender.town_hall}`"
-    embed.add_field(name="Resultado do Ataque", value=f"{stars} **{attack.destruction}%**", inline=False)
-    embed.add_field(name="Placar Atual", value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐", inline=True)
-    embed.add_field(name="Ataques Usados", value=f"{our_clan.attacks_used} / {war.team_size * war.attacks_per_member}", inline=True)
-    await send_log_embed(embed)
+    try:
+        is_our_attack = hasattr(attack.attacker, 'clan') and attack.attacker.clan and attack.attacker.clan.tag == CLAN_TAG
+        if not is_our_attack:
+            return
+
+        logger.info(f"Evento disparado: Ataque de {attack.attacker.name}")
+        
+        war_type = "CWL" if war.is_cwl else "Guerra"
+        embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
+        stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
+        our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
+        opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
+
+        embed.description = (
+            f"**{attack.attacker.name}** atacou **{attack.defender.name}**\n"
+            f"`CV{attack.attacker.town_hall} vs CV{attack.defender.town_hall}`"
+        )
+        embed.add_field(name="Resultado do Ataque", value=f"{stars} **{attack.destruction}%**", inline=False)
+        embed.add_field(name="Placar Atual", value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐", inline=True)
+        embed.add_field(name="Ataques Usados", value=f"{our_clan.attacks_used} / {war.team_size * war.attacks_per_member}", inline=True)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento war_attack: {e}", exc_info=True)
 
 async def on_clan_member_role_change(old_member, new_member):
-    embed = discord.Embed(title="✨ Mudança de Cargo", description=f"O cargo de **{new_member.name}** foi alterado.", color=discord.Color.purple())
-    embed.add_field(name="Cargo Antigo", value=old_member.role.name.capitalize(), inline=True)
-    embed.add_field(name="Novo Cargo", value=new_member.role.name.capitalize(), inline=True)
-    await send_log_embed(embed)
+    try:
+        logger.info(f"Evento disparado: Mudança de cargo de {new_member.name}")
+        embed = discord.Embed(
+            title="✨ Mudança de Cargo", 
+            description=f"O cargo de **{new_member.name}** foi alterado.", 
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="Cargo Antigo", value=old_member.role.name.capitalize(), inline=True)
+        embed.add_field(name="Novo Cargo", value=new_member.role.name.capitalize(), inline=True)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_role_change: {e}", exc_info=True)
 
 async def on_clan_member_trophies_change(old_member, new_member):
-    diff = new_member.trophies - old_member.trophies
-    if diff == 0: return
-    action = "ganhou" if diff > 0 else "perdeu"
-    color = discord.Color.green() if diff > 0 else discord.Color.red()
-    trophy_emoji = "🏆" if diff > 0 else "💔"
-    embed = discord.Embed(description=f"{trophy_emoji} **{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})", color=color)
-    await send_log_embed(embed)
+    try:
+        diff = new_member.trophies - old_member.trophies
+        if diff == 0:
+            return
+            
+        logger.info(f"Evento disparado: {new_member.name} mudança de troféus: {diff}")
+        action = "ganhou" if diff > 0 else "perdeu"
+        color = discord.Color.green() if diff > 0 else discord.Color.red()
+        trophy_emoji = "🏆" if diff > 0 else "💔"
+        
+        embed = discord.Embed(
+            description=f"{trophy_emoji} **{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})", 
+            color=color
+        )
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_trophies_change: {e}", exc_info=True)
 
 async def on_clan_member_league_change(old_member, new_member):
-    embed = discord.Embed(title="🛡️ Mudança de Liga", description=f"**{new_member.name}** mudou de liga!", color=0x6E2C00)
-    embed.add_field(name="Liga Anterior", value=old_member.league.name if old_member.league else "N/A", inline=True)
-    embed.add_field(name="Nova Liga", value=new_member.league.name if new_member.league else "N/A", inline=True)
-    if hasattr(new_member.league, 'icon') and hasattr(new_member.league.icon, 'medium'):
-        embed.set_thumbnail(url=new_member.league.icon.medium)
-    await send_log_embed(embed)
+    try:
+        logger.info(f"Evento disparado: {new_member.name} mudou de liga")
+        embed = discord.Embed(
+            title="🛡️ Mudança de Liga", 
+            description=f"**{new_member.name}** mudou de liga!", 
+            color=0x6E2C00
+        )
+        embed.add_field(name="Liga Anterior", value=old_member.league.name if old_member.league else "N/A", inline=True)
+        embed.add_field(name="Nova Liga", value=new_member.league.name if new_member.league else "N/A", inline=True)
+        if hasattr(new_member.league, 'icon') and hasattr(new_member.league.icon, 'medium'):
+            embed.set_thumbnail(url=new_member.league.icon.medium)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_league_change: {e}", exc_info=True)
 
 # --- CONFIGURAÇÃO DOS EVENTOS COC ---
 async def setup_coc_events():
@@ -190,18 +246,36 @@ async def setup_coc_events():
         events_client.add_clan_updates(CLAN_TAG)
         events_client.add_war_updates(CLAN_TAG)
         
-        # Usando lambdas para simplificar o registro
-        events_client.add_listener(on_clan_member_join, "on_clan_member_join")
-        events_client.add_listener(on_clan_member_leave, "on_clan_member_leave")
-        events_client.add_listener(on_war_attack, "on_war_attack")
-        events_client.add_listener(on_clan_member_role_change, "on_clan_member_role_change")
-        events_client.add_listener(on_clan_member_trophies_change, "on_clan_member_trophies_change")
-        events_client.add_listener(on_clan_member_league_change, "on_clan_member_league_change")
+        # CORREÇÃO: Usando o método de registro com decoradores
+        @events_client.event
+        @coc.ClanEvents.member_join()
+        async def _(member, clan): await on_clan_member_join(member, clan)
+            
+        @events_client.event
+        @coc.ClanEvents.member_leave()
+        async def _(member, clan): await on_clan_member_leave(member, clan)
+            
+        @events_client.event
+        @coc.WarEvents.attack()
+        async def _(attack, war): await on_war_attack(attack, war)
+            
+        @events_client.event
+        @coc.ClanEvents.member_role()
+        async def _(old_member, new_member): await on_clan_member_role_change(old_member, new_member)
+            
+        @events_client.event
+        @coc.ClanEvents.member_trophies()
+        async def _(old_member, new_member): await on_clan_member_trophies_change(old_member, new_member)
+            
+        @events_client.event
+        @coc.ClanEvents.member_league()
+        async def _(old_member, new_member): await on_clan_member_league_change(old_member, new_member)
         
         coc_client = events_client
         logger.info("Todos os eventos do CoC foram registrados com sucesso!")
     except Exception as e:
         logger.error(f"Erro ao configurar eventos CoC: {e}", exc_info=True)
+        coc_client = None # Garante que o cliente não seja usado se a configuração falhar
 
 # --- ROTINAS E HANDLERS DO PAINEL WEB ---
 async def get_cached_web_data(key: str, func, *args):
@@ -217,7 +291,7 @@ def format_war_time_details(war_obj, time_now_tz):
     if not war_obj: return details
     state = getattr(war_obj, 'state', 'unknown')
     
-    if state == "preparation" and hasattr(war_obj, 'start_time'):
+    if state == "preparation" and hasattr(war_obj, 'start_time') and war_obj.start_time:
         start_aware = war_obj.start_time.time.astimezone(TIMEZONE)
         details.update({"time_key": "Início", "time_value": start_aware.strftime('%d/%m/%y %H:%M')})
         delta = start_aware - time_now_tz
@@ -227,7 +301,7 @@ def format_war_time_details(war_obj, time_now_tz):
             details["time_remaining"] = f"{delta.days}d {h}h {m}m" if delta.days > 0 else f"{h}h {m}m"
         else:
             details["time_remaining"] = "Iniciando..."
-    elif state in ["inWar", "warEnded"] and hasattr(war_obj, 'end_time'):
+    elif state in ["inWar", "warEnded"] and hasattr(war_obj, 'end_time') and war_obj.end_time:
         end_aware = war_obj.end_time.time.astimezone(TIMEZONE)
         details.update({"time_key": "Fim" if state == "inWar" else "Finalizada em", "time_value": end_aware.strftime('%d/%m/%y %H:%M')})
         if state == "inWar":
@@ -246,7 +320,12 @@ async def get_current_or_last_war(clan_tag_param):
         return await coc_client.get_current_war(clan_tag_param)
     except (coc.NotFound, coc.PrivateWarLog):
         try:
-            return await coc_client.get_league_war(clan_tag_param)
+            # Fallback para CWL se guerra normal não for encontrada
+            wars = await coc_client.get_clan_wars(clan_tag_param, limit=5)
+            for war in wars:
+                if war.is_cwl:
+                    return war
+            return None
         except coc.NotFound:
             return None
     except Exception as e:
@@ -263,7 +342,7 @@ async def fetch_clan_info_for_web():
         "location": getattr(clan.location, 'name', 'N/A') if clan.location else 'N/A',
         "type": str(clan.type).capitalize(), "badge_url": clan.badge.url, "version": BOT_VERSION,
         "capital_districts": [{"name": d.name, "level": d.hall_level} for d in getattr(clan, 'capital_districts', [])],
-        "capital_league": getattr(clan.capital_league, 'name', 'N/A')
+        "capital_league": getattr(clan.capital_league, 'name', 'N/A') if hasattr(clan, 'capital_league') else 'N/A'
     }
 
 async def fetch_clan_members_for_web():
@@ -287,7 +366,6 @@ async def fetch_current_war_details_for_web():
 
     our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
     
-    # Adicionando verificações de segurança
     our_clan_name = getattr(our_clan, 'name', 'Nosso Clã')
     opp_clan_name = getattr(opp_clan, 'name', 'Oponente')
 
@@ -305,7 +383,7 @@ async def fetch_current_war_details_for_web():
         })
 
     def get_team_details(team):
-        if not team or not team.members: return []
+        if not team or not hasattr(team, 'members'): return []
         return sorted([{
             "name": m.name, "townhall": m.town_hall, "map_position": m.map_position,
             "attacks_used": len(m.attacks),
@@ -318,8 +396,8 @@ async def fetch_current_war_details_for_web():
         for a in attacks: dist[a.stars] += 1
         return dist
 
-    our_attacks = [a for a in war.attacks if getattr(a.attacker.clan, 'tag', None) == our_clan.tag]
-    opp_attacks = [a for a in war.attacks if getattr(a.attacker.clan, 'tag', None) == opp_clan.tag]
+    our_attacks = [a for a in war.attacks if getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
+    opp_attacks = [a for a in war.attacks if getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
 
     return {
         "war_data": {
@@ -357,7 +435,7 @@ async def fetch_war_log_for_web(limit: int = 10):
         return {"log": [{
             "end_time": e.end_time.time.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M'),
             "opponent_name": getattr(e.opponent, 'name', 'Oponente Desconhecido'),
-            "opponent_badge_url": getattr(e.opponent.badge, 'url', None),
+            "opponent_badge_url": getattr(e.opponent.badge, 'url', None) if hasattr(e.opponent, 'badge') else None,
             "clan_stars": e.clan.stars, "clan_destruction": f"{e.clan.destruction:.2f}",
             "opponent_stars": e.opponent.stars, "opponent_destruction": f"{e.opponent.destruction:.2f}",
             "result": "Vitória" if e.result == "win" else "Derrota" if e.result == "lose" else "Empate",
@@ -446,12 +524,18 @@ async def on_ready():
     logger.info(f"Bot {bot.user.name} online! Versão: {BOT_VERSION}")
     try:
         await setup_coc_events()
-        clan = await coc_client.get_clan(CLAN_TAG)
-        embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}", description=f"Monitoramento ativado para **{clan.name} ({clan.tag})**.", color=discord.Color.green())
-        embed.add_field(name="📊 Status do Clã", value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", inline=True)
-        embed.add_field(name="⚙️ Status do Bot", value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK", inline=True)
-        if clan.badge: embed.set_thumbnail(url=clan.badge.url)
-        await send_log_embed(embed)
+        if coc_client: # Verifica se o cliente foi inicializado com sucesso
+            clan = await coc_client.get_clan(CLAN_TAG)
+            embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}", description=f"Monitoramento ativado para **{clan.name} ({clan.tag})**.", color=discord.Color.green())
+            embed.add_field(name="📊 Status do Clã", value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", inline=True)
+            embed.add_field(name="⚙️ Status do Bot", value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK", inline=True)
+            if clan.badge: embed.set_thumbnail(url=clan.badge.url)
+            await send_log_embed(embed)
+        else:
+            logger.error("Cliente CoC não inicializado. Não foi possível enviar o status online.")
+            embed = discord.Embed(title="❌ ClashGenius com Erro na Inicialização", description="Não foi possível conectar à API do Clash of Clans. Verifique as credenciais e reinicie.", color=discord.Color.red())
+            await send_log_embed(embed)
+
     except Exception as e:
         logger.error(f"Erro no on_ready: {e}", exc_info=True)
 
@@ -461,19 +545,17 @@ async def main():
         if MONGO_DB_URL:
             try:
                 bot.db_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL)
-                # CORREÇÃO: Obter o nome do banco de dados da URL de forma segura
-                db_name = parse_uri(MONGO_DB_URL)['database']
+                db_name = parse_uri(MONGO_DB_URL).get('database')
                 bot.db = bot.db_client[db_name or 'clash_genius_db']
                 await bot.db.command('ping')
                 logger.info(f"Conectado ao MongoDB: {bot.db.name}")
             except Exception as e:
                 logger.error(f"Falha ao conectar ao MongoDB: {e}", exc_info=True)
-                bot.db = None # Garante que o bot não tente usar uma conexão falha
+                bot.db = None
         else:
             logger.warning("MONGO_DB_URL não definida. As notas não serão salvas em banco de dados.")
             bot.db = None
 
-        # A inicialização do coc_client e login agora é feita dentro de setup_coc_events
         web_runner = await setup_web_server()
         await bot.start(DISCORD_TOKEN)
     except Exception as e:
