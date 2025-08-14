@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.9-FINAL-STABLE - Correção definitiva de erro no MongoDB e blindagem final do painel.
+# Versão 20.1.15-FINAL-STABLE - Correção definitiva do erro de serialização JSON na aba de Guerra.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.9-FINAL-STABLE"
+BOT_VERSION = "20.1.15-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -58,7 +58,6 @@ WEB_API_CACHE_DURATION_SECONDS = 45
 
 # --- FUNÇÕES DE BANCO DE DADOS (MongoDB) ---
 async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
-    # CORREÇÃO: Usar 'is None' para checar a conexão com o banco de dados.
     if not hasattr(bot, 'db') or bot.db is None:
         logger.warning("Banco de dados não disponível, não é possível carregar as notas.")
         return {}
@@ -72,7 +71,6 @@ async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
         return {}
 
 async def save_player_note_to_db(player_tag: str, text: str, priority: str):
-    # CORREÇÃO: Usar 'is None' para checar a conexão com o banco de dados.
     if not hasattr(bot, 'db') or bot.db is None:
         logger.error("Banco de dados não disponível, não é possível salvar a nota.")
         raise ConnectionError("Banco de dados não conectado.")
@@ -126,7 +124,7 @@ async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
         logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
         return None
 
-# --- DEFINIÇÃO DOS EVENTOS DO COC (Versão do ClashGenius-dv2) ---
+# --- DEFINIÇÃO DOS EVENTOS DO COC ---
 async def on_clan_member_join(member, clan):
     try:
         logger.info(f"Evento disparado: {member.name} entrou no clã {clan.name}")
@@ -164,6 +162,9 @@ async def on_clan_member_leave(member, clan):
 
 async def on_war_attack(attack, war):
     try:
+        if not attack or not hasattr(attack, 'attacker') or not attack.attacker:
+            return
+
         is_our_attack = hasattr(attack.attacker, 'clan') and attack.attacker.clan and attack.attacker.clan.tag == CLAN_TAG
         if not is_our_attack:
             return
@@ -315,20 +316,53 @@ def format_war_time_details(war_obj, time_now_tz):
                 details["time_remaining"] = "Finalizando..."
     return details
 
-async def get_current_or_last_war(clan_tag_param):
+async def get_current_or_last_war(clan_tag_param: str) -> Optional[coc.ClanWar]:
     if not coc_client: return None
+    
+    current_war_in_war: Optional[coc.ClanWar] = None
+    current_war_preparation: Optional[coc.ClanWar] = None
+    best_ended_cwl_war: Optional[coc.ClanWar] = None
+
     try:
-        return await coc_client.get_current_war(clan_tag_param)
-    except (coc.NotFound, coc.PrivateWarLog):
-        try:
-            wars = await coc_client.get_clan_wars(clan_tag_param, limit=5)
-            cwl_war = next((war for war in wars if war.is_cwl), None)
-            return cwl_war if cwl_war else (wars[0] if wars else None)
-        except (coc.NotFound, IndexError):
-            return None
+        league_group = await coc_client.get_league_group(clan_tag_param)
+        if league_group and getattr(league_group, 'state', None) != "notInWar" and hasattr(league_group, 'rounds'):
+            all_round_war_tags = [tag for round_tags in league_group.rounds for tag in round_tags if tag != "#0"]
+            
+            for war_tag_str in reversed(all_round_war_tags):
+                try:
+                    lg_war = await coc_client.get_league_war(war_tag_str)
+                    if lg_war and (lg_war.clan.tag == clan_tag_param or lg_war.opponent.tag == clan_tag_param):
+                        if lg_war.state == "inWar":
+                            current_war_in_war = lg_war
+                            return current_war_in_war
+                        elif lg_war.state == "preparation" and not current_war_preparation:
+                            current_war_preparation = lg_war
+                        elif lg_war.state == "warEnded":
+                            if not best_ended_cwl_war or (hasattr(lg_war, 'end_time') and hasattr(best_ended_cwl_war, 'end_time') and lg_war.end_time.time > best_ended_cwl_war.end_time.time):
+                                best_ended_cwl_war = lg_war
+                except (coc.NotFound, AttributeError):
+                    continue
+            
+            if current_war_preparation:
+                return current_war_preparation
+            if best_ended_cwl_war:
+                return best_ended_cwl_war
+
+    except coc.NotFound:
+        pass
     except Exception as e:
-        logger.error(f"Erro ao buscar guerra: {e}")
-        return None
+        logger.error(f"Erro ao buscar dados da CWL: {e}", exc_info=True)
+
+    try:
+        regular_war = await coc_client.get_current_war(clan_tag_param)
+        if regular_war and regular_war.state != "notInWar":
+            return regular_war
+    except (coc.PrivateWarLog, coc.NotFound):
+        pass
+    except Exception as e:
+        logger.error(f"Erro ao buscar guerra regular: {e}", exc_info=True)
+    
+    return None
 
 async def fetch_clan_info_for_web():
     try:
@@ -372,6 +406,9 @@ async def fetch_current_war_details_for_web():
     try:
         war = await get_current_or_last_war(CLAN_TAG)
         if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
+        
+        if not war.clan or not war.opponent:
+            return {"error": "Dados da guerra incompletos (clã ou oponente faltando)."}
 
         our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
         
@@ -416,7 +453,8 @@ async def fetch_current_war_details_for_web():
 
         return {
             "war_data": {
-                "status": war.state, "state_description": str(war.state).capitalize(),
+                "status": str(war.state), # CORREÇÃO: Converter o estado da guerra para string
+                "state_description": str(war.state).capitalize(),
                 "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0), "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
                 "clan_badge_url": getattr(our_clan.badge, 'url', None) if hasattr(our_clan, 'badge') else None, "clan_attacks_used": getattr(our_clan, 'attacks_used', 0),
                 "opponent_name": opp_clan_name, "opponent_stars": getattr(opp_clan, 'stars', 0), "opponent_destruction": f"{getattr(opp_clan, 'destruction', 0.0):.2f}%",
@@ -491,7 +529,7 @@ async def fetch_cwl_info_for_web():
                     if not war: continue
                     our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
                     r_info["wars"].append({
-                        "state": war.state,
+                        "state": str(war.state),
                         "clan_name": our_clan.name, "clan_stars": our_clan.stars, "clan_destruction": f"{our_clan.destruction:.2f}%", "clan_badge_url": our_clan.badge.url,
                         "opponent_name": opp_clan.name, "opponent_stars": opp_clan.stars, "opponent_destruction": f"{opp_clan.destruction:.2f}%", "opponent_badge_url": opp_clan.badge.url,
                         **format_war_time_details(war, datetime.datetime.now(TIMEZONE))
@@ -499,7 +537,7 @@ async def fetch_cwl_info_for_web():
                 except Exception as e:
                     r_info["wars"].append({"error": f"Erro ao carregar guerra {war_tag}: {e}"})
             rounds_data.append(r_info)
-        return {"status": "InCwl", "state": lg.state, "season": lg.season, "clans_in_group": [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in lg.clans], "rounds": rounds_data}
+        return {"status": "InCwl", "state": str(lg.state), "season": lg.season, "clans_in_group": [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in lg.clans], "rounds": rounds_data}
     except coc.NotFound:
         return {"status": "NotInCwl", "message": "Grupo CWL não encontrado."}
     except Exception as e:
