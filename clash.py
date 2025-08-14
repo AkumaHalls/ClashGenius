@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.15-FINAL-STABLE - Correção definitiva do erro de serialização JSON na aba de Guerra.
+# Versão 20.1.16-FINAL-STABLE - Adicionado monitoramento de doações e tropas recebidas.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.15-FINAL-STABLE"
+BOT_VERSION = "20.1.16-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -237,6 +237,38 @@ async def on_clan_member_league_change(old_member, new_member):
     except Exception as e:
         logger.error(f"Erro no evento member_league_change: {e}", exc_info=True)
 
+async def on_member_donations(old_member, new_member):
+    try:
+        donation_diff = new_member.donations - old_member.donations
+        if donation_diff <= 0:
+            return
+
+        logger.info(f"Evento: {new_member.name} doou {donation_diff} tropas.")
+        embed = discord.Embed(
+            description=f"🎁 **{new_member.name}** doou **{donation_diff}** tropas (Total: {new_member.donations}).",
+            color=0xf1c40f # Gold color
+        )
+        embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_donations: {e}", exc_info=True)
+
+async def on_member_received(old_member, new_member):
+    try:
+        received_diff = new_member.received - old_member.received
+        if received_diff <= 0:
+            return
+
+        logger.info(f"Evento: {new_member.name} recebeu {received_diff} tropas.")
+        embed = discord.Embed(
+            description=f"📥 **{new_member.name}** recebeu **{received_diff}** tropas (Total: {new_member.received}).",
+            color=0x3498db # Blue color
+        )
+        embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_received: {e}", exc_info=True)
+
 # --- CONFIGURAÇÃO DOS EVENTOS COC ---
 async def setup_coc_events():
     global coc_client, events_client
@@ -272,6 +304,14 @@ async def setup_coc_events():
         @events_client.event
         @coc.ClanEvents.member_league()
         async def _(old_member, new_member): await on_clan_member_league_change(old_member, new_member)
+        
+        @events_client.event
+        @coc.ClanEvents.member_donations()
+        async def _(old_member, new_member): await on_member_donations(old_member, new_member)
+
+        @events_client.event
+        @coc.ClanEvents.member_received()
+        async def _(old_member, new_member): await on_member_received(old_member, new_member)
         
         coc_client = events_client
         logger.info("Todos os eventos do CoC foram registrados com sucesso!")
@@ -453,7 +493,7 @@ async def fetch_current_war_details_for_web():
 
         return {
             "war_data": {
-                "status": str(war.state), # CORREÇÃO: Converter o estado da guerra para string
+                "status": str(war.state),
                 "state_description": str(war.state).capitalize(),
                 "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0), "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
                 "clan_badge_url": getattr(our_clan.badge, 'url', None) if hasattr(our_clan, 'badge') else None, "clan_attacks_used": getattr(our_clan, 'attacks_used', 0),
