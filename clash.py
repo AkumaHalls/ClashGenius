@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.6-STABLE - Eventos do Discord e Painel Web totalmente restaurados e estabilizados.
+# Versão 20.1.7-FINAL-PATCH - Máxima robustez no painel web para evitar erros 500 e NoneType.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.6-STABLE"
+BOT_VERSION = "20.1.7-FINAL-PATCH"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -246,7 +246,6 @@ async def setup_coc_events():
         events_client.add_clan_updates(CLAN_TAG)
         events_client.add_war_updates(CLAN_TAG)
         
-        # CORREÇÃO: Usando o método de registro com decoradores
         @events_client.event
         @coc.ClanEvents.member_join()
         async def _(member, clan): await on_clan_member_join(member, clan)
@@ -275,7 +274,7 @@ async def setup_coc_events():
         logger.info("Todos os eventos do CoC foram registrados com sucesso!")
     except Exception as e:
         logger.error(f"Erro ao configurar eventos CoC: {e}", exc_info=True)
-        coc_client = None # Garante que o cliente não seja usado se a configuração falhar
+        coc_client = None
 
 # --- ROTINAS E HANDLERS DO PAINEL WEB ---
 async def get_cached_web_data(key: str, func, *args):
@@ -320,13 +319,11 @@ async def get_current_or_last_war(clan_tag_param):
         return await coc_client.get_current_war(clan_tag_param)
     except (coc.NotFound, coc.PrivateWarLog):
         try:
-            # Fallback para CWL se guerra normal não for encontrada
             wars = await coc_client.get_clan_wars(clan_tag_param, limit=5)
-            for war in wars:
-                if war.is_cwl:
-                    return war
-            return None
-        except coc.NotFound:
+            # Retorna a primeira guerra CWL que encontrar, ou a primeira guerra normal se não houver CWL
+            cwl_war = next((war for war in wars if war.is_cwl), None)
+            return cwl_war if cwl_war else (wars[0] if wars else None)
+        except (coc.NotFound, IndexError):
             return None
     except Exception as e:
         logger.error(f"Erro ao buscar guerra: {e}")
@@ -432,15 +429,24 @@ async def fetch_war_log_for_web(limit: int = 10):
     if not coc_client: return {"error": "Cliente CoC não inicializado."}
     try:
         log = await coc_client.get_war_log(CLAN_TAG, limit=limit)
-        return {"log": [{
-            "end_time": e.end_time.time.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M'),
-            "opponent_name": getattr(e.opponent, 'name', 'Oponente Desconhecido'),
-            "opponent_badge_url": getattr(e.opponent.badge, 'url', None) if hasattr(e.opponent, 'badge') else None,
-            "clan_stars": e.clan.stars, "clan_destruction": f"{e.clan.destruction:.2f}",
-            "opponent_stars": e.opponent.stars, "opponent_destruction": f"{e.opponent.destruction:.2f}",
-            "result": "Vitória" if e.result == "win" else "Derrota" if e.result == "lose" else "Empate",
-            "team_size": e.team_size, "is_cwl": e.is_league_entry
-        } for e in log]}
+        entries = []
+        for e in log:
+            # Adicionando verificações para evitar 'NoneType' error
+            clan_stars = getattr(e.clan, 'stars', 0)
+            opp_stars = getattr(e.opponent, 'stars', 0)
+            clan_destruction = getattr(e.clan, 'destruction', 0.0)
+            opp_destruction = getattr(e.opponent, 'destruction', 0.0)
+            
+            entries.append({
+                "end_time": e.end_time.time.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M'),
+                "opponent_name": getattr(e.opponent, 'name', 'Oponente Desconhecido'),
+                "opponent_badge_url": getattr(e.opponent.badge, 'url', None) if hasattr(e.opponent, 'badge') else None,
+                "clan_stars": clan_stars, "clan_destruction": f"{clan_destruction:.2f}",
+                "opponent_stars": opp_stars, "opponent_destruction": f"{opp_destruction:.2f}",
+                "result": "Vitória" if e.result == "win" else "Derrota" if e.result == "lose" else "Empate",
+                "team_size": e.team_size, "is_cwl": e.is_league_entry
+            })
+        return {"log": entries}
     except Exception as e:
         logger.error(f"Erro ao buscar log de guerra: {e}")
         return {"error": str(e)}
@@ -524,7 +530,7 @@ async def on_ready():
     logger.info(f"Bot {bot.user.name} online! Versão: {BOT_VERSION}")
     try:
         await setup_coc_events()
-        if coc_client: # Verifica se o cliente foi inicializado com sucesso
+        if coc_client:
             clan = await coc_client.get_clan(CLAN_TAG)
             embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}", description=f"Monitoramento ativado para **{clan.name} ({clan.tag})**.", color=discord.Color.green())
             embed.add_field(name="📊 Status do Clã", value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", inline=True)
