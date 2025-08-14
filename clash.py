@@ -199,15 +199,19 @@ async def on_clan_member_role_change(old_member, new_member):
 async def on_clan_member_trophies_change(old_member, new_member):
     try:
         diff = new_member.trophies - old_member.trophies
-        # Só notificar mudanças significativas
-        if abs(diff) < 10:  # Ignorar pequenas mudanças
+        # Reportar qualquer mudança de troféus
+        if diff == 0:  # Só ignorar se não houve mudança real
             return
             
         logger.info(f"Evento disparado: {new_member.name} mudança de troféus: {diff}")
         action = "ganhou" if diff > 0 else "perdeu"
         color = discord.Color.green() if diff > 0 else discord.Color.red()
+        
+        # Emoji baseado na mudança
+        trophy_emoji = "🏆" if diff > 0 else "💔"
+        
         embed = discord.Embed(
-            description=f"**{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})", 
+            description=f"{trophy_emoji} **{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})", 
             color=color
         )
         await send_log_embed(embed)
