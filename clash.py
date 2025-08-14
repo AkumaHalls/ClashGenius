@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.9-FINAL-STABLE - Correção definitiva de erro no MongoDB e blindagem final do painel.
+# Versão 20.1.10-FINAL-STABLE - Correção final para a aba de Guerra.
 
 import os
 import logging
@@ -37,7 +37,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.9-FINAL-STABLE"
+BOT_VERSION = "20.1.10-FINAL-STABLE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -58,7 +58,6 @@ WEB_API_CACHE_DURATION_SECONDS = 45
 
 # --- FUNÇÕES DE BANCO DE DADOS (MongoDB) ---
 async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
-    # CORREÇÃO: Usar 'is None' para checar a conexão com o banco de dados.
     if not hasattr(bot, 'db') or bot.db is None:
         logger.warning("Banco de dados não disponível, não é possível carregar as notas.")
         return {}
@@ -72,7 +71,6 @@ async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
         return {}
 
 async def save_player_note_to_db(player_tag: str, text: str, priority: str):
-    # CORREÇÃO: Usar 'is None' para checar a conexão com o banco de dados.
     if not hasattr(bot, 'db') or bot.db is None:
         logger.error("Banco de dados não disponível, não é possível salvar a nota.")
         raise ConnectionError("Banco de dados não conectado.")
@@ -372,6 +370,10 @@ async def fetch_current_war_details_for_web():
     try:
         war = await get_current_or_last_war(CLAN_TAG)
         if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
+        
+        # BLINDAGEM FINAL: Garante que ambos os clãs na guerra existem
+        if not war.clan or not war.opponent:
+            return {"error": "Dados da guerra incompletos (clã ou oponente faltando)."}
 
         our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
         
