@@ -1,6 +1,6 @@
-# ⚡️💥 ClashGenius v20.1.15 — O Gênio das Guerras está estável! 💥⚡️
+# ⚡️💥 ClashGenius v20.1.18 — O Gênio das Guerras está estável! 💥⚡️
 
-![Versão](https://img.shields.io/badge/versão-20.1.15--FINAL--STABLE-blueviolet?style=flat-square)
+![Versão](https://img.shields.io/badge/versão-20.1.18--FINAL--STABLE-blueviolet?style=flat-square)
 ![Status](https://img.shields.io/badge/Projeto-Estável-brightgreen?style=flat-square)
 ![Linguagem](https://img.shields.io/badge/python-3.8+-blue?logo=python&style=flat-square)
 ![Licença](https://img.shields.io/github/license/AkumaHalls/ClashGenius?style=flat-square)
@@ -22,7 +22,7 @@
 - 🛡️ **Lista Completa de Membros**: CV, liga, troféus, cargos e OBS personalizadas com cores, salvas em banco de dados.
 - 🏆 **Informações da CWL**: dados completos de todas as guerras e participantes.
 - 📜 **Histórico de Guerras**: registro completo das guerras anteriores.
-- 🎨 **Visual Temático** Clash of Clans com fundo animado.
+- 🎨 **Visual Temático** Clash of Clans com fundo animado, música e favicon.
 - 🌐 **Acesso Rápido**: `https://SEU_DOMINIO.onrender.com/painel`
 - ⚙️ **Servidor Web embutido** com `aiohttp`.
 
@@ -30,13 +30,18 @@
 
 ## 🔄 CHANGELOG
 
+### v20.1.18 (15/08/2025)
+- ✨ **NOVO:** Adicionado Favicon customizável, tornando o painel um PWA (Progressive Web App) instalável no celular.
+- ✨ **NOVO:** Implementado música de fundo no painel web com botão para silenciar.
+- ✨ **NOVO:** Adicionado monitoramento de doações e tropas recebidas com alertas no Discord.
+
 ### v20.1.15 (14/08/2025)
 - ✅ **Correção Definitiva:** Resolvido erro `TypeError: Object of type WarState is not JSON serializable`, estabilizando completamente a aba "Guerra" do painel.
 - ✅ **Conexão com MongoDB Reforçada:** Melhorada a verificação de conexão com o banco de dados para evitar falhas na aba "Membros".
 
 ### v20.1.4 - v20.1.12
 - ✨ **Integração com MongoDB:** Adicionado suporte a MongoDB para salvar as notas dos jogadores de forma persistente.
-- 🐞 **Correções no Painel Web:** Resolvidos múltiplos erros 500 e `NoneType` que afetavam as abas de Guerra, Histórico e Membros, garantindo que o painel permaneça funcional mesmo com dados incompletos da API.
+- 🐞 **Correções no Painel Web:** Resolvidos múltiplos erros 500 e `NoneType` que afetavam as abas de Guerra, Histórico e Membros.
 - 🔧 **Estabilização de Eventos:** Restaurada a lógica de registro de eventos do Discord, garantindo que todos os alertas (entrada/saída, ataques, etc.) funcionem como esperado.
 
 ---
@@ -87,4 +92,4 @@ CLAN_TAG=#TAG_DO_SEU_CLA
 CHANNEL_ID=ID_DO_CANAL_DE_LOGS
 MONGO_DB_URL=sua_url_de_conexao_mongodb
 A pasta static/ com painel.html, css/ e js/ deve estar no mesmo diretório de clash.py.▶️ RODANDO O BOTpython clash.py
-🤝 CONTRIBUIÇÕESContribuições são muito bem-vindas!Abra uma issue, envie um PR ou compartilhe ideias!📜 LIC
+🤝 CONTRIBUIÇÕESContribuições são muito bem-vindas!Abra uma issue, envie um PR ou compartilhe ideias!📜 LICENÇADistribuído sob a licença MIT. Veja LICENSE para mais detalhes.
