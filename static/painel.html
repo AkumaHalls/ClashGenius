@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
+    <!-- Elemento de áudio para a música de fundo -->
+    <audio id="background-music" src="/static/audio/WARS.mp3" loop></audio>
+
     <canvas id="particle-background"></canvas>
     <div id="loading-overlay">
         <img id="loadingClanBadge" src="/static/images/default_badge.png" alt="Carregando..." class="loading-badge">
@@ -224,6 +227,9 @@
             <p>Painel de monitoramento do Clã</p>
         </div>
     </footer>
+    
+    <!-- Botão de Mudo Adicionado -->
+    <button id="mute-button" class="mute-btn">🔊</button>
 
     <script src="/static/js/scripts.js"></script>
 </body>
