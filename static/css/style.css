@@ -496,6 +496,33 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .site-footer p { margin: 4px 0; }
 .site-footer #botVersion { color: var(--color-text-main); font-weight: 500; }
 
+/* Estilos do Botão de Mudo */
+.mute-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--color-card-background);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    font-size: 22px;
+    cursor: pointer;
+    z-index: 1001;
+    transition: background-color 0.2s, color 0.2s, transform 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.mute-btn:hover {
+    background-color: var(--color-accent);
+    color: white;
+    transform: scale(1.1);
+}
+
 
 /* Responsividade */
 @media (max-width: 992px) {
@@ -534,4 +561,5 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     th, td { padding: 6px 8px; font-size: 0.8em;}
     .note-text { max-width: 100px; }
     .priority-btn { width: 20px; height: 20px; font-size: 10px; line-height: 18px; }
+    .mute-btn { width: 40px; height: 40px; font-size: 20px; bottom: 15px; right: 15px;}
 }
