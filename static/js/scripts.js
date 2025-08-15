@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
+    const backgroundMusicEl = document.getElementById('background-music');
+    const muteButtonEl = document.getElementById('mute-button');
 
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
@@ -89,6 +91,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const navLinks = document.querySelectorAll('.nav-link');
     const contentSections = document.querySelectorAll('.content-section');
     let isFirstLoad = true;
+
+
+    // --- LÓGICA DA MÚSICA DE FUNDO ---
+    if (backgroundMusicEl && muteButtonEl) {
+        // Define um volume inicial mais baixo e agradável
+        backgroundMusicEl.volume = 0.2;
+
+        const playMusic = async () => {
+            try {
+                await backgroundMusicEl.play();
+                // Se a música começar a tocar, remove o listener para não tentar de novo
+                document.body.removeEventListener('click', playMusic);
+                console.log('Música de fundo iniciada.');
+            } catch (err) {
+                console.log('Autoplay da música bloqueado pelo navegador. Aguardando interação do usuário.');
+            }
+        };
+
+        // Navegadores modernos bloqueiam autoplay. A música só tocará após o primeiro clique do usuário na página.
+        document.body.addEventListener('click', playMusic, { once: true });
+
+        muteButtonEl.addEventListener('click', () => {
+            backgroundMusicEl.muted = !backgroundMusicEl.muted;
+            if (backgroundMusicEl.muted) {
+                muteButtonEl.textContent = '🔇';
+                localStorage.setItem('musicMuted', 'true');
+            } else {
+                muteButtonEl.textContent = '🔊';
+                localStorage.setItem('musicMuted', 'false');
+            }
+        });
+
+        // Verifica se o usuário já havia silenciado a música anteriormente
+        if (localStorage.getItem('musicMuted') === 'true') {
+            backgroundMusicEl.muted = true;
+            muteButtonEl.textContent = '🔇';
+        } else {
+            backgroundMusicEl.muted = false;
+            muteButtonEl.textContent = '🔊';
+        }
+    }
 
 
     // --- FUNÇÕES HELPER ---
