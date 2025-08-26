@@ -563,3 +563,71 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .priority-btn { width: 20px; height: 20px; font-size: 10px; line-height: 18px; }
     .mute-btn { width: 40px; height: 40px; font-size: 20px; bottom: 15px; right: 15px;}
 }
+
+/* Estilos do Modal de Guerra Histórica */
+.modal {
+    display: none; 
+    position: fixed; 
+    z-index: 2000; 
+    left: 0;
+    top: 0;
+    width: 100%; 
+    height: 100%; 
+    overflow: auto; 
+    background-color: rgba(0,0,0,0.7);
+    padding-top: 60px;
+}
+
+.modal-content {
+    background-color: var(--color-card-background);
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid var(--color-border);
+    width: 90%;
+    max-width: 1200px;
+    border-radius: var(--border-radius-base);
+    position: relative;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+    from {opacity: 0; transform: scale(0.95);}
+    to {opacity: 1; transform: scale(1);}
+}
+
+.close-button {
+    color: var(--color-text-secondary);
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.close-button:hover,
+.close-button:focus {
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+#historicWarDetailContent .card {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 0;
+}
+
+.historic-war-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.historic-war-row:hover {
+    background-color: var(--color-accent-hover) !important;
+    color: #fff;
+}
+.historic-war-row:hover td {
+    color: #fff;
+}
+
