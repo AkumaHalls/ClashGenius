@@ -92,26 +92,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const contentSections = document.querySelectorAll('.content-section');
     let isFirstLoad = true;
 
+    // --- ELEMENTOS DO MODAL ---
+    const historicWarModal = document.getElementById('historicWarModal');
+    const historicWarDetailContent = document.getElementById('historicWarDetailContent');
+    const closeModalButton = document.querySelector('.modal .close-button');
+
 
     // --- LÓGICA DA MÚSICA DE FUNDO ---
     if (backgroundMusicEl && muteButtonEl) {
-        // Define um volume inicial mais baixo e agradável
         backgroundMusicEl.volume = 0.2;
-
         const playMusic = async () => {
             try {
                 await backgroundMusicEl.play();
-                // Se a música começar a tocar, remove o listener para não tentar de novo
                 document.body.removeEventListener('click', playMusic);
                 console.log('Música de fundo iniciada.');
             } catch (err) {
                 console.log('Autoplay da música bloqueado pelo navegador. Aguardando interação do usuário.');
             }
         };
-
-        // Navegadores modernos bloqueiam autoplay. A música só tocará após o primeiro clique do usuário na página.
         document.body.addEventListener('click', playMusic, { once: true });
-
         muteButtonEl.addEventListener('click', () => {
             backgroundMusicEl.muted = !backgroundMusicEl.muted;
             if (backgroundMusicEl.muted) {
@@ -122,8 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('musicMuted', 'false');
             }
         });
-
-        // Verifica se o usuário já havia silenciado a música anteriormente
         if (localStorage.getItem('musicMuted') === 'true') {
             backgroundMusicEl.muted = true;
             muteButtonEl.textContent = '🔇';
@@ -132,7 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
             muteButtonEl.textContent = '🔊';
         }
     }
-
 
     // --- FUNÇÕES HELPER ---
     async function fetchData(endpoint, options = {}) {
@@ -161,23 +157,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function setText(element, text, defaultValue = '-') {
         if (element) element.textContent = text === null || text === undefined || text === '' ? defaultValue : text;
     }
+
     function setHtml(element, htmlContent) {
         if (element) element.innerHTML = htmlContent;
     }
+
     function setBadge(element, url) {
-        if (element) { element.src = url || DEFAULT_BADGE_URL; element.style.display = 'inline-block'; }
+        if (element) {
+            element.src = url || DEFAULT_BADGE_URL;
+            element.style.display = 'inline-block';
+        }
     }
-    
+
     // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
     const initialSectionId = (navLinks.length > 0 && navLinks[0].dataset.section) ? navLinks[0].dataset.section : 'clan-info-nav';
     let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
     let currentActiveIndex = Array.from(navLinks).findIndex(link => link.dataset.section === currentActiveSectionId);
-
     if (currentActiveIndex === -1) {
         currentActiveIndex = 0;
         currentActiveSectionId = initialSectionId;
     }
-
     contentSections.forEach(section => {
         section.classList.remove('active-section', 'slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right');
         if (section.id === currentActiveSectionId) {
@@ -188,21 +187,16 @@ document.addEventListener('DOMContentLoaded', () => {
         link.classList.toggle('active-nav-link', link.dataset.section === currentActiveSectionId);
     });
 
-
     function setActiveSection(newSectionId, newIndex) {
         if (newSectionId === currentActiveSectionId) return;
-
         const oldSectionEl = document.getElementById(currentActiveSectionId);
         const newSectionEl = document.getElementById(newSectionId);
         const oldIndex = currentActiveIndex;
-
         if (!newSectionEl) {
             console.error("Nova seção não encontrada:", newSectionId);
             return;
         }
-
         newSectionEl.classList.remove('slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right');
-        
         if (oldSectionEl) {
             oldSectionEl.classList.remove('active-section');
             if (newIndex > oldIndex) {
@@ -215,23 +209,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 oldSectionEl.removeEventListener('transitionend', handleOldOut);
             }, { once: true });
         }
-
         newSectionEl.classList.add('slide-prepare');
         if (newIndex > oldIndex) {
             newSectionEl.classList.add('slide-from-right');
         } else {
             newSectionEl.classList.add('slide-from-left');
         }
-
         void newSectionEl.offsetWidth;
-
         newSectionEl.classList.remove('slide-prepare', 'slide-from-left', 'slide-from-right');
         newSectionEl.classList.add('active-section');
-
         navLinks.forEach(link => {
             link.classList.toggle('active-nav-link', link.dataset.section === newSectionId);
         });
-
         localStorage.setItem('activeSection', newSectionId);
         currentActiveSectionId = newSectionId;
         currentActiveIndex = newIndex;
@@ -248,32 +237,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
         if (data.error || !data.name) {
-            setText(clanNameHeaderEl, "Erro"); setText(clanNameEl, data.error || "N/A");
+            setText(clanNameHeaderEl, "Erro");
+            setText(clanNameEl, data.error || "N/A");
             return;
         }
-        setText(clanNameHeaderEl, data.name); setText(clanNameEl, data.name); setText(clanTagEl, data.tag);
-        setText(clanLevelEl, data.level); setText(clanPointsEl, data.points); setText(clanMemberCountEl, data.member_count);
-        setText(clanWarWinsEl, data.war_wins); setText(clanLocationEl, data.location); setText(clanTypeEl, data.type);
-        setText(clanDescriptionEl, data.description, 'Sem descrição.'); setText(botVersionEl, data.version, '?');
+        setText(clanNameHeaderEl, data.name);
+        setText(clanNameEl, data.name);
+        setText(clanTagEl, data.tag);
+        setText(clanLevelEl, data.level);
+        setText(clanPointsEl, data.points);
+        setText(clanMemberCountEl, data.member_count);
+        setText(clanWarWinsEl, data.war_wins);
+        setText(clanLocationEl, data.location);
+        setText(clanTypeEl, data.type);
+        setText(clanDescriptionEl, data.description, 'Sem descrição.');
+        setText(botVersionEl, data.version, '?');
         setBadge(clanBadgeHeaderEl, data.badge_url);
         setBadge(clanBadgeEl, data.badge_url);
-
-        setText(clanCapitalPointsEl, data.capital_points); setText(clanCapitalLeagueEl, data.capital_league);
+        setText(clanCapitalPointsEl, data.capital_points);
+        setText(clanCapitalLeagueEl, data.capital_league);
         setHtml(clanCapitalDistrictsEl, '');
         if (data.capital_districts && data.capital_districts.length > 0) {
             data.capital_districts.forEach(d => setHtml(clanCapitalDistrictsEl, clanCapitalDistrictsEl.innerHTML + `<p><strong>${d.name || 'N/A'}:</strong> Nv ${d.level || '?'}</p>`));
-        } else { setHtml(clanCapitalDistrictsEl, '<p>Nenhum distrito encontrado.</p>'); }
+        } else {
+            setHtml(clanCapitalDistrictsEl, '<p>Nenhum distrito encontrado.</p>');
+        }
     }
 
     warTabButtons.forEach(button => {
         button.addEventListener('click', () => {
-            warTabButtons.forEach(btn => btn.classList.remove('active'));
+            const parentSection = button.closest('.content-section, .modal-content');
+            if (!parentSection) return;
+
+            parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
             const tabId = button.dataset.tab;
-            warTabContents.forEach(content => {
-                if (content.closest('#war-details-nav')) {
-                     content.style.display = content.id === tabId ? 'block' : 'none';
-                }
+            parentSection.querySelectorAll('.war-tab-content').forEach(content => {
+                content.style.display = content.id.endsWith(tabId) ? 'block' : 'none';
             });
         });
     });
@@ -282,56 +282,74 @@ document.addEventListener('DOMContentLoaded', () => {
         return '⭐'.repeat(stars) + '⚫'.repeat(Math.max(0, 3 - stars));
     }
 
-    function populateWarDetails(data) {
-        const warDetailContainer = document.getElementById('war-details-nav');
-        const warHeader = warDetailContainer.querySelector('.war-header');
-        const warTabsNav = warDetailContainer.querySelector('.war-tabs');
-        const noWarMsg = document.getElementById('noWarDetailMessage');
-
+    function populateWarDetails(data, containerId = 'war-details-nav', isModal = false) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+    
+        const prefix = isModal ? 'historic-' : '';
+    
+        const warHeader = container.querySelector('.war-header');
+        const warTabsNav = container.querySelector('.war-tabs');
+        const noWarMsg = container.querySelector(isModal ? '.message-box' : '#noWarDetailMessage');
+    
         if (data.error || !data.war_data) {
-            if (noWarMsg) { noWarMsg.style.display = 'block'; setText(noWarMsg, data.error || "Nenhuma guerra para detalhar.");}
+            if (noWarMsg) {
+                noWarMsg.style.display = 'block';
+                setText(noWarMsg, data.error || "Nenhuma guerra para detalhar.");
+            }
             if (warHeader) warHeader.style.display = 'none';
             if (warTabsNav) warTabsNav.style.display = 'none';
-            warTabContents.forEach(tab => tab.style.display = 'none');
+            container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none');
             return;
         }
+    
         if (noWarMsg) noWarMsg.style.display = 'none';
         if (warHeader) warHeader.style.display = 'flex';
         if (warTabsNav) warTabsNav.style.display = 'flex';
-
+    
         const war = data.war_data;
-        setText(warDetailOurClanNameEl, war.clan_name);
-        setText(warDetailOpponentNameEl, war.opponent_name);
-        setBadge(warDetailClanBadgeEl, war.clan_badge_url);
-        setBadge(warDetailOpponentBadgeEl, war.opponent_badge_url);
-        setText(warDetailTimeKeyEl, war.time_key);
-        setText(warDetailTimeValueEl, war.time_value);
-        setText(warDetailTimeRemainingEl, war.time_remaining);
-        setText(warDetailStateEl, war.state_description);
-        if (warDetailStateEl) warDetailStateEl.className = 'war-state ' + (war.status || '').toLowerCase();
-
-        setText(statsOurClanNameEl, war.clan_name);
-        setText(statsOurStarsEl, war.clan_stars);
-        setText(statsOurDestructionEl, war.clan_destruction.replace('%', ''));
-        setText(statsOurAttacksUsedEl, `${war.clan_attacks_used}/${war.team_size * war.attacks_per_member}`);
-        setText(statsOpponentNameEl, war.opponent_name);
-        setText(statsOpponentStarsEl, war.opponent_stars);
-        setText(statsOpponentDestructionEl, war.opponent_destruction.replace('%', ''));
-        setText(statsOpponentAttacksUsedEl, `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
-        setText(statsOurAvgStarsEl, war.clan_avg_stars);
-        setText(statsOurAvgDurationEl, war.clan_avg_duration);
-        setText(statsOpponentAvgStarsEl, war.opponent_avg_stars);
-        setText(statsOpponentAvgDurationEl, war.opponent_avg_duration);
-        setText(statsOurStars3El, war.clan_star_distribution[3]); setText(statsOurStars2El, war.clan_star_distribution[2]);
-        setText(statsOurStars1El, war.clan_star_distribution[1]); setText(statsOurStars0El, war.clan_star_distribution[0]);
-        setText(statsOpponentStars3El, war.opponent_star_distribution[3]); setText(statsOpponentStars2El, war.opponent_star_distribution[2]);
-        setText(statsOpponentStars1El, war.opponent_star_distribution[1]); setText(statsOpponentStars0El, war.opponent_star_distribution[0]);
-
-        setText(warTotalAttacksCountEl, data.all_attacks.length);
-        setHtml(warEventsTableBodyEl, '');
+        
+        // Seletores dinâmicos para o modal ou a aba principal
+        setText(container.querySelector(`#${prefix}warDetailOurClanName`), war.clan_name);
+        setText(container.querySelector(`#${prefix}warDetailOpponentName`), war.opponent_name);
+        setBadge(container.querySelector(`#${prefix}warDetailClanBadge`), war.clan_badge_url);
+        setBadge(container.querySelector(`#${prefix}warDetailOpponentBadge`), war.opponent_badge_url);
+        setText(container.querySelector(`#${prefix}warDetailTimeKey`), war.time_key);
+        setText(container.querySelector(`#${prefix}warDetailTimeValue`), war.time_value);
+        setText(container.querySelector(`#${prefix}warDetailTimeRemaining`), war.time_remaining);
+        const stateEl = container.querySelector(`#${prefix}warDetailState`);
+        setText(stateEl, war.state_description);
+        if(stateEl) stateEl.className = 'war-state ' + (war.status || '').toLowerCase();
+    
+        // Preenche as estatísticas
+        setText(container.querySelector(`#${prefix}statsOurClanName`), war.clan_name);
+        setText(container.querySelector(`#${prefix}statsOurStars`), war.clan_stars);
+        setText(container.querySelector(`#${prefix}statsOurDestruction`), war.clan_destruction.replace('%', ''));
+        setText(container.querySelector(`#${prefix}statsOurAttacksUsed`), `${war.clan_attacks_used}/${war.team_size * war.attacks_per_member}`);
+        setText(container.querySelector(`#${prefix}statsOpponentName`), war.opponent_name);
+        setText(container.querySelector(`#${prefix}statsOpponentStars`), war.opponent_stars);
+        setText(container.querySelector(`#${prefix}statsOpponentDestruction`), war.opponent_destruction.replace('%', ''));
+        setText(container.querySelector(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
+        setText(container.querySelector(`#${prefix}statsOurAvgStars`), war.clan_avg_stars);
+        setText(container.querySelector(`#${prefix}statsOurAvgDuration`), war.clan_avg_duration);
+        setText(container.querySelector(`#${prefix}statsOpponentAvgStars`), war.opponent_avg_stars);
+        setText(container.querySelector(`#${prefix}statsOpponentAvgDuration`), war.opponent_avg_duration);
+        setText(container.querySelector(`#${prefix}statsOurStars3`), war.clan_star_distribution[3]);
+        setText(container.querySelector(`#${prefix}statsOurStars2`), war.clan_star_distribution[2]);
+        setText(container.querySelector(`#${prefix}statsOurStars1`), war.clan_star_distribution[1]);
+        setText(container.querySelector(`#${prefix}statsOurStars0`), war.clan_star_distribution[0]);
+        setText(container.querySelector(`#${prefix}statsOpponentStars3`), war.opponent_star_distribution[3]);
+        setText(container.querySelector(`#${prefix}statsOpponentStars2`), war.opponent_star_distribution[2]);
+        setText(container.querySelector(`#${prefix}statsOpponentStars1`), war.opponent_star_distribution[1]);
+        setText(container.querySelector(`#${prefix}statsOpponentStars0`), war.opponent_star_distribution[0]);
+    
+        // Preenche os eventos (ataques)
+        const eventsTableBody = container.querySelector(`#${prefix}warEventsTableBody`);
+        setText(container.querySelector(`#${prefix}warTotalAttacksCount`), data.all_attacks.length);
+        setHtml(eventsTableBody, '');
         if (data.all_attacks && data.all_attacks.length > 0) {
             data.all_attacks.forEach(att => {
-                const row = warEventsTableBodyEl.insertRow();
+                const row = eventsTableBody.insertRow();
                 setText(row.insertCell(), att.order);
                 setText(row.insertCell(), `${att.attacker_name} (CV${att.attacker_townhall})`);
                 const resultCell = row.insertCell();
@@ -339,10 +357,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 setText(row.insertCell(), `${att.defender_name} (CV${att.defender_townhall})`);
                 setText(row.insertCell(), att.duration);
             });
-        } else { setHtml(warEventsTableBodyEl, '<tr><td colspan="5">Nenhum ataque registrado.</td></tr>'); }
-
+        } else {
+            setHtml(eventsTableBody, '<tr><td colspan="5">Nenhum ataque registrado.</td></tr>');
+        }
+    
+        // Preenche as equipes
         const populateTeamTabData = (teamMembersData, teamNameKey, teamElement) => {
-            setText(document.getElementById(`war${teamNameKey}TeamName`), war[`${teamNameKey.toLowerCase()}_clan_name`] || (teamNameKey === "Our" ? "Nosso Clã" : "Oponente"));
+            setText(container.querySelector(`#${prefix}war${teamNameKey}TeamName`), war[`${teamNameKey.toLowerCase()}_clan_name`] || (teamNameKey === "Our" ? "Nosso Clã" : "Oponente"));
             setHtml(teamElement, '');
             if (teamMembersData && teamMembersData.length > 0) {
                 teamMembersData.forEach(member => {
@@ -351,17 +372,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         member.attacks_made.forEach(atk => {
                             attacksHtml += `<li>${createStarString(atk.stars)} ${atk.destruction}% vs ${atk.defender_name} (CV${atk.defender_townhall})</li>`;
                         });
-                    } else { attacksHtml += '<li>Nenhum ataque feito.</li>'; }
+                    } else {
+                        attacksHtml += '<li>Nenhum ataque feito.</li>';
+                    }
                     attacksHtml += '</ul>';
-
+    
                     let defensesHtml = '<h5>Defesas Recebidas:</h5><ul class="member-defense-list">';
                     if (member.defenses_received && member.defenses_received.length > 0) {
                         member.defenses_received.forEach(def => {
                             defensesHtml += `<li>${createStarString(def.stars)} ${def.destruction}% por ${def.attacker_name} (CV${def.attacker_townhall})</li>`;
                         });
-                    } else { defensesHtml += '<li>Nenhuma defesa registrada.</li>'; }
+                    } else {
+                        defensesHtml += '<li>Nenhuma defesa registrada.</li>';
+                    }
                     defensesHtml += '</ul>';
-
+    
                     const memberCard = document.createElement('div');
                     memberCard.className = 'team-member-card';
                     memberCard.innerHTML = `
@@ -372,25 +397,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                     teamElement.appendChild(memberCard);
                 });
-            } else { setHtml(teamElement, '<p>Nenhum membro nesta equipe para a guerra.</p>'); }
+            } else {
+                setHtml(teamElement, '<p>Nenhum membro nesta equipe para a guerra.</p>');
+            }
         };
-
-        populateTeamTabData(data.our_clan_members_in_war, "Our", warOurTeamMembersEl);
-        populateTeamTabData(data.opponent_clan_members_in_war, "Opponent", warOpponentTeamMembersEl);
-
+    
+        populateTeamTabData(data.our_clan_members_in_war, "Our", container.querySelector(`#${prefix}warOurTeamMembers`));
+        populateTeamTabData(data.opponent_clan_members_in_war, "Opponent", container.querySelector(`#${prefix}warOpponentTeamMembers`));
+    
+        // Garante que a primeira aba esteja ativa se nenhuma estiver
         let activeWarTabFound = false;
-        warTabButtons.forEach(btn => { if (btn.classList.contains('active')) activeWarTabFound = true; });
+        container.querySelectorAll('.war-tab-button').forEach(btn => {
+            if (btn.classList.contains('active')) activeWarTabFound = true;
+        });
         if (!activeWarTabFound) {
-            const firstWarTabButton = document.querySelector('.war-tab-button[data-tab="war-stats"]');
-            const firstWarTabContent = document.getElementById('war-stats');
-             if (firstWarTabButton && firstWarTabContent) {
-                warTabButtons.forEach(btn => btn.classList.remove('active'));
-                warTabContents.forEach(tc => tc.style.display = 'none');
-                firstWarTabButton.classList.add('active');
-                firstWarTabContent.style.display = 'block';
+            const firstWarTabButton = container.querySelector('.war-tab-button[data-tab="war-stats"]');
+            const firstWarTabContent = container.querySelector(isModal ? '#historic-war-stats' : '#war-stats');
+            if (firstWarTabButton && firstWarTabContent) {
+                 container.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+                 container.querySelectorAll('.war-tab-content').forEach(tc => tc.style.display = 'none');
+                 firstWarTabButton.classList.add('active');
+                 firstWarTabContent.style.display = 'block';
             }
         }
     }
+
 
     function populateWarAttacksRemaining(data) {
         setText(attacksRemainingClanNameEl, data.clan_name);
@@ -410,62 +441,85 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateCwlInfo(data) {
         setText(cwlStatusTextEl, "Carregando...");
         if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state';
-
         if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
-            if(noCwlMessageEl) noCwlMessageEl.style.display = 'block'; setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
-            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none'; setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
+            if(noCwlMessageEl) noCwlMessageEl.style.display = 'block';
+            setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
+            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
+            setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
             if (cwlStatusTextEl) cwlStatusTextEl.classList.add((data.status || 'notincwl').toLowerCase());
             return;
         }
-        if(noCwlMessageEl) noCwlMessageEl.style.display = 'none'; if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
-        setText(cwlStatusTextEl, "Em CWL"); if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl');
-        setText(cwlSeasonEl, data.season); setText(cwlGroupStateEl, data.state);
+        if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
+        if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
+        setText(cwlStatusTextEl, "Em CWL");
+        if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl');
+        setText(cwlSeasonEl, data.season);
+        setText(cwlGroupStateEl, data.state);
         setHtml(cwlGroupClansEl, '');
         if (data.clans_in_group && data.clans_in_group.length > 0) {
             data.clans_in_group.forEach(c => setHtml(cwlGroupClansEl, cwlGroupClansEl.innerHTML + `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name}"> <strong>${c.name}</strong> (${c.tag}) Nv ${c.level}</p>`));
-        } else { setHtml(cwlGroupClansEl, '<p>Nenhum clã no grupo.</p>'); }
+        } else {
+            setHtml(cwlGroupClansEl, '<p>Nenhum clã no grupo.</p>');
+        }
         setHtml(cwlRoundsInfoEl, '');
         if (data.rounds && data.rounds.length > 0) {
             data.rounds.forEach(r => {
                 let roundHtml = `<div class="cwl-round"><h4>Rodada ${r.round_number}</h4>`;
                 if (r.wars && r.wars.length > 0) {
                     r.wars.forEach(w => {
-                        if (w.error) { roundHtml += `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`; }
-                        else if (w.message) { roundHtml += `<p class="cwl-war-entry">${w.message}</p>`; }
-                        else {
+                        if (w.error) {
+                            roundHtml += `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`;
+                        } else if (w.message) {
+                            roundHtml += `<p class="cwl-war-entry">${w.message}</p>`;
+                        } else {
                             const cBadge = w.clan_badge_url ? `<img src="${w.clan_badge_url}" alt="Emblema ${w.clan_name}" class="cwl-war-badge">` : "";
                             const oBadge = w.opponent_badge_url ? `<img src="${w.opponent_badge_url}" alt="Emblema ${w.opponent_name}" class="cwl-war-badge">` : "";
                             roundHtml += `<p class="cwl-war-entry"><strong>${cBadge} ${w.clan_name}</strong> ${w.clan_stars}⭐ (${w.clan_destruction}) vs ${w.opponent_stars}⭐ (${w.opponent_destruction}) <strong>${oBadge} ${w.opponent_name}</strong><br><small>Estado: ${w.state} | ${w.time_key}: ${w.time_value} (${w.time_remaining})</small></p>`;
                         }
                     });
-                } else { roundHtml += "<p>Nenhuma guerra nesta rodada.</p>"; }
+                } else {
+                    roundHtml += "<p>Nenhuma guerra nesta rodada.</p>";
+                }
                 roundHtml += "</div>";
                 setHtml(cwlRoundsInfoEl, cwlRoundsInfoEl.innerHTML + roundHtml);
             });
-        } else { setHtml(cwlRoundsInfoEl, "Nenhuma info de rodada."); }
+        } else {
+            setHtml(cwlRoundsInfoEl, "Nenhuma info de rodada.");
+        }
     }
 
     function populateWarLog(data) {
-        setText(warLogLimitEl, data.log ? data.log.length : '10');
+        setText(warLogLimitEl, data.log ? data.log.length : '9');
         if (data.error || !data.log) {
-            if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'block'; setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
+            if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'block';
+            setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
             setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "N/A"}</td></tr>`);
             return;
         }
-        if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none'; setHtml(warLogTableBodyEl, '');
+        if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none';
+        setHtml(warLogTableBodyEl, '');
         if (data.log.length > 0) {
             data.log.forEach(e => {
                 const row = warLogTableBodyEl.insertRow();
-                setText(row.insertCell(), e.end_time);
+                row.classList.add('historic-war-row'); // Classe para identificar a linha
+                row.dataset.warId = e.end_time_iso; // Atributo para armazenar o ID
+    
+                setText(row.insertCell(), e.end_time_formatted);
                 const oppCell = row.insertCell();
                 const oppBadge = e.opponent_badge_url ? `<img src="${e.opponent_badge_url}" alt="Emblema ${e.opponent_name}" class="log-opponent-badge">` : "";
                 setHtml(oppCell, `${oppBadge}${e.opponent_name || 'N/A'}`);
-                setText(row.insertCell(), `${e.clan_stars}⭐ (${e.clan_destruction}%) vs ${e.opponent_stars}⭐ (${e.opponent_destruction}%)`);
-                const resCell = row.insertCell(); setText(resCell, e.result); resCell.className = e.result ? `war-result-${e.result.toLowerCase()}` : '';
-                setText(row.insertCell(), e.team_size); setText(row.insertCell(), e.is_cwl ? "CWL" : "Normal");
+                setText(row.insertCell(), `${e.clan_stars}⭐ (${e.clan_destruction}) vs ${e.opponent_stars}⭐ (${e.opponent_destruction})`);
+                const resCell = row.insertCell();
+                setText(resCell, e.result);
+                resCell.className = e.result ? `war-result-${e.result.toLowerCase()}` : '';
+                setText(row.insertCell(), e.team_size);
+                setText(row.insertCell(), e.is_cwl ? "CWL" : "Normal");
             });
-        } else { setHtml(warLogTableBodyEl, '<tr><td colspan="6">Nenhum registro encontrado.</td></tr>'); }
+        } else {
+            setHtml(warLogTableBodyEl, '<tr><td colspan="6">Nenhum registro encontrado.</td></tr>');
+        }
     }
+    
 
     function applyMemberFilters() {
         const nameFilter = filterNameInput.value.toLowerCase();
@@ -474,12 +528,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const trophiesFilterText = filterTrophiesInput.value;
         const roleFilter = filterRoleInput.value.toLowerCase();
         const rows = membersTableBodyEl.getElementsByTagName('tr');
-
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             const cells = row.getElementsByTagName('td');
             let displayRow = true;
-
             if (cells.length > 7) {
                 if (nameFilter && !cells[1].textContent.toLowerCase().includes(nameFilter)) displayRow = false;
                 if (thFilter && !cells[2].textContent.toLowerCase().includes(thFilter)) displayRow = false;
@@ -490,7 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!isNaN(filterTrophiesNum) && memberTrophies !== filterTrophiesNum) {
                         displayRow = false;
                     } else if (isNaN(filterTrophiesNum) && !cells[4].textContent.includes(trophiesFilterText)) {
-                         displayRow = false;
+                        displayRow = false;
                     }
                 }
                 if (roleFilter && !cells[5].textContent.toLowerCase().includes(roleFilter)) displayRow = false;
@@ -500,6 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
             row.style.display = displayRow ? '' : 'none';
         }
     }
+
     if (filterNameInput) filterNameInput.addEventListener('input', applyMemberFilters);
     if (filterTHInput) filterTHInput.addEventListener('input', applyMemberFilters);
     if (filterLeagueInput) filterLeagueInput.addEventListener('input', applyMemberFilters);
@@ -522,7 +575,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populateMembersList(data) {
         setText(membersClanNameEl, data.clan_name ? `(${data.clan_name})` : '');
-        if (data.error) { setHtml(membersTableBodyEl, `<tr><td colspan="9">${data.error}</td></tr>`); return; }
+        if (data.error) {
+            setHtml(membersTableBodyEl, `<tr><td colspan="9">${data.error}</td></tr>`);
+            return;
+        }
         setHtml(membersTableBodyEl, '');
         if (data.members && data.members.length > 0) {
             data.members.forEach((m, i) => {
@@ -535,7 +591,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 setText(r.insertCell(), m.role);
                 setText(r.insertCell(), m.donations);
                 setText(r.insertCell(), m.received);
-
                 const noteCell = r.insertCell();
                 noteCell.className = 'member-note-cell';
                 const noteContainer = document.createElement('div');
@@ -584,26 +639,85 @@ document.addEventListener('DOMContentLoaded', () => {
                     noteInput.style.display = 'none';
                     noteTextSpan.style.display = 'inline-block';
                 });
-                 noteInput.addEventListener('keypress', (e) => {
+                noteInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') noteInput.blur();
                 });
                 noteCell.appendChild(noteContainer);
             });
-        } else { setHtml(membersTableBodyEl, '<tr><td colspan="9">Nenhum membro.</td></tr>'); }
+        } else {
+            setHtml(membersTableBodyEl, '<tr><td colspan="9">Nenhum membro.</td></tr>');
+        }
         applyMemberFilters();
     }
-
+    
+    // --- LÓGICA DO MODAL DE GUERRA HISTÓRICA ---
+    async function openHistoricWarModal(warId) {
+        setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando detalhes da guerra...</p>');
+        historicWarModal.style.display = 'block';
+    
+        const historicWarData = await fetchData(`war_history/${warId}`);
+    
+        // Clona a estrutura da aba de guerra para dentro do modal
+        const warDetailsTemplate = document.getElementById('war-details-nav').cloneNode(true);
+        // Ajusta IDs para serem únicos no modal
+        warDetailsTemplate.id = 'historic-war-details-content';
+        warDetailsTemplate.querySelectorAll('[id]').forEach(el => {
+            el.id = 'historic-' + el.id;
+        });
+    
+        setHtml(historicWarDetailContent, '');
+        historicWarDetailContent.appendChild(warDetailsTemplate);
+    
+        // Adiciona listeners para as novas abas dentro do modal
+        historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                const tabId = button.dataset.tab;
+                historicWarDetailContent.querySelectorAll('.war-tab-content').forEach(content => {
+                    // O ID do conteúdo agora terá o prefixo 'historic-'
+                    content.style.display = content.id.endsWith(tabId) ? 'block' : 'none';
+                });
+            });
+        });
+    
+        populateWarDetails(historicWarData, 'historicWarDetailContent', true);
+    }
+    
+    if (closeModalButton) {
+        closeModalButton.addEventListener('click', () => {
+            historicWarModal.style.display = 'none';
+        });
+    }
+    
+    window.addEventListener('click', (event) => {
+        if (event.target == historicWarModal) {
+            historicWarModal.style.display = 'none';
+        }
+    });
+    
+    // Adiciona o listener de eventos na tabela de histórico
+    warLogTableBodyEl.addEventListener('click', (event) => {
+        const row = event.target.closest('.historic-war-row');
+        if (row && row.dataset.warId) {
+            openHistoricWarModal(row.dataset.warId);
+        }
+    });
 
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
         try {
             const [clanData, membersData, currentWarDetailsData, warAttacksRemainingData, warLogData, cwlInfoData] = await Promise.all([
-                fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
-                fetchData('war_attacks_remaining'), fetchData('war_log?limit=10'), fetchData('cwl_info')
+                fetchData('clan'),
+                fetchData('members'),
+                fetchData('current_war_details'),
+                fetchData('war_attacks_remaining'),
+                fetchData('war_log'),
+                fetchData('cwl_info')
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
-            populateWarDetails(currentWarDetailsData);
+            populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
             populateWarAttacksRemaining(warAttacksRemainingData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
@@ -619,60 +733,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
     loadAllData();
-    setInterval(loadAllData, 60000);
+    setInterval(loadAllData, 60000); // Atualiza a cada 60 segundos
 
     // --- ANIMAÇÃO DE PARTÍCULAS DE FUNDO ---
     const particleCanvas = document.getElementById('particle-background');
     if (particleCanvas) {
         const ctx = particleCanvas.getContext('2d');
-        let particlesArrayLocal = []; 
-        let mouse = { x: undefined, y: undefined, radius: 120 }; 
-
+        let particlesArrayLocal = [];
+        let mouse = { x: undefined, y: undefined, radius: 120 };
         const particleSettings = {
-            count: 100, 
-            maxConnectionDistance: 160, 
-            particleColorRGB: '200, 40, 40', 
-            lineColorRGB: '180, 40, 40',   
-            particleBaseSpeed: 0.3,    
-            particleMinSpeedFactor: 0.5, 
-            particleSizeMin: 1.8,         
-            particleSizeMax: 3.8,
-            lineOpacityMultiplier: 0.65,  
-            lineWidth: 0.65,
-            edgeSpawnMargin: 25,        
-            baseParticleAlphaMin: 0.35,   
-            baseParticleAlphaMax: 0.85,
-            mouseInteractionForce: 0.9,    
-            mouseRepelFactor: 2.2,       
-            friction: 0.975              
+            count: 100, maxConnectionDistance: 160, particleColorRGB: '200, 40, 40',
+            lineColorRGB: '180, 40, 40', particleBaseSpeed: 0.3, particleMinSpeedFactor: 0.5,
+            particleSizeMin: 1.8, particleSizeMax: 3.8, lineOpacityMultiplier: 0.65,
+            lineWidth: 0.65, edgeSpawnMargin: 25, baseParticleAlphaMin: 0.35,
+            baseParticleAlphaMax: 0.85, mouseInteractionForce: 0.9, mouseRepelFactor: 2.2,
+            friction: 0.975
         };
-        
-        window.addEventListener('mousemove', (event) => {
-            mouse.x = event.clientX;
-            mouse.y = event.clientY;
-        });
-
-        window.addEventListener('mouseout', () => { 
-            mouse.x = undefined;
-            mouse.y = undefined;
-        });
-
-
-        function setupParticleCanvas() {
-            particleCanvas.width = window.innerWidth;
-            particleCanvas.height = window.innerHeight;
-        }
-
+        window.addEventListener('mousemove', (event) => { mouse.x = event.clientX; mouse.y = event.clientY; });
+        window.addEventListener('mouseout', () => { mouse.x = undefined; mouse.y = undefined; });
+        function setupParticleCanvas() { particleCanvas.width = window.innerWidth; particleCanvas.height = window.innerHeight; }
         class Particle {
             constructor(x, y, dirX, dirY, size) {
-                this.x = x;
-                this.y = y;
-                this.baseDirectionX = dirX; 
-                this.baseDirectionY = dirY;
-                this.directionX = dirX;
-                this.directionY = dirY;
-                this.size = size;
+                this.x = x; this.y = y; this.baseDirectionX = dirX; this.baseDirectionY = dirY;
+                this.directionX = dirX; this.directionY = dirY; this.size = size;
                 this.baseAlpha = Math.random() * (particleSettings.baseParticleAlphaMax - particleSettings.baseParticleAlphaMin) + particleSettings.baseParticleAlphaMin;
             }
             draw() {
@@ -682,90 +767,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fill();
             }
             update() {
-                let dX = this.directionX;
-                let dY = this.directionY;
-
+                let dX = this.directionX; let dY = this.directionY;
                 if (mouse.x !== undefined && mouse.y !== undefined) {
-                    let dxMouse = this.x - mouse.x;
-                    let dyMouse = this.y - mouse.y;
+                    let dxMouse = this.x - mouse.x; let dyMouse = this.y - mouse.y;
                     let distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
-
                     if (distanceMouse < mouse.radius + this.size && distanceMouse > 0) {
                         const force = (mouse.radius - distanceMouse) / mouse.radius;
-                        const angle = Math.atan2(dyMouse, dxMouse); 
+                        const angle = Math.atan2(dyMouse, dxMouse);
                         const repelForce = force * particleSettings.mouseInteractionForce * particleSettings.mouseRepelFactor;
-                        
                         dX += Math.cos(angle) * repelForce;
                         dY += Math.sin(angle) * repelForce;
                     }
                 }
-                
-                dX *= particleSettings.friction;
-                dY *= particleSettings.friction;
-
+                dX *= particleSettings.friction; dY *= particleSettings.friction;
                 const speed = Math.sqrt(dX * dX + dY * dY);
-                const baseSpeedMagnitude = particleSettings.particleBaseSpeed * particleSettings.particleMinSpeedFactor;
-
-                if (speed < baseSpeedMagnitude * 0.5 && speed > 0.01) {
-                    const recoveryFactor = 0.03;
-                    dX += (this.baseDirectionX - dX) * recoveryFactor;
-                    dY += (this.baseDirectionY - dY) * recoveryFactor;
-                } else if (speed < 0.01) {
-                    dX = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 0.5;
-                    dY = (Math.random() - 0.5) * particleSettings.particleBaseSpeed * 0.5;
-                    this.baseDirectionX = dX;
-                    this.baseDirectionY = dY;
+                const baseSpeedMagnitude = particleSettings.particleBaseSpeed * (Math.random() * (1 - particleSettings.particleMinSpeedFactor) + particleSettings.particleMinSpeedFactor);
+                if (speed < baseSpeedMagnitude) {
+                    const angleToBase = Math.atan2(this.baseDirectionY, this.baseDirectionX);
+                    dX += Math.cos(angleToBase) * 0.01;
+                    dY += Math.sin(angleToBase) * 0.01;
                 }
-
-                if (this.x + this.size + dX > particleCanvas.width || this.x - this.size + dX < 0) {
-                    dX *= -1; this.baseDirectionX *= -1; 
-                }
-                if (this.y + this.size + dY > particleCanvas.height || this.y - this.size + dY < 0) {
-                    dY *= -1; this.baseDirectionY *= -1;
-                }
-                
-                this.directionX = dX;
-                this.directionY = dY;
-                this.x += this.directionX;
-                this.y += this.directionY;
-                
-                this.x = Math.max(this.size, Math.min(this.x, particleCanvas.width - this.size));
-                this.y = Math.max(this.size, Math.min(this.y, particleCanvas.height - this.size));
-
+                this.directionX = dX; this.directionY = dY;
+                this.x += this.directionX; this.y += this.directionY;
+                if (this.x > particleCanvas.width + this.size) this.x = -this.size;
+                else if (this.x < -this.size) this.x = particleCanvas.width + this.size;
+                if (this.y > particleCanvas.height + this.size) this.y = -this.size;
+                else if (this.y < -this.size) this.y = particleCanvas.height + this.size;
                 this.draw();
             }
         }
-        
-        function initLocalParticles() {
+        function initParticles() {
             particlesArrayLocal = [];
-            const W = particleCanvas.width;
-            const H = particleCanvas.height;
-
             for (let i = 0; i < particleSettings.count; i++) {
                 let size = Math.random() * (particleSettings.particleSizeMax - particleSettings.particleSizeMin) + particleSettings.particleSizeMin;
-                let x = Math.random() * W;
-                let y = Math.random() * H;
-                let speedFactor = (Math.random() * (1 - particleSettings.particleMinSpeedFactor)) + particleSettings.particleMinSpeedFactor;
-                let speed = particleSettings.particleBaseSpeed * speedFactor;
-                let angle = Math.random() * Math.PI * 2;
-                let dirX = Math.cos(angle) * speed;
-                let dirY = Math.sin(angle) * speed;
-                
-                particlesArrayLocal.push(new Particle(x, y, dirX, dirY, size));
+                let x = Math.random() * (particleCanvas.width - particleSettings.edgeSpawnMargin * 2) + particleSettings.edgeSpawnMargin;
+                let y = Math.random() * (particleCanvas.height - particleSettings.edgeSpawnMargin * 2) + particleSettings.edgeSpawnMargin;
+                let directionX = (Math.random() * 2 - 1) * particleSettings.particleBaseSpeed;
+                let directionY = (Math.random() * 2 - 1) * particleSettings.particleBaseSpeed;
+                particlesArrayLocal.push(new Particle(x, y, directionX, directionY, size));
             }
         }
-
-        function connectLocalParticles() {
-            if (!particlesArrayLocal) return;
+        function connectParticles() {
+            let opacityValue = 1;
             for (let a = 0; a < particlesArrayLocal.length; a++) {
                 for (let b = a + 1; b < particlesArrayLocal.length; b++) {
-                    let dx = particlesArrayLocal[a].x - particlesArrayLocal[b].x;
-                    let dy = particlesArrayLocal[a].y - particlesArrayLocal[b].y;
-                    let distance = Math.sqrt(dx * dx + dy * dy);
-
+                    let distance = Math.sqrt(
+                        (particlesArrayLocal[a].x - particlesArrayLocal[b].x) * (particlesArrayLocal[a].x - particlesArrayLocal[b].x) +
+                        (particlesArrayLocal[a].y - particlesArrayLocal[b].y) * (particlesArrayLocal[a].y - particlesArrayLocal[b].y)
+                    );
                     if (distance < particleSettings.maxConnectionDistance) {
-                        const opacity = (1 - (distance / particleSettings.maxConnectionDistance)) * particleSettings.lineOpacityMultiplier;
-                        ctx.strokeStyle = `rgba(${particleSettings.lineColorRGB}, ${Math.max(0, opacity)})`;
+                        opacityValue = (1 - (distance / particleSettings.maxConnectionDistance)) * particleSettings.lineOpacityMultiplier;
+                        ctx.strokeStyle = `rgba(${particleSettings.lineColorRGB}, ${opacityValue})`;
                         ctx.lineWidth = particleSettings.lineWidth;
                         ctx.beginPath();
                         ctx.moveTo(particlesArrayLocal[a].x, particlesArrayLocal[a].y);
@@ -775,42 +827,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-
-        let lastFrameTime = performance.now();
-        const targetFPS = 30; 
-        const frameInterval = 1000 / targetFPS;
-
         function animateParticles() {
             requestAnimationFrame(animateParticles);
-            
-            const now = performance.now();
-            const elapsed = now - lastFrameTime;
-
-            if (elapsed > frameInterval) {
-                lastFrameTime = now - (elapsed % frameInterval);
-
-                ctx.fillStyle = 'rgba(0,0,0,1)';
-                ctx.fillRect(0, 0, particleCanvas.width, particleCanvas.height);
-
-                if (particlesArrayLocal) {
-                    particlesArrayLocal.forEach(particle => {
-                        particle.update();
-                    });
-                    connectLocalParticles();
-                }
+            ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+            for (let i = 0; i < particlesArrayLocal.length; i++) {
+                particlesArrayLocal[i].update();
             }
+            connectParticles();
         }
-
-        setupParticleCanvas();
-        initLocalParticles();
-        animateParticles();
-
         window.addEventListener('resize', () => {
             setupParticleCanvas();
-            initLocalParticles(); 
+            initParticles();
         });
-
-    } else {
-        console.error("Elemento canvas #particle-background não encontrado para animação de fundo.");
+        setupParticleCanvas();
+        initParticles();
+        animateParticles();
     }
 });
