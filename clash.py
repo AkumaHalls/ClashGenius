@@ -36,12 +36,11 @@ COC_PASSWORD = os.getenv("COC_PASSWORD")
 CLAN_TAG = os.getenv("CLAN_TAG")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
-# <-- USANDO AS VARIÁVEIS EXISTENTES -- >
 ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0)) 
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.22-REPORTS-FIX"
+BOT_VERSION = "20.1.23-ATTACK-DEFENSE-REPORTS"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -191,58 +190,100 @@ async def on_clan_member_leave(member, clan):
 
 async def on_war_attack(attack, war):
     try:
-        if not attack or not hasattr(attack, 'attacker') or not attack.attacker: return
-        is_our_attack = hasattr(attack.attacker, 'clan') and attack.attacker.clan and attack.attacker.clan.tag == CLAN_TAG
-        if not is_our_attack: return
-        
-        logger.info(f"Ataque de {attack.attacker.name} processado pela task.")
-        war_type = "CWL" if war.is_cwl else "Guerra"
-        our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-        opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
-        
-        # Envia a notificação normal de ataque
-        embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
-        stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
-        embed.description = (
-            f"**{attack.attacker.name}** atacou **{attack.defender.name}**\n"
-            f"`CV{attack.attacker.town_hall} vs CV{attack.defender.town_hall}`"
-        )
-        embed.add_field(name="Resultado do Ataque", value=f"{stars} **{attack.destruction}%**", inline=False)
-        embed.add_field(name="Placar Atual", value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐", inline=True)
-        embed.add_field(name="Ataques Usados", value=f"{our_clan.attacks_used} / {war.team_size * war.attacks_per_member}", inline=True)
-        await send_log_embed(embed)
+        if not attack or not hasattr(attack, 'attacker') or not attack.attacker:
+            return
 
-        # Alerta de ataque fora do padrão
-        if attack.stars <= 1:
-            logger.info(f"Ataque fora do padrão detectado por {attack.attacker.name}.")
-            alert_embed = discord.Embed(
-                title=f"⚠️ Ataque fora do padrão!",
-                description=f"**{our_clan.name}**\n⚔️ **Ataque Realizado ({war_type})**",
-                color=discord.Color.red()
+        attacker = war.get_member(attack.attacker_tag)
+        defender = war.get_member(attack.defender_tag)
+
+        if not attacker or not defender:
+            return
+
+        is_our_attack = attacker.clan.tag == CLAN_TAG
+        war_type = "CWL" if war.is_cwl else "Guerra"
+        stars_str = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
+        
+        # Formata as strings de atacante e defensor com a posição do mapa
+        attacker_pos = f"{attacker.map_position:02d}"
+        defender_pos = f"{defender.map_position:02d}"
+        attacker_str = f"{attacker_pos} {attacker.name} (CV{attacker.town_hall})"
+        defender_str = f"{defender_pos} {defender.name} (CV{defender.town_hall})"
+
+        if is_our_attack:
+            # --- NOTIFICAÇÃO DE ATAQUE REALIZADO ---
+            logger.info(f"Ataque realizado por {attacker.name} processado.")
+            attack_embed = discord.Embed(
+                title=f"⚔️ Ataque Realizado ({war_type})",
+                description=f"{attacker.clan.name}",
+                color=discord.Color.blue()
             )
-            alert_embed.add_field(
+            attack_embed.add_field(
                 name="Detalhes",
-                value=f"{attack.attacker.name} (CV{attack.attacker.town_hall}) atacou {attack.defender.name} (CV{attack.defender.town_hall})",
+                value=f"{attacker_str} atacou {defender_str}",
                 inline=False
             )
-            alert_embed.add_field(
+            attack_embed.add_field(
                 name="Resultado",
-                value=f"{'⚫⚫⚫' if attack.stars == 0 else '⭐⚫⚫'} ({attack.destruction}%)",
+                value=f"{stars_str} ({attack.destruction}%)",
                 inline=False
             )
-            if hasattr(opponent_clan.badge, 'url'):
-                alert_embed.set_thumbnail(url=opponent_clan.badge.url)
-            
-            role_mention = ""
-            if ROLE_ID_1STAR_ALERT: # <-- USANDO A VARIÁVEL CORRETA
-                role_mention = f"<@&{ROLE_ID_1STAR_ALERT}>"
-            else:
-                logger.warning("ROLE_ID_1STAR_ALERT não configurado. Não foi possível marcar o cargo.")
-            
-            await send_log_embed(alert_embed, content=f"{role_mention} Atenção ao ataque fora do padrão!")
+            if hasattr(war.opponent.badge, 'url'):
+                attack_embed.set_thumbnail(url=war.opponent.badge.url)
+            await send_log_embed(attack_embed)
+
+            # --- ALERTA DE ATAQUE FORA DO PADRÃO ---
+            if attack.stars <= 1:
+                logger.info(f"Ataque fora do padrão detectado por {attacker.name}.")
+                alert_embed = discord.Embed(
+                    title=f"⚠️ Ataque fora do padrão!",
+                    description=f"**{attacker.clan.name}**\n⚔️ **Ataque Realizado ({war_type})**",
+                    color=discord.Color.red()
+                )
+                alert_embed.add_field(
+                    name="Detalhes",
+                    value=f"{attacker_str} atacou {defender_str}",
+                    inline=False
+                )
+                alert_embed.add_field(
+                    name="Resultado",
+                    value=f"{'⚫⚫⚫' if attack.stars == 0 else '⭐⚫⚫'} ({attack.destruction}%)",
+                    inline=False
+                )
+                if hasattr(war.opponent.badge, 'url'):
+                    alert_embed.set_thumbnail(url=war.opponent.badge.url)
+                
+                role_mention = ""
+                if ROLE_ID_1STAR_ALERT:
+                    role_mention = f"<@&{ROLE_ID_1STAR_ALERT}>"
+                else:
+                    logger.warning("ROLE_ID_1STAR_ALERT não configurado.")
+                
+                await send_log_embed(alert_embed, content=f"{role_mention} Atenção ao ataque fora do padrão!")
+        else:
+            # --- NOTIFICAÇÃO DE DEFESA RECEBIDA ---
+            logger.info(f"Defesa de {defender.name} processada.")
+            defense_embed = discord.Embed(
+                title=f"🛡️ Defesa Recebida ({war_type})",
+                description=f"{defender.clan.name}",
+                color=discord.Color.orange()
+            )
+            defense_embed.add_field(
+                name="Detalhes",
+                value=f"{defender_str} foi atacado por {attacker_str}",
+                inline=False
+            )
+            defense_embed.add_field(
+                name="Resultado",
+                value=f"{stars_str} ({attack.destruction}%)",
+                inline=False
+            )
+            if hasattr(war.clan.badge, 'url'):
+                defense_embed.set_thumbnail(url=war.clan.badge.url)
+            await send_log_embed(defense_embed)
 
     except Exception as e:
-        logger.error(f"Erro no evento war_attack: {e}", exc_info=True)
+        logger.error(f"Erro em on_war_attack: {e}", exc_info=True)
+
 
 async def on_clan_member_role_change(old_member, new_member):
     try:
@@ -749,7 +790,7 @@ async def check_war_end_task():
                         report_embed.set_thumbnail(url=war.opponent.badge.url)
 
                     role_mention = ""
-                    if ROLE_ID_MISSED_ATTACK: # <-- USANDO A VARIÁVEL CORRETA
+                    if ROLE_ID_MISSED_ATTACK:
                         role_mention = f"<@&{ROLE_ID_MISSED_ATTACK}>"
                     
                     await send_log_embed(report_embed, content=f"{role_mention} Atenção aos ataques perdidos!")
