@@ -61,9 +61,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const warOpponentTeamNameEl = document.getElementById('warOpponentTeamName');
     const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
 
+    // --- INÍCIO DO NOVO CÓDIGO (Seletores de Elementos) ---
+    const attacksRemainingTitleEl = document.getElementById('attacksRemainingTitle');
     const attacksRemainingClanNameEl = document.getElementById('attacksRemainingClanName');
     const attacksRemainingListEl = document.getElementById('attacksRemainingList');
-    const noWarForAttacksRemainingMessageEl = document.getElementById('noWarForAttacksRemainingMessage');
+    const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
+    // --- FIM DO NOVO CÓDIGO ---
 
     const cwlStatusTextEl = document.getElementById('cwlStatusText');
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
@@ -432,28 +435,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- INÍCIO DO NOVO CÓDIGO ---
+    /**
+     * Nova função isolada para buscar e popular o histórico de ataques pendentes.
+     * @param {object} data - Os dados recebidos da nova API /api/missed_attacks_history.
+     */
     function populateMissedAttacksHistory(data) {
-        setText(attacksRemainingClanNameEl, data.clan_name);
-        const messageEl = noWarForAttacksRemainingMessageEl;
+        // Atualiza o nome do clã no título da seção
+        const clanNameSpan = attacksRemainingTitleEl.querySelector('span');
+        if (clanNameSpan) {
+            setText(clanNameSpan, data.clan_name);
+        }
     
+        // Verifica se há erros ou se a lista de ataques perdidos está vazia
         if (data.error || !data.missed_attacks || data.missed_attacks.length === 0) {
             const message = data.error || "Nenhuma pendência de ataque encontrada no histórico de guerras.";
             setHtml(attacksRemainingListEl, `<p>${message}</p>`);
-            if (messageEl) {
-                messageEl.style.display = 'block';
-                setText(messageEl, message);
+            if (noMissedAttacksMessageEl) {
+                noMissedAttacksMessageEl.style.display = 'block';
+                setText(noMissedAttacksMessageEl, message);
             }
             return;
         }
     
-        if (messageEl) messageEl.style.display = 'none';
+        // Esconde a mensagem de "nenhuma pendência" se houver dados
+        if (noMissedAttacksMessageEl) noMissedAttacksMessageEl.style.display = 'none';
         
+        // Constrói o HTML para a lista de ataques pendentes
         let htmlContent = '';
         data.missed_attacks.forEach(m => {
             htmlContent += `<p><strong>${m.name}</strong> (CV${m.town_hall}) - <strong>${m.attacks_left}</strong> atk restante(s) na guerra de <strong>${m.war_date}</strong></p>`;
         });
         setHtml(attacksRemainingListEl, htmlContent);
     }
+    // --- FIM DO NOVO CÓDIGO ---
 
     function populateCwlInfo(data) {
         setText(cwlStatusTextEl, "Carregando...");
@@ -746,14 +761,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchData('clan'),
                 fetchData('members'),
                 fetchData('current_war_details'),
-                fetchData('missed_attacks_history'),
+                // --- INÍCIO DO NOVO CÓDIGO ---
+                fetchData('missed_attacks_history'), // Nova chamada de API
+                // --- FIM DO NOVO CÓDIGO ---
                 fetchData('war_log'),
                 fetchData('cwl_info')
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
             populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
-            populateMissedAttacksHistory(missedAttacksData);
+            // --- INÍCIO DO NOVO CÓDIGO ---
+            populateMissedAttacksHistory(missedAttacksData); // Nova função para popular os dados
+            // --- FIM DO NOVO CÓDIGO ---
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
             updateLastUpdated();
