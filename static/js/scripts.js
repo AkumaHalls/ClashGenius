@@ -111,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         document.body.addEventListener('click', playMusic, { once: true });
+
         muteButtonEl.addEventListener('click', () => {
             backgroundMusicEl.muted = !backgroundMusicEl.muted;
             if (backgroundMusicEl.muted) {
@@ -121,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('musicMuted', 'false');
             }
         });
+
         if (localStorage.getItem('musicMuted') === 'true') {
             backgroundMusicEl.muted = true;
             muteButtonEl.textContent = '🔇';
@@ -177,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentActiveIndex = 0;
         currentActiveSectionId = initialSectionId;
     }
+
     contentSections.forEach(section => {
         section.classList.remove('active-section', 'slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right');
         if (section.id === currentActiveSectionId) {
@@ -189,14 +192,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setActiveSection(newSectionId, newIndex) {
         if (newSectionId === currentActiveSectionId) return;
+
         const oldSectionEl = document.getElementById(currentActiveSectionId);
         const newSectionEl = document.getElementById(newSectionId);
         const oldIndex = currentActiveIndex;
+
         if (!newSectionEl) {
             console.error("Nova seção não encontrada:", newSectionId);
             return;
         }
+
         newSectionEl.classList.remove('slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right');
+
         if (oldSectionEl) {
             oldSectionEl.classList.remove('active-section');
             if (newIndex > oldIndex) {
@@ -209,18 +216,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 oldSectionEl.removeEventListener('transitionend', handleOldOut);
             }, { once: true });
         }
+        
         newSectionEl.classList.add('slide-prepare');
         if (newIndex > oldIndex) {
             newSectionEl.classList.add('slide-from-right');
         } else {
             newSectionEl.classList.add('slide-from-left');
         }
-        void newSectionEl.offsetWidth;
+
+        void newSectionEl.offsetWidth; 
+
         newSectionEl.classList.remove('slide-prepare', 'slide-from-left', 'slide-from-right');
         newSectionEl.classList.add('active-section');
+
         navLinks.forEach(link => {
             link.classList.toggle('active-nav-link', link.dataset.section === newSectionId);
         });
+
         localStorage.setItem('activeSection', newSectionId);
         currentActiveSectionId = newSectionId;
         currentActiveIndex = newIndex;
@@ -268,7 +280,6 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => {
             const parentSection = button.closest('.content-section, .modal-content');
             if (!parentSection) return;
-
             parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
             const tabId = button.dataset.tab;
@@ -285,13 +296,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateWarDetails(data, containerId = 'war-details-nav', isModal = false) {
         const container = document.getElementById(containerId);
         if (!container) return;
-    
+
         const prefix = isModal ? 'historic-' : '';
-    
         const warHeader = container.querySelector('.war-header');
         const warTabsNav = container.querySelector('.war-tabs');
         const noWarMsg = container.querySelector(isModal ? '.message-box' : '#noWarDetailMessage');
-    
+
         if (data.error || !data.war_data) {
             if (noWarMsg) {
                 noWarMsg.style.display = 'block';
@@ -302,13 +312,13 @@ document.addEventListener('DOMContentLoaded', () => {
             container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none');
             return;
         }
-    
+
         if (noWarMsg) noWarMsg.style.display = 'none';
         if (warHeader) warHeader.style.display = 'flex';
         if (warTabsNav) warTabsNav.style.display = 'flex';
-    
-        const war = data.war_data;
         
+        const war = data.war_data;
+
         // Seletores dinâmicos para o modal ou a aba principal
         setText(container.querySelector(`#${prefix}warDetailOurClanName`), war.clan_name);
         setText(container.querySelector(`#${prefix}warDetailOpponentName`), war.opponent_name);
@@ -320,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const stateEl = container.querySelector(`#${prefix}warDetailState`);
         setText(stateEl, war.state_description);
         if(stateEl) stateEl.className = 'war-state ' + (war.status || '').toLowerCase();
-    
+
         // Preenche as estatísticas
         setText(container.querySelector(`#${prefix}statsOurClanName`), war.clan_name);
         setText(container.querySelector(`#${prefix}statsOurStars`), war.clan_stars);
@@ -342,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(container.querySelector(`#${prefix}statsOpponentStars2`), war.opponent_star_distribution[2]);
         setText(container.querySelector(`#${prefix}statsOpponentStars1`), war.opponent_star_distribution[1]);
         setText(container.querySelector(`#${prefix}statsOpponentStars0`), war.opponent_star_distribution[0]);
-    
+
         // Preenche os eventos (ataques)
         const eventsTableBody = container.querySelector(`#${prefix}warEventsTableBody`);
         setText(container.querySelector(`#${prefix}warTotalAttacksCount`), data.all_attacks.length);
@@ -360,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             setHtml(eventsTableBody, '<tr><td colspan="5">Nenhum ataque registrado.</td></tr>');
         }
-    
+
         // Preenche as equipes
         const populateTeamTabData = (teamMembersData, teamNameKey, teamElement) => {
             setText(container.querySelector(`#${prefix}war${teamNameKey}TeamName`), war[`${teamNameKey.toLowerCase()}_clan_name`] || (teamNameKey === "Our" ? "Nosso Clã" : "Oponente"));
@@ -376,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         attacksHtml += '<li>Nenhum ataque feito.</li>';
                     }
                     attacksHtml += '</ul>';
-    
+
                     let defensesHtml = '<h5>Defesas Recebidas:</h5><ul class="member-defense-list">';
                     if (member.defenses_received && member.defenses_received.length > 0) {
                         member.defenses_received.forEach(def => {
@@ -386,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         defensesHtml += '<li>Nenhuma defesa registrada.</li>';
                     }
                     defensesHtml += '</ul>';
-    
+
                     const memberCard = document.createElement('div');
                     memberCard.className = 'team-member-card';
                     memberCard.innerHTML = `
@@ -401,10 +411,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 setHtml(teamElement, '<p>Nenhum membro nesta equipe para a guerra.</p>');
             }
         };
-    
+
         populateTeamTabData(data.our_clan_members_in_war, "Our", container.querySelector(`#${prefix}warOurTeamMembers`));
         populateTeamTabData(data.opponent_clan_members_in_war, "Opponent", container.querySelector(`#${prefix}warOpponentTeamMembers`));
-    
+        
         // Garante que a primeira aba esteja ativa se nenhuma estiver
         let activeWarTabFound = false;
         container.querySelectorAll('.war-tab-button').forEach(btn => {
@@ -414,33 +424,41 @@ document.addEventListener('DOMContentLoaded', () => {
             const firstWarTabButton = container.querySelector('.war-tab-button[data-tab="war-stats"]');
             const firstWarTabContent = container.querySelector(isModal ? '#historic-war-stats' : '#war-stats');
             if (firstWarTabButton && firstWarTabContent) {
-                 container.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
-                 container.querySelectorAll('.war-tab-content').forEach(tc => tc.style.display = 'none');
-                 firstWarTabButton.classList.add('active');
-                 firstWarTabContent.style.display = 'block';
+                container.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+                container.querySelectorAll('.war-tab-content').forEach(tc => tc.style.display = 'none');
+                firstWarTabButton.classList.add('active');
+                firstWarTabContent.style.display = 'block';
             }
         }
     }
 
-
-    function populateWarAttacksRemaining(data) {
+    function populateMissedAttacksHistory(data) {
         setText(attacksRemainingClanNameEl, data.clan_name);
-        if (data.error || !data.members_pending || data.members_pending.length === 0) {
-            setHtml(attacksRemainingListEl, `<p>${data.message || data.error || "Todos os ataques realizados ou não há guerra."}</p>`);
-            if(noWarForAttacksRemainingMessageEl) {
-                noWarForAttacksRemainingMessageEl.style.display = 'block';
-                setText(noWarForAttacksRemainingMessageEl, data.message || data.error || "Todos os ataques realizados ou não há guerra.");
+        const messageEl = noWarForAttacksRemainingMessageEl;
+    
+        if (data.error || !data.missed_attacks || data.missed_attacks.length === 0) {
+            const message = data.error || "Nenhuma pendência de ataque encontrada no histórico de guerras.";
+            setHtml(attacksRemainingListEl, `<p>${message}</p>`);
+            if (messageEl) {
+                messageEl.style.display = 'block';
+                setText(messageEl, message);
             }
             return;
         }
-        if(noWarForAttacksRemainingMessageEl) noWarForAttacksRemainingMessageEl.style.display = 'none';
-        setHtml(attacksRemainingListEl, '');
-        data.members_pending.forEach(m => setHtml(attacksRemainingListEl, attacksRemainingListEl.innerHTML + `<p><strong>${m.name}</strong> (CV${m.town_hall}) - ${m.attacks_left} atk restante(s)</p>`));
+    
+        if (messageEl) messageEl.style.display = 'none';
+        
+        let htmlContent = '';
+        data.missed_attacks.forEach(m => {
+            htmlContent += `<p><strong>${m.name}</strong> (CV${m.town_hall}) - <strong>${m.attacks_left}</strong> atk restante(s) na guerra de <strong>${m.war_date}</strong></p>`;
+        });
+        setHtml(attacksRemainingListEl, htmlContent);
     }
 
     function populateCwlInfo(data) {
         setText(cwlStatusTextEl, "Carregando...");
         if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state';
+
         if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
             if(noCwlMessageEl) noCwlMessageEl.style.display = 'block';
             setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
@@ -449,18 +467,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cwlStatusTextEl) cwlStatusTextEl.classList.add((data.status || 'notincwl').toLowerCase());
             return;
         }
+
         if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
         if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
         setText(cwlStatusTextEl, "Em CWL");
         if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl');
+
         setText(cwlSeasonEl, data.season);
         setText(cwlGroupStateEl, data.state);
+
         setHtml(cwlGroupClansEl, '');
         if (data.clans_in_group && data.clans_in_group.length > 0) {
             data.clans_in_group.forEach(c => setHtml(cwlGroupClansEl, cwlGroupClansEl.innerHTML + `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name}"> <strong>${c.name}</strong> (${c.tag}) Nv ${c.level}</p>`));
         } else {
             setHtml(cwlGroupClansEl, '<p>Nenhum clã no grupo.</p>');
         }
+
         setHtml(cwlRoundsInfoEl, '');
         if (data.rounds && data.rounds.length > 0) {
             data.rounds.forEach(r => {
@@ -496,6 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "N/A"}</td></tr>`);
             return;
         }
+
         if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none';
         setHtml(warLogTableBodyEl, '');
         if (data.log.length > 0) {
@@ -503,7 +526,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const row = warLogTableBodyEl.insertRow();
                 row.classList.add('historic-war-row'); // Classe para identificar a linha
                 row.dataset.warId = e.end_time_iso; // Atributo para armazenar o ID
-    
                 setText(row.insertCell(), e.end_time_formatted);
                 const oppCell = row.insertCell();
                 const oppBadge = e.opponent_badge_url ? `<img src="${e.opponent_badge_url}" alt="Emblema ${e.opponent_name}" class="log-opponent-badge">` : "";
@@ -520,101 +542,112 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-
     function applyMemberFilters() {
         const nameFilter = filterNameInput.value.toLowerCase();
         const thFilter = filterTHInput.value.toLowerCase().replace(/\s/g, '');
         const leagueFilter = filterLeagueInput.value.toLowerCase();
         const trophiesFilterText = filterTrophiesInput.value;
         const roleFilter = filterRoleInput.value.toLowerCase();
+
         const rows = membersTableBodyEl.getElementsByTagName('tr');
         for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const cells = row.getElementsByTagName('td');
-            let displayRow = true;
-            if (cells.length > 7) {
-                if (nameFilter && !cells[1].textContent.toLowerCase().includes(nameFilter)) displayRow = false;
-                if (thFilter && !cells[2].textContent.toLowerCase().includes(thFilter)) displayRow = false;
-                if (leagueFilter && !cells[3].textContent.toLowerCase().includes(leagueFilter)) displayRow = false;
-                if (trophiesFilterText) {
-                    const memberTrophies = parseInt(cells[4].textContent, 10);
-                    const filterTrophiesNum = parseInt(trophiesFilterText, 10);
-                    if (!isNaN(filterTrophiesNum) && memberTrophies !== filterTrophiesNum) {
-                        displayRow = false;
-                    } else if (isNaN(filterTrophiesNum) && !cells[4].textContent.includes(trophiesFilterText)) {
-                        displayRow = false;
-                    }
+            const cells = rows[i].getElementsByTagName('td');
+            const name = cells[1].textContent.toLowerCase();
+            const th = `cv${cells[2].textContent}`.toLowerCase();
+            const league = cells[3].textContent.toLowerCase();
+            const trophies = parseInt(cells[4].textContent, 10);
+            const role = cells[5].textContent.toLowerCase();
+
+            let show = true;
+            if (nameFilter && !name.includes(nameFilter)) show = false;
+            if (thFilter && th !== thFilter) show = false;
+            if (leagueFilter && !league.includes(leagueFilter)) show = false;
+            if (roleFilter && !role.includes(roleFilter)) show = false;
+            
+            if (trophiesFilterText) {
+                const match = trophiesFilterText.match(/(>=|<=|>|<)?\s*(\d+)/);
+                if (match) {
+                    const operator = match[1] || '==';
+                    const value = parseInt(match[2], 10);
+                    if (operator === '>=' && trophies < value) show = false;
+                    else if (operator === '<=' && trophies > value) show = false;
+                    else if (operator === '>' && trophies <= value) show = false;
+                    else if (operator === '<' && trophies >= value) show = false;
+                    else if (operator === '==' && trophies !== value) show = false;
                 }
-                if (roleFilter && !cells[5].textContent.toLowerCase().includes(roleFilter)) displayRow = false;
-            } else if (row.getElementsByTagName('th').length === 0) {
-                displayRow = false;
             }
-            row.style.display = displayRow ? '' : 'none';
+            rows[i].style.display = show ? '' : 'none';
         }
     }
 
-    if (filterNameInput) filterNameInput.addEventListener('input', applyMemberFilters);
-    if (filterTHInput) filterTHInput.addEventListener('input', applyMemberFilters);
-    if (filterLeagueInput) filterLeagueInput.addEventListener('input', applyMemberFilters);
-    if (filterTrophiesInput) filterTrophiesInput.addEventListener('input', applyMemberFilters);
-    if (filterRoleInput) filterRoleInput.addEventListener('input', applyMemberFilters);
+    [filterNameInput, filterTHInput, filterLeagueInput, filterTrophiesInput, filterRoleInput].forEach(input => {
+        if(input) input.addEventListener('keyup', applyMemberFilters);
+    });
 
     async function savePlayerNote(playerTag, text, priority) {
-        const cleanTag = playerTag.replace("#", "");
-        const response = await fetchData(`notes/${cleanTag}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, priority })
-        });
-        if (response.error) {
-            console.error("Erro ao salvar nota:", response.error);
-        } else {
-            console.log("Nota salva:", response.message);
+        try {
+            await fetchData(`notes/${playerTag}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, priority })
+            });
+        } catch (error) {
+            console.error('Erro ao salvar nota:', error);
         }
     }
 
     function populateMembersList(data) {
-        setText(membersClanNameEl, data.clan_name ? `(${data.clan_name})` : '');
-        if (data.error) {
-            setHtml(membersTableBodyEl, `<tr><td colspan="9">${data.error}</td></tr>`);
+        setText(membersClanNameEl, data.clan_name);
+        if (data.error || !data.members) {
+            setHtml(membersTableBodyEl, `<tr><td colspan="9">${data.error || "N/A"}</td></tr>`);
             return;
         }
+
         setHtml(membersTableBodyEl, '');
-        if (data.members && data.members.length > 0) {
-            data.members.forEach((m, i) => {
-                const r = membersTableBodyEl.insertRow();
-                setText(r.insertCell(), i + 1);
-                setText(r.insertCell(), m.name);
-                setText(r.insertCell(), `CV${m.town_hall || '?'}`);
-                setText(r.insertCell(), m.league);
-                setText(r.insertCell(), m.trophies);
-                setText(r.insertCell(), m.role);
-                setText(r.insertCell(), m.donations);
-                setText(r.insertCell(), m.received);
-                const noteCell = r.insertCell();
+        if (data.members.length > 0) {
+            data.members.forEach((m, index) => {
+                const row = membersTableBodyEl.insertRow();
+                setText(row.insertCell(), index + 1);
+                setText(row.insertCell(), m.name);
+                setText(row.insertCell(), m.town_hall);
+                setText(row.insertCell(), m.league);
+                setText(row.insertCell(), m.trophies);
+                setText(row.insertCell(), m.role);
+                setText(row.insertCell(), m.donations);
+                setText(row.insertCell(), m.received);
+
+                const noteCell = row.insertCell();
                 noteCell.className = 'member-note-cell';
                 const noteContainer = document.createElement('div');
                 noteContainer.className = `note-container note-priority-${m.note_priority || 'none'}`;
+                
                 const noteTextSpan = document.createElement('span');
                 noteTextSpan.className = 'note-text';
-                noteTextSpan.textContent = m.note || '';
+                noteTextSpan.textContent = m.note || 'Clique para editar...';
                 noteTextSpan.title = m.note || 'Sem observação';
                 noteContainer.appendChild(noteTextSpan);
+
                 const noteInput = document.createElement('input');
                 noteInput.type = 'text';
                 noteInput.className = 'note-input';
-                noteInput.value = m.note || '';
+                noteInput.value = m.note;
                 noteInput.style.display = 'none';
                 noteContainer.appendChild(noteInput);
+                
                 const prioritySelector = document.createElement('div');
                 prioritySelector.className = 'priority-selector';
-                ['none', 'green', 'yellow', 'red'].forEach(prio => {
+                ['green', 'yellow', 'red', 'none'].forEach(prio => {
                     const btn = document.createElement('button');
                     btn.className = `priority-btn priority-${prio}`;
                     btn.dataset.priority = prio;
-                    if (prio === 'none') btn.innerHTML = '&times;';
+                    if (prio === 'green') btn.innerHTML = '&#10003;';
+                    else if (prio === 'yellow') btn.innerHTML = '!';
+                    else if (prio === 'red') btn.innerHTML = '&#10007;';
+                    else if (prio === 'none') btn.innerHTML = '&times;';
                     else btn.innerHTML = '&#9679;';
+                    
                     if (prio === (m.note_priority || 'none')) btn.classList.add('active');
+                    
                     btn.addEventListener('click', () => {
                         const currentText = noteInput.style.display === 'none' ? noteTextSpan.textContent : noteInput.value;
                         savePlayerNote(m.tag, currentText, prio);
@@ -625,11 +658,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     prioritySelector.appendChild(btn);
                 });
                 noteContainer.appendChild(prioritySelector);
+
                 noteTextSpan.addEventListener('click', () => {
                     noteTextSpan.style.display = 'none';
                     noteInput.style.display = 'inline-block';
                     noteInput.focus();
                 });
+
                 noteInput.addEventListener('blur', () => {
                     const newText = noteInput.value;
                     const currentPriority = prioritySelector.querySelector('.priority-btn.active')?.dataset.priority || 'none';
@@ -639,9 +674,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     noteInput.style.display = 'none';
                     noteTextSpan.style.display = 'inline-block';
                 });
+
                 noteInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') noteInput.blur();
                 });
+
                 noteCell.appendChild(noteContainer);
             });
         } else {
@@ -649,14 +686,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         applyMemberFilters();
     }
-    
+
     // --- LÓGICA DO MODAL DE GUERRA HISTÓRICA ---
     async function openHistoricWarModal(warId) {
         setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando detalhes da guerra...</p>');
         historicWarModal.style.display = 'block';
-    
         const historicWarData = await fetchData(`war_history/${warId}`);
-    
+        
         // Clona a estrutura da aba de guerra para dentro do modal
         const warDetailsTemplate = document.getElementById('war-details-nav').cloneNode(true);
         // Ajusta IDs para serem únicos no modal
@@ -664,10 +700,9 @@ document.addEventListener('DOMContentLoaded', () => {
         warDetailsTemplate.querySelectorAll('[id]').forEach(el => {
             el.id = 'historic-' + el.id;
         });
-    
         setHtml(historicWarDetailContent, '');
         historicWarDetailContent.appendChild(warDetailsTemplate);
-    
+
         // Adiciona listeners para as novas abas dentro do modal
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
@@ -680,10 +715,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
         });
-    
+        
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
     }
-    
+
     if (closeModalButton) {
         closeModalButton.addEventListener('click', () => {
             historicWarModal.style.display = 'none';
@@ -695,7 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
             historicWarModal.style.display = 'none';
         }
     });
-    
+
     // Adiciona o listener de eventos na tabela de histórico
     warLogTableBodyEl.addEventListener('click', (event) => {
         const row = event.target.closest('.historic-war-row');
@@ -707,18 +742,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
         try {
-            const [clanData, membersData, currentWarDetailsData, warAttacksRemainingData, warLogData, cwlInfoData] = await Promise.all([
+            const [clanData, membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData] = await Promise.all([
                 fetchData('clan'),
                 fetchData('members'),
                 fetchData('current_war_details'),
-                fetchData('war_attacks_remaining'),
+                fetchData('missed_attacks_history'),
                 fetchData('war_log'),
                 fetchData('cwl_info')
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
             populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
-            populateWarAttacksRemaining(warAttacksRemainingData);
+            populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
             updateLastUpdated();
@@ -743,82 +778,87 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = particleCanvas.getContext('2d');
         let particlesArrayLocal = [];
         let mouse = { x: undefined, y: undefined, radius: 120 };
+
         const particleSettings = {
-            count: 100, maxConnectionDistance: 160, particleColorRGB: '200, 40, 40',
-            lineColorRGB: '180, 40, 40', particleBaseSpeed: 0.3, particleMinSpeedFactor: 0.5,
-            particleSizeMin: 1.8, particleSizeMax: 3.8, lineOpacityMultiplier: 0.65,
-            lineWidth: 0.65, edgeSpawnMargin: 25, baseParticleAlphaMin: 0.35,
-            baseParticleAlphaMax: 0.85, mouseInteractionForce: 0.9, mouseRepelFactor: 2.2,
-            friction: 0.975
+            count: 35,
+            minSize: 1,
+            maxSize: 3,
+            minSpeed: 0.1,
+            maxSpeed: 0.5,
+            color: 'rgba(255, 215, 0, 0.6)',
+            lineColor: 'rgba(255, 215, 0, 0.1)'
         };
-        window.addEventListener('mousemove', (event) => { mouse.x = event.clientX; mouse.y = event.clientY; });
-        window.addEventListener('mouseout', () => { mouse.x = undefined; mouse.y = undefined; });
-        function setupParticleCanvas() { particleCanvas.width = window.innerWidth; particleCanvas.height = window.innerHeight; }
+
+        particleCanvas.width = window.innerWidth;
+        particleCanvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            particleCanvas.width = window.innerWidth;
+            particleCanvas.height = window.innerHeight;
+            mouse.radius = 120;
+            initParticles();
+        });
+        
+        particleCanvas.addEventListener('mousemove', (event) => {
+            mouse.x = event.x;
+            mouse.y = event.y;
+        });
+        particleCanvas.addEventListener('mouseout', () => {
+            mouse.x = undefined;
+            mouse.y = undefined;
+        });
+
         class Particle {
-            constructor(x, y, dirX, dirY, size) {
-                this.x = x; this.y = y; this.baseDirectionX = dirX; this.baseDirectionY = dirY;
-                this.directionX = dirX; this.directionY = dirY; this.size = size;
-                this.baseAlpha = Math.random() * (particleSettings.baseParticleAlphaMax - particleSettings.baseParticleAlphaMin) + particleSettings.baseParticleAlphaMin;
+            constructor(x, y, size, speedX, speedY, color) {
+                this.x = x; this.y = y; this.size = size;
+                this.speedX = speedX; this.speedY = speedY; this.color = color;
             }
             draw() {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
-                ctx.fillStyle = `rgba(${particleSettings.particleColorRGB}, ${this.baseAlpha})`;
+                ctx.fillStyle = this.color;
                 ctx.fill();
             }
             update() {
-                let dX = this.directionX; let dY = this.directionY;
-                if (mouse.x !== undefined && mouse.y !== undefined) {
-                    let dxMouse = this.x - mouse.x; let dyMouse = this.y - mouse.y;
-                    let distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
-                    if (distanceMouse < mouse.radius + this.size && distanceMouse > 0) {
-                        const force = (mouse.radius - distanceMouse) / mouse.radius;
-                        const angle = Math.atan2(dyMouse, dxMouse);
-                        const repelForce = force * particleSettings.mouseInteractionForce * particleSettings.mouseRepelFactor;
-                        dX += Math.cos(angle) * repelForce;
-                        dY += Math.sin(angle) * repelForce;
-                    }
+                if (this.x > particleCanvas.width || this.x < 0) this.speedX = -this.speedX;
+                if (this.y > particleCanvas.height || this.y < 0) this.speedY = -this.speedY;
+                this.x += this.speedX;
+                this.y += this.speedY;
+                
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < mouse.radius + this.size) {
+                    if (mouse.x < this.x && this.x < particleCanvas.width - this.size * 10) this.x += 5;
+                    if (mouse.x > this.x && this.x > this.size * 10) this.x -= 5;
+                    if (mouse.y < this.y && this.y < particleCanvas.height - this.size * 10) this.y += 5;
+                    if (mouse.y > this.y && this.y > this.size * 10) this.y -= 5;
                 }
-                dX *= particleSettings.friction; dY *= particleSettings.friction;
-                const speed = Math.sqrt(dX * dX + dY * dY);
-                const baseSpeedMagnitude = particleSettings.particleBaseSpeed * (Math.random() * (1 - particleSettings.particleMinSpeedFactor) + particleSettings.particleMinSpeedFactor);
-                if (speed < baseSpeedMagnitude) {
-                    const angleToBase = Math.atan2(this.baseDirectionY, this.baseDirectionX);
-                    dX += Math.cos(angleToBase) * 0.01;
-                    dY += Math.sin(angleToBase) * 0.01;
-                }
-                this.directionX = dX; this.directionY = dY;
-                this.x += this.directionX; this.y += this.directionY;
-                if (this.x > particleCanvas.width + this.size) this.x = -this.size;
-                else if (this.x < -this.size) this.x = particleCanvas.width + this.size;
-                if (this.y > particleCanvas.height + this.size) this.y = -this.size;
-                else if (this.y < -this.size) this.y = particleCanvas.height + this.size;
-                this.draw();
             }
         }
+
         function initParticles() {
             particlesArrayLocal = [];
             for (let i = 0; i < particleSettings.count; i++) {
-                let size = Math.random() * (particleSettings.particleSizeMax - particleSettings.particleSizeMin) + particleSettings.particleSizeMin;
-                let x = Math.random() * (particleCanvas.width - particleSettings.edgeSpawnMargin * 2) + particleSettings.edgeSpawnMargin;
-                let y = Math.random() * (particleCanvas.height - particleSettings.edgeSpawnMargin * 2) + particleSettings.edgeSpawnMargin;
-                let directionX = (Math.random() * 2 - 1) * particleSettings.particleBaseSpeed;
-                let directionY = (Math.random() * 2 - 1) * particleSettings.particleBaseSpeed;
-                particlesArrayLocal.push(new Particle(x, y, directionX, directionY, size));
+                let size = (Math.random() * (particleSettings.maxSize - particleSettings.minSize)) + particleSettings.minSize;
+                let x = (Math.random() * ((innerWidth - size * 2) - (size * 2)) + size * 2);
+                let y = (Math.random() * ((innerHeight - size * 2) - (size * 2)) + size * 2);
+                let speedX = (Math.random() * (particleSettings.maxSpeed - particleSettings.minSpeed) * 2) - particleSettings.maxSpeed;
+                let speedY = (Math.random() * (particleSettings.maxSpeed - particleSettings.minSpeed) * 2) - particleSettings.maxSpeed;
+                particlesArrayLocal.push(new Particle(x, y, size, speedX, speedY, particleSettings.color));
             }
         }
+
         function connectParticles() {
             let opacityValue = 1;
             for (let a = 0; a < particlesArrayLocal.length; a++) {
-                for (let b = a + 1; b < particlesArrayLocal.length; b++) {
-                    let distance = Math.sqrt(
-                        (particlesArrayLocal[a].x - particlesArrayLocal[b].x) * (particlesArrayLocal[a].x - particlesArrayLocal[b].x) +
-                        (particlesArrayLocal[a].y - particlesArrayLocal[b].y) * (particlesArrayLocal[a].y - particlesArrayLocal[b].y)
-                    );
-                    if (distance < particleSettings.maxConnectionDistance) {
-                        opacityValue = (1 - (distance / particleSettings.maxConnectionDistance)) * particleSettings.lineOpacityMultiplier;
-                        ctx.strokeStyle = `rgba(${particleSettings.lineColorRGB}, ${opacityValue})`;
-                        ctx.lineWidth = particleSettings.lineWidth;
+                for (let b = a; b < particlesArrayLocal.length; b++) {
+                    let distance = ((particlesArrayLocal[a].x - particlesArrayLocal[b].x) * (particlesArrayLocal[a].x - particlesArrayLocal[b].x))
+                        + ((particlesArrayLocal[a].y - particlesArrayLocal[b].y) * (particlesArrayLocal[a].y - particlesArrayLocal[b].y));
+                    if (distance < (particleCanvas.width / 7) * (particleCanvas.height / 7)) {
+                        opacityValue = 1 - (distance / 20000);
+                        ctx.strokeStyle = particleSettings.lineColor.replace('0.1', opacityValue.toString());
+                        ctx.lineWidth = 1;
                         ctx.beginPath();
                         ctx.moveTo(particlesArrayLocal[a].x, particlesArrayLocal[a].y);
                         ctx.lineTo(particlesArrayLocal[b].x, particlesArrayLocal[b].y);
@@ -827,19 +867,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+
         function animateParticles() {
             requestAnimationFrame(animateParticles);
-            ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
             for (let i = 0; i < particlesArrayLocal.length; i++) {
                 particlesArrayLocal[i].update();
+                particlesArrayLocal[i].draw();
             }
             connectParticles();
         }
-        window.addEventListener('resize', () => {
-            setupParticleCanvas();
-            initParticles();
-        });
-        setupParticleCanvas();
+        
         initParticles();
         animateParticles();
     }
