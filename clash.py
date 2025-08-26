@@ -7,7 +7,7 @@ import asyncio
 import datetime
 import json
 from aiohttp import web
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 import discord
 from discord.ext import commands, tasks
 import coc
@@ -36,9 +36,12 @@ COC_PASSWORD = os.getenv("COC_PASSWORD")
 CLAN_TAG = os.getenv("CLAN_TAG")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
+# <-- USANDO AS VARIÁVEIS EXISTENTES -- >
+ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0)) 
+ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.19-HISTORY-FIX"
+BOT_VERSION = "20.1.22-REPORTS-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -57,6 +60,8 @@ web_api_cache: Dict[str, Dict[str, Any]] = {}
 CACHE_DURATION_SECONDS = 300
 WEB_API_CACHE_DURATION_SECONDS = 45
 last_war_end_time: Optional[datetime.datetime] = None
+war_attack_cache: Dict[str, Any] = {"war_end_time": None, "processed_attacks": set()}
+
 
 # --- FUNÇÕES DE BANCO DE DADOS (MongoDB) ---
 async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
@@ -189,12 +194,15 @@ async def on_war_attack(attack, war):
         if not attack or not hasattr(attack, 'attacker') or not attack.attacker: return
         is_our_attack = hasattr(attack.attacker, 'clan') and attack.attacker.clan and attack.attacker.clan.tag == CLAN_TAG
         if not is_our_attack: return
-        logger.info(f"Evento disparado: Ataque de {attack.attacker.name}")
+        
+        logger.info(f"Ataque de {attack.attacker.name} processado pela task.")
         war_type = "CWL" if war.is_cwl else "Guerra"
-        embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
-        stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
         our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
         opponent_clan = war.opponent if war.clan.tag == CLAN_TAG else war.clan
+        
+        # Envia a notificação normal de ataque
+        embed = discord.Embed(title=f"⚔️ Ataque na {war_type}!", color=discord.Color.orange())
+        stars = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
         embed.description = (
             f"**{attack.attacker.name}** atacou **{attack.defender.name}**\n"
             f"`CV{attack.attacker.town_hall} vs CV{attack.defender.town_hall}`"
@@ -203,6 +211,36 @@ async def on_war_attack(attack, war):
         embed.add_field(name="Placar Atual", value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opponent_clan.name}:** {opponent_clan.stars}⭐", inline=True)
         embed.add_field(name="Ataques Usados", value=f"{our_clan.attacks_used} / {war.team_size * war.attacks_per_member}", inline=True)
         await send_log_embed(embed)
+
+        # Alerta de ataque fora do padrão
+        if attack.stars <= 1:
+            logger.info(f"Ataque fora do padrão detectado por {attack.attacker.name}.")
+            alert_embed = discord.Embed(
+                title=f"⚠️ Ataque fora do padrão!",
+                description=f"**{our_clan.name}**\n⚔️ **Ataque Realizado ({war_type})**",
+                color=discord.Color.red()
+            )
+            alert_embed.add_field(
+                name="Detalhes",
+                value=f"{attack.attacker.name} (CV{attack.attacker.town_hall}) atacou {attack.defender.name} (CV{attack.defender.town_hall})",
+                inline=False
+            )
+            alert_embed.add_field(
+                name="Resultado",
+                value=f"{'⚫⚫⚫' if attack.stars == 0 else '⭐⚫⚫'} ({attack.destruction}%)",
+                inline=False
+            )
+            if hasattr(opponent_clan.badge, 'url'):
+                alert_embed.set_thumbnail(url=opponent_clan.badge.url)
+            
+            role_mention = ""
+            if ROLE_ID_1STAR_ALERT: # <-- USANDO A VARIÁVEL CORRETA
+                role_mention = f"<@&{ROLE_ID_1STAR_ALERT}>"
+            else:
+                logger.warning("ROLE_ID_1STAR_ALERT não configurado. Não foi possível marcar o cargo.")
+            
+            await send_log_embed(alert_embed, content=f"{role_mention} Atenção ao ataque fora do padrão!")
+
     except Exception as e:
         logger.error(f"Erro no evento war_attack: {e}", exc_info=True)
 
@@ -289,9 +327,7 @@ async def setup_coc_events():
         await events_client.login(COC_EMAIL, COC_PASSWORD)
         logger.info("Login no CoC EventsClient bem-sucedido.")
         
-        # Adiciona os listeners de eventos
         events_client.add_clan_updates(CLAN_TAG)
-        events_client.add_war_updates(CLAN_TAG)
 
         @events_client.event
         @coc.ClanEvents.member_join()
@@ -302,20 +338,6 @@ async def setup_coc_events():
         @coc.ClanEvents.member_leave()
         async def _(member, clan):
             await on_clan_member_leave(member, clan)
-
-        # --- CORREÇÃO APLICADA AQUI ---
-        # Usamos um evento mais genérico para detectar qualquer mudança na guerra
-        # e então verificamos manualmente se um novo ataque ocorreu.
-        @events_client.event
-        @coc.WarEvents.war_update()
-        async def on_any_war_update(old_war, new_war):
-            # Compara o número de ataques para ver se há um novo
-            if len(old_war.attacks) < len(new_war.attacks):
-                # O ataque mais recente é o último na lista
-                new_attack = new_war.attacks[-1]
-                # Chama nossa função de manipulador de ataque existente
-                await on_war_attack(new_attack, new_war)
-        # --- FIM DA CORREÇÃO ---
 
         @events_client.event
         @coc.ClanEvents.member_role()
@@ -343,7 +365,7 @@ async def setup_coc_events():
             await on_member_received(old_member, new_member)
         
         coc_client = events_client
-        logger.info("Todos os eventos do CoC foram registrados com sucesso!")
+        logger.info("Eventos de CLÃ registrados com sucesso!")
     except Exception as e:
         logger.error(f"Erro ao configurar eventos CoC: {e}", exc_info=True)
         coc_client = None
@@ -682,7 +704,7 @@ async def api_save_player_note_handler(request):
 
 @tasks.loop(minutes=5)
 async def check_war_end_task():
-    """Verifica periodicamente se uma guerra terminou para salvá-la no histórico."""
+    """Verifica se uma guerra terminou para salvar no histórico e enviar relatórios."""
     global last_war_end_time
     await bot.wait_until_ready()
     if not coc_client:
@@ -692,21 +714,97 @@ async def check_war_end_task():
         war = await coc_client.get_current_war(CLAN_TAG)
         if war and war.state == 'warEnded' and hasattr(war, 'end_time'):
             current_end_time = war.end_time.time
-            # Verifica se é uma nova guerra finalizada
             if last_war_end_time is None or current_end_time > last_war_end_time:
-                logger.info(f"Nova guerra finalizada detectada: {war.clan.name} vs {war.opponent.name}. Salvando no histórico.")
-                # Usar a função que já formata os dados para a web
+                logger.info(f"Nova guerra finalizada detectada: {war.clan.name} vs {war.opponent.name}.")
+                last_war_end_time = current_end_time
+
+                # Relatório de ataques perdidos
+                our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
+                missed_attacks_members = []
+                for member in our_clan.members:
+                    attacks_left = war.attacks_per_member - len(member.attacks)
+                    if attacks_left > 0:
+                        missed_attacks_members.append(f"**{member.name}** (CV{member.town_hall}): {attacks_left} ataque(s) perdido(s)")
+                
+                if missed_attacks_members:
+                    logger.info("Gerando relatório de ataques perdidos.")
+                    war_type = "Guerra Normal" if not war.is_cwl else "CWL"
+                    report_embed = discord.Embed(
+                        title=f"🚩 Relatório de Ataques Perdidos - {war_type}",
+                        description=f"Guerra entre **{war.clan.name}** vs **{war.opponent.name}** finalizada.",
+                        color=discord.Color.dark_gold()
+                    )
+                    report_embed.add_field(
+                        name="Placar Final",
+                        value=f"**{war.clan.name}:** {war.clan.stars}⭐ ({war.clan.destruction:.2f}%)\n"
+                              f"**{war.opponent.name}:** {war.opponent.stars}⭐ ({war.opponent.destruction:.2f}%)",
+                        inline=False
+                    )
+                    report_embed.add_field(
+                        name="Detalhes dos Ataques Perdidos",
+                        value="\n".join(missed_attacks_members),
+                        inline=False
+                    )
+                    if hasattr(war.opponent.badge, 'url'):
+                        report_embed.set_thumbnail(url=war.opponent.badge.url)
+
+                    role_mention = ""
+                    if ROLE_ID_MISSED_ATTACK: # <-- USANDO A VARIÁVEL CORRETA
+                        role_mention = f"<@&{ROLE_ID_MISSED_ATTACK}>"
+                    
+                    await send_log_embed(report_embed, content=f"{role_mention} Atenção aos ataques perdidos!")
+
+                # Salva no histórico do painel
                 war_details = await fetch_current_war_details_for_web()
                 if 'error' not in war_details:
                     await save_war_to_history(war_details)
-                    last_war_end_time = current_end_time
                 else:
                     logger.error(f"Não foi possível obter detalhes da guerra finalizada para salvar: {war_details.get('error')}")
+
     except coc.PrivateWarLog:
-        # Lida com o log de guerra privado, mas ainda tenta obter a última guerra finalizada da CWL se aplicável
         pass
     except Exception as e:
         logger.error(f"Erro na task de verificação de fim de guerra: {e}", exc_info=True)
+
+@tasks.loop(seconds=30)
+async def check_new_attack_task():
+    """Verifica periodicamente por novos ataques na guerra, contornando o bug dos eventos."""
+    global war_attack_cache
+    await bot.wait_until_ready()
+    if not coc_client:
+        return
+
+    try:
+        war = await coc_client.get_current_war(CLAN_TAG)
+        
+        if not war or war.state != 'inWar':
+            if war_attack_cache["war_end_time"] is not None:
+                logger.info("Guerra não está ativa. Limpando cache de ataques.")
+                war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
+            return
+
+        current_war_end_time = war.end_time.time
+
+        if war_attack_cache["war_end_time"] != current_war_end_time:
+            logger.info(f"Nova guerra detectada (fim em {current_war_end_time}). Resetando cache de ataques.")
+            war_attack_cache["war_end_time"] = current_war_end_time
+            war_attack_cache["processed_attacks"] = {attack.order for attack in war.attacks}
+            return
+
+        current_attack_orders = {attack.order for attack in war.attacks}
+        new_attack_orders = current_attack_orders - war_attack_cache["processed_attacks"]
+
+        if new_attack_orders:
+            logger.info(f"Detectados {len(new_attack_orders)} novo(s) ataque(s).")
+            for attack in sorted(war.attacks, key=lambda a: a.order):
+                if attack.order in new_attack_orders:
+                    await on_war_attack(attack, war)
+                    war_attack_cache["processed_attacks"].add(attack.order)
+
+    except coc.PrivateWarLog:
+        pass
+    except Exception as e:
+        logger.error(f"Erro na task de verificação de novos ataques: {e}", exc_info=True)
 
 
 async def setup_web_server():
@@ -738,8 +836,12 @@ async def on_ready():
     logger.info(f"Bot {bot.user.name} online! Versão: {BOT_VERSION}")
     try:
         await setup_coc_events()
+        
         if not check_war_end_task.is_running():
             check_war_end_task.start()
+        if not check_new_attack_task.is_running():
+            check_new_attack_task.start()
+            
         if coc_client:
             clan = await coc_client.get_clan(CLAN_TAG)
             embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}",
