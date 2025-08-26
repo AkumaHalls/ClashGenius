@@ -26,6 +26,7 @@
         <div class="loading-spinner"></div>
         <p>Carregando dados do clã...</p>
     </div>
+
     <header class="site-header">
         <div class="container header-content">
             <div class="logo-title">
@@ -36,7 +37,7 @@
                 <ul>
                     <li><a href="#clan-info-nav" class="nav-link" data-section="clan-info-nav">Clã</a></li>
                     <li><a href="#war-details-nav" class="nav-link" data-section="war-details-nav">Guerra</a></li>
-                    <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav">Ataques Pendentes</a></li>
+                    <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav">Pendências</a></li>
                     <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav">CWL</a></li>
                     <li><a href="#war-log-nav" class="nav-link" data-section="war-log-nav">Histórico</a></li>
                     <li><a href="#members-list-nav" class="nav-link" data-section="members-list-nav">Membros</a></li>
@@ -44,6 +45,7 @@
             </nav>
         </div>
     </header>
+
     <main class="container">
         <div class="sections-wrapper">
             <section id="clan-info-nav" class="card clan-card content-section">
@@ -144,13 +146,13 @@
                     <div id="warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
                 </div>
             </section>
-
+            
             <section id="attacks-remaining-nav" class="card attacks-remaining-card content-section">
-                <h2>Ataques Pendentes (<span id="attacksRemainingClanName">-</span>)</h2>
+                <h2>Histórico de Ataques Pendentes (<span id="attacksRemainingClanName">-</span>)</h2>
                 <div id="attacksRemainingList" class="scrollable-box list-box">
                     <p>Carregando...</p>
                 </div>
-                <p id="noWarForAttacksRemainingMessage" class="message-box" style="display: none;">Não há guerra em andamento.</p>
+                <p id="noWarForAttacksRemainingMessage" class="message-box" style="display: none;">Nenhuma pendência encontrada.</p>
             </section>
 
             <section id="cwl-info-nav" class="card cwl-card content-section">
@@ -229,15 +231,16 @@
         </div>
     </div>
 
-
     <footer class="site-footer">
         <div class="container">
             <p>Clash Genius Bot v<span id="botVersion">?</span> | <span id="lastUpdated"></span></p>
             <p>Painel de monitoramento do Clã By +Constantine+ ❤️</p>
         </div>
     </footer>
+
     <!-- Botão de Mudo Adicionado -->
     <button id="mute-button" class="mute-btn">🔊</button>
+
     <script src="/static/js/scripts.js"></script>
 </body>
 </html>
