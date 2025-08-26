@@ -302,7 +302,7 @@ async def setup_coc_events():
             await on_clan_member_leave(member, clan)
 
         @events_client.event
-        @coc.WarEvents.attack()
+        @coc.WarEvents.new_attack() # <-- CORREÇÃO APLICADA AQUI
         async def _(attack, war):
             await on_war_attack(attack, war)
 
