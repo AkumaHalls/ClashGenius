@@ -40,7 +40,7 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.24-HISTORICO-ATAQUES-PENDENTES"
+BOT_VERSION = "20.1.25-HISTORICO-ATAQUES-PENDENTES-ISOLADO"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -582,46 +582,54 @@ async def fetch_current_war_details_for_web():
         logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar dados da guerra."}
 
+# --- INÍCIO DO NOVO CÓDIGO ---
 async def fetch_missed_attacks_history_for_web():
-    """Busca o histórico de ataques perdidos de todas as guerras salvas."""
+    """Busca o histórico de ataques perdidos de todas as guerras salvas no MongoDB."""
     if not hasattr(bot, 'db') or bot.db is None:
-        return {"error": "Histórico indisponível (DB não conectado)."}
+        return {"error": "Histórico indisponível (Banco de dados não conectado)."}
     try:
         war_collection = bot.db.war_history
+        # Busca todas as guerras salvas, ordenadas da mais recente para a mais antiga
         log_cursor = war_collection.find({}).sort("war_data.end_time_iso", DESCENDING)
         
-        missed_attacks = []
+        missed_attacks_history = []
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
-             return {"error": "Não foi possível carregar os dados do clã."}
+             return {"error": "Não foi possível carregar os dados do clã para o histórico."}
 
         async for war_doc in log_cursor:
             war_data = war_doc.get("war_data", {})
             attacks_per_member = war_data.get("attacks_per_member", 2)
-            war_date = war_data.get("end_time_iso")
+            war_date_iso = war_data.get("end_time_iso")
             
-            if war_date:
-                end_time_dt = datetime.datetime.fromisoformat(war_date)
-                war_date_formatted = end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y')
+            # Formata a data da guerra
+            if war_date_iso:
+                try:
+                    end_time_dt = datetime.datetime.fromisoformat(war_date_iso)
+                    war_date_formatted = end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y')
+                except ValueError:
+                    war_date_formatted = "Data inválida"
             else:
                 war_date_formatted = "Data desconhecida"
 
-            our_members = war_doc.get("our_clan_members_in_war", [])
-            for member in our_members:
+            # Itera sobre os membros da nossa equipe na guerra
+            our_members_in_war = war_doc.get("our_clan_members_in_war", [])
+            for member in our_members_in_war:
                 attacks_made = member.get("attacks_used", 0)
                 attacks_left = attacks_per_member - attacks_made
                 if attacks_left > 0:
-                    missed_attacks.append({
-                        "name": member.get("name"),
-                        "town_hall": member.get("townhall"),
+                    missed_attacks_history.append({
+                        "name": member.get("name", "Nome desconhecido"),
+                        "town_hall": member.get("townhall", "?"),
                         "attacks_left": attacks_left,
                         "war_date": war_date_formatted
                     })
         
-        return {"missed_attacks": missed_attacks, "clan_name": clan.name}
+        return {"missed_attacks": missed_attacks_history, "clan_name": clan.name}
     except Exception as e:
         logger.error(f"Erro em fetch_missed_attacks_history_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar histórico de ataques pendentes."}
+# --- FIM DO NOVO CÓDIGO ---
 
 async def fetch_war_log_for_web():
     """Busca o histórico de guerras do MongoDB."""
@@ -712,10 +720,12 @@ async def api_current_war_details_handler(request):
     data = await get_cached_web_data('current_war_details', fetch_current_war_details_for_web)
     return web.json_response(data)
 
+# --- INÍCIO DO NOVO CÓDIGO ---
 async def api_missed_attacks_history_handler(request):
-    """Endpoint da API para o histórico de ataques perdidos."""
+    """Novo endpoint da API para o histórico de ataques perdidos."""
     data = await get_cached_web_data('missed_attacks_history', fetch_missed_attacks_history_for_web)
     return web.json_response(data)
+# --- FIM DO NOVO CÓDIGO ---
 
 async def api_war_log_handler(request):
     data = await get_cached_web_data('war_log', fetch_war_log_for_web)
@@ -854,7 +864,9 @@ async def setup_web_server():
     app.router.add_get("/api/clan", api_clan_info_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
+    # --- INÍCIO DO NOVO CÓDIGO ---
     app.router.add_get("/api/missed_attacks_history", api_missed_attacks_history_handler)
+    # --- FIM DO NOVO CÓDIGO ---
     app.router.add_get("/api/war_log", api_war_log_handler)
     app.router.add_get("/api/cwl_info", api_cwl_info_handler)
     app.router.add_post("/api/notes/{player_tag}", api_save_player_note_handler)
