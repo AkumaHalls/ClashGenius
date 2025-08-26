@@ -38,7 +38,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.18-HISTORY-FEATURE"
+BOT_VERSION = "20.1.19-HISTORY-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -288,6 +288,8 @@ async def setup_coc_events():
         events_client = coc.EventsClient()
         await events_client.login(COC_EMAIL, COC_PASSWORD)
         logger.info("Login no CoC EventsClient bem-sucedido.")
+        
+        # Adiciona os listeners de eventos
         events_client.add_clan_updates(CLAN_TAG)
         events_client.add_war_updates(CLAN_TAG)
 
@@ -301,10 +303,19 @@ async def setup_coc_events():
         async def _(member, clan):
             await on_clan_member_leave(member, clan)
 
+        # --- CORREÇÃO APLICADA AQUI ---
+        # Usamos um evento mais genérico para detectar qualquer mudança na guerra
+        # e então verificamos manualmente se um novo ataque ocorreu.
         @events_client.event
-        @coc.WarEvents.new_attack() # <-- CORREÇÃO APLICADA AQUI
-        async def _(attack, war):
-            await on_war_attack(attack, war)
+        @coc.WarEvents.war_update()
+        async def on_any_war_update(old_war, new_war):
+            # Compara o número de ataques para ver se há um novo
+            if len(old_war.attacks) < len(new_war.attacks):
+                # O ataque mais recente é o último na lista
+                new_attack = new_war.attacks[-1]
+                # Chama nossa função de manipulador de ataque existente
+                await on_war_attack(new_attack, new_war)
+        # --- FIM DA CORREÇÃO ---
 
         @events_client.event
         @coc.ClanEvents.member_role()
