@@ -40,7 +40,7 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.25-HISTORICO-ATAQUES-PENDENTES-ISOLADO"
+BOT_VERSION = "20.1.26-STATUS-ONLINE-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -582,14 +582,12 @@ async def fetch_current_war_details_for_web():
         logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar dados da guerra."}
 
-# --- INÍCIO DO NOVO CÓDIGO ---
 async def fetch_missed_attacks_history_for_web():
     """Busca o histórico de ataques perdidos de todas as guerras salvas no MongoDB."""
     if not hasattr(bot, 'db') or bot.db is None:
         return {"error": "Histórico indisponível (Banco de dados não conectado)."}
     try:
         war_collection = bot.db.war_history
-        # Busca todas as guerras salvas, ordenadas da mais recente para a mais antiga
         log_cursor = war_collection.find({}).sort("war_data.end_time_iso", DESCENDING)
         
         missed_attacks_history = []
@@ -602,7 +600,6 @@ async def fetch_missed_attacks_history_for_web():
             attacks_per_member = war_data.get("attacks_per_member", 2)
             war_date_iso = war_data.get("end_time_iso")
             
-            # Formata a data da guerra
             if war_date_iso:
                 try:
                     end_time_dt = datetime.datetime.fromisoformat(war_date_iso)
@@ -612,7 +609,6 @@ async def fetch_missed_attacks_history_for_web():
             else:
                 war_date_formatted = "Data desconhecida"
 
-            # Itera sobre os membros da nossa equipe na guerra
             our_members_in_war = war_doc.get("our_clan_members_in_war", [])
             for member in our_members_in_war:
                 attacks_made = member.get("attacks_used", 0)
@@ -629,7 +625,6 @@ async def fetch_missed_attacks_history_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_missed_attacks_history_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar histórico de ataques pendentes."}
-# --- FIM DO NOVO CÓDIGO ---
 
 async def fetch_war_log_for_web():
     """Busca o histórico de guerras do MongoDB."""
@@ -720,12 +715,10 @@ async def api_current_war_details_handler(request):
     data = await get_cached_web_data('current_war_details', fetch_current_war_details_for_web)
     return web.json_response(data)
 
-# --- INÍCIO DO NOVO CÓDIGO ---
 async def api_missed_attacks_history_handler(request):
     """Novo endpoint da API para o histórico de ataques perdidos."""
     data = await get_cached_web_data('missed_attacks_history', fetch_missed_attacks_history_for_web)
     return web.json_response(data)
-# --- FIM DO NOVO CÓDIGO ---
 
 async def api_war_log_handler(request):
     data = await get_cached_web_data('war_log', fetch_war_log_for_web)
@@ -859,14 +852,45 @@ async def check_new_attack_task():
     except Exception as e:
         logger.error(f"Erro na task de verificação de novos ataques: {e}", exc_info=True)
 
+# --- INÍCIO DO NOVO CÓDIGO ---
+@tasks.loop(seconds=10, count=1)
+async def send_online_status_task():
+    """
+    Nova tarefa isolada para enviar a notificação de status online.
+    Ela espera o bot e o cliente CoC estarem prontos antes de enviar.
+    """
+    await bot.wait_until_ready()
+    # Espera até que o coc_client seja inicializado com sucesso
+    while not coc_client:
+        await asyncio.sleep(5)
+        logger.info("Aguardando inicialização do coc_client para enviar status online...")
+
+    try:
+        clan = await coc_client.get_clan(CLAN_TAG)
+        embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}",
+                              description=f"Monitoramento ativado para **{clan.name} ({clan.tag})**.",
+                              color=discord.Color.green())
+        embed.add_field(name="📊 Status do Clã",
+                        value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", inline=True)
+        embed.add_field(name="⚙️ Status do Bot", value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK", inline=True)
+        if clan.badge:
+            embed.set_thumbnail(url=clan.badge.url)
+        await send_log_embed(embed)
+        logger.info("Notificação de status online enviada com sucesso.")
+    except Exception as e:
+        logger.error(f"Falha ao enviar notificação de status online: {e}", exc_info=True)
+        embed = discord.Embed(title="❌ ClashGenius com Erro na Inicialização",
+                              description="Não foi possível obter dados do clã para a notificação de status. Verifique as permissões e a API do CoC.",
+                              color=discord.Color.red())
+        await send_log_embed(embed)
+# --- FIM DO NOVO CÓDIGO ---
+
 async def setup_web_server():
     app = web.Application()
     app.router.add_get("/api/clan", api_clan_info_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
-    # --- INÍCIO DO NOVO CÓDIGO ---
     app.router.add_get("/api/missed_attacks_history", api_missed_attacks_history_handler)
-    # --- FIM DO NOVO CÓDIGO ---
     app.router.add_get("/api/war_log", api_war_log_handler)
     app.router.add_get("/api/cwl_info", api_cwl_info_handler)
     app.router.add_post("/api/notes/{player_tag}", api_save_player_note_handler)
@@ -909,6 +933,10 @@ async def on_ready():
         check_war_end_task.start()
     if not check_new_attack_task.is_running():
         check_new_attack_task.start()
+    # --- INÍCIO DO NOVO CÓDIGO ---
+    if not send_online_status_task.is_running():
+        send_online_status_task.start()
+    # --- FIM DO NOVO CÓDIGO ---
 
 # --- COMANDOS DO BOT ---
 @bot.command()
