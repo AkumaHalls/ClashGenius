@@ -298,10 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        // --- INÍCIO DO NOVO CÓDIGO ---
-        // Lógica para usar prefixo nos IDs e evitar conflitos
         const prefix = isModal ? 'historic-' : '';
-        // --- FIM DO NOVO CÓDIGO ---
 
         const warHeader = container.querySelector('.war-header');
         const warTabsNav = container.querySelector('.war-tabs');
@@ -324,7 +321,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const war = data.war_data;
 
-        // Seletores dinâmicos para o modal ou a aba principal
         setText(container.querySelector(`#${prefix}warDetailOurClanName`), war.clan_name);
         setText(container.querySelector(`#${prefix}warDetailOpponentName`), war.opponent_name);
         setBadge(container.querySelector(`#${prefix}warDetailClanBadge`), war.clan_badge_url);
@@ -336,7 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(stateEl, war.state_description);
         if(stateEl) stateEl.className = 'war-state ' + (war.status || '').toLowerCase();
 
-        // Preenche as estatísticas
         setText(container.querySelector(`#${prefix}statsOurClanName`), war.clan_name);
         setText(container.querySelector(`#${prefix}statsOurStars`), war.clan_stars);
         setText(container.querySelector(`#${prefix}statsOurDestruction`), war.clan_destruction.replace('%', ''));
@@ -358,7 +353,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(container.querySelector(`#${prefix}statsOpponentStars1`), war.opponent_star_distribution['1']);
         setText(container.querySelector(`#${prefix}statsOpponentStars0`), war.opponent_star_distribution['0']);
 
-        // Preenche os eventos (ataques)
         const eventsTableBody = container.querySelector(`#${prefix}warEventsTableBody`);
         setText(container.querySelector(`#${prefix}warTotalAttacksCount`), data.all_attacks.length);
         setHtml(eventsTableBody, '');
@@ -376,7 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setHtml(eventsTableBody, '<tr><td colspan="5">Nenhum ataque registrado.</td></tr>');
         }
 
-        // Preenche as equipes
         const populateTeamTabData = (teamMembersData, teamNameKey, teamElement) => {
             setText(container.querySelector(`#${prefix}war${teamNameKey}TeamName`), war[`${teamNameKey === 'Our' ? 'clan' : 'opponent'}_name`]);
             setHtml(teamElement, '');
@@ -699,31 +692,35 @@ document.addEventListener('DOMContentLoaded', () => {
         historicWarModal.style.display = 'block';
         const historicWarData = await fetchData(`war_history/${warId}`);
         
-        // --- INÍCIO DO NOVO CÓDIGO ---
-        // Clona a estrutura da aba de guerra para dentro do modal
         const warDetailsTemplate = document.getElementById('war-details-nav').cloneNode(true);
-        // Ajusta IDs para serem únicos no modal, adicionando um prefixo
-        warDetailsTemplate.id = 'historic-war-details-content';
+        
+        // --- INÍCIO DO NOVO CÓDIGO (CORREÇÃO) ---
+        // Garante que o ID do contêiner clonado seja único para não conflitar
+        warDetailsTemplate.id = 'historic-war-details-cloned-content'; 
+        
+        // Adiciona o prefixo 'historic-' a todos os IDs DENTRO do template clonado
         warDetailsTemplate.querySelectorAll('[id]').forEach(el => {
             el.id = 'historic-' + el.id;
         });
-        setHtml(historicWarDetailContent, '');
-        historicWarDetailContent.appendChild(warDetailsTemplate);
+        
+        setHtml(historicWarDetailContent, ''); // Limpa o spinner
+        historicWarDetailContent.appendChild(warDetailsTemplate); // Adiciona o conteúdo clonado e corrigido
 
-        // Adiciona listeners para as novas abas dentro do modal
+        // Adiciona listeners para as novas abas DENTRO do modal
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
-                historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+                // Busca os elementos apenas dentro do escopo do modal
+                const modalContent = button.closest('.modal-content');
+                modalContent.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
                 const tabId = button.dataset.tab;
-                historicWarDetailContent.querySelectorAll('.war-tab-content').forEach(content => {
-                    // O ID do conteúdo agora terá o prefixo 'historic-'
+                modalContent.querySelectorAll('.war-tab-content').forEach(content => {
                     content.style.display = content.id.endsWith(tabId) ? 'block' : 'none';
                 });
             });
         });
         
-        // Chama a função para popular os dados, indicando que é o modal
+        // Popula os dados no contêiner principal do modal, que agora contém o template corrigido
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
         // --- FIM DO NOVO CÓDIGO ---
     }
