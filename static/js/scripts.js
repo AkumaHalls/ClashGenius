@@ -61,12 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const warOpponentTeamNameEl = document.getElementById('warOpponentTeamName');
     const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
 
-    // --- INÍCIO DO NOVO CÓDIGO (Seletores de Elementos) ---
     const attacksRemainingTitleEl = document.getElementById('attacksRemainingTitle');
     const attacksRemainingClanNameEl = document.getElementById('attacksRemainingClanName');
     const attacksRemainingListEl = document.getElementById('attacksRemainingList');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
-    // --- FIM DO NOVO CÓDIGO ---
 
     const cwlStatusTextEl = document.getElementById('cwlStatusText');
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
@@ -300,7 +298,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById(containerId);
         if (!container) return;
 
+        // --- INÍCIO DO NOVO CÓDIGO ---
+        // Lógica para usar prefixo nos IDs e evitar conflitos
         const prefix = isModal ? 'historic-' : '';
+        // --- FIM DO NOVO CÓDIGO ---
+
         const warHeader = container.querySelector('.war-header');
         const warTabsNav = container.querySelector('.war-tabs');
         const noWarMsg = container.querySelector(isModal ? '.message-box' : '#noWarDetailMessage');
@@ -347,14 +349,14 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(container.querySelector(`#${prefix}statsOurAvgDuration`), war.clan_avg_duration);
         setText(container.querySelector(`#${prefix}statsOpponentAvgStars`), war.opponent_avg_stars);
         setText(container.querySelector(`#${prefix}statsOpponentAvgDuration`), war.opponent_avg_duration);
-        setText(container.querySelector(`#${prefix}statsOurStars3`), war.clan_star_distribution[3]);
-        setText(container.querySelector(`#${prefix}statsOurStars2`), war.clan_star_distribution[2]);
-        setText(container.querySelector(`#${prefix}statsOurStars1`), war.clan_star_distribution[1]);
-        setText(container.querySelector(`#${prefix}statsOurStars0`), war.clan_star_distribution[0]);
-        setText(container.querySelector(`#${prefix}statsOpponentStars3`), war.opponent_star_distribution[3]);
-        setText(container.querySelector(`#${prefix}statsOpponentStars2`), war.opponent_star_distribution[2]);
-        setText(container.querySelector(`#${prefix}statsOpponentStars1`), war.opponent_star_distribution[1]);
-        setText(container.querySelector(`#${prefix}statsOpponentStars0`), war.opponent_star_distribution[0]);
+        setText(container.querySelector(`#${prefix}statsOurStars3`), war.clan_star_distribution['3']);
+        setText(container.querySelector(`#${prefix}statsOurStars2`), war.clan_star_distribution['2']);
+        setText(container.querySelector(`#${prefix}statsOurStars1`), war.clan_star_distribution['1']);
+        setText(container.querySelector(`#${prefix}statsOurStars0`), war.clan_star_distribution['0']);
+        setText(container.querySelector(`#${prefix}statsOpponentStars3`), war.opponent_star_distribution['3']);
+        setText(container.querySelector(`#${prefix}statsOpponentStars2`), war.opponent_star_distribution['2']);
+        setText(container.querySelector(`#${prefix}statsOpponentStars1`), war.opponent_star_distribution['1']);
+        setText(container.querySelector(`#${prefix}statsOpponentStars0`), war.opponent_star_distribution['0']);
 
         // Preenche os eventos (ataques)
         const eventsTableBody = container.querySelector(`#${prefix}warEventsTableBody`);
@@ -376,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Preenche as equipes
         const populateTeamTabData = (teamMembersData, teamNameKey, teamElement) => {
-            setText(container.querySelector(`#${prefix}war${teamNameKey}TeamName`), war[`${teamNameKey.toLowerCase()}_clan_name`] || (teamNameKey === "Our" ? "Nosso Clã" : "Oponente"));
+            setText(container.querySelector(`#${prefix}war${teamNameKey}TeamName`), war[`${teamNameKey === 'Our' ? 'clan' : 'opponent'}_name`]);
             setHtml(teamElement, '');
             if (teamMembersData && teamMembersData.length > 0) {
                 teamMembersData.forEach(member => {
@@ -418,7 +420,6 @@ document.addEventListener('DOMContentLoaded', () => {
         populateTeamTabData(data.our_clan_members_in_war, "Our", container.querySelector(`#${prefix}warOurTeamMembers`));
         populateTeamTabData(data.opponent_clan_members_in_war, "Opponent", container.querySelector(`#${prefix}warOpponentTeamMembers`));
         
-        // Garante que a primeira aba esteja ativa se nenhuma estiver
         let activeWarTabFound = false;
         container.querySelectorAll('.war-tab-button').forEach(btn => {
             if (btn.classList.contains('active')) activeWarTabFound = true;
@@ -435,19 +436,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- INÍCIO DO NOVO CÓDIGO ---
-    /**
-     * Nova função isolada para buscar e popular o histórico de ataques pendentes.
-     * @param {object} data - Os dados recebidos da nova API /api/missed_attacks_history.
-     */
     function populateMissedAttacksHistory(data) {
-        // Atualiza o nome do clã no título da seção
         const clanNameSpan = attacksRemainingTitleEl.querySelector('span');
         if (clanNameSpan) {
             setText(clanNameSpan, data.clan_name);
         }
     
-        // Verifica se há erros ou se a lista de ataques perdidos está vazia
         if (data.error || !data.missed_attacks || data.missed_attacks.length === 0) {
             const message = data.error || "Nenhuma pendência de ataque encontrada no histórico de guerras.";
             setHtml(attacksRemainingListEl, `<p>${message}</p>`);
@@ -458,17 +452,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
     
-        // Esconde a mensagem de "nenhuma pendência" se houver dados
         if (noMissedAttacksMessageEl) noMissedAttacksMessageEl.style.display = 'none';
         
-        // Constrói o HTML para a lista de ataques pendentes
         let htmlContent = '';
         data.missed_attacks.forEach(m => {
             htmlContent += `<p><strong>${m.name}</strong> (CV${m.town_hall}) - <strong>${m.attacks_left}</strong> atk restante(s) na guerra de <strong>${m.war_date}</strong></p>`;
         });
         setHtml(attacksRemainingListEl, htmlContent);
     }
-    // --- FIM DO NOVO CÓDIGO ---
 
     function populateCwlInfo(data) {
         setText(cwlStatusTextEl, "Carregando...");
@@ -539,8 +530,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.log.length > 0) {
             data.log.forEach(e => {
                 const row = warLogTableBodyEl.insertRow();
-                row.classList.add('historic-war-row'); // Classe para identificar a linha
-                row.dataset.warId = e.end_time_iso; // Atributo para armazenar o ID
+                row.classList.add('historic-war-row');
+                row.dataset.warId = e.end_time_iso;
                 setText(row.insertCell(), e.end_time_formatted);
                 const oppCell = row.insertCell();
                 const oppBadge = e.opponent_badge_url ? `<img src="${e.opponent_badge_url}" alt="Emblema ${e.opponent_name}" class="log-opponent-badge">` : "";
@@ -708,9 +699,10 @@ document.addEventListener('DOMContentLoaded', () => {
         historicWarModal.style.display = 'block';
         const historicWarData = await fetchData(`war_history/${warId}`);
         
+        // --- INÍCIO DO NOVO CÓDIGO ---
         // Clona a estrutura da aba de guerra para dentro do modal
         const warDetailsTemplate = document.getElementById('war-details-nav').cloneNode(true);
-        // Ajusta IDs para serem únicos no modal
+        // Ajusta IDs para serem únicos no modal, adicionando um prefixo
         warDetailsTemplate.id = 'historic-war-details-content';
         warDetailsTemplate.querySelectorAll('[id]').forEach(el => {
             el.id = 'historic-' + el.id;
@@ -731,7 +723,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         
+        // Chama a função para popular os dados, indicando que é o modal
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
+        // --- FIM DO NOVO CÓDIGO ---
     }
 
     if (closeModalButton) {
@@ -746,7 +740,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Adiciona o listener de eventos na tabela de histórico
     warLogTableBodyEl.addEventListener('click', (event) => {
         const row = event.target.closest('.historic-war-row');
         if (row && row.dataset.warId) {
@@ -761,18 +754,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchData('clan'),
                 fetchData('members'),
                 fetchData('current_war_details'),
-                // --- INÍCIO DO NOVO CÓDIGO ---
-                fetchData('missed_attacks_history'), // Nova chamada de API
-                // --- FIM DO NOVO CÓDIGO ---
+                fetchData('missed_attacks_history'),
                 fetchData('war_log'),
                 fetchData('cwl_info')
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
             populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
-            // --- INÍCIO DO NOVO CÓDIGO ---
-            populateMissedAttacksHistory(missedAttacksData); // Nova função para popular os dados
-            // --- FIM DO NOVO CÓDIGO ---
+            populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
             updateLastUpdated();
@@ -789,7 +778,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     loadAllData();
-    setInterval(loadAllData, 60000); // Atualiza a cada 60 segundos
+    setInterval(loadAllData, 60000);
 
     // --- ANIMAÇÃO DE PARTÍCULAS DE FUNDO ---
     const particleCanvas = document.getElementById('particle-background');
