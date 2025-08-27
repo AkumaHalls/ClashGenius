@@ -694,35 +694,42 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const warDetailsTemplate = document.getElementById('war-details-nav').cloneNode(true);
         
-        // --- INÍCIO DO NOVO CÓDIGO (CORREÇÃO) ---
-        // Garante que o ID do contêiner clonado seja único para não conflitar
-        warDetailsTemplate.id = 'historic-war-details-cloned-content'; 
+        // --- INÍCIO DA CORREÇÃO ---
+        // A linha abaixo estava causando o conflito de IDs. Foi removida.
+        // warDetailsTemplate.id = 'historic-war-details-content'; 
         
-        // Adiciona o prefixo 'historic-' a todos os IDs DENTRO do template clonado
         warDetailsTemplate.querySelectorAll('[id]').forEach(el => {
             el.id = 'historic-' + el.id;
         });
         
-        setHtml(historicWarDetailContent, ''); // Limpa o spinner
-        historicWarDetailContent.appendChild(warDetailsTemplate); // Adiciona o conteúdo clonado e corrigido
+        setHtml(historicWarDetailContent, '');
+        historicWarDetailContent.appendChild(warDetailsTemplate);
 
-        // Adiciona listeners para as novas abas DENTRO do modal
+        // NOVO BLOCO DE CÓDIGO: Reativa os event listeners para as abas do modal
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
-                // Busca os elementos apenas dentro do escopo do modal
-                const modalContent = button.closest('.modal-content');
+                const modalContent = button.closest('#historicWarDetailContent');
+                if (!modalContent) return;
+
                 modalContent.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
+                
                 const tabId = button.dataset.tab;
                 modalContent.querySelectorAll('.war-tab-content').forEach(content => {
-                    content.style.display = content.id.endsWith(tabId) ? 'block' : 'none';
+                    // A verificação agora usa o ID prefixado
+                    content.style.display = content.id === 'historic-' + tabId ? 'block' : 'none';
                 });
             });
         });
         
-        // Popula os dados no contêiner principal do modal, que agora contém o template corrigido
+        // Garante que a primeira aba ("Estatísticas") seja exibida por padrão no modal
+        const firstTabButton = historicWarDetailContent.querySelector('.war-tab-button[data-tab="war-stats"]');
+        if (firstTabButton) {
+            firstTabButton.click();
+        }
+        
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
-        // --- FIM DO NOVO CÓDIGO ---
+        // --- FIM DA CORREÇÃO ---
     }
 
     if (closeModalButton) {
