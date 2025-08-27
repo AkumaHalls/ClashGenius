@@ -40,7 +40,7 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.26-STATUS-ONLINE-FIX"
+BOT_VERSION = "20.1.27-WAR-SAVE-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -51,6 +51,11 @@ intents.guilds = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 coc_client: Optional[coc.Client] = None
 events_client: Optional[coc.EventsClient] = None
+# --- INÍCIO DO NOVO CÓDIGO ---
+# Novo cliente dedicado para chamadas de API que não são de eventos
+api_client: Optional[coc.Client] = None
+# --- FIM DO NOVO CÓDIGO ---
+
 
 # --- Caches em Memória ---
 player_short_term_cache: Dict[str, Any] = {}
@@ -91,6 +96,19 @@ async def save_player_note_to_db(player_tag: str, text: str, priority: str):
         logger.error(f"Erro ao salvar nota no MongoDB para {player_tag}: {e}", exc_info=True)
         raise
 
+# --- INÍCIO DO NOVO CÓDIGO ---
+def _sanitize_keys_for_mongo(obj: Any) -> Any:
+    """
+    Nova função isolada para converter chaves de dicionário não-string para string,
+    recursivamente. Isso corrige o erro 'documents must have only string keys'.
+    """
+    if isinstance(obj, dict):
+        return {str(k): _sanitize_keys_for_mongo(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_keys_for_mongo(elem) for elem in obj]
+    return obj
+# --- FIM DO NOVO CÓDIGO ---
+
 async def save_war_to_history(war_data: Dict[str, Any]):
     """Salva os dados completos de uma guerra na coleção de histórico."""
     if not hasattr(bot, 'db') or bot.db is None:
@@ -98,16 +116,21 @@ async def save_war_to_history(war_data: Dict[str, Any]):
         return
     try:
         war_collection = bot.db.war_history
-        # Usar end_time como _id para garantir unicidade
-        war_data['_id'] = war_data['war_data']['end_time_iso']
         
-        await war_collection.replace_one({'_id': war_data['_id']}, war_data, upsert=True)
-        logger.info(f"Guerra finalizada em {war_data['_id']} salva no histórico.")
+        # --- INÍCIO DO NOVO CÓDIGO ---
+        # Adição da chamada à nova função para garantir que os dados são compatíveis com o MongoDB
+        sanitized_war_data = _sanitize_keys_for_mongo(war_data)
+        # --- FIM DO NOVO CÓDIGO ---
+
+        # Usar end_time como _id para garantir unicidade
+        sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
+        
+        await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
+        logger.info(f"Guerra finalizada em {sanitized_war_data['_id']} salva no histórico.")
 
         # Lógica para manter apenas as últimas 9 guerras
         count = await war_collection.count_documents({})
         if count > 9:
-            # Encontra a guerra mais antiga (menor end_time) e a remove
             oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 9)
             async for old_war in oldest_wars_cursor:
                 await war_collection.delete_one({"_id": old_war["_id"]})
@@ -131,25 +154,25 @@ async def send_log_embed(embed_to_log: discord.Embed, content: str = None) -> No
 
 # --- FUNÇÕES DE BUSCA DE DADOS (API CoC) ---
 async def get_player_data(tag: str) -> Optional[coc.Player]:
-    if not coc_client: return None
+    if not api_client: return None # Alterado para usar o novo cliente
     normalized_tag = coc.utils.correct_tag(tag)
     if normalized_tag in player_short_term_cache:
         return player_short_term_cache[normalized_tag]
     try:
-        player = await coc_client.get_player(normalized_tag)
+        player = await api_client.get_player(normalized_tag) # Alterado para usar o novo cliente
         player_short_term_cache[normalized_tag] = player
         return player
     except Exception:
         return None
 
 async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
-    if not coc_client: return None
+    if not api_client: return None # Alterado para usar o novo cliente
     normalized_tag = coc.utils.correct_tag(tag)
     now = datetime.datetime.now()
     if normalized_tag in clan_cache and (now - clan_cache[normalized_tag]["timestamp"]).total_seconds() < CACHE_DURATION_SECONDS:
         return clan_cache[normalized_tag]["data"]
     try:
-        clan_data = await coc_client.get_clan(normalized_tag)
+        clan_data = await api_client.get_clan(normalized_tag) # Alterado para usar o novo cliente
         clan_cache[normalized_tag] = {"data": clan_data, "timestamp": now}
         return clan_data
     except Exception as e:
@@ -450,14 +473,14 @@ def format_war_time_details(war_obj, time_now_tz):
     return details
 
 async def get_current_or_last_war(clan_tag):
-    if not coc_client: return None
+    if not api_client: return None # Alterado para usar o novo cliente
     try:
-        return await coc_client.get_current_war(clan_tag)
+        return await api_client.get_current_war(clan_tag) # Alterado para usar o novo cliente
     except coc.PrivateWarLog:
         try:
-            war_log = await coc_client.get_war_log(clan_tag, limit=1)
+            war_log = await api_client.get_war_log(clan_tag, limit=1) # Alterado para usar o novo cliente
             if war_log:
-                return await coc_client.get_war(war_log[0].clan.tag, war_log[0].opponent.tag)
+                return await api_client.get_war(war_log[0].clan.tag, war_log[0].opponent.tag) # Alterado para usar o novo cliente
         except Exception:
             return None
     except Exception:
@@ -659,10 +682,10 @@ async def fetch_war_log_for_web():
 
 async def fetch_cwl_info_for_web():
     try:
-        if not coc_client:
+        if not api_client: # Alterado para usar o novo cliente
             return {"error": "CWLFeatureDisabled", "message": "API do CoC não iniciada."}
         
-        cwl_war = await coc_client.get_clan_war_league_group(CLAN_TAG)
+        cwl_war = await api_client.get_clan_war_league_group(CLAN_TAG) # Alterado para usar o novo cliente
         if not cwl_war:
             return {"status": "NotInCwl", "message": "O clã não está em uma CWL."}
 
@@ -675,7 +698,7 @@ async def fetch_cwl_info_for_web():
             round_data = {"round_number": cwl_war.rounds.index(a_round) + 1, "wars": []}
             for war_tag in a_round:
                 try:
-                    war = await coc_client.get_clan_war(war_tag)
+                    war = await api_client.get_clan_war(war_tag) # Alterado para usar o novo cliente
                     if war:
                         details = {
                             "war_tag": war_tag,
@@ -716,7 +739,6 @@ async def api_current_war_details_handler(request):
     return web.json_response(data)
 
 async def api_missed_attacks_history_handler(request):
-    """Novo endpoint da API para o histórico de ataques perdidos."""
     data = await get_cached_web_data('missed_attacks_history', fetch_missed_attacks_history_for_web)
     return web.json_response(data)
 
@@ -760,10 +782,10 @@ async def check_war_end_task():
     """Verifica a cada minuto se uma guerra terminou para salvar no histórico e enviar relatórios."""
     global last_war_end_time
     await bot.wait_until_ready()
-    if not coc_client: return
+    if not api_client: return # Alterado para usar o novo cliente
 
     try:
-        war = await coc_client.get_current_war(CLAN_TAG)
+        war = await api_client.get_current_war(CLAN_TAG) # Alterado para usar o novo cliente
         if war and war.state == 'warEnded' and hasattr(war, 'end_time'):
             current_end_time = war.end_time.time
             if last_war_end_time is None or current_end_time > last_war_end_time:
@@ -820,10 +842,10 @@ async def check_new_attack_task():
     """Verifica periodicamente por novos ataques na guerra, contornando o bug dos eventos."""
     global war_attack_cache
     await bot.wait_until_ready()
-    if not coc_client: return
+    if not api_client: return # Alterado para usar o novo cliente
 
     try:
-        war = await coc_client.get_current_war(CLAN_TAG)
+        war = await api_client.get_current_war(CLAN_TAG) # Alterado para usar o novo cliente
         if not war or war.state != 'inWar':
             if war_attack_cache["war_end_time"] is not None:
                 logger.info("Guerra não está ativa. Limpando cache de ataques.")
@@ -852,21 +874,15 @@ async def check_new_attack_task():
     except Exception as e:
         logger.error(f"Erro na task de verificação de novos ataques: {e}", exc_info=True)
 
-# --- INÍCIO DO NOVO CÓDIGO ---
 @tasks.loop(seconds=10, count=1)
 async def send_online_status_task():
-    """
-    Nova tarefa isolada para enviar a notificação de status online.
-    Ela espera o bot e o cliente CoC estarem prontos antes de enviar.
-    """
     await bot.wait_until_ready()
-    # Espera até que o coc_client seja inicializado com sucesso
-    while not coc_client:
+    while not api_client:
         await asyncio.sleep(5)
-        logger.info("Aguardando inicialização do coc_client para enviar status online...")
+        logger.info("Aguardando inicialização do api_client para enviar status online...")
 
     try:
-        clan = await coc_client.get_clan(CLAN_TAG)
+        clan = await api_client.get_clan(CLAN_TAG)
         embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}",
                               description=f"Monitoramento ativado para **{clan.name} ({clan.tag})**.",
                               color=discord.Color.green())
@@ -883,7 +899,6 @@ async def send_online_status_task():
                               description="Não foi possível obter dados do clã para a notificação de status. Verifique as permissões e a API do CoC.",
                               color=discord.Color.red())
         await send_log_embed(embed)
-# --- FIM DO NOVO CÓDIGO ---
 
 async def setup_web_server():
     app = web.Application()
@@ -933,10 +948,8 @@ async def on_ready():
         check_war_end_task.start()
     if not check_new_attack_task.is_running():
         check_new_attack_task.start()
-    # --- INÍCIO DO NOVO CÓDIGO ---
     if not send_online_status_task.is_running():
         send_online_status_task.start()
-    # --- FIM DO NOVO CÓDIGO ---
 
 # --- COMANDOS DO BOT ---
 @bot.command()
@@ -945,8 +958,20 @@ async def ping(ctx):
 
 # --- FUNÇÃO PRINCIPAL ---
 async def main():
+    # --- INÍCIO DO NOVO CÓDIGO ---
+    global api_client
     try:
-        await setup_coc_events()
+        # Inicializa o novo cliente de API dedicado
+        api_client = coc.Client()
+        await api_client.login(COC_EMAIL, COC_PASSWORD)
+        logger.info("Login no coc.Client (api_client) bem-sucedido.")
+    except Exception as e:
+        logger.critical(f"Erro crítico ao fazer login no api_client: {e}", exc_info=True)
+        # O bot continuará, mas as funcionalidades de API podem falhar.
+    # --- FIM DO NOVO CÓDIGO ---
+
+    try:
+        await setup_coc_events() # Configura o cliente de eventos
         await setup_web_server()
         await bot.start(DISCORD_TOKEN)
     except Exception as e:
@@ -954,6 +979,10 @@ async def main():
     finally:
         if events_client:
             await events_client.close()
+        # --- INÍCIO DO NOVO CÓDIGO ---
+        if api_client:
+            await api_client.close()
+        # --- FIM DO NOVO CÓDIGO ---
         if hasattr(bot, 'mongo_client'):
             bot.mongo_client.close()
         await bot.close()
