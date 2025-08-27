@@ -279,13 +279,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     warTabButtons.forEach(button => {
         button.addEventListener('click', () => {
-            const parentSection = button.closest('.content-section, .modal-content');
+            const parentSection = button.closest('.content-section');
             if (!parentSection) return;
             parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
             const tabId = button.dataset.tab;
             parentSection.querySelectorAll('.war-tab-content').forEach(content => {
-                content.style.display = content.id.endsWith(tabId) ? 'block' : 'none';
+                content.style.display = content.id === tabId ? 'block' : 'none';
             });
         });
     });
@@ -302,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const warHeader = container.querySelector('.war-header');
         const warTabsNav = container.querySelector('.war-tabs');
-        const noWarMsg = container.querySelector(isModal ? '.message-box' : '#noWarDetailMessage');
+        const noWarMsg = container.querySelector('.message-box');
 
         if (data.error || !data.war_data) {
             if (noWarMsg) {
@@ -692,23 +692,93 @@ document.addEventListener('DOMContentLoaded', () => {
         historicWarModal.style.display = 'block';
         const historicWarData = await fetchData(`war_history/${warId}`);
         
-        const warDetailsTemplate = document.getElementById('war-details-nav').cloneNode(true);
+        // --- INÍCIO DA SOLUÇÃO DEFINITIVA ---
+        // 1. Criar o HTML do zero para o modal, usando IDs com prefixo para evitar conflitos.
+        const modalHTML = `
+            <div class="war-details-card content-section">
+                <div class="war-header">
+                    <img id="historic-warDetailClanBadge" src="${DEFAULT_BADGE_URL}" alt="Emblema Clã" class="war-header-badge">
+                    <h2 id="historic-warDetailTitle"><span id="historic-warDetailOurClanName">-</span> vs <span id="historic-warDetailOpponentName">-</span></h2>
+                    <img id="historic-warDetailOpponentBadge" src="${DEFAULT_BADGE_URL}" alt="Emblema Oponente" class="war-header-badge">
+                </div>
+                <p class="war-timing-overall"><strong id="historic-warDetailTimeKey">Tempo:</strong> <span id="historic-warDetailTimeValue">-</span> (<span id="historic-warDetailTimeRemaining" class="time-remaining">-</span>)</p>
+                <p><strong>Estado:</strong> <span id="historic-warDetailState" class="war-state">-</span></p>
+                <nav class="war-tabs">
+                    <button class="war-tab-button active" data-tab="historic-war-stats">Estatísticas</button>
+                    <button class="war-tab-button" data-tab="historic-war-events">Eventos</button>
+                    <button class="war-tab-button" data-tab="historic-war-our-team">Minha Equipe</button>
+                    <button class="war-tab-button" data-tab="historic-war-opponent-team">Equipe Inimiga</button>
+                </nav>
+                <div class="message-box" style="display: none;"></div>
+                <div id="historic-war-stats" class="war-tab-content active">
+                     <h3>Placar Geral</h3>
+                    <div class="war-score-container">
+                        <div class="team-score our-clan-score">
+                            <h4 id="historic-statsOurClanName">-</h4>
+                            <p><span id="historic-statsOurStars">-</span>⭐ (<span id="historic-statsOurDestruction">-</span>%)</p>
+                            <p><span id="historic-statsOurAttacksUsed">-</span> ataques</p>
+                        </div>
+                        <div class="vs-separator">⚔️</div>
+                        <div class="team-score opponent-score">
+                            <h4 id="historic-statsOpponentName">-</h4>
+                            <p><span id="historic-statsOpponentStars">-</span>⭐ (<span id="historic-statsOpponentDestruction">-</span>%)</p>
+                            <p><span id="historic-statsOpponentAttacksUsed">-</span> ataques</p>
+                        </div>
+                    </div>
+                    <div class="war-averages-container grid-container">
+                        <div>
+                            <h4>Médias (Nosso Clã)</h4>
+                            <p><strong>Estrelas/Ataque:</strong> <span id="historic-statsOurAvgStars">-</span></p>
+                            <p><strong>Duração/Ataque:</strong> <span id="historic-statsOurAvgDuration">-</span></p>
+                        </div>
+                        <div>
+                            <h4>Médias (Oponente)</h4>
+                            <p><strong>Estrelas/Ataque:</strong> <span id="historic-statsOpponentAvgStars">-</span></p>
+                            <p><strong>Duração/Ataque:</strong> <span id="historic-statsOpponentAvgDuration">-</span></p>
+                        </div>
+                    </div>
+                    <div class="star-distribution-container">
+                        <h4>Distribuição de Estrelas (Nosso Clã)</h4>
+                        <p>3⭐: <span id="historic-statsOurStars3">-</span> | 2⭐: <span id="historic-statsOurStars2">-</span> | 1⭐: <span id="historic-statsOurStars1">-</span> | 0⭐: <span id="historic-statsOurStars0">-</span></p>
+                        <h4>Distribuição de Estrelas (Oponente)</h4>
+                        <p>3⭐: <span id="historic-statsOpponentStars3">-</span> | 2⭐: <span id="historic-statsOpponentStars2">-</span> | 1⭐: <span id="historic-statsOpponentStars1">-</span> | 0⭐: <span id="historic-statsOpponentStars0">-</span></p>
+                    </div>
+                </div>
+                <div id="historic-war-events" class="war-tab-content">
+                    <h3>Todos os Ataques (<span id="historic-warTotalAttacksCount">0</span>)</h3>
+                    <div class="table-container scrollable-box medium-table">
+                        <table id="historic-warEventsTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Atacante (CV)</th>
+                                    <th>Resultado</th>
+                                    <th>Defensor (CV)</th>
+                                    <th>Duração</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historic-warEventsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="historic-war-our-team" class="war-tab-content">
+                    <h3>Minha Equipe: <span id="historic-warOurTeamName">-</span></h3>
+                    <div id="historic-warOurTeamMembers" class="team-members-container scrollable-box"></div>
+                </div>
+                <div id="historic-war-opponent-team" class="war-tab-content">
+                    <h3>Equipe Inimiga: <span id="historic-warOpponentTeamName">-</span></h3>
+                    <div id="historic-warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
+                </div>
+            </div>
+        `;
         
-        // --- INÍCIO DA CORREÇÃO ---
-        // A linha abaixo estava causando o conflito de IDs. Foi removida.
-        // warDetailsTemplate.id = 'historic-war-details-content'; 
-        
-        warDetailsTemplate.querySelectorAll('[id]').forEach(el => {
-            el.id = 'historic-' + el.id;
-        });
-        
-        setHtml(historicWarDetailContent, '');
-        historicWarDetailContent.appendChild(warDetailsTemplate);
+        // 2. Inserir o HTML limpo no contêiner do modal.
+        setHtml(historicWarDetailContent, modalHTML);
 
-        // NOVO BLOCO DE CÓDIGO: Reativa os event listeners para as abas do modal
+        // 3. Adicionar os event listeners para os botões recém-criados.
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
-                const modalContent = button.closest('#historicWarDetailContent');
+                const modalContent = button.closest('.modal-content');
                 if (!modalContent) return;
 
                 modalContent.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
@@ -716,20 +786,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const tabId = button.dataset.tab;
                 modalContent.querySelectorAll('.war-tab-content').forEach(content => {
-                    // A verificação agora usa o ID prefixado
-                    content.style.display = content.id === 'historic-' + tabId ? 'block' : 'none';
+                    content.style.display = content.id === tabId ? 'block' : 'none';
                 });
             });
         });
         
-        // Garante que a primeira aba ("Estatísticas") seja exibida por padrão no modal
-        const firstTabButton = historicWarDetailContent.querySelector('.war-tab-button[data-tab="war-stats"]');
-        if (firstTabButton) {
-            firstTabButton.click();
-        }
-        
+        // 4. Popular os dados na estrutura recém-criada.
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
-        // --- FIM DA CORREÇÃO ---
+        // --- FIM DA SOLUÇÃO DEFINITIVA ---
     }
 
     if (closeModalButton) {
