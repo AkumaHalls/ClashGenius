@@ -575,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (operator === '==' && trophies !== value) show = false;
                 }
             }
-            row.style.display = show ? '' : 'none';
+            rows[i].style.display = show ? '' : 'none';
         }
     }
 
@@ -876,3 +876,4 @@ document.addEventListener('DOMContentLoaded', () => {
         animateParticles();
     }
 });
+
