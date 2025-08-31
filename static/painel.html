@@ -65,7 +65,6 @@
                 </div>
                 <p><strong>Descrição:</strong></p>
                 <div id="clanDescription" class="description-box scrollable-box">-</div>
-
                 <h3>Distritos da Capital</h3>
                 <div id="clanCapitalDistricts" class="grid-container capital-districts-grid">
                     <p>Carregando distritos...</p>
@@ -80,16 +79,13 @@
                 </div>
                 <p class="war-timing-overall"><strong id="warDetailTimeKey">Tempo:</strong> <span id="warDetailTimeValue">-</span> (<span id="warDetailTimeRemaining" class="time-remaining">-</span>)</p>
                 <p><strong>Estado:</strong> <span id="warDetailState" class="war-state">-</span></p>
-
                 <nav class="war-tabs">
                     <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
                     <button class="war-tab-button" data-tab="war-events">Eventos</button>
                     <button class="war-tab-button" data-tab="war-our-team">Minha Equipe</button>
                     <button class="war-tab-button" data-tab="war-opponent-team">Equipe Inimiga</button>
                 </nav>
-
                 <div id="noWarDetailMessage" class="message-box" style="display: none;">Nenhuma guerra ativa ou recente para detalhar.</div>
-
                 <div id="war-stats" class="war-tab-content active">
                     <h3>Placar Geral</h3>
                     <div class="war-score-container">
@@ -124,7 +120,6 @@
                         <p>3⭐: <span id="statsOpponentStars3">-</span> | 2⭐: <span id="statsOpponentStars2">-</span> | 1⭐: <span id="statsOpponentStars1">-</span> | 0⭐: <span id="statsOpponentStars0">-</span></p>
                     </div>
                 </div>
-
                 <div id="war-events" class="war-tab-content">
                     <h3>Todos os Ataques (<span id="warTotalAttacksCount">0</span>)</h3>
                     <div class="table-container scrollable-box medium-table">
@@ -142,24 +137,22 @@
                         </table>
                     </div>
                 </div>
-
                 <div id="war-our-team" class="war-tab-content">
                     <h3>Minha Equipe: <span id="warOurTeamName">-</span></h3>
                     <div id="warOurTeamMembers" class="team-members-container scrollable-box"></div>
                 </div>
-
                 <div id="war-opponent-team" class="war-tab-content">
                     <h3>Equipe Inimiga: <span id="warOpponentTeamName">-</span></h3>
                     <div id="warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
                 </div>
             </section>
-
+            
             <section id="attacks-remaining-nav" class="card attacks-remaining-card content-section">
-                <h2>Ataques Pendentes (<span id="attacksRemainingClanName">-</span>)</h2>
+                <h2 id="attacksRemainingTitle">Histórico de Ataques Pendentes (<span id="attacksRemainingClanName">-</span>)</h2>
                 <div id="attacksRemainingList" class="scrollable-box list-box">
                     <p>Carregando...</p>
                 </div>
-                <p id="noWarForAttacksRemainingMessage" class="message-box" style="display: none;">Não há guerra em andamento.</p>
+                <p id="noMissedAttacksMessage" class="message-box" style="display: none;">Nenhuma pendência encontrada.</p>
             </section>
 
             <section id="cwl-info-nav" class="card cwl-card content-section">
@@ -178,7 +171,7 @@
             </section>
 
             <section id="war-log-nav" class="card war-log-card content-section">
-                <h2>Histórico de Guerras (Últimas <span id="warLogLimit">10</span>)</h2>
+                <h2>Histórico de Guerras (Últimas <span id="warLogLimit">9</span>)</h2>
                 <div id="warLogTableContainer" class="table-container scrollable-box medium-table">
                     <table id="warLogTable">
                         <thead>
@@ -228,17 +221,26 @@
         </div>
     </main>
 
+    <!-- Modal para Detalhes da Guerra Histórica -->
+    <div id="historicWarModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <div id="historicWarDetailContent">
+                <!-- O conteúdo será preenchido via JS, similar à aba 'Guerra' -->
+            </div>
+        </div>
+    </div>
+
     <footer class="site-footer">
         <div class="container">
             <p>Clash Genius Bot v<span id="botVersion">?</span> | <span id="lastUpdated"></span></p>
             <p>Painel de monitoramento do Clã By +Constantine+ ❤️</p>
         </div>
     </footer>
-    
+
     <!-- Botão de Mudo Adicionado -->
     <button id="mute-button" class="mute-btn">🔊</button>
 
     <script src="/static/js/scripts.js"></script>
 </body>
 </html>
-
