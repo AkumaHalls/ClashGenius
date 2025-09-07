@@ -53,6 +53,10 @@
     --color-tab-inactive-bg: transparent;
     --color-tab-inactive-text: var(--color-text-secondary);
     --color-tab-border: var(--color-border);
+    
+    --color-gold: #FFD700;
+    --color-silver: #C0C0C0;
+    --color-bronze: #CD7F32;
 
     --border-radius-base: 6px;
     --box-shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
@@ -328,6 +332,86 @@ main.container {
     text-align: center;
 }
 /* --- FIM: ESTILOS DA NOVA ABA CLÃ --- */
+
+/* --- INÍCIO: ESTILOS DA NOVA ABA DESTAQUES --- */
+.highlights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+.highlight-card {
+    background-color: rgba(74, 85, 104, 0.2);
+    border-radius: var(--border-radius-base);
+    padding: 20px;
+    border-top: 3px solid var(--color-accent);
+}
+.highlight-card h3 {
+    margin-top: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.podium-list .podium-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-divider);
+}
+.podium-list .podium-item:last-child {
+    border-bottom: none;
+}
+.podium-rank {
+    font-size: 1.5em;
+    font-weight: 700;
+    margin-right: 15px;
+    width: 30px;
+    text-align: center;
+}
+.podium-item.gold .podium-rank { color: var(--color-gold); }
+.podium-item.silver .podium-rank { color: var(--color-silver); }
+.podium-item.bronze .podium-rank { color: var(--color-bronze); }
+
+.podium-details {
+    flex-grow: 1;
+}
+.podium-details .member-name {
+    font-weight: 600;
+    color: var(--color-text-main);
+}
+.podium-details .donation-count {
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+}
+
+.attacks-list .attack-item {
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: rgba(0,0,0,0.2);
+    border-radius: var(--border-radius-base);
+    border-left: 3px solid var(--color-success);
+}
+.attacks-list .attack-header {
+    font-weight: 600;
+    color: var(--color-text-main);
+}
+.attacks-list .attack-details {
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+}
+.attacks-list .attack-stars {
+    font-size: 1.2em;
+    color: var(--color-star-gold);
+}
+
+.chart-card {
+    border-top-color: var(--color-warning);
+}
+.chart-container {
+    position: relative;
+    height: 400px;
+    width: 100%;
+}
+/* --- FIM: ESTILOS DA NOVA ABA DESTAQUES --- */
 
 
 /* Navegação e Animação de Seções */
@@ -642,6 +726,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     th { font-size: 0.7em;}
     .note-text { max-width: 120px; }
     .clan-profile-header { flex-direction: column; text-align: center; } /* Centraliza no mobile */
+    .highlights-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
     .loading-badge { width: 70vw; max-width: 300px; }
