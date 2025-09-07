@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
+    // --- INÍCIO: Seletores para a nova aba Clã ---
     const clanNameEl = document.getElementById('clanName');
     const clanTagEl = document.getElementById('clanTag');
     const clanLevelEl = document.getElementById('clanLevel');
@@ -22,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalPointsEl = document.getElementById('clanCapitalPoints');
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
+    // --- FIM: Seletores para a nova aba Clã ---
 
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
@@ -248,34 +250,45 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
+    // --- INÍCIO: Função populateClanInfo ATUALIZADA ---
     function populateClanInfo(data) {
         if (data.error || !data.name) {
             setText(clanNameHeaderEl, "Erro");
             setText(clanNameEl, data.error || "N/A");
             return;
         }
+        // Cabeçalho principal e do painel
         setText(clanNameHeaderEl, data.name);
         setText(clanNameEl, data.name);
         setText(clanTagEl, data.tag);
-        setText(clanLevelEl, data.level);
-        setText(clanPointsEl, data.points);
-        setText(clanMemberCountEl, data.member_count);
-        setText(clanWarWinsEl, data.war_wins);
-        setText(clanLocationEl, data.location);
-        setText(clanTypeEl, data.type);
-        setText(clanDescriptionEl, data.description, 'Sem descrição.');
-        setText(botVersionEl, data.version, '?');
         setBadge(clanBadgeHeaderEl, data.badge_url);
         setBadge(clanBadgeEl, data.badge_url);
-        setText(clanCapitalPointsEl, data.capital_points);
+
+        // Stats primários
+        setText(clanLevelEl, `Nível: ${data.level || '-'}`);
+        setText(clanMemberCountEl, `Membros: ${data.member_count || '-'}/50`);
+        setText(clanLocationEl, `Local: ${data.location || '-'}`);
+        setText(clanTypeEl, `Tipo: ${data.type || '-'}`);
+
+        // Cards de estatísticas
+        setText(clanWarWinsEl, `${data.war_wins || '-'} ⚔️`);
+        setText(clanPointsEl, `${data.points || '-'} 🏆`);
+        setText(clanCapitalPointsEl, `${data.capital_points || '-'} 🏆`);
         setText(clanCapitalLeagueEl, data.capital_league);
+
+        // Descrição e Distritos
+        setText(clanDescriptionEl, data.description, 'Sem descrição.');
         setHtml(clanCapitalDistrictsEl, '');
         if (data.capital_districts && data.capital_districts.length > 0) {
             data.capital_districts.forEach(d => setHtml(clanCapitalDistrictsEl, clanCapitalDistrictsEl.innerHTML + `<p><strong>${d.name || 'N/A'}:</strong> Nv ${d.level || '?'}</p>`));
         } else {
             setHtml(clanCapitalDistrictsEl, '<p>Nenhum distrito encontrado.</p>');
         }
+        
+        setText(botVersionEl, data.version, '?');
     }
+    // --- FIM: Função populateClanInfo ATUALIZADA ---
+
 
     warTabButtons.forEach(button => {
         button.addEventListener('click', () => {
@@ -340,18 +353,48 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(container.querySelector(`#${prefix}statsOpponentStars`), war.opponent_stars);
         setText(container.querySelector(`#${prefix}statsOpponentDestruction`), war.opponent_destruction.replace('%', ''));
         setText(container.querySelector(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
-        setText(container.querySelector(`#${prefix}statsOurAvgStars`), war.clan_avg_stars);
-        setText(container.querySelector(`#${prefix}statsOurAvgDuration`), war.clan_avg_duration);
-        setText(container.querySelector(`#${prefix}statsOpponentAvgStars`), war.opponent_avg_stars);
-        setText(container.querySelector(`#${prefix}statsOpponentAvgDuration`), war.opponent_avg_duration);
-        setText(container.querySelector(`#${prefix}statsOurStars3`), war.clan_star_distribution['3']);
-        setText(container.querySelector(`#${prefix}statsOurStars2`), war.clan_star_distribution['2']);
-        setText(container.querySelector(`#${prefix}statsOurStars1`), war.clan_star_distribution['1']);
-        setText(container.querySelector(`#${prefix}statsOurStars0`), war.clan_star_distribution['0']);
-        setText(container.querySelector(`#${prefix}statsOpponentStars3`), war.opponent_star_distribution['3']);
-        setText(container.querySelector(`#${prefix}statsOpponentStars2`), war.opponent_star_distribution['2']);
-        setText(container.querySelector(`#${prefix}statsOpponentStars1`), war.opponent_star_distribution['1']);
-        setText(container.querySelector(`#${prefix}statsOpponentStars0`), war.opponent_star_distribution['0']);
+        
+        // --- INÍCIO DA CORREÇÃO DE ERRO NO MODAL ---
+        const populateStats = (prefix) => {
+            const ourAvgStarsEl = container.querySelector(`#${prefix}statsOurAvgStars`);
+            if(ourAvgStarsEl) setText(ourAvgStarsEl, war.clan_avg_stars);
+
+            const ourAvgDurationEl = container.querySelector(`#${prefix}statsOurAvgDuration`);
+            if(ourAvgDurationEl) setText(ourAvgDurationEl, war.clan_avg_duration);
+            
+            const oppAvgStarsEl = container.querySelector(`#${prefix}statsOpponentAvgStars`);
+            if(oppAvgStarsEl) setText(oppAvgStarsEl, war.opponent_avg_stars);
+
+            const oppAvgDurationEl = container.querySelector(`#${prefix}statsOpponentAvgDuration`);
+            if(oppAvgDurationEl) setText(oppAvgDurationEl, war.opponent_avg_duration);
+
+            const ourStars3El = container.querySelector(`#${prefix}statsOurStars3`);
+            if(ourStars3El) setText(ourStars3El, war.clan_star_distribution['3']);
+            
+            const ourStars2El = container.querySelector(`#${prefix}statsOurStars2`);
+            if(ourStars2El) setText(ourStars2El, war.clan_star_distribution['2']);
+
+            const ourStars1El = container.querySelector(`#${prefix}statsOurStars1`);
+            if(ourStars1El) setText(ourStars1El, war.clan_star_distribution['1']);
+            
+            const ourStars0El = container.querySelector(`#${prefix}statsOurStars0`);
+            if(ourStars0El) setText(ourStars0El, war.clan_star_distribution['0']);
+
+            const oppStars3El = container.querySelector(`#${prefix}statsOpponentStars3`);
+            if(oppStars3El) setText(oppStars3El, war.opponent_star_distribution['3']);
+
+            const oppStars2El = container.querySelector(`#${prefix}statsOpponentStars2`);
+            if(oppStars2El) setText(oppStars2El, war.opponent_star_distribution['2']);
+
+            const oppStars1El = container.querySelector(`#${prefix}statsOpponentStars1`);
+            if(oppStars1El) setText(oppStars1El, war.opponent_star_distribution['1']);
+
+            const oppStars0El = container.querySelector(`#${prefix}statsOpponentStars0`);
+            if(oppStars0El) setText(oppStars0El, war.opponent_star_distribution['0']);
+        };
+
+        populateStats(prefix);
+        // --- FIM DA CORREÇÃO DE ERRO NO MODAL ---
 
         const eventsTableBody = container.querySelector(`#${prefix}warEventsTableBody`);
         setText(container.querySelector(`#${prefix}warTotalAttacksCount`), data.all_attacks.length);
@@ -583,9 +626,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(input) input.addEventListener('keyup', applyMemberFilters);
     });
 
-    // --- INÍCIO DA CORREÇÃO ---
     async function savePlayerNote(playerTag, text, priority) {
-        // A tag do jogador vinda da API inclui um '#', que precisa ser codificado para ser usado em um URL.
         const encodedPlayerTag = encodeURIComponent(playerTag);
         try {
             const response = await fetchData(`notes/${encodedPlayerTag}`, {
@@ -593,7 +634,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text, priority })
             });
-            // Adiciona um log no console do navegador para confirmar o sucesso ou falha.
             if (response && !response.error) {
                 console.log(`Nota para ${playerTag} salva com sucesso.`);
             } else {
@@ -700,18 +740,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         applyMemberFilters();
     }
-    // --- FIM DA CORREÇÃO ---
 
     // --- LÓGICA DO MODAL DE GUERRA HISTÓRICA (REFORMULADA) ---
     async function openHistoricWarModal(warId) {
-        // 1. Mostrar modal com spinner de carregamento
         setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando detalhes da guerra...</p>');
         historicWarModal.style.display = 'block';
         
-        // 2. Buscar dados da guerra histórica
         const historicWarData = await fetchData(`war_history/${warId}`);
         
-        // 3. Clonar o template dedicado para o modal
         const template = document.getElementById('historic-war-template');
         if (!template) {
             console.error("Template 'historic-war-template' não encontrado!");
@@ -720,11 +756,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const warDetailsContent = template.content.cloneNode(true);
 
-        // 4. Limpar o container e injetar o conteúdo do template
         setHtml(historicWarDetailContent, '');
         historicWarDetailContent.appendChild(warDetailsContent);
 
-        // 5. Adicionar lógica de abas ao novo conteúdo
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
                 const modalContentEl = button.closest('.modal-content');
@@ -745,7 +779,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         
-        // 6. Popular o template com os dados da guerra
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
     }
 
