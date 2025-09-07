@@ -583,15 +583,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if(input) input.addEventListener('keyup', applyMemberFilters);
     });
 
+    // --- INÍCIO DA CORREÇÃO ---
     async function savePlayerNote(playerTag, text, priority) {
+        // A tag do jogador vinda da API inclui um '#', que precisa ser codificado para ser usado em um URL.
+        const encodedPlayerTag = encodeURIComponent(playerTag);
         try {
-            await fetchData(`notes/${playerTag}`, {
+            const response = await fetchData(`notes/${encodedPlayerTag}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text, priority })
             });
+            // Adiciona um log no console do navegador para confirmar o sucesso ou falha.
+            if (response && !response.error) {
+                console.log(`Nota para ${playerTag} salva com sucesso.`);
+            } else {
+                console.error(`Falha ao salvar nota para ${playerTag}:`, response ? response.error : 'Resposta desconhecida');
+            }
         } catch (error) {
-            console.error('Erro ao salvar nota:', error);
+            console.error('Erro de rede ao salvar nota:', error);
         }
     }
 
@@ -647,9 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     if (prio === (m.note_priority || 'none')) btn.classList.add('active');
                     
-                    // --- INÍCIO DA CORREÇÃO ---
                     btn.addEventListener('click', () => {
-                        // Garante que o texto atual (seja do input ou do span) seja usado
                         const currentText = noteInput.style.display === 'none' 
                             ? (noteTextSpan.textContent === 'Clique para editar...' ? '' : noteTextSpan.textContent)
                             : noteInput.value;
@@ -660,7 +667,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         prioritySelector.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
                     });
-                    // --- FIM DA CORREÇÃO ---
                     prioritySelector.appendChild(btn);
                 });
                 noteContainer.appendChild(prioritySelector);
@@ -671,7 +677,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     noteInput.focus();
                 });
 
-                // --- INÍCIO DA CORREÇÃO ---
                 noteInput.addEventListener('blur', () => {
                     const newText = noteInput.value;
                     const currentPriority = prioritySelector.querySelector('.priority-btn.active')?.dataset.priority || 'none';
@@ -683,7 +688,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     noteInput.style.display = 'none';
                     noteTextSpan.style.display = 'inline-block';
                 });
-                // --- FIM DA CORREÇÃO ---
 
                 noteInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') noteInput.blur();
@@ -696,6 +700,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         applyMemberFilters();
     }
+    // --- FIM DA CORREÇÃO ---
 
     // --- LÓGICA DO MODAL DE GUERRA HISTÓRICA (REFORMULADA) ---
     async function openHistoricWarModal(warId) {
