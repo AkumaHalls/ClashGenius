@@ -40,7 +40,7 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.30-HIGHLIGHTS-API-FIX"
+BOT_VERSION = "20.1.31-HIGHLIGHTS-STRICT-FILTER"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -459,17 +459,16 @@ async def get_current_or_last_war(clan_tag):
     if not api_client: return None
     try:
         return await api_client.get_current_war(clan_tag)
-    except coc.PrivateWarLog:
-        return None
-    except coc.NotFound:
-        # Se não há guerra atual, busca a última do log
+    except (coc.PrivateWarLog, coc.NotFound):
+        # Se não há guerra atual ou o log é privado, tenta o log público
         try:
             war_log = await api_client.get_war_log(clan_tag, limit=1)
-            if war_log:
-                # Precisa de uma lógica mais robusta aqui, pois o log não retorna o objeto de guerra completo.
-                # Para simplificar, vamos retornar None e tratar na função que chama.
-                # A melhor abordagem seria buscar a guerra pelo 'war_tag' se a API suportasse.
-                return None 
+            if war_log and war_log[0].end_time.seconds_since < (3600 * 48): # Se a última guerra terminou há menos de 2 dias
+                # A API não permite buscar uma guerra antiga completa pelo log.
+                # A melhor abordagem é construir os dados a partir do log, o que é limitado.
+                # Para esta função, vamos retornar None e deixar a lógica de 'highlights' tratar isso.
+                 return None
+            return None
         except Exception:
             return None
     except Exception:
@@ -717,7 +716,7 @@ async def fetch_cwl_info_for_web():
         logger.error(f"Erro em fetch_cwl_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao buscar dados da CWL."}
 
-# --- INÍCIO: Função para a aba Destaques CORRIGIDA E MELHORADA ---
+# --- INÍCIO: Função para a aba Destaques com filtro estrito ---
 async def fetch_highlights_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
@@ -728,11 +727,10 @@ async def fetch_highlights_for_web():
         top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in top_donors]
 
         best_attacks_data = []
-        # Tenta pegar a guerra atual/última da API primeiro
-        last_war = await get_current_or_last_war(CLAN_TAG)
-        
         our_attacks_list = []
-        
+
+        # Tenta pegar a guerra atual, se ela já terminou
+        last_war = await get_current_or_last_war(CLAN_TAG)
         if last_war and last_war.state == 'warEnded':
             our_clan_war_object = last_war.clan if last_war.clan.tag == CLAN_TAG else last_war.opponent
             for member in our_clan_war_object.members:
@@ -745,15 +743,15 @@ async def fetch_highlights_for_web():
                         "stars": attack.stars,
                         "destruction": attack.destruction,
                     })
-
-        # Se não encontrou na API, tenta no banco de dados
+        # Se não, busca no histórico do banco de dados a última guerra finalizada
         elif hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             if latest_war_doc and 'all_attacks' in latest_war_doc:
                 all_attacks_from_db = latest_war_doc.get('all_attacks', [])
+                # FILTRO ESTRITO: Pega apenas ataques onde a tag do clã do atacante é a do nosso clã
                 our_attacks_list = [
                     atk for atk in all_attacks_from_db 
-                    if atk.get("attacker_clan_tag") == CLAN_TAG or not atk.get("attacker_clan_tag") # fallback
+                    if atk.get("attacker_clan_tag") == CLAN_TAG
                 ]
 
         if our_attacks_list:
