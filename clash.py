@@ -40,7 +40,7 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.38-HIGHLIGHTS-ROBUST-FIX"
+BOT_VERSION = "20.1.39-MISSED-ATTACKS-REWORK"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -596,48 +596,59 @@ async def fetch_current_war_details_for_web():
         return {"error": "Erro interno ao processar dados da guerra."}
 # --- FIM: Função de salvar dados da guerra CORRIGIDA ---
 
+# --- INÍCIO: Lógica da aba "Ataques Pendentes" REFEITA ---
 async def fetch_missed_attacks_history_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
         return {"error": "Histórico indisponível (Banco de dados não conectado)."}
     try:
-        war_collection = bot.db.war_history
-        log_cursor = war_collection.find({}).sort("war_data.end_time_iso", DESCENDING)
-        
-        missed_attacks_history = []
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
              return {"error": "Não foi possível carregar os dados do clã para o histórico."}
 
+        war_collection = bot.db.war_history
+        # Busca todas as guerras no histórico, ordenadas da mais nova para a mais antiga
+        log_cursor = war_collection.find({}).sort("war_data.end_time_iso", DESCENDING)
+        
+        wars_with_missed_attacks = []
+        is_first_war = True # Para marcar a guerra mais recente
+
         async for war_doc in log_cursor:
             war_data = war_doc.get("war_data", {})
-            attacks_per_member = war_data.get("attacks_per_member", 2)
-            war_date_iso = war_data.get("end_time_iso")
-            
-            if war_date_iso:
-                try:
-                    end_time_dt = datetime.datetime.fromisoformat(war_date_iso)
-                    war_date_formatted = end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y')
-                except ValueError:
-                    war_date_formatted = "Data inválida"
-            else:
-                war_date_formatted = "Data desconhecida"
-
             our_members_in_war = war_doc.get("our_clan_members_in_war", [])
+            
+            missed_attacks_members = []
+            attacks_per_member = war_data.get("attacks_per_member", 2)
+
             for member in our_members_in_war:
                 attacks_made = member.get("attacks_used", 0)
                 attacks_left = attacks_per_member - attacks_made
                 if attacks_left > 0:
-                    missed_attacks_history.append({
+                    missed_attacks_members.append({
                         "name": member.get("name", "Nome desconhecido"),
+                        "tag": member.get("tag", "#?"),
                         "town_hall": member.get("townhall", "?"),
                         "attacks_left": attacks_left,
-                        "war_date": war_date_formatted
                     })
+            
+            # Só adiciona o grupo da guerra se houveram ataques perdidos nela
+            if missed_attacks_members:
+                end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
+                wars_with_missed_attacks.append({
+                    "opponent_name": war_data.get("opponent_name", "Oponente Desconhecido"),
+                    "end_date": end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y'),
+                    "missed_attacks_members": missed_attacks_members,
+                    "is_latest": is_first_war
+                })
+                is_first_war = False
         
-        return {"missed_attacks": missed_attacks_history, "clan_name": clan.name}
+        return {
+            "clan_name": clan.name,
+            "wars_with_missed_attacks": wars_with_missed_attacks
+        }
     except Exception as e:
         logger.error(f"Erro em fetch_missed_attacks_history_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar histórico de ataques pendentes."}
+# --- FIM: Lógica da aba "Ataques Pendentes" REFEITA ---
 
 async def fetch_war_log_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
