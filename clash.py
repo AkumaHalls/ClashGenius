@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.16-FINAL-STABLE - Adicionado monitoramento de doações e tropas recebidas. #
+# Versão 20.1.16-FINAL-STABLE - Adicionado monitoramento de doações e tropas recebidas. ##
 
 import os
 import logging
