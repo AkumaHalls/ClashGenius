@@ -148,7 +148,7 @@
             </section>
             
             <section id="attacks-remaining-nav" class="card attacks-remaining-card content-section">
-                <h2 id="attacksRemainingTitle">Histórico de Ataques Pendentes (<span id="attacksRemainingClanName">-</span>)</h2>
+                <h2 id="attacksRemainingTitle">Histórico de Ataques Pendentes (<span>-</span>)</h2>
                 <div id="attacksRemainingList" class="scrollable-box list-box">
                     <p>Carregando...</p>
                 </div>
@@ -221,12 +221,95 @@
         </div>
     </main>
 
+    <!-- Template para o Modal de Guerra Histórica (NOVO) -->
+    <template id="historic-war-template">
+        <div class="card war-details-card">
+            <div class="war-header">
+                <img id="historic-warDetailClanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="war-header-badge">
+                <h2 id="historic-warDetailTitle"><span id="historic-warDetailOurClanName">-</span> vs <span id="historic-warDetailOpponentName">-</span></h2>
+                <img id="historic-warDetailOpponentBadge" src="/static/images/default_badge.png" alt="Emblema Oponente" class="war-header-badge">
+            </div>
+            <p class="war-timing-overall"><strong id="historic-warDetailTimeKey">Tempo:</strong> <span id="historic-warDetailTimeValue">-</span> (<span id="historic-warDetailTimeRemaining" class="time-remaining">-</span>)</p>
+            <p class="text-center"><strong>Estado:</strong> <span id="historic-warDetailState" class="war-state">-</span></p>
+            <nav class="war-tabs">
+                <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
+                <button class="war-tab-button" data-tab="war-events">Eventos</button>
+                <button class="war-tab-button" data-tab="war-our-team">Minha Equipe</button>
+                <button class="war-tab-button" data-tab="war-opponent-team">Equipe Inimiga</button>
+            </nav>
+            <div class="message-box" style="display: none;">Nenhuma guerra para detalhar.</div>
+            
+            <div id="historic-war-stats" class="war-tab-content active">
+                <h3>Placar Geral</h3>
+                <div class="war-score-container">
+                    <div class="team-score our-clan-score">
+                        <h4 id="historic-statsOurClanName">-</h4>
+                        <p><span id="historic-statsOurStars">-</span>⭐ (<span id="historic-statsOurDestruction">-</span>%)</p>
+                        <p><span id="historic-statsOurAttacksUsed">-</span> ataques</p>
+                    </div>
+                    <div class="vs-separator">⚔️</div>
+                    <div class="team-score opponent-score">
+                        <h4 id="historic-statsOpponentName">-</h4>
+                        <p><span id="historic-statsOpponentStars">-</span>⭐ (<span id="historic-statsOpponentDestruction">-</span>%)</p>
+                        <p><span id="historic-statsOpponentAttacksUsed">-</span> ataques</p>
+                    </div>
+                </div>
+                <div class="war-averages-container grid-container">
+                    <div>
+                        <h4>Médias (Nosso Clã)</h4>
+                        <p><strong>Estrelas/Ataque:</strong> <span id="historic-statsOurAvgStars">-</span></p>
+                        <p><strong>Duração/Ataque:</strong> <span id="historic-statsOurAvgDuration">-</span></p>
+                    </div>
+                    <div>
+                        <h4>Médias (Oponente)</h4>
+                        <p><strong>Estrelas/Ataque:</strong> <span id="historic-statsOpponentAvgStars">-</span></p>
+                        <p><strong>Duração/Ataque:</strong> <span id="historic-statsOpponentAvgDuration">-</span></p>
+                    </div>
+                </div>
+                <div class="star-distribution-container">
+                    <h4>Distribuição de Estrelas (Nosso Clã)</h4>
+                    <p>3⭐: <span id="historic-statsOurStars3">-</span> | 2⭐: <span id="historic-statsOurStars2">-</span> | 1⭐: <span id="historic-statsOurStars1">-</span> | 0⭐: <span id="historic-statsOurStars0">-</span></p>
+                    <h4>Distribuição de Estrelas (Oponente)</h4>
+                    <p>3⭐: <span id="historic-statsOpponentStars3">-</span> | 2⭐: <span id="historic-statsOpponentStars2">-</span> | 1⭐: <span id="historic-statsOpponentStars1">-</span> | 0⭐: <span id="historic-statsOpponentStars0">-</span></p>
+                </div>
+            </div>
+            
+            <div id="historic-war-events" class="war-tab-content">
+                <h3>Todos os Ataques (<span id="historic-warTotalAttacksCount">0</span>)</h3>
+                <div class="table-container scrollable-box medium-table">
+                    <table id="historic-warEventsTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Atacante (CV)</th>
+                                <th>Resultado</th>
+                                <th>Defensor (CV)</th>
+                                <th>Duração</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historic-warEventsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="historic-war-our-team" class="war-tab-content">
+                <h3>Minha Equipe: <span id="historic-warOurTeamName">-</span></h3>
+                <div id="historic-warOurTeamMembers" class="team-members-container scrollable-box"></div>
+            </div>
+            
+            <div id="historic-war-opponent-team" class="war-tab-content">
+                <h3>Equipe Inimiga: <span id="historic-warOpponentTeamName">-</span></h3>
+                <div id="historic-warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
+            </div>
+        </div>
+    </template>
+
     <!-- Modal para Detalhes da Guerra Histórica -->
     <div id="historicWarModal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
             <div id="historicWarDetailContent">
-                <!-- O conteúdo será preenchido via JS, similar à aba 'Guerra' -->
+                <!-- O conteúdo será preenchido via JS usando o template -->
             </div>
         </div>
     </div>
