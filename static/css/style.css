@@ -241,6 +241,95 @@ main.container {
 .scrollable-box::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
 .scrollable-box::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
 
+/* --- INÍCIO: ESTILOS DA NOVA ABA CLÃ --- */
+.clan-profile-header {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+.clan-profile-badge-container {
+    flex-shrink: 0;
+}
+.clan-profile-badge {
+    width: 140px;
+    height: 140px;
+    border-radius: 8px;
+    border: 2px solid var(--color-border-light);
+}
+.clan-profile-info {
+    flex-grow: 1;
+}
+.clan-profile-info h2 {
+    margin: 0 0 5px 0;
+    font-size: 2.2em;
+    font-weight: 700;
+    border: none;
+    padding: 0;
+}
+.clan-profile-info .clan-tag-profile {
+    font-size: 1.1em;
+    color: var(--color-text-secondary);
+    margin: 0 0 15px 0;
+}
+.primary-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    color: var(--color-text-secondary);
+    font-size: 0.95em;
+}
+.stat-item {
+    display: flex;
+    align-items: center;
+}
+.stat-icon {
+    margin-right: 8px;
+    font-size: 1.1em;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+.stat-card {
+    background-color: rgba(74, 85, 104, 0.2);
+    border-radius: var(--border-radius-base);
+    padding: 15px 20px;
+    border-left: 4px solid var(--color-border-light);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+.stat-card h4 {
+    margin: 0 0 8px 0;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+.stat-card p {
+    margin: 0;
+    font-size: 1.6em;
+    font-weight: 700;
+    color: var(--color-text-main);
+}
+.stat-card.stat-card-wars { border-color: var(--color-success); }
+.stat-card.stat-card-trophies { border-color: #f1c40f; } /* Gold */
+.stat-card.stat-card-capital-trophies { border-color: #9b59b6; } /* Purple */
+.stat-card.stat-card-capital-league { border-color: var(--color-info); }
+
+.capital-districts-grid p {
+    text-align: center;
+}
+/* --- FIM: ESTILOS DA NOVA ABA CLÃ --- */
+
+
 /* Navegação e Animação de Seções */
 .sections-wrapper {
     position: relative;
@@ -301,6 +390,7 @@ main.container {
 .war-header-badge { height: 40px; width: 40px; }
 .war-header h2 { margin-bottom: 0; border-bottom: none; font-size: 1.3em; text-align: center; }
 .war-timing-overall { text-align: center; font-size: 0.9em; margin-bottom: 15px; color: var(--color-text-secondary); }
+.time-remaining { font-weight: 500; color: var(--color-text-main); }
 .war-state {
     font-weight: 500; padding: 6px 12px; border-radius: var(--border-radius-base);
     color: #ffffff; font-size: 0.85em; text-transform: uppercase; display: inline-block; margin-bottom: 15px;
@@ -551,6 +641,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     th, td { padding: 8px 10px; font-size: 0.85em;}
     th { font-size: 0.7em;}
     .note-text { max-width: 120px; }
+    .clan-profile-header { flex-direction: column; text-align: center; } /* Centraliza no mobile */
 }
 @media (max-width: 480px) {
     .loading-badge { width: 70vw; max-width: 300px; }
@@ -561,6 +652,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .note-text { max-width: 100px; }
     .priority-btn { width: 20px; height: 20px; font-size: 10px; line-height: 18px; }
     .mute-btn { width: 40px; height: 40px; font-size: 20px; bottom: 15px; right: 15px;}
+    .clan-profile-info h2 { font-size: 1.8em; }
+    .stats-grid { grid-template-columns: 1fr; } /* Uma coluna no mobile */
 }
 
 /* Estilos do Modal de Guerra Histórica */
@@ -574,7 +667,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     height: 100%; 
     overflow: auto; 
     background-color: rgba(0,0,0,0.7);
-    padding-top: 60px;
 }
 
 .modal-content {
@@ -588,9 +680,10 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     position: relative;
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     animation: fadeIn 0.3s;
-    max-height: 85vh; /* Garante que o modal não seja maior que a tela */
+    max-height: 90vh; /* Garante que não ultrapasse a altura da tela */
     overflow-y: auto; /* Adiciona scroll se o conteúdo for maior */
 }
+
 
 @keyframes fadeIn {
     from {opacity: 0; transform: scale(0.95);}
@@ -632,6 +725,3 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: #fff;
 }
 
-.text-center {
-    text-align: center;
-}
