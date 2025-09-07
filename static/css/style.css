@@ -411,6 +411,12 @@ main.container {
     height: 400px;
     width: 100%;
 }
+.war-date-highlight {
+    font-size: 0.8em;
+    color: var(--color-text-secondary);
+    font-weight: 400;
+    margin-left: 8px;
+}
 /* --- FIM: ESTILOS DA NOVA ABA DESTAQUES --- */
 
 
