@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
-    // --- INÍCIO: Seletores para a nova aba Clã ---
     const clanNameEl = document.getElementById('clanName');
     const clanTagEl = document.getElementById('clanTag');
     const clanLevelEl = document.getElementById('clanLevel');
@@ -23,7 +22,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalPointsEl = document.getElementById('clanCapitalPoints');
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
-    // --- FIM: Seletores para a nova aba Clã ---
+
+    // --- INÍCIO: Seletores para a nova aba Destaques ---
+    const highlightsClanNameEl = document.getElementById('highlightsClanName');
+    const topDonorsListEl = document.getElementById('topDonorsList');
+    const bestAttacksListEl = document.getElementById('bestAttacksList');
+    const activityChartCanvas = document.getElementById('activityChart');
+    const noHighlightsMessageEl = document.getElementById('noHighlightsMessage');
+    let activityChart = null; // Variável para armazenar a instância do gráfico
+    // --- FIM: Seletores para a nova aba Destaques ---
 
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
@@ -250,33 +257,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
-    // --- INÍCIO: Função populateClanInfo ATUALIZADA ---
     function populateClanInfo(data) {
         if (data.error || !data.name) {
             setText(clanNameHeaderEl, "Erro");
             setText(clanNameEl, data.error || "N/A");
             return;
         }
-        // Cabeçalho principal e do painel
         setText(clanNameHeaderEl, data.name);
         setText(clanNameEl, data.name);
         setText(clanTagEl, data.tag);
         setBadge(clanBadgeHeaderEl, data.badge_url);
         setBadge(clanBadgeEl, data.badge_url);
-
-        // Stats primários
         setText(clanLevelEl, `Nível: ${data.level || '-'}`);
         setText(clanMemberCountEl, `Membros: ${data.member_count || '-'}/50`);
         setText(clanLocationEl, `Local: ${data.location || '-'}`);
         setText(clanTypeEl, `Tipo: ${data.type || '-'}`);
-
-        // Cards de estatísticas
         setText(clanWarWinsEl, `${data.war_wins || '-'} ⚔️`);
         setText(clanPointsEl, `${data.points || '-'} 🏆`);
         setText(clanCapitalPointsEl, `${data.capital_points || '-'} 🏆`);
         setText(clanCapitalLeagueEl, data.capital_league);
-
-        // Descrição e Distritos
         setText(clanDescriptionEl, data.description, 'Sem descrição.');
         setHtml(clanCapitalDistrictsEl, '');
         if (data.capital_districts && data.capital_districts.length > 0) {
@@ -284,10 +283,112 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             setHtml(clanCapitalDistrictsEl, '<p>Nenhum distrito encontrado.</p>');
         }
-        
         setText(botVersionEl, data.version, '?');
     }
-    // --- FIM: Função populateClanInfo ATUALIZADA ---
+
+    // --- INÍCIO: Nova função para popular a aba Destaques ---
+    function populateHighlights(data) {
+        if (data.error || !data.clan_name) {
+            noHighlightsMessageEl.style.display = 'block';
+            setText(noHighlightsMessageEl, data.error || "Não foi possível carregar os destaques.");
+            document.getElementById('highlightsContent').style.display = 'none';
+            return;
+        }
+
+        noHighlightsMessageEl.style.display = 'none';
+        document.getElementById('highlightsContent').style.display = 'block';
+        setText(highlightsClanNameEl, data.clan_name);
+
+        // Popula Top Doadores
+        if (data.top_donors && data.top_donors.length > 0) {
+            const medals = ['gold', 'silver', 'bronze'];
+            let donorsHtml = '';
+            data.top_donors.forEach((donor, index) => {
+                donorsHtml += `
+                    <div class="podium-item ${medals[index] || ''}">
+                        <span class="podium-rank">${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}</span>
+                        <div class="podium-details">
+                            <div class="member-name">${donor.name} (CV${donor.town_hall})</div>
+                            <div class="donation-count"><strong>${donor.donations.toLocaleString()}</strong> tropas doadas</div>
+                        </div>
+                    </div>
+                `;
+            });
+            setHtml(topDonorsListEl, donorsHtml);
+        } else {
+            setHtml(topDonorsListEl, '<p>Nenhum doador encontrado.</p>');
+        }
+
+        // Popula Melhores Ataques
+        if (data.best_attacks && data.best_attacks.length > 0) {
+            let attacksHtml = '';
+            data.best_attacks.forEach(attack => {
+                attacksHtml += `
+                    <div class="attack-item">
+                        <div class="attack-header">${attack.attacker_name} vs ${attack.defender_name} (CV${attack.defender_townhall})</div>
+                        <div class="attack-details">
+                            <span class="attack-stars">${'⭐'.repeat(attack.stars)}</span>
+                            <strong>${attack.destruction}%</strong> de destruição
+                        </div>
+                    </div>
+                `;
+            });
+            setHtml(bestAttacksListEl, attacksHtml);
+        } else {
+            setHtml(bestAttacksListEl, '<p>Nenhum ataque na última guerra para destacar.</p>');
+        }
+
+        // Popula o Gráfico de Atividade
+        if (activityChart) {
+            activityChart.destroy(); // Destroi o gráfico antigo antes de criar um novo
+        }
+        if (data.activity_chart_data && data.activity_chart_data.labels.length > 0) {
+            const ctx = activityChartCanvas.getContext('2d');
+            activityChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.activity_chart_data.labels,
+                    datasets: [
+                        {
+                            label: 'Tropas Doadas',
+                            data: data.activity_chart_data.donations,
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Tropas Recebidas',
+                            data: data.activity_chart_data.received,
+                            backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                        },
+                        x: {
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(255, 255, 255, 0.8)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+    // --- FIM: Nova função para popular a aba Destaques ---
 
 
     warTabButtons.forEach(button => {
@@ -354,7 +455,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(container.querySelector(`#${prefix}statsOpponentDestruction`), war.opponent_destruction.replace('%', ''));
         setText(container.querySelector(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
         
-        // --- INÍCIO DA CORREÇÃO DE ERRO NO MODAL ---
         const populateStats = (prefix) => {
             const ourAvgStarsEl = container.querySelector(`#${prefix}statsOurAvgStars`);
             if(ourAvgStarsEl) setText(ourAvgStarsEl, war.clan_avg_stars);
@@ -394,7 +494,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         populateStats(prefix);
-        // --- FIM DA CORREÇÃO DE ERRO NO MODAL ---
 
         const eventsTableBody = container.querySelector(`#${prefix}warEventsTableBody`);
         setText(container.querySelector(`#${prefix}warTotalAttacksCount`), data.all_attacks.length);
@@ -741,7 +840,6 @@ document.addEventListener('DOMContentLoaded', () => {
         applyMemberFilters();
     }
 
-    // --- LÓGICA DO MODAL DE GUERRA HISTÓRICA (REFORMULADA) ---
     async function openHistoricWarModal(warId) {
         setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando detalhes da guerra...</p>');
         historicWarModal.style.display = 'block';
@@ -804,13 +902,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
         try {
-            const [clanData, membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData] = await Promise.all([
+            const [clanData, membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData, highlightsData] = await Promise.all([
                 fetchData('clan'),
                 fetchData('members'),
                 fetchData('current_war_details'),
                 fetchData('missed_attacks_history'),
                 fetchData('war_log'),
-                fetchData('cwl_info')
+                fetchData('cwl_info'),
+                fetchData('highlights') // Adiciona a busca de dados para a nova aba
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
@@ -818,6 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
+            populateHighlights(highlightsData); // Chama a nova função para popular os destaques
             updateLastUpdated();
         } catch (error) {
             console.error("Erro ao carregar todos os dados:", error);
