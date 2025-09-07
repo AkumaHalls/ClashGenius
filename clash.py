@@ -40,7 +40,7 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.28-HIGHLIGHTS-FIX"
+BOT_VERSION = "20.1.29-HIGHLIGHTS-FIX-2"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -463,7 +463,6 @@ async def get_current_or_last_war(clan_tag):
         try:
             war_log = await api_client.get_war_log(clan_tag, limit=1)
             if war_log:
-                # Corrigido para buscar guerra pelo war tag se disponível
                 return await api_client.get_league_war(war_log[0].war_tag)
         except Exception:
             return None
@@ -723,20 +722,36 @@ async def fetch_highlights_for_web():
         if hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             if latest_war_doc and 'all_attacks' in latest_war_doc and latest_war_doc['all_attacks']:
-                our_clan_tag = clan.tag
-                our_attacks = [
-                    atk for atk in latest_war_doc['all_attacks'] 
-                    if 'attacker_tag' in atk and coc.utils.get_clan_tag(atk['attacker_tag']) == our_clan_tag
-                ]
+                all_attacks_from_db = latest_war_doc['all_attacks']
                 
-                # CORREÇÃO: Verifica se há ataques do nosso clã antes de ordenar
+                # --- INÍCIO DA CORREÇÃO ---
+                # Garante que a tag do clã está no formato correto para comparação
+                our_clan_tag_from_db = latest_war_doc.get("war_data", {}).get("clan_tag") or CLAN_TAG
+                our_attacks = []
+                for atk in all_attacks_from_db:
+                    # Adiciona verificação de existência da chave 'attacker_tag'
+                    if 'attacker_tag' in atk:
+                         # Assume que ataques sem tag de clã são do nosso clã se a tag não estiver presente
+                        attacker_clan_tag = coc.utils.get_clan_tag(atk['attacker_tag']) or our_clan_tag_from_db
+                        if attacker_clan_tag == our_clan_tag_from_db:
+                            destruction_value = atk.get('destruction', 0)
+                            # Trata tanto int (100) quanto string ('100%')
+                            if isinstance(destruction_value, str):
+                                destruction_float = float(destruction_value.replace('%', ''))
+                            else:
+                                destruction_float = float(destruction_value)
+                            
+                            atk['destruction_float'] = destruction_float
+                            our_attacks.append(atk)
+                
                 if our_attacks:
                     sorted_attacks = sorted(
                         our_attacks, 
-                        key=lambda a: (a.get('stars', 0), float(a.get('destruction', '0%').replace('%',''))), 
+                        key=lambda a: (a.get('stars', 0), a.get('destruction_float', 0.0)),
                         reverse=True
                     )
                     best_attacks_data = sorted_attacks[:3]
+                # --- FIM DA CORREÇÃO ---
 
         active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
         chart_data = {
@@ -756,6 +771,7 @@ async def fetch_highlights_for_web():
         logger.error(f"Erro em fetch_highlights_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar destaques."}
 # --- FIM: Função para a aba Destaques ATUALIZADA ---
+
 
 async def api_clan_info_handler(request):
     data = await get_cached_web_data('clan_info', fetch_clan_info_for_web)
