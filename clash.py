@@ -86,12 +86,14 @@ async def save_player_note_to_db(player_tag: str, text: str, priority: str):
         logger.error("Banco de dados não disponível, não é possível salvar a nota.")
         raise ConnectionError("Banco de dados não conectado.")
     try:
+        # A tag vinda do painel já está codificada, então decodificamos para salvar corretamente
+        player_tag_decoded = coc.utils.correct_tag(player_tag)
         await bot.db.player_notes.update_one(
-            {"_id": player_tag},
+            {"_id": player_tag_decoded},
             {"$set": {"text": text, "priority": priority}},
             upsert=True
         )
-        logger.info(f"Nota salva no MongoDB para {player_tag}.")
+        logger.info(f"Nota salva no MongoDB para {player_tag_decoded}.")
     except Exception as e:
         logger.error(f"Erro ao salvar nota no MongoDB para {player_tag}: {e}", exc_info=True)
         raise
@@ -685,10 +687,7 @@ async def fetch_cwl_info_for_web():
         if not api_client:
             return {"error": "CWLFeatureDisabled", "message": "API do CoC não iniciada."}
         
-        # --- INÍCIO DA CORREÇÃO ---
-        # O nome correto do método é get_league_group
         cwl_war = await api_client.get_league_group(CLAN_TAG)
-        # --- FIM DA CORREÇÃO ---
 
         if not cwl_war:
             return {"status": "NotInCwl", "message": "O clã não está em uma CWL."}
@@ -702,10 +701,7 @@ async def fetch_cwl_info_for_web():
             round_data = {"round_number": cwl_war.rounds.index(a_round) + 1, "wars": []}
             for war_tag in a_round:
                 try:
-                    # --- INÍCIO DA CORREÇÃO ---
-                    # Para obter detalhes de uma guerra específica da CWL, usamos get_league_war
                     war = await api_client.get_league_war(war_tag)
-                    # --- FIM DA CORREÇÃO ---
                     if war:
                         details = {
                             "war_tag": war_tag,
@@ -733,6 +729,57 @@ async def fetch_cwl_info_for_web():
         logger.error(f"Erro em fetch_cwl_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao buscar dados da CWL."}
 
+# --- INÍCIO: Nova função para a aba Destaques ---
+async def fetch_highlights_for_web():
+    try:
+        # 1. Top Doadores
+        clan = await get_clan_data_with_cache(CLAN_TAG)
+        if not clan:
+            return {"error": "Não foi possível carregar os dados do clã."}
+        
+        top_donors = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]
+        top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in top_donors]
+
+        # 2. Melhores Ataques da Última Guerra
+        best_attacks_data = []
+        if hasattr(bot, 'db') and bot.db is not None:
+            latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
+            if latest_war_doc:
+                all_attacks = []
+                our_members = latest_war_doc.get("our_clan_members_in_war", [])
+                for member in our_members:
+                    for attack in member.get("attacks_made", []):
+                        all_attacks.append({
+                            "attacker_name": member.get("name"),
+                            "stars": attack.get("stars"),
+                            "destruction": float(attack.get("destruction", "0%").replace('%','')),
+                            "defender_name": attack.get("defender_name"),
+                            "defender_townhall": attack.get("defender_townhall")
+                        })
+                # Ordena por estrelas (desc), depois destruição (desc)
+                sorted_attacks = sorted(all_attacks, key=lambda a: (a['stars'], a['destruction']), reverse=True)
+                best_attacks_data = sorted_attacks[:3]
+
+        # 3. Dados para o Gráfico de Atividade
+        active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
+        chart_data = {
+            "labels": [m.name for m in active_members],
+            "donations": [m.donations for m in active_members],
+            "received": [m.received for m in active_members]
+        }
+
+        return {
+            "top_donors": top_donors_data,
+            "best_attacks": best_attacks_data,
+            "activity_chart_data": chart_data,
+            "clan_name": clan.name
+        }
+
+    except Exception as e:
+        logger.error(f"Erro em fetch_highlights_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar destaques."}
+# --- FIM: Nova função para a aba Destaques ---
+
 
 async def api_clan_info_handler(request):
     data = await get_cached_web_data('clan_info', fetch_clan_info_for_web)
@@ -758,17 +805,28 @@ async def api_cwl_info_handler(request):
     data = await get_cached_web_data('cwl_info', fetch_cwl_info_for_web)
     return web.json_response(data)
 
+# --- INÍCIO: Novo handler para a API de Destaques ---
+async def api_highlights_handler(request):
+    data = await get_cached_web_data('highlights', fetch_highlights_for_web)
+    return web.json_response(data)
+# --- FIM: Novo handler para a API de Destaques ---
+
+
 async def api_save_player_note_handler(request):
-    player_tag = request.match_info['player_tag']
+    player_tag_encoded = request.match_info['player_tag']
     try:
+        player_tag = coc.utils.correct_tag(player_tag_encoded)
         data = await request.json()
         note_text = data.get('text', '')
         priority = data.get('priority', 'none')
         await save_player_note_to_db(player_tag, note_text, priority)
+        # Limpa o cache de membros para refletir a nota salva na próxima atualização
+        web_api_cache.pop('members', None)
         return web.Response(status=204)
     except Exception as e:
-        logger.error(f"Erro ao salvar nota via API para {player_tag}: {e}", exc_info=True)
+        logger.error(f"Erro ao salvar nota via API para {player_tag_encoded}: {e}", exc_info=True)
         return web.json_response({"error": "Erro ao salvar a nota."}, status=500)
+
 
 async def api_historic_war_handler(request):
     war_id = request.match_info['war_id']
@@ -916,7 +974,10 @@ async def setup_web_server():
     app.router.add_get("/api/missed_attacks_history", api_missed_attacks_history_handler)
     app.router.add_get("/api/war_log", api_war_log_handler)
     app.router.add_get("/api/cwl_info", api_cwl_info_handler)
-    app.router.add_post("/api/notes/{player_tag}", api_save_player_note_handler)
+    # --- INÍCIO: Adiciona a nova rota da API ---
+    app.router.add_get("/api/highlights", api_highlights_handler)
+    # --- FIM: Adiciona a nova rota da API ---
+    app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     
