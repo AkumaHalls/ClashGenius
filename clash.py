@@ -682,10 +682,14 @@ async def fetch_war_log_for_web():
 
 async def fetch_cwl_info_for_web():
     try:
-        if not api_client: # Alterado para usar o novo cliente
+        if not api_client:
             return {"error": "CWLFeatureDisabled", "message": "API do CoC não iniciada."}
         
-        cwl_war = await api_client.get_clan_war_league_group(CLAN_TAG) # Alterado para usar o novo cliente
+        # --- INÍCIO DA CORREÇÃO ---
+        # O nome correto do método é get_league_group
+        cwl_war = await api_client.get_league_group(CLAN_TAG)
+        # --- FIM DA CORREÇÃO ---
+
         if not cwl_war:
             return {"status": "NotInCwl", "message": "O clã não está em uma CWL."}
 
@@ -698,7 +702,10 @@ async def fetch_cwl_info_for_web():
             round_data = {"round_number": cwl_war.rounds.index(a_round) + 1, "wars": []}
             for war_tag in a_round:
                 try:
-                    war = await api_client.get_clan_war(war_tag) # Alterado para usar o novo cliente
+                    # --- INÍCIO DA CORREÇÃO ---
+                    # Para obter detalhes de uma guerra específica da CWL, usamos get_league_war
+                    war = await api_client.get_league_war(war_tag)
+                    # --- FIM DA CORREÇÃO ---
                     if war:
                         details = {
                             "war_tag": war_tag,
@@ -725,6 +732,7 @@ async def fetch_cwl_info_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_cwl_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao buscar dados da CWL."}
+
 
 async def api_clan_info_handler(request):
     data = await get_cached_web_data('clan_info', fetch_clan_info_for_web)
