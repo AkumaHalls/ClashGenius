@@ -40,7 +40,7 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.31-HIGHLIGHTS-STRICT-FILTER"
+BOT_VERSION = "20.1.33-HIGHLIGHTS-DATE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -716,7 +716,7 @@ async def fetch_cwl_info_for_web():
         logger.error(f"Erro em fetch_cwl_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao buscar dados da CWL."}
 
-# --- INÍCIO: Função para a aba Destaques com filtro estrito ---
+# --- INÍCIO: Função para a aba Destaques com lógica refinada e data ---
 async def fetch_highlights_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
@@ -728,14 +728,17 @@ async def fetch_highlights_for_web():
 
         best_attacks_data = []
         our_attacks_list = []
+        war_end_date_str = ""
 
-        # Tenta pegar a guerra atual, se ela já terminou
-        last_war = await get_current_or_last_war(CLAN_TAG)
-        if last_war and last_war.state == 'warEnded':
-            our_clan_war_object = last_war.clan if last_war.clan.tag == CLAN_TAG else last_war.opponent
+        # Tenta obter a guerra mais recente (pode estar em andamento ou ter acabado de terminar)
+        last_war_from_api = await get_current_or_last_war(CLAN_TAG)
+
+        if last_war_from_api and last_war_from_api.state == 'warEnded':
+            # Se a guerra acabou de terminar, use os dados da API
+            our_clan_war_object = last_war_from_api.clan if last_war_from_api.clan.tag == CLAN_TAG else last_war_from_api.opponent
             for member in our_clan_war_object.members:
                 for attack in member.attacks:
-                    defender = last_war.get_member(attack.defender_tag)
+                    defender = last_war_from_api.get_member(attack.defender_tag)
                     our_attacks_list.append({
                         "attacker_name": member.name,
                         "defender_name": getattr(defender, 'name', 'N/A'),
@@ -743,16 +746,28 @@ async def fetch_highlights_for_web():
                         "stars": attack.stars,
                         "destruction": attack.destruction,
                     })
-        # Se não, busca no histórico do banco de dados a última guerra finalizada
-        elif hasattr(bot, 'db') and bot.db is not None:
-            latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
-            if latest_war_doc and 'all_attacks' in latest_war_doc:
-                all_attacks_from_db = latest_war_doc.get('all_attacks', [])
-                # FILTRO ESTRITO: Pega apenas ataques onde a tag do clã do atacante é a do nosso clã
-                our_attacks_list = [
-                    atk for atk in all_attacks_from_db 
-                    if atk.get("attacker_clan_tag") == CLAN_TAG
-                ]
+            if last_war_from_api.end_time:
+                war_end_date_str = last_war_from_api.end_time.time.astimezone(TIMEZONE).strftime('%d/%m')
+
+        else:
+            # Se não, busca a última guerra finalizada no banco de dados
+            if hasattr(bot, 'db') and bot.db is not None:
+                latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
+                if latest_war_doc:
+                    if 'all_attacks' in latest_war_doc:
+                        all_attacks_from_db = latest_war_doc.get('all_attacks', [])
+                        # FILTRO ESTRITO: Garante que só pegamos ataques do nosso clã
+                        our_attacks_list = [
+                            atk for atk in all_attacks_from_db 
+                            if atk.get("attacker_clan_tag") == CLAN_TAG
+                        ]
+                    
+                    war_data = latest_war_doc.get("war_data", {})
+                    end_time_iso = war_data.get("end_time_iso")
+                    if end_time_iso:
+                        war_end_date = datetime.datetime.fromisoformat(end_time_iso)
+                        war_end_date_str = war_end_date.astimezone(TIMEZONE).strftime('%d/%m')
+
 
         if our_attacks_list:
             sorted_attacks = sorted(
@@ -773,7 +788,8 @@ async def fetch_highlights_for_web():
             "top_donors": top_donors_data,
             "best_attacks": best_attacks_data,
             "activity_chart_data": chart_data,
-            "clan_name": clan.name
+            "clan_name": clan.name,
+            "war_date": war_end_date_str
         }
 
     except Exception as e:
@@ -1048,4 +1064,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
+
 
