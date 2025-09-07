@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Clash Genius</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="admin-page">
+    <canvas id="particle-background"></canvas>
+    <div class="login-container">
+        <div class="login-card">
+            <img src="/static/images/default_badge.png" alt="Emblema" class="login-badge">
+            <h2>Acesso Restrito</h2>
+            <p>Por favor, insira a senha de administrador.</p>
+            <form action="/admin/login" method="POST">
+                <input type="password" name="password" id="password" placeholder="Senha" required>
+                <button type="submit">Entrar</button>
+            </form>
+            <p id="error-message" class="error-text"></p>
+        </div>
+    </div>
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>
