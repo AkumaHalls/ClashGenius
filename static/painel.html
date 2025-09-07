@@ -15,6 +15,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
+    <!-- INÍCIO: Adiciona a biblioteca de gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FIM: Adiciona a biblioteca de gráficos -->
 </head>
 <body>
     <!-- Elemento de áudio para a música de fundo -->
@@ -36,6 +39,9 @@
             <nav class="main-nav">
                 <ul>
                     <li><a href="#clan-info-nav" class="nav-link" data-section="clan-info-nav">Clã</a></li>
+                    <!-- INÍCIO: Adiciona o link da nova aba -->
+                    <li><a href="#highlights-nav" class="nav-link" data-section="highlights-nav">Destaques</a></li>
+                    <!-- FIM: Adiciona o link da nova aba -->
                     <li><a href="#war-details-nav" class="nav-link" data-section="war-details-nav">Guerra</a></li>
                     <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav">Ataques Pendentes</a></li>
                     <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav">CWL</a></li>
@@ -48,7 +54,6 @@
 
     <main class="container">
         <div class="sections-wrapper">
-            <!-- INÍCIO DA SEÇÃO CLÃ REFORMULADA -->
             <section id="clan-info-nav" class="card clan-card content-section">
                 <div class="clan-profile-header">
                     <div class="clan-profile-badge-container">
@@ -94,7 +99,37 @@
                     <p>Carregando distritos...</p>
                 </div>
             </section>
-            <!-- FIM DA SEÇÃO CLÃ REFORMULADA -->
+
+            <!-- INÍCIO: Estrutura da nova aba Destaques -->
+            <section id="highlights-nav" class="card content-section">
+                <h2>Destaques do Clã: <span id="highlightsClanName">-</span></h2>
+                <div id="highlightsContent">
+                    <div class="highlights-grid">
+                        <div class="highlight-card">
+                            <h3>🏆 Top 3 Doadores</h3>
+                            <div id="topDonorsList" class="podium-list">
+                                <p>Carregando...</p>
+                            </div>
+                        </div>
+                        <div class="highlight-card">
+                            <h3>⚔️ Heróis da Última Guerra</h3>
+                            <div id="bestAttacksList" class="attacks-list">
+                                <p>Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="highlight-card chart-card">
+                        <h3>📊 Atividade do Clã (Top 10 Doadores)</h3>
+                        <div class="chart-container">
+                            <canvas id="activityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div id="noHighlightsMessage" class="message-box" style="display: none;">
+                    Não foi possível carregar os destaques.
+                </div>
+            </section>
+            <!-- FIM: Estrutura da nova aba Destaques -->
 
             <section id="war-details-nav" class="card war-details-card content-section">
                 <div class="war-header">
@@ -167,7 +202,7 @@
                     <div id="warOurTeamMembers" class="team-members-container scrollable-box"></div>
                 </div>
                 <div id="war-opponent-team" class="war-tab-content">
-                    <h3>Equipe Inimiga: <span id="warOpponentTeamName">-</span></h3>
+                    <h3>Equipe Inimiga: <span id="warOpponentName">-</span></h3>
                     <div id="warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
                 </div>
             </section>
