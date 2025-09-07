@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.16-FINAL-STABLE - Adicionado monitoramento de doações e tropas recebidas. ##
+# Versão 20.1.45-ADMIN-PANEL - Implementado painel de administração e modo manutenção.
 
 import os
 import logging
@@ -16,6 +16,10 @@ from dotenv import load_dotenv
 import motor.motor_asyncio
 from pymongo.uri_parser import parse_uri
 from pymongo import DESCENDING
+from aiohttp_session import setup, get_session, session_middleware
+from aiohttp_session.cookie_storage import EncryptedCookieStorage
+import base64
+from cryptography.fernet import Fernet
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -36,12 +40,16 @@ COC_PASSWORD = os.getenv("COC_PASSWORD")
 CLAN_TAG = os.getenv("CLAN_TAG")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
-ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0)) 
+ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.39-MISSED-ATTACKS-REWORK"
+BOT_VERSION = "20.1.45-ADMIN-PANEL"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
+MAINTENANCE_MODE = False # Variável de estado global
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -101,24 +109,27 @@ def _sanitize_keys_for_mongo(obj: Any) -> Any:
     return obj
 
 async def save_war_to_history(war_data: Dict[str, Any]):
+    if MAINTENANCE_MODE: return
     if not hasattr(bot, 'db') or bot.db is None:
         logger.error("Banco de dados não disponível, não é possível salvar o histórico da guerra.")
         return
     try:
         war_collection = bot.db.war_history
         sanitized_war_data = _sanitize_keys_for_mongo(war_data)
-        sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
-        
-        await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
-        logger.info(f"Guerra finalizada em {sanitized_war_data['_id']} salva no histórico.")
+        if 'war_data' in sanitized_war_data and 'end_time_iso' in sanitized_war_data['war_data']:
+            sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
+            
+            await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
+            logger.info(f"Guerra finalizada em {sanitized_war_data['_id']} salva no histórico.")
 
-        count = await war_collection.count_documents({})
-        if count > 9:
-            oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 9)
-            async for old_war in oldest_wars_cursor:
-                await war_collection.delete_one({"_id": old_war["_id"]})
-                logger.info(f"Guerra mais antiga ({old_war['_id']}) removida do histórico para manter o limite de 9.")
-
+            count = await war_collection.count_documents({})
+            if count > 9:
+                oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 9)
+                async for old_war in oldest_wars_cursor:
+                    await war_collection.delete_one({"_id": old_war["_id"]})
+                    logger.info(f"Guerra mais antiga ({old_war['_id']}) removida do histórico para manter o limite de 9.")
+        else:
+            logger.error("Tentativa de salvar guerra no histórico sem 'end_time_iso'. Dados incompletos.")
     except Exception as e:
         logger.error(f"Erro ao salvar guerra no histórico do MongoDB: {e}", exc_info=True)
 
@@ -164,6 +175,7 @@ async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
 
 # --- DEFINIÇÃO DOS EVENTOS DO COC ---
 async def on_clan_member_join(member, clan):
+    if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: {member.name} entrou no clã {clan.name}")
         if clan.tag != CLAN_TAG: return
@@ -180,6 +192,7 @@ async def on_clan_member_join(member, clan):
         logger.error(f"Erro no evento member_join: {e}", exc_info=True)
 
 async def on_clan_member_leave(member, clan):
+    if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: {member.name} saiu do clã {clan.name}")
         if clan.tag != CLAN_TAG: return
@@ -195,6 +208,7 @@ async def on_clan_member_leave(member, clan):
         logger.error(f"Erro no evento member_leave: {e}", exc_info=True)
 
 async def on_war_attack(attack, war):
+    if MAINTENANCE_MODE: return
     try:
         if not attack or not hasattr(attack, 'attacker') or not attack.attacker: return
         
@@ -286,6 +300,7 @@ async def on_war_attack(attack, war):
 
 
 async def on_clan_member_role_change(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: Mudança de cargo de {new_member.name}")
         embed = discord.Embed(
@@ -301,6 +316,7 @@ async def on_clan_member_role_change(old_member, new_member):
 
 
 async def on_clan_member_trophies_change(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         diff = new_member.trophies - old_member.trophies
         if diff == 0: return
@@ -320,6 +336,7 @@ async def on_clan_member_trophies_change(old_member, new_member):
 
 
 async def on_clan_member_league_change(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: {new_member.name} mudou de liga")
         embed = discord.Embed(
@@ -338,6 +355,7 @@ async def on_clan_member_league_change(old_member, new_member):
         logger.error(f"Erro no evento member_league_change: {e}", exc_info=True)
 
 async def on_member_donations(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         donation_diff = new_member.donations - old_member.donations
         if donation_diff <= 0: return
@@ -352,6 +370,7 @@ async def on_member_donations(old_member, new_member):
         logger.error(f"Erro no evento member_donations: {e}", exc_info=True)
 
 async def on_member_received(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         received_diff = new_member.received - old_member.received
         if received_diff <= 0: return
@@ -465,6 +484,7 @@ async def get_current_or_last_war(clan_tag):
         logger.error(f"Erro inesperado ao buscar guerra atual: {e}", exc_info=True)
         return None
 
+
 async def fetch_clan_info_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
@@ -507,7 +527,6 @@ async def fetch_clan_members_for_web():
         logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar lista de membros."}
 
-# --- INÍCIO: Função de salvar dados da guerra CORRIGIDA ---
 async def fetch_current_war_details_for_web():
     try:
         war = await get_current_or_last_war(CLAN_TAG)
@@ -525,15 +544,11 @@ async def fetch_current_war_details_for_web():
             if not attack: continue
             attacker = war.get_member(attack.attacker_tag)
             defender = war.get_member(attack.defender_tag)
-
-            attacker_clan_tag_to_save = None
-            if attacker and hasattr(attacker, 'clan') and hasattr(attacker.clan, 'tag'):
-                 attacker_clan_tag_to_save = attacker.clan.tag
-            
+            attacker_clan_tag_to_save = getattr(getattr(attacker, 'clan', None), 'tag', None)
             all_attacks_data.append({
                 "order": attack.order,
                 "attacker_clan_tag": attacker_clan_tag_to_save,
-                "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag),
+                "attacker_tag": getattr(attacker, 'tag', None),
                 "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
                 "attacker_townhall": getattr(attacker, 'town_hall', '?'),
                 "defender_name": getattr(defender, 'name', attack.defender_tag),
@@ -548,10 +563,7 @@ async def fetch_current_war_details_for_web():
             for m in team.members:
                 if not m: continue
                 details.append({
-                    "name": m.name, 
-                    "tag": m.tag, # Adicionado para garantir que a tag do membro seja salva
-                    "townhall": m.town_hall, 
-                    "map_position": m.map_position,
+                    "name": m.name, "tag": m.tag, "townhall": m.town_hall, "map_position": m.map_position,
                     "attacks_used": len(m.attacks),
                     "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
                     "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
@@ -569,6 +581,7 @@ async def fetch_current_war_details_for_web():
 
         return {
             "war_data": {
+                "clan_tag": our_clan.tag,
                 "status": str(war.state), "state_description": str(war.state).capitalize(),
                 "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0),
                 "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
@@ -594,61 +607,49 @@ async def fetch_current_war_details_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar dados da guerra."}
-# --- FIM: Função de salvar dados da guerra CORRIGIDA ---
 
-# --- INÍCIO: Lógica da aba "Ataques Pendentes" REFEITA ---
 async def fetch_missed_attacks_history_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
         return {"error": "Histórico indisponível (Banco de dados não conectado)."}
     try:
+        war_collection = bot.db.war_history
+        log_cursor = war_collection.find({}).sort("war_data.end_time_iso", DESCENDING)
+        
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
              return {"error": "Não foi possível carregar os dados do clã para o histórico."}
 
-        war_collection = bot.db.war_history
-        # Busca todas as guerras no histórico, ordenadas da mais nova para a mais antiga
-        log_cursor = war_collection.find({}).sort("war_data.end_time_iso", DESCENDING)
-        
         wars_with_missed_attacks = []
-        is_first_war = True # Para marcar a guerra mais recente
-
         async for war_doc in log_cursor:
             war_data = war_doc.get("war_data", {})
             our_members_in_war = war_doc.get("our_clan_members_in_war", [])
+            missed_attack_members = []
             
-            missed_attacks_members = []
             attacks_per_member = war_data.get("attacks_per_member", 2)
-
+            
             for member in our_members_in_war:
                 attacks_made = member.get("attacks_used", 0)
                 attacks_left = attacks_per_member - attacks_made
                 if attacks_left > 0:
-                    missed_attacks_members.append({
+                    missed_attack_members.append({
                         "name": member.get("name", "Nome desconhecido"),
-                        "tag": member.get("tag", "#?"),
+                        "tag": member.get("tag", "?"),
                         "town_hall": member.get("townhall", "?"),
                         "attacks_left": attacks_left,
                     })
             
-            # Só adiciona o grupo da guerra se houveram ataques perdidos nela
-            if missed_attacks_members:
+            if missed_attack_members:
                 end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
                 wars_with_missed_attacks.append({
                     "opponent_name": war_data.get("opponent_name", "Oponente Desconhecido"),
                     "end_date": end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y'),
-                    "missed_attacks_members": missed_attacks_members,
-                    "is_latest": is_first_war
+                    "members": missed_attack_members
                 })
-                is_first_war = False
-        
-        return {
-            "clan_name": clan.name,
-            "wars_with_missed_attacks": wars_with_missed_attacks
-        }
+
+        return {"wars": wars_with_missed_attacks, "clan_name": clan.name}
     except Exception as e:
         logger.error(f"Erro em fetch_missed_attacks_history_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar histórico de ataques pendentes."}
-# --- FIM: Lógica da aba "Ataques Pendentes" REFEITA ---
 
 async def fetch_war_log_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
@@ -727,7 +728,6 @@ async def fetch_cwl_info_for_web():
         logger.error(f"Erro em fetch_cwl_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao buscar dados da CWL."}
 
-# --- INÍCIO: Função para a aba Destaques (LÓGICA FINAL E ROBUSTA) ---
 async def fetch_highlights_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
@@ -738,41 +738,36 @@ async def fetch_highlights_for_web():
         top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in top_donors]
 
         best_attacks_data = []
-        our_attacks_list = []
-        war_end_date_str = ""
+        war_end_date = None
 
-        # A fonte primária de dados é o banco de dados.
         if hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
-            
             if latest_war_doc:
-                # 1. Obter a lista de tags dos nossos membros para aquela guerra específica
-                our_members_in_war = latest_war_doc.get('our_clan_members_in_war', [])
-                our_member_tags = {member['tag'] for member in our_members_in_war if 'tag' in member}
-
-                if not our_member_tags:
-                    logger.warning(f"Não foram encontradas tags de membros na guerra {latest_war_doc.get('_id')}. Verifique se os dados estão sendo salvos corretamente.")
-
-                all_attacks_from_db = latest_war_doc.get('all_attacks', [])
-                
-                # 2. Filtrar ataques verificando se o 'attacker_tag' está na nossa lista de membros
-                for atk in all_attacks_from_db:
-                    if atk.get("attacker_tag") and atk.get("attacker_tag") in our_member_tags:
-                        our_attacks_list.append(atk)
-                
                 war_data = latest_war_doc.get("war_data", {})
-                end_time_iso = war_data.get("end_time_iso")
-                if end_time_iso:
-                    war_end_date = datetime.datetime.fromisoformat(end_time_iso)
-                    war_end_date_str = war_end_date.astimezone(TIMEZONE).strftime('%d/%m')
-        
-        if our_attacks_list:
-            sorted_attacks = sorted(
-                our_attacks_list, 
-                key=lambda a: (a.get('stars', 0), float(str(a.get('destruction', '0')).replace('%',''))),
-                reverse=True
-            )
-            best_attacks_data = sorted_attacks[:3]
+                our_clan_members_in_war = latest_war_doc.get("our_clan_members_in_war", [])
+                our_member_tags = {member['tag'] for member in our_clan_members_in_war if 'tag' in member}
+                
+                if not our_member_tags:
+                     logger.warning(f"Não foram encontradas tags de membros na guerra {war_data.get('end_time_iso')}. Verifique se os dados estão sendo salvos corretamente.")
+
+                all_attacks = latest_war_doc.get("all_attacks", [])
+                
+                our_attacks_list = [
+                    atk for atk in all_attacks 
+                    if 'attacker_tag' in atk and atk['attacker_tag'] in our_member_tags
+                ]
+
+                if our_attacks_list:
+                    sorted_attacks = sorted(
+                        our_attacks_list, 
+                        key=lambda a: (a.get('stars', 0), float(str(a.get('destruction', '0')).replace('%',''))),
+                        reverse=True
+                    )
+                    best_attacks_data = sorted_attacks[:3]
+                
+                if war_data.get("end_time_iso"):
+                    end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
+                    war_end_date = end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y')
 
         active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
         chart_data = {
@@ -786,13 +781,11 @@ async def fetch_highlights_for_web():
             "best_attacks": best_attacks_data,
             "activity_chart_data": chart_data,
             "clan_name": clan.name,
-            "war_date": war_end_date_str
+            "war_date": war_end_date
         }
-
     except Exception as e:
         logger.error(f"Erro em fetch_highlights_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar destaques."}
-# --- FIM: Função para a aba Destaques (LÓGICA FINAL E ROBUSTA) ---
 
 
 async def api_clan_info_handler(request):
@@ -851,10 +844,90 @@ async def api_historic_war_handler(request):
     except Exception as e:
         logger.error(f"Erro ao buscar guerra histórica {war_id}: {e}", exc_info=True)
         return web.json_response({"error": "Erro interno no servidor."}, status=500)
+        
+# --- NOVAS FUNÇÕES E ROTAS DO PAINEL ADMIN ---
+@web.middleware
+async def maintenance_middleware(request, handler):
+    session = await get_session(request)
+    is_admin = session.get("admin", False)
+    
+    # Permite acesso a rotas de admin, static e a própria página de manutenção
+    if request.path.startswith('/static/') or request.path.startswith('/admin') or request.path == '/maintenance':
+         return await handler(request)
+
+    if MAINTENANCE_MODE and not is_admin:
+        return web.HTTPFound('/maintenance')
+        
+    return await handler(request)
+
+async def admin_login_page_handler(request):
+    return web.FileResponse(os.path.join(os.path.dirname(__file__), "static", "admin_login.html"))
+
+async def admin_login_handler(request):
+    data = await request.post()
+    password = data.get("password")
+    if password == ADMIN_PASSWORD:
+        session = await get_session(request)
+        session["admin"] = True
+        logger.info("Login de administrador bem-sucedido.")
+        return web.HTTPFound('/admin/panel')
+    else:
+        logger.warning("Tentativa de login de administrador falhou.")
+        return web.HTTPFound('/admin?error=1')
+
+async def admin_panel_handler(request):
+    session = await get_session(request)
+    if not session.get("admin"):
+        return web.HTTPFound('/admin')
+    return web.FileResponse(os.path.join(os.path.dirname(__file__), "static", "admin_panel.html"))
+
+async def admin_logout_handler(request):
+    session = await get_session(request)
+    session.pop("admin", None)
+    logger.info("Logout de administrador.")
+    return web.HTTPFound('/admin')
+
+async def admin_toggle_maintenance_handler(request):
+    session = await get_session(request)
+    if not session.get("admin"): return web.json_response({"status": "error", "message": "Não autorizado"}, status=403)
+    
+    global MAINTENANCE_MODE
+    MAINTENANCE_MODE = not MAINTENANCE_MODE
+    status_text = "ATIVADO" if MAINTENANCE_MODE else "DESATIVADO"
+    color = discord.Color.orange() if MAINTENANCE_MODE else discord.Color.green()
+    
+    embed = discord.Embed(
+        title=f"⚙️ Modo Manutenção {status_text}",
+        description=f"O painel e os alertas foram {'pausados' if MAINTENANCE_MODE else 'reativados'}.",
+        color=color
+    )
+    await send_log_embed(embed)
+    logger.info(f"Modo Manutenção {status_text}.")
+    return web.json_response({"status": "success", "maintenance_mode": MAINTENANCE_MODE})
+
+async def admin_send_test_embed_handler(request):
+    session = await get_session(request)
+    if not session.get("admin"): return web.json_response({"status": "error", "message": "Não autorizado"}, status=403)
+    
+    embed = discord.Embed(
+        title="✅ Mensagem de Teste",
+        description="Se você está vendo esta mensagem, a comunicação com o Discord está funcionando corretamente.",
+        color=discord.Color.blue()
+    )
+    await send_log_embed(embed)
+    logger.info("Embed de teste enviado via painel admin.")
+    return web.json_response({"status": "success"})
+    
+async def admin_status_handler(request):
+    session = await get_session(request)
+    if not session.get("admin"): return web.json_response({"status": "error", "message": "Não autorizado"}, status=403)
+    return web.json_response({"maintenance_mode": MAINTENANCE_MODE, "version": BOT_VERSION})
+
 
 # --- TAREFAS EM BACKGROUND ---
 @tasks.loop(seconds=60.0)
 async def check_war_end_task():
+    if MAINTENANCE_MODE: return
     global last_war_end_time
     await bot.wait_until_ready()
     if not api_client: return
@@ -914,6 +987,7 @@ async def check_war_end_task():
 
 @tasks.loop(seconds=30)
 async def check_new_attack_task():
+    if MAINTENANCE_MODE: return
     global war_attack_cache
     await bot.wait_until_ready()
     if not api_client: return
@@ -975,7 +1049,17 @@ async def send_online_status_task():
         await send_log_embed(embed)
 
 async def setup_web_server():
-    app = web.Application()
+    global FERNET_KEY
+    if not FERNET_KEY:
+        logger.warning("FERNET_KEY não definida, gerando uma chave temporária. Defina-a no .env para sessões persistentes entre reinicializações.")
+        FERNET_KEY = Fernet.generate_key().decode('utf-8')
+
+    app = web.Application(middlewares=[
+        session_middleware(EncryptedCookieStorage(base64.urlsafe_b64decode(FERNET_KEY))),
+        maintenance_middleware
+    ])
+    
+    # Rotas da API principal
     app.router.add_get("/api/clan", api_clan_info_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
@@ -986,10 +1070,21 @@ async def setup_web_server():
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
-    
+
+    # Rotas do Painel Admin
+    app.router.add_get("/admin", admin_login_page_handler)
+    app.router.add_post("/admin/login", admin_login_handler)
+    app.router.add_get("/admin/panel", admin_panel_handler)
+    app.router.add_get("/admin/logout", admin_logout_handler)
+    app.router.add_post("/admin/toggle_maintenance", admin_toggle_maintenance_handler)
+    app.router.add_post("/admin/send_test_embed", admin_send_test_embed_handler)
+    app.router.add_get("/api/admin/status", admin_status_handler)
+
+    # Rotas de páginas estáticas
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     app.router.add_static('/static/', path=static_dir, name='static')
     app.router.add_get("/painel", lambda r: web.FileResponse(os.path.join(static_dir, "painel.html")))
+    app.router.add_get("/maintenance", lambda r: web.FileResponse(os.path.join(static_dir, "maintenance.html")))
     app.router.add_get("/", lambda r: web.Response(text=f"Bot running! v{BOT_VERSION}"))
     
     runner = web.AppRunner(app)
