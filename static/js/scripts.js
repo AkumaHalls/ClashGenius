@@ -647,13 +647,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     if (prio === (m.note_priority || 'none')) btn.classList.add('active');
                     
+                    // --- INÍCIO DA CORREÇÃO ---
                     btn.addEventListener('click', () => {
-                        const currentText = noteInput.style.display === 'none' ? noteTextSpan.textContent : noteInput.value;
+                        // Garante que o texto atual (seja do input ou do span) seja usado
+                        const currentText = noteInput.style.display === 'none' 
+                            ? (noteTextSpan.textContent === 'Clique para editar...' ? '' : noteTextSpan.textContent)
+                            : noteInput.value;
+                        
                         savePlayerNote(m.tag, currentText, prio);
+                        
                         noteContainer.className = `note-container note-priority-${prio}`;
                         prioritySelector.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
                     });
+                    // --- FIM DA CORREÇÃO ---
                     prioritySelector.appendChild(btn);
                 });
                 noteContainer.appendChild(prioritySelector);
@@ -664,15 +671,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     noteInput.focus();
                 });
 
+                // --- INÍCIO DA CORREÇÃO ---
                 noteInput.addEventListener('blur', () => {
                     const newText = noteInput.value;
                     const currentPriority = prioritySelector.querySelector('.priority-btn.active')?.dataset.priority || 'none';
+                    
                     savePlayerNote(m.tag, newText, currentPriority);
-                    noteTextSpan.textContent = newText;
+                    
+                    noteTextSpan.textContent = newText || 'Clique para editar...';
                     noteTextSpan.title = newText || 'Sem observação';
                     noteInput.style.display = 'none';
                     noteTextSpan.style.display = 'inline-block';
                 });
+                // --- FIM DA CORREÇÃO ---
 
                 noteInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') noteInput.blur();
@@ -895,3 +906,4 @@ document.addEventListener('DOMContentLoaded', () => {
         animateParticles();
     }
 });
+
