@@ -301,7 +301,6 @@ main.container {
 .war-header-badge { height: 40px; width: 40px; }
 .war-header h2 { margin-bottom: 0; border-bottom: none; font-size: 1.3em; text-align: center; }
 .war-timing-overall { text-align: center; font-size: 0.9em; margin-bottom: 15px; color: var(--color-text-secondary); }
-.time-remaining { font-weight: 500; color: var(--color-text-main); }
 .war-state {
     font-weight: 500; padding: 6px 12px; border-radius: var(--border-radius-base);
     color: #ffffff; font-size: 0.85em; text-transform: uppercase; display: inline-block; margin-bottom: 15px;
@@ -589,6 +588,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     position: relative;
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     animation: fadeIn 0.3s;
+    max-height: 85vh; /* Garante que o modal não seja maior que a tela */
+    overflow-y: auto; /* Adiciona scroll se o conteúdo for maior */
 }
 
 @keyframes fadeIn {
@@ -631,3 +632,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: #fff;
 }
 
+.text-center {
+    text-align: center;
+}
