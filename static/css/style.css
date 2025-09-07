@@ -350,7 +350,16 @@ main.container {
     margin-top: 0;
     border-bottom: none;
     padding-bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
+.war-date-highlight {
+    font-size: 0.7em;
+    font-weight: 400;
+    color: var(--color-text-secondary);
+}
+
 .podium-list .podium-item {
     display: flex;
     align-items: center;
@@ -410,12 +419,6 @@ main.container {
     position: relative;
     height: 400px;
     width: 100%;
-}
-.war-date-highlight {
-    font-size: 0.8em;
-    color: var(--color-text-secondary);
-    font-weight: 400;
-    margin-left: 8px;
 }
 /* --- FIM: ESTILOS DA NOVA ABA DESTAQUES --- */
 
@@ -579,6 +582,128 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 .member-filters input[type="text"]::placeholder { color: var(--color-text-secondary); opacity: 0.7; }
 .member-filters input[type="text"]:focus { border-color: var(--color-accent); outline: none; background-color: #354154; }
+
+
+/* --- INÍCIO: NOVOS ESTILOS PARA ATAQUES PENDENTES --- */
+.missed-attacks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+.war-group {
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    border-radius: var(--border-radius-base);
+    border-top: 2px solid var(--color-border);
+}
+.war-group-header {
+    margin-top: 0;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--color-divider);
+    font-size: 1.2em;
+    font-weight: 500;
+    color: var(--color-text-main);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.war-group-header strong {
+    color: var(--color-accent);
+}
+.latest-war-badge {
+    background-color: var(--color-accent);
+    color: white;
+    font-size: 0.7em;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+.player-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 15px;
+}
+.missed-attack-card {
+    background-color: var(--color-card-background);
+    border-radius: var(--border-radius-base);
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 5px solid;
+    box-shadow: var(--box-shadow-base);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.missed-attack-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--box-shadow-card);
+}
+.missed-attack-card.severity-high {
+    border-left-color: var(--color-danger);
+}
+.missed-attack-card.severity-medium {
+    border-left-color: var(--color-warning);
+}
+.player-info h4 {
+    margin: 0 0 4px 0;
+    font-size: 1.1em;
+    font-weight: 600;
+}
+.player-info h4 span {
+    font-weight: 400;
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+}
+.player-tag-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.player-tag {
+    font-family: monospace;
+    font-size: 0.85em;
+    color: var(--color-text-secondary);
+    background-color: rgba(0,0,0,0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.copy-tag-btn {
+    background-color: var(--color-border);
+    color: var(--color-text-main);
+    border: none;
+    font-size: 0.75em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.copy-tag-btn:hover {
+    background-color: var(--color-accent);
+}
+.copy-tag-btn:disabled {
+    background-color: var(--color-success);
+    cursor: default;
+}
+
+.attacks-info {
+    text-align: right;
+}
+.attacks-count {
+    font-size: 2em;
+    font-weight: 700;
+    color: var(--color-text-main);
+    line-height: 1;
+}
+.severity-high .attacks-count { color: var(--color-danger); }
+.severity-medium .attacks-count { color: var(--color-warning); }
+.attacks-label {
+    font-size: 0.8em;
+    color: var(--color-text-secondary);
+    display: block;
+}
+/* --- FIM: NOVOS ESTILOS PARA ATAQUES PENDENTES --- */
 
 
 /* Observações dos Membros */
