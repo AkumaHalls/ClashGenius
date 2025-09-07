@@ -40,7 +40,7 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.37-HIGHLIGHTS-TAG-CORRECTION"
+BOT_VERSION = "20.1.38-HIGHLIGHTS-ROBUST-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -507,6 +507,7 @@ async def fetch_clan_members_for_web():
         logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar lista de membros."}
 
+# --- INÍCIO: Função de salvar dados da guerra CORRIGIDA ---
 async def fetch_current_war_details_for_web():
     try:
         war = await get_current_or_last_war(CLAN_TAG)
@@ -547,7 +548,10 @@ async def fetch_current_war_details_for_web():
             for m in team.members:
                 if not m: continue
                 details.append({
-                    "name": m.name, "townhall": m.town_hall, "map_position": m.map_position,
+                    "name": m.name, 
+                    "tag": m.tag, # Adicionado para garantir que a tag do membro seja salva
+                    "townhall": m.town_hall, 
+                    "map_position": m.map_position,
                     "attacks_used": len(m.attacks),
                     "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
                     "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
@@ -590,6 +594,7 @@ async def fetch_current_war_details_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar dados da guerra."}
+# --- FIM: Função de salvar dados da guerra CORRIGIDA ---
 
 async def fetch_missed_attacks_history_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
@@ -711,15 +716,12 @@ async def fetch_cwl_info_for_web():
         logger.error(f"Erro em fetch_cwl_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao buscar dados da CWL."}
 
-# --- INÍCIO: Função para a aba Destaques (LÓGICA FINAL) ---
+# --- INÍCIO: Função para a aba Destaques (LÓGICA FINAL E ROBUSTA) ---
 async def fetch_highlights_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
             return {"error": "Não foi possível carregar os dados do clã."}
-        
-        # Normaliza a tag do clã UMA VEZ para garantir a comparação correta.
-        corrected_clan_tag = coc.utils.correct_tag(CLAN_TAG)
         
         top_donors = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]
         top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in top_donors]
@@ -728,19 +730,25 @@ async def fetch_highlights_for_web():
         our_attacks_list = []
         war_end_date_str = ""
 
-        # A única fonte de verdade para os destaques é o banco de dados.
+        # A fonte primária de dados é o banco de dados.
         if hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             
             if latest_war_doc:
+                # 1. Obter a lista de tags dos nossos membros para aquela guerra específica
+                our_members_in_war = latest_war_doc.get('our_clan_members_in_war', [])
+                our_member_tags = {member['tag'] for member in our_members_in_war if 'tag' in member}
+
+                if not our_member_tags:
+                    logger.warning(f"Não foram encontradas tags de membros na guerra {latest_war_doc.get('_id')}. Verifique se os dados estão sendo salvos corretamente.")
+
                 all_attacks_from_db = latest_war_doc.get('all_attacks', [])
                 
-                # Filtra os ataques do nosso clã usando a tag que foi salva e normalizada.
+                # 2. Filtrar ataques verificando se o 'attacker_tag' está na nossa lista de membros
                 for atk in all_attacks_from_db:
-                    attacker_clan_tag = atk.get("attacker_clan_tag")
-                    if attacker_clan_tag and coc.utils.correct_tag(attacker_clan_tag) == corrected_clan_tag:
+                    if atk.get("attacker_tag") and atk.get("attacker_tag") in our_member_tags:
                         our_attacks_list.append(atk)
-
+                
                 war_data = latest_war_doc.get("war_data", {})
                 end_time_iso = war_data.get("end_time_iso")
                 if end_time_iso:
@@ -773,7 +781,7 @@ async def fetch_highlights_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_highlights_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar destaques."}
-# --- FIM: Função para a aba Destaques (LÓGICA FINAL) ---
+# --- FIM: Função para a aba Destaques (LÓGICA FINAL E ROBUSTA) ---
 
 
 async def api_clan_info_handler(request):
