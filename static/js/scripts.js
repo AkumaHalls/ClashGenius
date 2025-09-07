@@ -686,31 +686,50 @@ document.addEventListener('DOMContentLoaded', () => {
         applyMemberFilters();
     }
 
-    // --- LÓGICA DO MODAL DE GUERRA HISTÓRICA (VERSÃO ANTERIOR RESTAURADA) ---
+    // --- LÓGICA DO MODAL DE GUERRA HISTÓRICA (REFORMULADA) ---
     async function openHistoricWarModal(warId) {
+        // 1. Mostrar modal com spinner de carregamento
         setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando detalhes da guerra...</p>');
         historicWarModal.style.display = 'block';
+        
+        // 2. Buscar dados da guerra histórica
         const historicWarData = await fetchData(`war_history/${warId}`);
         
-        const warDetailsTemplate = document.getElementById('war-details-nav').cloneNode(true);
-        warDetailsTemplate.id = 'historic-war-details-content';
-        warDetailsTemplate.querySelectorAll('[id]').forEach(el => {
-            el.id = 'historic-' + el.id;
-        });
-        setHtml(historicWarDetailContent, '');
-        historicWarDetailContent.appendChild(warDetailsTemplate);
+        // 3. Clonar o template dedicado para o modal
+        const template = document.getElementById('historic-war-template');
+        if (!template) {
+            console.error("Template 'historic-war-template' não encontrado!");
+            setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro de configuração: Template do modal não encontrado.</p>');
+            return;
+        }
+        const warDetailsContent = template.content.cloneNode(true);
 
+        // 4. Limpar o container e injetar o conteúdo do template
+        setHtml(historicWarDetailContent, '');
+        historicWarDetailContent.appendChild(warDetailsContent);
+
+        // 5. Adicionar lógica de abas ao novo conteúdo
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
-                historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+                const modalContentEl = button.closest('.modal-content');
+                if (!modalContentEl) return;
+
+                modalContentEl.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
+                
                 const tabId = button.dataset.tab;
-                historicWarDetailContent.querySelectorAll('.war-tab-content').forEach(content => {
-                    content.style.display = content.id.endsWith(tabId) ? 'block' : 'none';
+
+                modalContentEl.querySelectorAll('.war-tab-content').forEach(content => {
+                    if (content.id.endsWith(tabId)) {
+                        content.style.display = 'block';
+                    } else {
+                        content.style.display = 'none';
+                    }
                 });
             });
         });
         
+        // 6. Popular o template com os dados da guerra
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
     }
 
@@ -876,4 +895,3 @@ document.addEventListener('DOMContentLoaded', () => {
         animateParticles();
     }
 });
-
