@@ -528,8 +528,12 @@ async def fetch_current_war_details_for_web():
             if not attack: continue
             attacker = war.get_member(attack.attacker_tag)
             defender = war.get_member(attack.defender_tag)
+            # --- INÍCIO DA CORREÇÃO ---
+            # Adiciona a tag do clã do atacante para uso posterior no histórico
+            attacker_clan_tag_to_save = getattr(getattr(attacker, 'clan', None), 'tag', None)
             all_attacks_data.append({
                 "order": attack.order,
+                "attacker_clan_tag": attacker_clan_tag_to_save,
                 "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
                 "attacker_townhall": getattr(attacker, 'town_hall', '?'),
                 "defender_name": getattr(defender, 'name', attack.defender_tag),
@@ -537,6 +541,7 @@ async def fetch_current_war_details_for_web():
                 "stars": attack.stars, "destruction": attack.destruction,
                 "duration": f"{attack.duration}s"
             })
+            # --- FIM DA CORREÇÃO ---
 
         def get_team_details(team):
             if not team or not hasattr(team, 'members'): return []
@@ -708,7 +713,7 @@ async def fetch_cwl_info_for_web():
         logger.error(f"Erro em fetch_cwl_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao buscar dados da CWL."}
 
-# --- INÍCIO: Função para a aba Destaques ATUALIZADA ---
+# --- INÍCIO: Função para a aba Destaques CORRIGIDA ---
 async def fetch_highlights_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
@@ -724,34 +729,21 @@ async def fetch_highlights_for_web():
             if latest_war_doc and 'all_attacks' in latest_war_doc and latest_war_doc['all_attacks']:
                 all_attacks_from_db = latest_war_doc['all_attacks']
                 
-                # --- INÍCIO DA CORREÇÃO ---
-                # Garante que a tag do clã está no formato correto para comparação
-                our_clan_tag_from_db = latest_war_doc.get("war_data", {}).get("clan_tag") or CLAN_TAG
-                our_attacks = []
-                for atk in all_attacks_from_db:
-                    # Adiciona verificação de existência da chave 'attacker_tag'
-                    if 'attacker_tag' in atk:
-                         # Assume que ataques sem tag de clã são do nosso clã se a tag não estiver presente
-                        attacker_clan_tag = coc.utils.get_clan_tag(atk['attacker_tag']) or our_clan_tag_from_db
-                        if attacker_clan_tag == our_clan_tag_from_db:
-                            destruction_value = atk.get('destruction', 0)
-                            # Trata tanto int (100) quanto string ('100%')
-                            if isinstance(destruction_value, str):
-                                destruction_float = float(destruction_value.replace('%', ''))
-                            else:
-                                destruction_float = float(destruction_value)
-                            
-                            atk['destruction_float'] = destruction_float
-                            our_attacks.append(atk)
+                # Filtra apenas os ataques realizados por membros do nosso clã
+                our_attacks = [
+                    atk for atk in all_attacks_from_db 
+                    if atk.get("attacker_clan_tag") == CLAN_TAG
+                ]
                 
                 if our_attacks:
+                    # Ordena os ataques por estrelas (maior primeiro) e depois por destruição (maior primeiro)
                     sorted_attacks = sorted(
                         our_attacks, 
-                        key=lambda a: (a.get('stars', 0), a.get('destruction_float', 0.0)),
+                        key=lambda a: (a.get('stars', 0), float(str(a.get('destruction', '0')).replace('%',''))),
                         reverse=True
                     )
+                    # Pega os 3 melhores ataques
                     best_attacks_data = sorted_attacks[:3]
-                # --- FIM DA CORREÇÃO ---
 
         active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
         chart_data = {
@@ -770,7 +762,7 @@ async def fetch_highlights_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_highlights_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar destaques."}
-# --- FIM: Função para a aba Destaques ATUALIZADA ---
+# --- FIM: Função para a aba Destaques CORRIGIDA ---
 
 
 async def api_clan_info_handler(request):
@@ -1039,4 +1031,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
-
