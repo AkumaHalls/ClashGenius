@@ -40,7 +40,7 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.36-HIGHLIGHTS-DB-FIRST"
+BOT_VERSION = "20.1.37-HIGHLIGHTS-TAG-CORRECTION"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -718,6 +718,7 @@ async def fetch_highlights_for_web():
         if not clan:
             return {"error": "Não foi possível carregar os dados do clã."}
         
+        # Normaliza a tag do clã UMA VEZ para garantir a comparação correta.
         corrected_clan_tag = coc.utils.correct_tag(CLAN_TAG)
         
         top_donors = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]
@@ -734,11 +735,11 @@ async def fetch_highlights_for_web():
             if latest_war_doc:
                 all_attacks_from_db = latest_war_doc.get('all_attacks', [])
                 
-                # Filtra os ataques do nosso clã usando a tag que foi salva corretamente.
-                our_attacks_list = [
-                    atk for atk in all_attacks_from_db 
-                    if atk.get("attacker_clan_tag") and coc.utils.correct_tag(atk.get("attacker_clan_tag")) == corrected_clan_tag
-                ]
+                # Filtra os ataques do nosso clã usando a tag que foi salva e normalizada.
+                for atk in all_attacks_from_db:
+                    attacker_clan_tag = atk.get("attacker_clan_tag")
+                    if attacker_clan_tag and coc.utils.correct_tag(attacker_clan_tag) == corrected_clan_tag:
+                        our_attacks_list.append(atk)
 
                 war_data = latest_war_doc.get("war_data", {})
                 end_time_iso = war_data.get("end_time_iso")
