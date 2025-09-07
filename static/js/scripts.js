@@ -23,6 +23,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
 
+    // --- INÍCIO: Seletores para a nova aba Destaques ---
+    const highlightsClanNameEl = document.getElementById('highlightsClanName');
+    const topDonorsListEl = document.getElementById('topDonorsList');
+    const bestAttacksListEl = document.getElementById('bestAttacksList');
+    const warDateHighlightEl = document.getElementById('warDateHighlight');
+    const activityChartCanvas = document.getElementById('activityChart');
+    const noHighlightsMessageEl = document.getElementById('noHighlightsMessage');
+    let activityChart = null; // Variável para armazenar a instância do gráfico
+    // --- FIM: Seletores para a nova aba Destaques ---
+
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
     const warDetailOpponentNameEl = document.getElementById('warDetailOpponentName');
@@ -62,8 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
 
     const attacksRemainingTitleEl = document.getElementById('attacksRemainingTitle');
-    const attacksRemainingClanNameEl = document.getElementById('attacksRemainingClanName');
-    const attacksRemainingListEl = document.getElementById('attacksRemainingList');
+    const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
     const cwlStatusTextEl = document.getElementById('cwlStatusText');
@@ -172,6 +181,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function copyToClipboard(text, buttonElement) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            if (buttonElement) {
+                const originalText = buttonElement.innerHTML;
+                buttonElement.innerHTML = 'Copiado!';
+                buttonElement.disabled = true;
+                setTimeout(() => {
+                    buttonElement.innerHTML = originalText;
+                    buttonElement.disabled = false;
+                }, 1500);
+            }
+        } catch (err) {
+            console.error('Falha ao copiar texto: ', err);
+        }
+        document.body.removeChild(textarea);
+    }
+    
+
     // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
     const initialSectionId = (navLinks.length > 0 && navLinks[0].dataset.section) ? navLinks[0].dataset.section : 'clan-info-nav';
     let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
@@ -257,25 +289,131 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(clanNameHeaderEl, data.name);
         setText(clanNameEl, data.name);
         setText(clanTagEl, data.tag);
-        setText(clanLevelEl, data.level);
-        setText(clanPointsEl, data.points);
-        setText(clanMemberCountEl, data.member_count);
-        setText(clanWarWinsEl, data.war_wins);
-        setText(clanLocationEl, data.location);
-        setText(clanTypeEl, data.type);
-        setText(clanDescriptionEl, data.description, 'Sem descrição.');
-        setText(botVersionEl, data.version, '?');
         setBadge(clanBadgeHeaderEl, data.badge_url);
         setBadge(clanBadgeEl, data.badge_url);
-        setText(clanCapitalPointsEl, data.capital_points);
+        setText(clanLevelEl, `Nível: ${data.level || '-'}`);
+        setText(clanMemberCountEl, `Membros: ${data.member_count || '-'}/50`);
+        setText(clanLocationEl, `Local: ${data.location || '-'}`);
+        setText(clanTypeEl, `Tipo: ${data.type || '-'}`);
+        setText(clanWarWinsEl, `${data.war_wins || '-'} ⚔️`);
+        setText(clanPointsEl, `${data.points || '-'} 🏆`);
+        setText(clanCapitalPointsEl, `${data.capital_points || '-'} 🏆`);
         setText(clanCapitalLeagueEl, data.capital_league);
+        setText(clanDescriptionEl, data.description, 'Sem descrição.');
         setHtml(clanCapitalDistrictsEl, '');
         if (data.capital_districts && data.capital_districts.length > 0) {
             data.capital_districts.forEach(d => setHtml(clanCapitalDistrictsEl, clanCapitalDistrictsEl.innerHTML + `<p><strong>${d.name || 'N/A'}:</strong> Nv ${d.level || '?'}</p>`));
         } else {
             setHtml(clanCapitalDistrictsEl, '<p>Nenhum distrito encontrado.</p>');
         }
+        setText(botVersionEl, data.version, '?');
     }
+
+    // --- INÍCIO: Nova função para popular a aba Destaques ---
+    function populateHighlights(data) {
+        if (data.error || !data.clan_name) {
+            noHighlightsMessageEl.style.display = 'block';
+            setText(noHighlightsMessageEl, data.error || "Não foi possível carregar os destaques.");
+            document.getElementById('highlightsContent').style.display = 'none';
+            return;
+        }
+
+        noHighlightsMessageEl.style.display = 'none';
+        document.getElementById('highlightsContent').style.display = 'block';
+        setText(highlightsClanNameEl, data.clan_name);
+        setText(warDateHighlightEl, data.war_date ? `(${data.war_date})` : '');
+
+        // Popula Top Doadores
+        if (data.top_donors && data.top_donors.length > 0) {
+            const medals = ['gold', 'silver', 'bronze'];
+            let donorsHtml = '';
+            data.top_donors.forEach((donor, index) => {
+                donorsHtml += `
+                    <div class="podium-item ${medals[index] || ''}">
+                        <span class="podium-rank">${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}</span>
+                        <div class="podium-details">
+                            <div class="member-name">${donor.name} (CV${donor.town_hall})</div>
+                            <div class="donation-count"><strong>${donor.donations.toLocaleString()}</strong> tropas doadas</div>
+                        </div>
+                    </div>
+                `;
+            });
+            setHtml(topDonorsListEl, donorsHtml);
+        } else {
+            setHtml(topDonorsListEl, '<p>Nenhum doador encontrado.</p>');
+        }
+
+        // Popula Melhores Ataques
+        if (data.best_attacks && data.best_attacks.length > 0) {
+            let attacksHtml = '';
+            data.best_attacks.forEach(attack => {
+                attacksHtml += `
+                    <div class="attack-item">
+                        <div class="attack-header">${attack.attacker_name} vs ${attack.defender_name} (CV${attack.defender_townhall})</div>
+                        <div class="attack-details">
+                            <span class="attack-stars">${'⭐'.repeat(attack.stars)}</span>
+                            <strong>${attack.destruction}%</strong> de destruição
+                        </div>
+                    </div>
+                `;
+            });
+            setHtml(bestAttacksListEl, attacksHtml);
+        } else {
+            setHtml(bestAttacksListEl, '<p>Nenhum ataque na última guerra para destacar.</p>');
+        }
+
+        // Popula o Gráfico de Atividade
+        if (activityChart) {
+            activityChart.destroy(); // Destroi o gráfico antigo antes de criar um novo
+        }
+        if (data.activity_chart_data && data.activity_chart_data.labels.length > 0) {
+            const ctx = activityChartCanvas.getContext('2d');
+            activityChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.activity_chart_data.labels,
+                    datasets: [
+                        {
+                            label: 'Tropas Doadas',
+                            data: data.activity_chart_data.donations,
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Tropas Recebidas',
+                            data: data.activity_chart_data.received,
+                            backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                        },
+                        x: {
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(255, 255, 255, 0.8)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+    // --- FIM: Nova função para popular a aba Destaques ---
+
 
     warTabButtons.forEach(button => {
         button.addEventListener('click', () => {
@@ -340,18 +478,46 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(container.querySelector(`#${prefix}statsOpponentStars`), war.opponent_stars);
         setText(container.querySelector(`#${prefix}statsOpponentDestruction`), war.opponent_destruction.replace('%', ''));
         setText(container.querySelector(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
-        setText(container.querySelector(`#${prefix}statsOurAvgStars`), war.clan_avg_stars);
-        setText(container.querySelector(`#${prefix}statsOurAvgDuration`), war.clan_avg_duration);
-        setText(container.querySelector(`#${prefix}statsOpponentAvgStars`), war.opponent_avg_stars);
-        setText(container.querySelector(`#${prefix}statsOpponentAvgDuration`), war.opponent_avg_duration);
-        setText(container.querySelector(`#${prefix}statsOurStars3`), war.clan_star_distribution['3']);
-        setText(container.querySelector(`#${prefix}statsOurStars2`), war.clan_star_distribution['2']);
-        setText(container.querySelector(`#${prefix}statsOurStars1`), war.clan_star_distribution['1']);
-        setText(container.querySelector(`#${prefix}statsOurStars0`), war.clan_star_distribution['0']);
-        setText(container.querySelector(`#${prefix}statsOpponentStars3`), war.opponent_star_distribution['3']);
-        setText(container.querySelector(`#${prefix}statsOpponentStars2`), war.opponent_star_distribution['2']);
-        setText(container.querySelector(`#${prefix}statsOpponentStars1`), war.opponent_star_distribution['1']);
-        setText(container.querySelector(`#${prefix}statsOpponentStars0`), war.opponent_star_distribution['0']);
+        
+        const populateStats = (prefix) => {
+            const ourAvgStarsEl = container.querySelector(`#${prefix}statsOurAvgStars`);
+            if(ourAvgStarsEl) setText(ourAvgStarsEl, war.clan_avg_stars);
+
+            const ourAvgDurationEl = container.querySelector(`#${prefix}statsOurAvgDuration`);
+            if(ourAvgDurationEl) setText(ourAvgDurationEl, war.clan_avg_duration);
+            
+            const oppAvgStarsEl = container.querySelector(`#${prefix}statsOpponentAvgStars`);
+            if(oppAvgStarsEl) setText(oppAvgStarsEl, war.opponent_avg_stars);
+
+            const oppAvgDurationEl = container.querySelector(`#${prefix}statsOpponentAvgDuration`);
+            if(oppAvgDurationEl) setText(oppAvgDurationEl, war.opponent_avg_duration);
+
+            const ourStars3El = container.querySelector(`#${prefix}statsOurStars3`);
+            if(ourStars3El) setText(ourStars3El, war.clan_star_distribution['3']);
+            
+            const ourStars2El = container.querySelector(`#${prefix}statsOurStars2`);
+            if(ourStars2El) setText(ourStars2El, war.clan_star_distribution['2']);
+
+            const ourStars1El = container.querySelector(`#${prefix}statsOurStars1`);
+            if(ourStars1El) setText(ourStars1El, war.clan_star_distribution['1']);
+            
+            const ourStars0El = container.querySelector(`#${prefix}statsOurStars0`);
+            if(ourStars0El) setText(ourStars0El, war.clan_star_distribution['0']);
+
+            const oppStars3El = container.querySelector(`#${prefix}statsOpponentStars3`);
+            if(oppStars3El) setText(oppStars3El, war.opponent_star_distribution['3']);
+
+            const oppStars2El = container.querySelector(`#${prefix}statsOpponentStars2`);
+            if(oppStars2El) setText(oppStars2El, war.opponent_star_distribution['2']);
+
+            const oppStars1El = container.querySelector(`#${prefix}statsOpponentStars1`);
+            if(oppStars1El) setText(oppStars1El, war.opponent_star_distribution['1']);
+
+            const oppStars0El = container.querySelector(`#${prefix}statsOpponentStars0`);
+            if(oppStars0El) setText(oppStars0El, war.opponent_star_distribution['0']);
+        };
+
+        populateStats(prefix);
 
         const eventsTableBody = container.querySelector(`#${prefix}warEventsTableBody`);
         setText(container.querySelector(`#${prefix}warTotalAttacksCount`), data.all_attacks.length);
@@ -429,30 +595,80 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- INÍCIO: Lógica da aba "Ataques Pendentes" REFEITA ---
     function populateMissedAttacksHistory(data) {
         const clanNameSpan = attacksRemainingTitleEl.querySelector('span');
         if (clanNameSpan) {
             setText(clanNameSpan, data.clan_name);
         }
-    
-        if (data.error || !data.missed_attacks || data.missed_attacks.length === 0) {
+
+        if (data.error || !data.wars_with_missed_attacks || data.wars_with_missed_attacks.length === 0) {
             const message = data.error || "Nenhuma pendência de ataque encontrada no histórico de guerras.";
-            setHtml(attacksRemainingListEl, `<p>${message}</p>`);
+            setHtml(missedAttacksContainerEl, '');
             if (noMissedAttacksMessageEl) {
                 noMissedAttacksMessageEl.style.display = 'block';
                 setText(noMissedAttacksMessageEl, message);
             }
             return;
         }
-    
+
         if (noMissedAttacksMessageEl) noMissedAttacksMessageEl.style.display = 'none';
-        
-        let htmlContent = '';
-        data.missed_attacks.forEach(m => {
-            htmlContent += `<p><strong>${m.name}</strong> (CV${m.town_hall}) - <strong>${m.attacks_left}</strong> atk restante(s) na guerra de <strong>${m.war_date}</strong></p>`;
+        setHtml(missedAttacksContainerEl, '');
+
+        data.wars_with_missed_attacks.forEach(war => {
+            const warGroup = document.createElement('div');
+            warGroup.className = 'war-group';
+
+            const warHeader = document.createElement('h3');
+            warHeader.className = 'war-group-header';
+            warHeader.innerHTML = `Guerra vs <strong>${war.opponent_name}</strong> (${war.end_date})`;
+            if (war.is_latest) {
+                const latestBadge = document.createElement('span');
+                latestBadge.className = 'latest-war-badge';
+                latestBadge.textContent = '💥 Última Guerra';
+                warHeader.appendChild(latestBadge);
+            }
+            warGroup.appendChild(warHeader);
+
+            const cardGrid = document.createElement('div');
+            cardGrid.className = 'player-card-grid';
+
+            war.missed_attacks_members.forEach(member => {
+                const card = document.createElement('div');
+                card.className = 'missed-attack-card';
+                if (member.attacks_left >= 2) {
+                    card.classList.add('severity-high');
+                } else {
+                    card.classList.add('severity-medium');
+                }
+
+                card.innerHTML = `
+                    <div class="player-info">
+                        <h4>${member.name} <span>(CV${member.town_hall})</span></h4>
+                        <div class="player-tag-container">
+                             <span class="player-tag">${member.tag}</span>
+                             <button class="copy-tag-btn" data-tag="${member.tag}">Copiar</button>
+                        </div>
+                    </div>
+                    <div class="attacks-info">
+                        <span class="attacks-count">${member.attacks_left}</span>
+                        <span class="attacks-label">Ataque${member.attacks_left > 1 ? 's' : ''} Pendente${member.attacks_left > 1 ? 's' : ''}</span>
+                    </div>
+                `;
+                cardGrid.appendChild(card);
+            });
+            warGroup.appendChild(cardGrid);
+            missedAttacksContainerEl.appendChild(warGroup);
         });
-        setHtml(attacksRemainingListEl, htmlContent);
+
+        // Adiciona event listeners para os botões de copiar
+        document.querySelectorAll('.copy-tag-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                copyToClipboard(e.target.dataset.tag, e.target);
+            });
+        });
     }
+    // --- FIM: Lógica da aba "Ataques Pendentes" REFEITA ---
 
     function populateCwlInfo(data) {
         setText(cwlStatusTextEl, "Carregando...");
@@ -584,14 +800,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function savePlayerNote(playerTag, text, priority) {
+        const encodedPlayerTag = encodeURIComponent(playerTag);
         try {
-            await fetchData(`notes/${playerTag}`, {
+            const response = await fetchData(`notes/${encodedPlayerTag}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text, priority })
             });
+            if (response && !response.error) {
+                console.log(`Nota para ${playerTag} salva com sucesso.`);
+            } else {
+                console.error(`Falha ao salvar nota para ${playerTag}:`, response ? response.error : 'Resposta desconhecida');
+            }
         } catch (error) {
-            console.error('Erro ao salvar nota:', error);
+            console.error('Erro de rede ao salvar nota:', error);
         }
     }
 
@@ -648,8 +870,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (prio === (m.note_priority || 'none')) btn.classList.add('active');
                     
                     btn.addEventListener('click', () => {
-                        const currentText = noteInput.style.display === 'none' ? noteTextSpan.textContent : noteInput.value;
+                        const currentText = noteInput.style.display === 'none' 
+                            ? (noteTextSpan.textContent === 'Clique para editar...' ? '' : noteTextSpan.textContent)
+                            : noteInput.value;
+                        
                         savePlayerNote(m.tag, currentText, prio);
+                        
                         noteContainer.className = `note-container note-priority-${prio}`;
                         prioritySelector.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
@@ -667,8 +893,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 noteInput.addEventListener('blur', () => {
                     const newText = noteInput.value;
                     const currentPriority = prioritySelector.querySelector('.priority-btn.active')?.dataset.priority || 'none';
+                    
                     savePlayerNote(m.tag, newText, currentPriority);
-                    noteTextSpan.textContent = newText;
+                    
+                    noteTextSpan.textContent = newText || 'Clique para editar...';
                     noteTextSpan.title = newText || 'Sem observação';
                     noteInput.style.display = 'none';
                     noteTextSpan.style.display = 'inline-block';
@@ -686,27 +914,39 @@ document.addEventListener('DOMContentLoaded', () => {
         applyMemberFilters();
     }
 
-    // --- LÓGICA DO MODAL DE GUERRA HISTÓRICA (VERSÃO ANTERIOR RESTAURADA) ---
     async function openHistoricWarModal(warId) {
         setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando detalhes da guerra...</p>');
         historicWarModal.style.display = 'block';
+        
         const historicWarData = await fetchData(`war_history/${warId}`);
         
-        const warDetailsTemplate = document.getElementById('war-details-nav').cloneNode(true);
-        warDetailsTemplate.id = 'historic-war-details-content';
-        warDetailsTemplate.querySelectorAll('[id]').forEach(el => {
-            el.id = 'historic-' + el.id;
-        });
+        const template = document.getElementById('historic-war-template');
+        if (!template) {
+            console.error("Template 'historic-war-template' não encontrado!");
+            setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro de configuração: Template do modal não encontrado.</p>');
+            return;
+        }
+        const warDetailsContent = template.content.cloneNode(true);
+
         setHtml(historicWarDetailContent, '');
-        historicWarDetailContent.appendChild(warDetailsTemplate);
+        historicWarDetailContent.appendChild(warDetailsContent);
 
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
-                historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+                const modalContentEl = button.closest('.modal-content');
+                if (!modalContentEl) return;
+
+                modalContentEl.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
+                
                 const tabId = button.dataset.tab;
-                historicWarDetailContent.querySelectorAll('.war-tab-content').forEach(content => {
-                    content.style.display = content.id.endsWith(tabId) ? 'block' : 'none';
+
+                modalContentEl.querySelectorAll('.war-tab-content').forEach(content => {
+                    if (content.id.endsWith(tabId)) {
+                        content.style.display = 'block';
+                    } else {
+                        content.style.display = 'none';
+                    }
                 });
             });
         });
@@ -736,13 +976,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
         try {
-            const [clanData, membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData] = await Promise.all([
+            const [clanData, membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData, highlightsData] = await Promise.all([
                 fetchData('clan'),
                 fetchData('members'),
                 fetchData('current_war_details'),
                 fetchData('missed_attacks_history'),
                 fetchData('war_log'),
-                fetchData('cwl_info')
+                fetchData('cwl_info'),
+                fetchData('highlights') // Adiciona a busca de dados para a nova aba
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
@@ -750,6 +991,7 @@ document.addEventListener('DOMContentLoaded', () => {
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
+            populateHighlights(highlightsData); // Chama a nova função para popular os destaques
             updateLastUpdated();
         } catch (error) {
             console.error("Erro ao carregar todos os dados:", error);
