@@ -48,28 +48,53 @@
 
     <main class="container">
         <div class="sections-wrapper">
+            <!-- INÍCIO DA SEÇÃO CLÃ REFORMULADA -->
             <section id="clan-info-nav" class="card clan-card content-section">
-                <h2>
-                    <img id="clanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="section-badge">
-                    <span id="clanName">-</span> (<span id="clanTag">-</span>)
-                </h2>
-                <div class="grid-container">
-                    <p><strong>Nível:</strong> <span id="clanLevel">-</span></p>
-                    <p><strong>Pontos:</strong> <span id="clanPoints">-</span> <span class="icon-trophy">🏆</span></p>
-                    <p><strong>Membros:</strong> <span id="clanMemberCount">-</span>/50</p>
-                    <p><strong>Guerras Vencidas:</strong> <span id="clanWarWins">-</span> <span class="icon-sword">⚔️</span></p>
-                    <p><strong>Localização:</strong> <span id="clanLocation">-</span></p>
-                    <p><strong>Tipo:</strong> <span id="clanType">-</span></p>
-                    <p><strong>Capital Pontos:</strong> <span id="clanCapitalPoints">-</span> <span class="icon-trophy">🏆</span></p>
-                    <p><strong>Liga da Capital:</strong> <span id="clanCapitalLeague">-</span></p>
+                <div class="clan-profile-header">
+                    <div class="clan-profile-badge-container">
+                        <img id="clanBadge" src="/static/images/default_badge.png" alt="Emblema do Clã" class="clan-profile-badge">
+                    </div>
+                    <div class="clan-profile-info">
+                        <h2 id="clanName">-</h2>
+                        <p class="clan-tag-profile" id="clanTag">-</p>
+                        <div class="primary-stats">
+                            <span class="stat-item" id="clanLevel"><span class="stat-icon">🎖️</span> Nível: -</span>
+                            <span class="stat-item" id="clanMemberCount"><span class="stat-icon">👥</span> Membros: -/50</span>
+                            <span class="stat-item" id="clanLocation"><span class="stat-icon">🌍</span> Local: -</span>
+                            <span class="stat-item" id="clanType"><span class="stat-icon">🚪</span> Tipo: -</span>
+                        </div>
+                    </div>
                 </div>
-                <p><strong>Descrição:</strong></p>
+
+                <h3>Estatísticas Gerais</h3>
+                <div class="stats-grid">
+                    <div class="stat-card stat-card-wars">
+                        <h4>Guerras Vencidas</h4>
+                        <p id="clanWarWins">- ⚔️</p>
+                    </div>
+                    <div class="stat-card stat-card-trophies">
+                        <h4>Pontos do Clã</h4>
+                        <p id="clanPoints">- 🏆</p>
+                    </div>
+                    <div class="stat-card stat-card-capital-trophies">
+                        <h4>Pontos da Capital</h4>
+                        <p id="clanCapitalPoints">- 🏆</p>
+                    </div>
+                    <div class="stat-card stat-card-capital-league">
+                        <h4>Liga da Capital</h4>
+                        <p id="clanCapitalLeague">-</p>
+                    </div>
+                </div>
+
+                <h3>Descrição</h3>
                 <div id="clanDescription" class="description-box scrollable-box">-</div>
+
                 <h3>Distritos da Capital</h3>
                 <div id="clanCapitalDistricts" class="grid-container capital-districts-grid">
                     <p>Carregando distritos...</p>
                 </div>
             </section>
+            <!-- FIM DA SEÇÃO CLÃ REFORMULADA -->
 
             <section id="war-details-nav" class="card war-details-card content-section">
                 <div class="war-header">
@@ -221,98 +246,68 @@
         </div>
     </main>
 
-    <!-- Template para o Modal de Guerra Histórica (NOVO) -->
-    <template id="historic-war-template">
-        <div class="card war-details-card">
-            <div class="war-header">
-                <img id="historic-warDetailClanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="war-header-badge">
-                <h2 id="historic-warDetailTitle"><span id="historic-warDetailOurClanName">-</span> vs <span id="historic-warDetailOpponentName">-</span></h2>
-                <img id="historic-warDetailOpponentBadge" src="/static/images/default_badge.png" alt="Emblema Oponente" class="war-header-badge">
-            </div>
-            <p class="war-timing-overall"><strong id="historic-warDetailTimeKey">Tempo:</strong> <span id="historic-warDetailTimeValue">-</span> (<span id="historic-warDetailTimeRemaining" class="time-remaining">-</span>)</p>
-            <p class="text-center"><strong>Estado:</strong> <span id="historic-warDetailState" class="war-state">-</span></p>
-            <nav class="war-tabs">
-                <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
-                <button class="war-tab-button" data-tab="war-events">Eventos</button>
-                <button class="war-tab-button" data-tab="war-our-team">Minha Equipe</button>
-                <button class="war-tab-button" data-tab="war-opponent-team">Equipe Inimiga</button>
-            </nav>
-            <div class="message-box" style="display: none;">Nenhuma guerra para detalhar.</div>
-            
-            <div id="historic-war-stats" class="war-tab-content active">
-                <h3>Placar Geral</h3>
-                <div class="war-score-container">
-                    <div class="team-score our-clan-score">
-                        <h4 id="historic-statsOurClanName">-</h4>
-                        <p><span id="historic-statsOurStars">-</span>⭐ (<span id="historic-statsOurDestruction">-</span>%)</p>
-                        <p><span id="historic-statsOurAttacksUsed">-</span> ataques</p>
-                    </div>
-                    <div class="vs-separator">⚔️</div>
-                    <div class="team-score opponent-score">
-                        <h4 id="historic-statsOpponentName">-</h4>
-                        <p><span id="historic-statsOpponentStars">-</span>⭐ (<span id="historic-statsOpponentDestruction">-</span>%)</p>
-                        <p><span id="historic-statsOpponentAttacksUsed">-</span> ataques</p>
-                    </div>
-                </div>
-                <div class="war-averages-container grid-container">
-                    <div>
-                        <h4>Médias (Nosso Clã)</h4>
-                        <p><strong>Estrelas/Ataque:</strong> <span id="historic-statsOurAvgStars">-</span></p>
-                        <p><strong>Duração/Ataque:</strong> <span id="historic-statsOurAvgDuration">-</span></p>
-                    </div>
-                    <div>
-                        <h4>Médias (Oponente)</h4>
-                        <p><strong>Estrelas/Ataque:</strong> <span id="historic-statsOpponentAvgStars">-</span></p>
-                        <p><strong>Duração/Ataque:</strong> <span id="historic-statsOpponentAvgDuration">-</span></p>
-                    </div>
-                </div>
-                <div class="star-distribution-container">
-                    <h4>Distribuição de Estrelas (Nosso Clã)</h4>
-                    <p>3⭐: <span id="historic-statsOurStars3">-</span> | 2⭐: <span id="historic-statsOurStars2">-</span> | 1⭐: <span id="historic-statsOurStars1">-</span> | 0⭐: <span id="historic-statsOurStars0">-</span></p>
-                    <h4>Distribuição de Estrelas (Oponente)</h4>
-                    <p>3⭐: <span id="historic-statsOpponentStars3">-</span> | 2⭐: <span id="historic-statsOpponentStars2">-</span> | 1⭐: <span id="historic-statsOpponentStars1">-</span> | 0⭐: <span id="historic-statsOpponentStars0">-</span></p>
-                </div>
-            </div>
-            
-            <div id="historic-war-events" class="war-tab-content">
-                <h3>Todos os Ataques (<span id="historic-warTotalAttacksCount">0</span>)</h3>
-                <div class="table-container scrollable-box medium-table">
-                    <table id="historic-warEventsTable">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Atacante (CV)</th>
-                                <th>Resultado</th>
-                                <th>Defensor (CV)</th>
-                                <th>Duração</th>
-                            </tr>
-                        </thead>
-                        <tbody id="historic-warEventsTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <div id="historic-war-our-team" class="war-tab-content">
-                <h3>Minha Equipe: <span id="historic-warOurTeamName">-</span></h3>
-                <div id="historic-warOurTeamMembers" class="team-members-container scrollable-box"></div>
-            </div>
-            
-            <div id="historic-war-opponent-team" class="war-tab-content">
-                <h3>Equipe Inimiga: <span id="historic-warOpponentTeamName">-</span></h3>
-                <div id="historic-warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
-            </div>
-        </div>
-    </template>
-
     <!-- Modal para Detalhes da Guerra Histórica -->
     <div id="historicWarModal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
             <div id="historicWarDetailContent">
-                <!-- O conteúdo será preenchido via JS usando o template -->
+                <!-- O conteúdo será preenchido via JS -->
             </div>
         </div>
     </div>
+    
+    <!-- Template para o Modal de Guerra Histórica -->
+    <template id="historic-war-template">
+        <div class="war-header">
+            <img id="historic-warDetailClanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="war-header-badge">
+            <h2><span id="historic-warDetailOurClanName">-</span> vs <span id="historic-warDetailOpponentName">-</span></h2>
+            <img id="historic-warDetailOpponentBadge" src="/static/images/default_badge.png" alt="Emblema Oponente" class="war-header-badge">
+        </div>
+        <p class="war-timing-overall"><strong id="historic-warDetailTimeKey">Tempo:</strong> <span id="historic-warDetailTimeValue">-</span> (<span id="historic-warDetailTimeRemaining" class="time-remaining">-</span>)</p>
+        <p><strong>Estado:</strong> <span id="historic-warDetailState" class="war-state">-</span></p>
+        <nav class="war-tabs">
+            <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
+            <button class="war-tab-button" data-tab="war-events">Eventos</button>
+            <button class="war-tab-button" data-tab="war-our-team">Minha Equipe</button>
+            <button class="war-tab-button" data-tab="war-opponent-team">Equipe Inimiga</button>
+        </nav>
+        <div id="historic-noWarDetailMessage" class="message-box" style="display: none;"></div>
+        <div id="historic-war-stats" class="war-tab-content" style="display: block;">
+             <!-- Conteúdo das Estatísticas (similar ao da aba principal) -->
+             <h3>Placar Geral</h3>
+             <div class="war-score-container">
+                 <div class="team-score our-clan-score">
+                     <h4 id="historic-statsOurClanName">-</h4>
+                     <p><span id="historic-statsOurStars">-</span>⭐ (<span id="historic-statsOurDestruction">-</span>%)</p>
+                     <p><span id="historic-statsOurAttacksUsed">-</span> ataques</p>
+                 </div>
+                 <div class="vs-separator">⚔️</div>
+                 <div class="team-score opponent-score">
+                     <h4 id="historic-statsOpponentName">-</h4>
+                     <p><span id="historic-statsOpponentStars">-</span>⭐ (<span id="historic-statsOpponentDestruction">-</span>%)</p>
+                     <p><span id="historic-statsOpponentAttacksUsed">-</span> ataques</p>
+                 </div>
+             </div>
+        </div>
+        <div id="historic-war-events" class="war-tab-content">
+            <h3>Todos os Ataques (<span id="historic-warTotalAttacksCount">0</span>)</h3>
+            <div class="table-container scrollable-box medium-table">
+                <table id="historic-warEventsTable">
+                    <thead><tr><th>#</th><th>Atacante (CV)</th><th>Resultado</th><th>Defensor (CV)</th><th>Duração</th></tr></thead>
+                    <tbody id="historic-warEventsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div id="historic-war-our-team" class="war-tab-content">
+            <h3>Minha Equipe: <span id="historic-warOurTeamName">-</span></h3>
+            <div id="historic-warOurTeamMembers" class="team-members-container scrollable-box"></div>
+        </div>
+        <div id="historic-war-opponent-team" class="war-tab-content">
+            <h3>Equipe Inimiga: <span id="historic-warOpponentTeamName">-</span></h3>
+            <div id="historic-warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
+        </div>
+    </template>
+
 
     <footer class="site-footer">
         <div class="container">
@@ -327,3 +322,4 @@
     <script src="/static/js/scripts.js"></script>
 </body>
 </html>
+
