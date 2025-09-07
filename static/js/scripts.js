@@ -1044,4 +1044,3 @@ document.addEventListener('DOMContentLoaded', () => {
         animateParticles();
     }
 });
-
