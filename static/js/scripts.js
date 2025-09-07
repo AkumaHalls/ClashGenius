@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const highlightsClanNameEl = document.getElementById('highlightsClanName');
     const topDonorsListEl = document.getElementById('topDonorsList');
     const bestAttacksListEl = document.getElementById('bestAttacksList');
+    const warDateHighlightEl = document.getElementById('warDateHighlight');
     const activityChartCanvas = document.getElementById('activityChart');
     const noHighlightsMessageEl = document.getElementById('noHighlightsMessage');
     let activityChart = null; // Variável para armazenar a instância do gráfico
@@ -71,8 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
 
     const attacksRemainingTitleEl = document.getElementById('attacksRemainingTitle');
-    const attacksRemainingClanNameEl = document.getElementById('attacksRemainingClanName');
-    const attacksRemainingListEl = document.getElementById('attacksRemainingList');
+    const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
     const cwlStatusTextEl = document.getElementById('cwlStatusText');
@@ -180,6 +180,29 @@ document.addEventListener('DOMContentLoaded', () => {
             element.style.display = 'inline-block';
         }
     }
+
+    function copyToClipboard(text, buttonElement) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            if (buttonElement) {
+                const originalText = buttonElement.innerHTML;
+                buttonElement.innerHTML = 'Copiado!';
+                buttonElement.disabled = true;
+                setTimeout(() => {
+                    buttonElement.innerHTML = originalText;
+                    buttonElement.disabled = false;
+                }, 1500);
+            }
+        } catch (err) {
+            console.error('Falha ao copiar texto: ', err);
+        }
+        document.body.removeChild(textarea);
+    }
+    
 
     // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
     const initialSectionId = (navLinks.length > 0 && navLinks[0].dataset.section) ? navLinks[0].dataset.section : 'clan-info-nav';
@@ -298,6 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         noHighlightsMessageEl.style.display = 'none';
         document.getElementById('highlightsContent').style.display = 'block';
         setText(highlightsClanNameEl, data.clan_name);
+        setText(warDateHighlightEl, data.war_date ? `(${data.war_date})` : '');
 
         // Popula Top Doadores
         if (data.top_donors && data.top_donors.length > 0) {
@@ -571,30 +595,80 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- INÍCIO: Lógica da aba "Ataques Pendentes" REFEITA ---
     function populateMissedAttacksHistory(data) {
         const clanNameSpan = attacksRemainingTitleEl.querySelector('span');
         if (clanNameSpan) {
             setText(clanNameSpan, data.clan_name);
         }
-    
-        if (data.error || !data.missed_attacks || data.missed_attacks.length === 0) {
+
+        if (data.error || !data.wars_with_missed_attacks || data.wars_with_missed_attacks.length === 0) {
             const message = data.error || "Nenhuma pendência de ataque encontrada no histórico de guerras.";
-            setHtml(attacksRemainingListEl, `<p>${message}</p>`);
+            setHtml(missedAttacksContainerEl, '');
             if (noMissedAttacksMessageEl) {
                 noMissedAttacksMessageEl.style.display = 'block';
                 setText(noMissedAttacksMessageEl, message);
             }
             return;
         }
-    
+
         if (noMissedAttacksMessageEl) noMissedAttacksMessageEl.style.display = 'none';
-        
-        let htmlContent = '';
-        data.missed_attacks.forEach(m => {
-            htmlContent += `<p><strong>${m.name}</strong> (CV${m.town_hall}) - <strong>${m.attacks_left}</strong> atk restante(s) na guerra de <strong>${m.war_date}</strong></p>`;
+        setHtml(missedAttacksContainerEl, '');
+
+        data.wars_with_missed_attacks.forEach(war => {
+            const warGroup = document.createElement('div');
+            warGroup.className = 'war-group';
+
+            const warHeader = document.createElement('h3');
+            warHeader.className = 'war-group-header';
+            warHeader.innerHTML = `Guerra vs <strong>${war.opponent_name}</strong> (${war.end_date})`;
+            if (war.is_latest) {
+                const latestBadge = document.createElement('span');
+                latestBadge.className = 'latest-war-badge';
+                latestBadge.textContent = '💥 Última Guerra';
+                warHeader.appendChild(latestBadge);
+            }
+            warGroup.appendChild(warHeader);
+
+            const cardGrid = document.createElement('div');
+            cardGrid.className = 'player-card-grid';
+
+            war.missed_attacks_members.forEach(member => {
+                const card = document.createElement('div');
+                card.className = 'missed-attack-card';
+                if (member.attacks_left >= 2) {
+                    card.classList.add('severity-high');
+                } else {
+                    card.classList.add('severity-medium');
+                }
+
+                card.innerHTML = `
+                    <div class="player-info">
+                        <h4>${member.name} <span>(CV${member.town_hall})</span></h4>
+                        <div class="player-tag-container">
+                             <span class="player-tag">${member.tag}</span>
+                             <button class="copy-tag-btn" data-tag="${member.tag}">Copiar</button>
+                        </div>
+                    </div>
+                    <div class="attacks-info">
+                        <span class="attacks-count">${member.attacks_left}</span>
+                        <span class="attacks-label">Ataque${member.attacks_left > 1 ? 's' : ''} Pendente${member.attacks_left > 1 ? 's' : ''}</span>
+                    </div>
+                `;
+                cardGrid.appendChild(card);
+            });
+            warGroup.appendChild(cardGrid);
+            missedAttacksContainerEl.appendChild(warGroup);
         });
-        setHtml(attacksRemainingListEl, htmlContent);
+
+        // Adiciona event listeners para os botões de copiar
+        document.querySelectorAll('.copy-tag-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                copyToClipboard(e.target.dataset.tag, e.target);
+            });
+        });
     }
+    // --- FIM: Lógica da aba "Ataques Pendentes" REFEITA ---
 
     function populateCwlInfo(data) {
         setText(cwlStatusTextEl, "Carregando...");
@@ -1044,3 +1118,4 @@ document.addEventListener('DOMContentLoaded', () => {
         animateParticles();
     }
 });
+
