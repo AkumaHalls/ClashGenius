@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.47-PENDING-FIX-REVERT - Corrigida a lógica da aba de Ataques Pendentes com base na versão estável.
+# Versão 20.1.47-PENDING-FIX-REVERT - Corrigida a lógica da aba de Ataques Pendentes com base na versão estável.#
 
 import os
 import logging
