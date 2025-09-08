@@ -1075,6 +1075,97 @@ async def setup_web_server():
     app.router.add_static('/static/', path=static_dir, name='static')
     app.router.add_get("/painel", lambda r: web.FileResponse(os.path.join(static_dir, "painel.html")))
     app.router.add_get("/", lambda r: web.Response(text=f"Bot running! v{BOT_VERSION}"))
+    # --- ROTAS DO PAINEL ADMIN ---
+    async def admin_login_page(request):
+        session = await get_session(request)
+        if session.get('admin'):
+            return web.HTTPFound('/admin/panel')
+        return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
+
+    async def admin_login_handler(request):
+        data = await request.post()
+        password = data.get('password')
+        if password == ADMIN_PASSWORD:
+            session = await get_session(request)
+            session['admin'] = True
+            logger.info("Login de administrador bem-sucedido.")
+            return web.HTTPFound('/admin/panel')
+        else:
+            logger.warning("Tentativa de login de administrador falhou.")
+            return web.HTTPFound('/admin?error=1')
+
+    async def admin_logout_handler(request):
+        session = await get_session(request)
+        if 'admin' in session:
+            del session['admin']
+        logger.info("Administrador deslogado.")
+        return web.HTTPFound('/admin')
+
+    async def admin_panel_page(request):
+        session = await get_session(request)
+        if not session.get('admin'):
+            return web.HTTPFound('/admin')
+        return web.FileResponse(os.path.join(static_dir, "admin_panel.html"))
+        
+    async def toggle_maintenance_handler(request):
+        session = await get_session(request)
+        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        
+        global MAINTENANCE_MODE
+        MAINTENANCE_MODE = not MAINTENANCE_MODE
+        status_str = "ATIVADO" if MAINTENANCE_MODE else "DESATIVADO"
+        logger.info(f"Modo manutenção alterado para: {status_str}")
+        
+        # Enviar um embed para o Discord notificando a mudança
+        embed = discord.Embed(
+            title=f"🚨 Modo Manutenção {status_str} 🚨",
+            description=f"O painel e os alertas do bot foram {'pausados' if MAINTENANCE_MODE else 'reativados'}.",
+            color=discord.Color.orange() if MAINTENANCE_MODE else discord.Color.green()
+        )
+        await send_log_embed(embed)
+        
+        return web.json_response({"status": "success", "maintenance_mode": MAINTENANCE_MODE})
+
+    async def send_test_embed_handler(request):
+        session = await get_session(request)
+        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        
+        try:
+            embed = discord.Embed(
+                title="✅ Mensagem de Teste",
+                description="Se você está vendo esta mensagem, a comunicação entre o painel admin e o Discord está funcionando!",
+                color=discord.Color.blue()
+            )
+            await send_log_embed(embed)
+            logger.info("Embed de teste enviado com sucesso a partir do painel admin.")
+            return web.json_response({"status": "success"})
+        except Exception as e:
+            logger.error(f"Erro ao enviar embed de teste do painel admin: {e}", exc_info=True)
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
+            
+    async def get_admin_status_handler(request):
+        session = await get_session(request)
+        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        
+        return web.json_response({
+            "status": "ok",
+            "maintenance_mode": MAINTENANCE_MODE,
+            "version": BOT_VERSION
+        })
+
+    # Adicionando as rotas de admin
+    app.router.add_get("/admin", admin_login_page)
+    app.router.add_post("/admin/login", admin_login_handler)
+    app.router.add_get("/admin/logout", admin_logout_handler)
+    app.router.add_get("/admin/panel", admin_panel_page)
+    app.router.add_post("/admin/toggle_maintenance", toggle_maintenance_handler)
+    app.router.add_post("/admin/send_test_embed", send_test_embed_handler)
+    app.router.add_get("/api/admin/status", get_admin_status_handler)
+
+    # Middleware de sessão (necessário para o login admin)
+    fernet_key = Fernet.generate_key() if not FERNET_KEY else FERNET_KEY.encode()
+    secret_key = base64.urlsafe_b64decode(fernet_key)
+    setup(app, EncryptedCookieStorage(secret_key))
     
     runner = web.AppRunner(app)
     await runner.setup()
