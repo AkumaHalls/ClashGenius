@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.16-FINAL-STABLE - Adicionado monitoramento de doações e tropas recebidas. ##
+# Versão 20.1.47-PENDING-FIX-REVERT - Corrigida a lógica da aba de Ataques Pendentes com base na versão estável.#
 
 import os
 import logging
@@ -16,6 +16,10 @@ from dotenv import load_dotenv
 import motor.motor_asyncio
 from pymongo.uri_parser import parse_uri
 from pymongo import DESCENDING
+from aiohttp_session import setup, get_session, session_middleware
+from aiohttp_session.cookie_storage import EncryptedCookieStorage
+import base64
+from cryptography.fernet import Fernet
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -38,10 +42,14 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0)) 
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.39-MISSED-ATTACKS-REWORK"
+BOT_VERSION = "20.1.47-PENDING-FIX-REVERT"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
+MAINTENANCE_MODE = False # Variável de estado global
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -101,24 +109,27 @@ def _sanitize_keys_for_mongo(obj: Any) -> Any:
     return obj
 
 async def save_war_to_history(war_data: Dict[str, Any]):
+    if MAINTENANCE_MODE: return
     if not hasattr(bot, 'db') or bot.db is None:
         logger.error("Banco de dados não disponível, não é possível salvar o histórico da guerra.")
         return
     try:
         war_collection = bot.db.war_history
         sanitized_war_data = _sanitize_keys_for_mongo(war_data)
-        sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
-        
-        await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
-        logger.info(f"Guerra finalizada em {sanitized_war_data['_id']} salva no histórico.")
+        if 'war_data' in sanitized_war_data and 'end_time_iso' in sanitized_war_data['war_data']:
+            sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
+            
+            await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
+            logger.info(f"Guerra finalizada em {sanitized_war_data['_id']} salva no histórico.")
 
-        count = await war_collection.count_documents({})
-        if count > 9:
-            oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 9)
-            async for old_war in oldest_wars_cursor:
-                await war_collection.delete_one({"_id": old_war["_id"]})
-                logger.info(f"Guerra mais antiga ({old_war['_id']}) removida do histórico para manter o limite de 9.")
-
+            count = await war_collection.count_documents({})
+            if count > 9:
+                oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 9)
+                async for old_war in oldest_wars_cursor:
+                    await war_collection.delete_one({"_id": old_war["_id"]})
+                    logger.info(f"Guerra mais antiga ({old_war['_id']}) removida do histórico para manter o limite de 9.")
+        else:
+            logger.error("Tentativa de salvar guerra no histórico sem 'end_time_iso'. Dados incompletos.")
     except Exception as e:
         logger.error(f"Erro ao salvar guerra no histórico do MongoDB: {e}", exc_info=True)
 
@@ -164,6 +175,7 @@ async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
 
 # --- DEFINIÇÃO DOS EVENTOS DO COC ---
 async def on_clan_member_join(member, clan):
+    if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: {member.name} entrou no clã {clan.name}")
         if clan.tag != CLAN_TAG: return
@@ -180,6 +192,7 @@ async def on_clan_member_join(member, clan):
         logger.error(f"Erro no evento member_join: {e}", exc_info=True)
 
 async def on_clan_member_leave(member, clan):
+    if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: {member.name} saiu do clã {clan.name}")
         if clan.tag != CLAN_TAG: return
@@ -195,6 +208,7 @@ async def on_clan_member_leave(member, clan):
         logger.error(f"Erro no evento member_leave: {e}", exc_info=True)
 
 async def on_war_attack(attack, war):
+    if MAINTENANCE_MODE: return
     try:
         if not attack or not hasattr(attack, 'attacker') or not attack.attacker: return
         
@@ -286,6 +300,7 @@ async def on_war_attack(attack, war):
 
 
 async def on_clan_member_role_change(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: Mudança de cargo de {new_member.name}")
         embed = discord.Embed(
@@ -301,6 +316,7 @@ async def on_clan_member_role_change(old_member, new_member):
 
 
 async def on_clan_member_trophies_change(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         diff = new_member.trophies - old_member.trophies
         if diff == 0: return
@@ -320,6 +336,7 @@ async def on_clan_member_trophies_change(old_member, new_member):
 
 
 async def on_clan_member_league_change(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: {new_member.name} mudou de liga")
         embed = discord.Embed(
@@ -338,6 +355,7 @@ async def on_clan_member_league_change(old_member, new_member):
         logger.error(f"Erro no evento member_league_change: {e}", exc_info=True)
 
 async def on_member_donations(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         donation_diff = new_member.donations - old_member.donations
         if donation_diff <= 0: return
@@ -352,6 +370,7 @@ async def on_member_donations(old_member, new_member):
         logger.error(f"Erro no evento member_donations: {e}", exc_info=True)
 
 async def on_member_received(old_member, new_member):
+    if MAINTENANCE_MODE: return
     try:
         received_diff = new_member.received - old_member.received
         if received_diff <= 0: return
@@ -465,6 +484,7 @@ async def get_current_or_last_war(clan_tag):
         logger.error(f"Erro inesperado ao buscar guerra atual: {e}", exc_info=True)
         return None
 
+
 async def fetch_clan_info_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
@@ -507,7 +527,6 @@ async def fetch_clan_members_for_web():
         logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar lista de membros."}
 
-# --- INÍCIO: Função de salvar dados da guerra CORRIGIDA ---
 async def fetch_current_war_details_for_web():
     try:
         war = await get_current_or_last_war(CLAN_TAG)
@@ -525,11 +544,11 @@ async def fetch_current_war_details_for_web():
             if not attack: continue
             attacker = war.get_member(attack.attacker_tag)
             defender = war.get_member(attack.defender_tag)
-
+            
             attacker_clan_tag_to_save = None
             if attacker and hasattr(attacker, 'clan') and hasattr(attacker.clan, 'tag'):
-                 attacker_clan_tag_to_save = attacker.clan.tag
-            
+                attacker_clan_tag_to_save = attacker.clan.tag
+
             all_attacks_data.append({
                 "order": attack.order,
                 "attacker_clan_tag": attacker_clan_tag_to_save,
@@ -549,7 +568,7 @@ async def fetch_current_war_details_for_web():
                 if not m: continue
                 details.append({
                     "name": m.name, 
-                    "tag": m.tag, # Adicionado para garantir que a tag do membro seja salva
+                    "tag": m.tag,
                     "townhall": m.town_hall, 
                     "map_position": m.map_position,
                     "attacks_used": len(m.attacks),
@@ -569,6 +588,7 @@ async def fetch_current_war_details_for_web():
 
         return {
             "war_data": {
+                "clan_tag": our_clan.tag,
                 "status": str(war.state), "state_description": str(war.state).capitalize(),
                 "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0),
                 "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
@@ -594,23 +614,21 @@ async def fetch_current_war_details_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar dados da guerra."}
-# --- FIM: Função de salvar dados da guerra CORRIGIDA ---
 
-# --- INÍCIO: Lógica da aba "Ataques Pendentes" REFEITA ---
+# --- FUNÇÃO CORRIGIDA PARA ATAQUES PENDENTES (VERSÃO ESTÁVEL) ---
 async def fetch_missed_attacks_history_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
         return {"error": "Histórico indisponível (Banco de dados não conectado)."}
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
-             return {"error": "Não foi possível carregar os dados do clã para o histórico."}
+            return {"error": "Não foi possível carregar os dados do clã para o histórico."}
 
         war_collection = bot.db.war_history
-        # Busca todas as guerras no histórico, ordenadas da mais nova para a mais antiga
         log_cursor = war_collection.find({}).sort("war_data.end_time_iso", DESCENDING)
         
         wars_with_missed_attacks = []
-        is_first_war = True # Para marcar a guerra mais recente
+        is_first_war = True
 
         async for war_doc in log_cursor:
             war_data = war_doc.get("war_data", {})
@@ -630,7 +648,6 @@ async def fetch_missed_attacks_history_for_web():
                         "attacks_left": attacks_left,
                     })
             
-            # Só adiciona o grupo da guerra se houveram ataques perdidos nela
             if missed_attacks_members:
                 end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
                 wars_with_missed_attacks.append({
@@ -648,7 +665,6 @@ async def fetch_missed_attacks_history_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_missed_attacks_history_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar histórico de ataques pendentes."}
-# --- FIM: Lógica da aba "Ataques Pendentes" REFEITA ---
 
 async def fetch_war_log_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
@@ -727,7 +743,6 @@ async def fetch_cwl_info_for_web():
         logger.error(f"Erro em fetch_cwl_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao buscar dados da CWL."}
 
-# --- INÍCIO: Função para a aba Destaques (LÓGICA FINAL E ROBUSTA) ---
 async def fetch_highlights_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
@@ -741,12 +756,10 @@ async def fetch_highlights_for_web():
         our_attacks_list = []
         war_end_date_str = ""
 
-        # A fonte primária de dados é o banco de dados.
         if hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             
             if latest_war_doc:
-                # 1. Obter a lista de tags dos nossos membros para aquela guerra específica
                 our_members_in_war = latest_war_doc.get('our_clan_members_in_war', [])
                 our_member_tags = {member['tag'] for member in our_members_in_war if 'tag' in member}
 
@@ -755,7 +768,6 @@ async def fetch_highlights_for_web():
 
                 all_attacks_from_db = latest_war_doc.get('all_attacks', [])
                 
-                # 2. Filtrar ataques verificando se o 'attacker_tag' está na nossa lista de membros
                 for atk in all_attacks_from_db:
                     if atk.get("attacker_tag") and atk.get("attacker_tag") in our_member_tags:
                         our_attacks_list.append(atk)
@@ -792,7 +804,6 @@ async def fetch_highlights_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_highlights_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar destaques."}
-# --- FIM: Função para a aba Destaques (LÓGICA FINAL E ROBUSTA) ---
 
 
 async def api_clan_info_handler(request):
@@ -851,7 +862,7 @@ async def api_historic_war_handler(request):
     except Exception as e:
         logger.error(f"Erro ao buscar guerra histórica {war_id}: {e}", exc_info=True)
         return web.json_response({"error": "Erro interno no servidor."}, status=500)
-
+        
 # --- TAREFAS EM BACKGROUND ---
 @tasks.loop(seconds=60.0)
 async def check_war_end_task():

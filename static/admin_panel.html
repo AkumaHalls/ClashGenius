@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - Clash Genius</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="admin-page">
+    <canvas id="particle-background"></canvas>
+    <div class="admin-panel-container">
+        <div class="admin-card">
+            <div class="admin-header">
+                <h2>Painel do Administrador</h2>
+                <a href="/admin/logout" class="logout-btn">Sair</a>
+            </div>
+            <p>Use os controles abaixo para gerenciar o bot e o painel.</p>
+
+            <div class="control-section">
+                <h3>Modo Manutenção</h3>
+                <div class="maintenance-status">
+                    Status Atual: <span id="maintenance-status-text" class="status-badge">Carregando...</span>
+                </div>
+                <button id="toggle-maintenance-btn" class="control-btn">Ativar/Desativar</button>
+                <p class="control-description">Pausa todos os alertas e redireciona os usuários para uma página de manutenção.</p>
+            </div>
+
+            <div class="control-section">
+                <h3>Comunicação com Discord</h3>
+                <button id="send-test-embed-btn" class="control-btn">Enviar Mensagem de Teste</button>
+                <p class="control-description">Envia um embed de teste para o canal de logs para verificar a conexão.</p>
+            </div>
+            
+             <div class="control-section">
+                <h3>Informações do Sistema</h3>
+                <p><strong>Versão do Bot:</strong> <span id="bot-version-text">-</span></p>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>
