@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.47-PENDING-FIX-REVERT - Corrigida a lógica da aba de Ataques Pendentes com base na versão estável.#
+# Versão 20.1.48-WAR-PREDICTION - Adicionada funcionalidade de previsão de guerra.
 
 import os
 import logging
@@ -46,7 +46,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.47-PENDING-FIX-REVERT"
+BOT_VERSION = "20.1.48-WAR-PREDICTION"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False # Variável de estado global
 
@@ -527,6 +527,76 @@ async def fetch_clan_members_for_web():
         logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar lista de membros."}
 
+def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
+    """Calcula a previsão do resultado da guerra."""
+    prediction = {"message": None}
+
+    if war.state == 'preparation':
+        prediction["message"] = "A guerra está em preparação. A análise começará em breve."
+        return prediction
+    if war.state != 'inWar':
+        prediction["message"] = "A guerra não está em andamento para previsões."
+        return prediction
+
+    our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
+    opponent = war.opponent if war.clan.tag == CLAN_TAG else war.clan
+
+    our_destruction = float(getattr(our_clan, 'destruction', 0.0))
+    opponent_destruction = float(getattr(opponent, 'destruction', 0.0))
+
+    total_attacks = war.team_size * war.attacks_per_member
+    our_attacks_remaining = total_attacks - our_clan.attacks_used
+    opponent_attacks_remaining = total_attacks - opponent.attacks_used
+
+    our_potential_max_stars = our_clan.stars + (our_attacks_remaining * 3)
+    opponent_potential_max_stars = opponent.stars + (opponent_attacks_remaining * 3)
+
+    # Cenário 1: Vitória garantida para nós
+    if our_clan.stars > opponent_potential_max_stars:
+        prediction["message"] = f"Vitória garantida para {our_clan.name}! O oponente não pode mais nos alcançar em estrelas."
+        return prediction
+
+    # Cenário 2: Vitória garantida para oponente
+    if opponent.stars > our_potential_max_stars:
+        prediction["message"] = f"Derrota inevitável. {opponent.name} já garantiu a vitória por estrelas."
+        return prediction
+
+    # Cenário 3: Estamos na liderança
+    if our_clan.stars > opponent.stars or (our_clan.stars == opponent.stars and our_destruction > opponent_destruction):
+        stars_opponent_needs = (our_clan.stars - opponent.stars) + 1
+        msg1 = f"{our_clan.name} está na liderança, mas {opponent.name} ainda pode virar se conseguir {stars_opponent_needs}★ a mais que nosso clã."
+        
+        stars_we_need_for_win = (opponent_potential_max_stars - our_clan.stars) + 1
+        if stars_we_need_for_win <= 0:
+             msg2 = f"A vitória de {our_clan.name} está muito provável!"
+        elif stars_we_need_for_win <= our_attacks_remaining * 3:
+            msg2 = f"Para uma vitória garantida, {our_clan.name} ainda precisa de {stars_we_need_for_win}★."
+        else:
+            msg2 = "A vitória dependerá de um bom desempenho nos ataques restantes."
+        
+        prediction["message"] = f"{msg1} {msg2}"
+        return prediction
+
+    # Cenário 4: Estamos perdendo
+    if opponent.stars > our_clan.stars or (opponent.stars == our_clan.stars and opponent_destruction > our_destruction):
+        stars_we_need = (opponent.stars - our_clan.stars) + 1
+        msg1 = f"{opponent.name} está na liderança, mas {our_clan.name} ainda pode virar se conseguir {stars_we_need}★ a mais que o oponente."
+
+        stars_opponent_needs_for_win = (our_potential_max_stars - opponent.stars) + 1
+        if stars_opponent_needs_for_win <= 0:
+             msg2 = f"A vitória de {opponent.name} está muito provável."
+        elif stars_opponent_needs_for_win <= opponent_attacks_remaining * 3:
+            msg2 = f"Para garantir a vitória, {opponent.name} precisa de mais {stars_opponent_needs_for_win}★."
+        else:
+            msg2 = "A vitória do oponente dependerá do desempenho deles."
+
+        prediction["message"] = f"{msg1} {msg2}"
+        return prediction
+    
+    # Cenário 5: Empate
+    prediction["message"] = "A guerra está empatada! A vitória será decidida na % de destruição ou nos próximos ataques."
+    return prediction
+
 async def fetch_current_war_details_for_web():
     try:
         war = await get_current_or_last_war(CLAN_TAG)
@@ -586,6 +656,8 @@ async def fetch_current_war_details_for_web():
         our_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
         opp_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
 
+        prediction_data = calculate_war_prediction(war)
+
         return {
             "war_data": {
                 "clan_tag": our_clan.tag,
@@ -609,7 +681,8 @@ async def fetch_current_war_details_for_web():
             },
             "all_attacks": all_attacks_data,
             "our_clan_members_in_war": get_team_details(our_clan),
-            "opponent_clan_members_in_war": get_team_details(opp_clan)
+            "opponent_clan_members_in_war": get_team_details(opp_clan),
+            "prediction": prediction_data
         }
     except Exception as e:
         logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
@@ -1002,6 +1075,97 @@ async def setup_web_server():
     app.router.add_static('/static/', path=static_dir, name='static')
     app.router.add_get("/painel", lambda r: web.FileResponse(os.path.join(static_dir, "painel.html")))
     app.router.add_get("/", lambda r: web.Response(text=f"Bot running! v{BOT_VERSION}"))
+    # --- ROTAS DO PAINEL ADMIN ---
+    async def admin_login_page(request):
+        session = await get_session(request)
+        if session.get('admin'):
+            return web.HTTPFound('/admin/panel')
+        return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
+
+    async def admin_login_handler(request):
+        data = await request.post()
+        password = data.get('password')
+        if password == ADMIN_PASSWORD:
+            session = await get_session(request)
+            session['admin'] = True
+            logger.info("Login de administrador bem-sucedido.")
+            return web.HTTPFound('/admin/panel')
+        else:
+            logger.warning("Tentativa de login de administrador falhou.")
+            return web.HTTPFound('/admin?error=1')
+
+    async def admin_logout_handler(request):
+        session = await get_session(request)
+        if 'admin' in session:
+            del session['admin']
+        logger.info("Administrador deslogado.")
+        return web.HTTPFound('/admin')
+
+    async def admin_panel_page(request):
+        session = await get_session(request)
+        if not session.get('admin'):
+            return web.HTTPFound('/admin')
+        return web.FileResponse(os.path.join(static_dir, "admin_panel.html"))
+        
+    async def toggle_maintenance_handler(request):
+        session = await get_session(request)
+        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        
+        global MAINTENANCE_MODE
+        MAINTENANCE_MODE = not MAINTENANCE_MODE
+        status_str = "ATIVADO" if MAINTENANCE_MODE else "DESATIVADO"
+        logger.info(f"Modo manutenção alterado para: {status_str}")
+        
+        # Enviar um embed para o Discord notificando a mudança
+        embed = discord.Embed(
+            title=f"🚨 Modo Manutenção {status_str} 🚨",
+            description=f"O painel e os alertas do bot foram {'pausados' if MAINTENANCE_MODE else 'reativados'}.",
+            color=discord.Color.orange() if MAINTENANCE_MODE else discord.Color.green()
+        )
+        await send_log_embed(embed)
+        
+        return web.json_response({"status": "success", "maintenance_mode": MAINTENANCE_MODE})
+
+    async def send_test_embed_handler(request):
+        session = await get_session(request)
+        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        
+        try:
+            embed = discord.Embed(
+                title="✅ Mensagem de Teste",
+                description="Se você está vendo esta mensagem, a comunicação entre o painel admin e o Discord está funcionando!",
+                color=discord.Color.blue()
+            )
+            await send_log_embed(embed)
+            logger.info("Embed de teste enviado com sucesso a partir do painel admin.")
+            return web.json_response({"status": "success"})
+        except Exception as e:
+            logger.error(f"Erro ao enviar embed de teste do painel admin: {e}", exc_info=True)
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
+            
+    async def get_admin_status_handler(request):
+        session = await get_session(request)
+        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        
+        return web.json_response({
+            "status": "ok",
+            "maintenance_mode": MAINTENANCE_MODE,
+            "version": BOT_VERSION
+        })
+
+    # Adicionando as rotas de admin
+    app.router.add_get("/admin", admin_login_page)
+    app.router.add_post("/admin/login", admin_login_handler)
+    app.router.add_get("/admin/logout", admin_logout_handler)
+    app.router.add_get("/admin/panel", admin_panel_page)
+    app.router.add_post("/admin/toggle_maintenance", toggle_maintenance_handler)
+    app.router.add_post("/admin/send_test_embed", send_test_embed_handler)
+    app.router.add_get("/api/admin/status", get_admin_status_handler)
+
+    # Middleware de sessão (necessário para o login admin)
+    fernet_key = Fernet.generate_key() if not FERNET_KEY else FERNET_KEY.encode()
+    secret_key = base64.urlsafe_b64decode(fernet_key)
+    setup(app, EncryptedCookieStorage(secret_key))
     
     runner = web.AppRunner(app)
     await runner.setup()
@@ -1072,4 +1236,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
-

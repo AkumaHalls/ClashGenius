@@ -450,8 +450,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (warHeader) warHeader.style.display = 'none';
             if (warTabsNav) warTabsNav.style.display = 'none';
             container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none');
+            
+            // Esconde a previsão se não houver guerra
+            const predictionSection = container.querySelector('#warPredictionSection');
+            if (predictionSection) predictionSection.style.display = 'none';
             return;
         }
+        
+        // NOVO CÓDIGO PARA PREVISÃO
+        if (!isModal) { // Apenas mostra a previsão na aba principal, não no modal histórico
+            const predictionSection = container.querySelector('#warPredictionSection');
+            const predictionText = container.querySelector('#warPredictionText');
+    
+            if (predictionSection && predictionText && data.prediction && data.prediction.message) {
+                setText(predictionText, data.prediction.message);
+                predictionSection.style.display = 'block';
+            } else if (predictionSection) {
+                predictionSection.style.display = 'none';
+            }
+        }
+        // FIM DO NOVO CÓDIGO
 
         if (noWarMsg) noWarMsg.style.display = 'none';
         if (warHeader) warHeader.style.display = 'flex';
@@ -1118,4 +1136,3 @@ document.addEventListener('DOMContentLoaded', () => {
         animateParticles();
     }
 });
-
