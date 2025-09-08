@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.45-ADMIN-PANEL - Implementado painel de administração e modo manutenção.
+# Versão 20.1.46-ATTACKS-PENDING-FIX - Corrigida a lógica da aba de Ataques Pendentes.
 
 import os
 import logging
@@ -46,7 +46,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.45-ADMIN-PANEL"
+BOT_VERSION = "20.1.46"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False # Variável de estado global
 
@@ -608,11 +608,13 @@ async def fetch_current_war_details_for_web():
         logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar dados da guerra."}
 
+# --- FUNÇÃO CORRIGIDA PARA ATAQUES PENDENTES ---
 async def fetch_missed_attacks_history_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
         return {"error": "Histórico indisponível (Banco de dados não conectado)."}
     try:
         war_collection = bot.db.war_history
+        # Busca todas as guerras no histórico, ordenadas da mais recente para a mais antiga
         log_cursor = war_collection.find({}).sort("war_data.end_time_iso", DESCENDING)
         
         clan = await get_clan_data_with_cache(CLAN_TAG)
@@ -627,6 +629,7 @@ async def fetch_missed_attacks_history_for_web():
             
             attacks_per_member = war_data.get("attacks_per_member", 2)
             
+            # Percorre a lista de membros que participaram da guerra
             for member in our_members_in_war:
                 attacks_made = member.get("attacks_used", 0)
                 attacks_left = attacks_per_member - attacks_made
@@ -638,6 +641,7 @@ async def fetch_missed_attacks_history_for_web():
                         "attacks_left": attacks_left,
                     })
             
+            # Se encontrou membros com ataques pendentes nesta guerra, adiciona à lista
             if missed_attack_members:
                 end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
                 wars_with_missed_attacks.append({
