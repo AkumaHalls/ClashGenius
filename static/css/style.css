@@ -1159,4 +1159,32 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 
 
+/* --- NOVOS ESTILOS PARA PREVISÃO DE GUERRA --- */
+.war-prediction-container {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: var(--border-radius-base);
+    padding: 15px 20px;
+    margin: 20px 0;
+    text-align: center;
+    border-top: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
+}
 
+.war-prediction-container h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: none;
+    padding: 0;
+}
+
+.war-prediction-container p {
+    margin: 0;
+    font-size: 1.05em;
+    color: var(--color-text-main);
+    line-height: 1.5;
+}
