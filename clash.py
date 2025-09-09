@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.48-WAR-PREDICTION - Adicionada funcionalidade de previsão de guerra.
+# Versão 20.1.49-AI-PREDICTION-ENHANCED - Aprimorada a inteligência da previsão de guerra.
 
 import os
 import logging
@@ -46,7 +46,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.48-WAR-PREDICTION"
+BOT_VERSION = "20.1.49-AI-PREDICTION-ENHANCED"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False # Variável de estado global
 
@@ -528,74 +528,79 @@ async def fetch_clan_members_for_web():
         return {"error": "Erro interno ao processar lista de membros."}
 
 def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
-    """Calcula a previsão do resultado da guerra."""
-    prediction = {"message": None}
+    """Calcula a previsão do resultado da guerra com uma lógica mais inteligente."""
+    prediction = {"message": "A análise de previsão está sendo calculada."}
 
-    if war.state == 'preparation':
-        prediction["message"] = "A guerra está em preparação. A análise começará em breve."
-        return prediction
     if war.state != 'inWar':
-        prediction["message"] = "A guerra não está em andamento para previsões."
-        return prediction
+        return {"message": "A guerra precisa estar em andamento para gerar uma previsão."}
 
     our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
     opponent = war.opponent if war.clan.tag == CLAN_TAG else war.clan
-
-    our_destruction = float(getattr(our_clan, 'destruction', 0.0))
-    opponent_destruction = float(getattr(opponent, 'destruction', 0.0))
-
-    total_attacks = war.team_size * war.attacks_per_member
-    our_attacks_remaining = total_attacks - our_clan.attacks_used
-    opponent_attacks_remaining = total_attacks - opponent.attacks_used
-
-    our_potential_max_stars = our_clan.stars + (our_attacks_remaining * 3)
-    opponent_potential_max_stars = opponent.stars + (opponent_attacks_remaining * 3)
-
-    # Cenário 1: Vitória garantida para nós
-    if our_clan.stars > opponent_potential_max_stars:
-        prediction["message"] = f"Vitória garantida para {our_clan.name}! O oponente não pode mais nos alcançar em estrelas."
-        return prediction
-
-    # Cenário 2: Vitória garantida para oponente
-    if opponent.stars > our_potential_max_stars:
-        prediction["message"] = f"Derrota inevitável. {opponent.name} já garantiu a vitória por estrelas."
-        return prediction
-
-    # Cenário 3: Estamos na liderança
-    if our_clan.stars > opponent.stars or (our_clan.stars == opponent.stars and our_destruction > opponent_destruction):
-        stars_opponent_needs = (our_clan.stars - opponent.stars) + 1
-        msg1 = f"{our_clan.name} está na liderança, mas {opponent.name} ainda pode virar se conseguir {stars_opponent_needs}★ a mais que nosso clã."
-        
-        stars_we_need_for_win = (opponent_potential_max_stars - our_clan.stars) + 1
-        if stars_we_need_for_win <= 0:
-             msg2 = f"A vitória de {our_clan.name} está muito provável!"
-        elif stars_we_need_for_win <= our_attacks_remaining * 3:
-            msg2 = f"Para uma vitória garantida, {our_clan.name} ainda precisa de {stars_we_need_for_win}★."
-        else:
-            msg2 = "A vitória dependerá de um bom desempenho nos ataques restantes."
-        
-        prediction["message"] = f"{msg1} {msg2}"
-        return prediction
-
-    # Cenário 4: Estamos perdendo
-    if opponent.stars > our_clan.stars or (opponent.stars == our_clan.stars and opponent_destruction > our_destruction):
-        stars_we_need = (opponent.stars - our_clan.stars) + 1
-        msg1 = f"{opponent.name} está na liderança, mas {our_clan.name} ainda pode virar se conseguir {stars_we_need}★ a mais que o oponente."
-
-        stars_opponent_needs_for_win = (our_potential_max_stars - opponent.stars) + 1
-        if stars_opponent_needs_for_win <= 0:
-             msg2 = f"A vitória de {opponent.name} está muito provável."
-        elif stars_opponent_needs_for_win <= opponent_attacks_remaining * 3:
-            msg2 = f"Para garantir a vitória, {opponent.name} precisa de mais {stars_opponent_needs_for_win}★."
-        else:
-            msg2 = "A vitória do oponente dependerá do desempenho deles."
-
-        prediction["message"] = f"{msg1} {msg2}"
-        return prediction
     
-    # Cenário 5: Empate
-    prediction["message"] = "A guerra está empatada! A vitória será decidida na % de destruição ou nos próximos ataques."
-    return prediction
+    # Membros que ainda não atacaram
+    our_attackers_left = [m for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
+    opponent_attackers_left = [m for m in opponent.members if len(m.attacks) < war.attacks_per_member]
+
+    # Bases inimigas que ainda podem ser atacadas (não têm 3 estrelas)
+    opponent_bases_left = [m for m in opponent.members if m.best_opponent_attack is None or m.best_opponent_attack.stars < 3]
+    our_bases_left = [m for m in our_clan.members if m.best_opponent_attack is None or m.best_opponent_attack.stars < 3]
+
+    # Calculando a "força" relativa baseada nos CVs
+    our_attack_power = sum(m.town_hall for m in our_attackers_left)
+    opponent_attack_power = sum(m.town_hall for m in opponent_attackers_left)
+    
+    our_defense_left = sum(m.town_hall for m in our_bases_left)
+    opponent_defense_left = sum(m.town_hall for m in opponent_bases_left)
+
+    # Lógica de Pontuação de Cenário
+    # Pontos positivos favorecem nosso clã, negativos favorecem o oponente.
+    score = 0
+    
+    # 1. Vantagem de Estrelas
+    star_diff = our_clan.stars - opponent.stars
+    score += star_diff * 5  # Cada estrela de vantagem vale muito
+
+    # 2. Vantagem de Destruição (critério de desempate)
+    if abs(star_diff) <= 2: # Só considera destruição se a guerra estiver acirrada
+        destruction_diff = our_clan.destruction - opponent.destruction
+        score += destruction_diff / 5
+
+    # 3. Poder de Fogo Restante (qualidade dos atacantes)
+    attack_power_diff = our_attack_power - opponent_attack_power
+    score += attack_power_diff / 2
+
+    # 4. "Fragilidade" das bases restantes
+    defense_left_diff = opponent_defense_left - our_defense_left
+    score += defense_left_diff / 3
+    
+    # 5. Vantagem de ataques restantes
+    attacks_left_diff = len(our_attackers_left) - len(opponent_attackers_left)
+    score += attacks_left_diff * 2
+
+    # Geração da Mensagem de Previsão Baseada no Score
+    if score > 15:
+        prediction_message = f"Vitória muito provável para {our_clan.name}! A vantagem em estrelas e o poder de ataque restante são decisivos."
+    elif score > 5:
+        prediction_message = f"{our_clan.name} está com uma boa vantagem. Se os próximos ataques forem consistentes, a vitória está próxima."
+    elif score > -5:
+        prediction_message = "Guerra totalmente em aberto! Cada ataque será crucial para definir o vencedor. A disputa está acirrada."
+    elif score > -15:
+        prediction_message = f"{opponent.name} está com uma leve vantagem. {our_clan.name} precisa de ataques de alto impacto para virar o jogo."
+    else:
+        prediction_message = f"Cenário complicado para {our_clan.name}. A vitória do oponente é provável a menos que haja uma virada espetacular."
+
+    # Adicionando um detalhe tático
+    if abs(score) <= 15:
+        if our_attackers_left and opponent_bases_left:
+            top_attacker_th = max(m.town_hall for m in our_attackers_left)
+            top_base_th = max(m.town_hall for m in opponent_bases_left)
+            if top_attacker_th >= top_base_th:
+                prediction_message += f" (Dica: Nossos CVs mais altos ainda podem limpar as bases mais fortes do oponente)."
+            else:
+                 prediction_message += f" (Alerta: As bases mais fortes do oponente ainda estão de pé e nossos melhores atacantes já foram)."
+
+    return {"message": prediction_message}
+
 
 async def fetch_current_war_details_for_web():
     try:
