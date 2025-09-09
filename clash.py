@@ -7,7 +7,7 @@ import asyncio
 import datetime
 import json
 from aiohttp import web
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any, Set, Tuple
 import discord
 from discord.ext import commands, tasks
 import coc
