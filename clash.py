@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.51-AI-ULTRA-INTELLIGENT - Integrado novo sistema de IA para previsão de guerra.
+# Versão 20.1.52-AI-HYBRID-FINAL - IA de previsão de guerra final aprimorada.
 
 import os
 import logging
@@ -47,7 +47,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.51-AI-ULTRA-INTELLIGENT"
+BOT_VERSION = "20.1.52-AI-HYBRID-FINAL"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False # Variável de estado global
 
@@ -84,11 +84,11 @@ class IntelligentWarPredictor:
         
         # Pesos para diferentes fatores de análise
         self.WEIGHTS = {
-            'star_advantage': 0.35,
-            'efficiency_advantage': 0.25,
-            'potential_advantage': 0.20,
-            'th_advantage': 0.15,
-            'historical_performance': 0.05
+            'town_hall_advantage': 0.25,
+            'attack_efficiency': 0.30,
+            'remaining_potential': 0.20,
+            'time_pressure': 0.15,
+            'historical_performance': 0.10
         }
     
     async def calculate_ultra_intelligent_prediction(self, war) -> Dict[str, Any]:
@@ -100,28 +100,29 @@ class IntelligentWarPredictor:
                 return {"message": "A guerra não está em andamento para previsões avançadas."}
 
             our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-            opponent = war.opponent if war.clan.tag == CLAN_TAG else war.opponent
+            opponent = war.opponent if war.clan.tag == CLAN_TAG else war.clan
 
             # === VERIFICAÇÃO DE CENÁRIOS DEFINITIVOS PRIMEIRO ===
             definitive_scenario = self._check_definitive_scenarios(war, our_clan, opponent)
             if definitive_scenario:
                 return definitive_scenario
-
+            
             # === ANÁLISES FUNDAMENTAIS ===
             basic_analysis = self._analyze_basic_metrics(war, our_clan, opponent)
             th_analysis = self._analyze_townhall_matchup(war, our_clan, opponent)
             efficiency_analysis = self._analyze_attack_efficiency(war, our_clan, opponent)
             potential_analysis = self._analyze_remaining_potential(war, our_clan, opponent)
-            
-            # === CÁLCULO DA PROBABILIDADE ===
-            win_probability, key_factors = self._calculate_win_probability(
-                basic_analysis, th_analysis, efficiency_analysis, potential_analysis
+            time_analysis = self._analyze_time_pressure(war)
+            historical_analysis = await self._analyze_historical_performance(our_clan)
+
+            # === MACHINE LEARNING PREDICTION ===
+            ml_prediction = self._calculate_ml_prediction(
+                basic_analysis, th_analysis, efficiency_analysis, 
+                potential_analysis, time_analysis, historical_analysis
             )
             
             # === GERAÇÃO DA MENSAGEM FINAL ===
-            final_message = self._generate_final_message(
-                win_probability, our_clan, opponent, basic_analysis, key_factors
-            )
+            final_message = self._generate_final_message(our_clan, opponent, ml_prediction, basic_analysis)
             
             return {"message": final_message}
             
@@ -154,97 +155,137 @@ class IntelligentWarPredictor:
 
     def _analyze_basic_metrics(self, war, our_clan, opponent) -> Dict[str, Any]:
         total_attacks = war.team_size * war.attacks_per_member
+        our_remaining = total_attacks - our_clan.attacks_used
+        opp_remaining = total_attacks - opponent.attacks_used
+        
         return {
             'our_stars': our_clan.stars, 'opp_stars': opponent.stars,
             'our_destruction': our_clan.destruction, 'opp_destruction': opponent.destruction,
-            'our_attacks_remaining': total_attacks - our_clan.attacks_used,
-            'opp_attacks_remaining': total_attacks - opponent.attacks_used
+            'our_attacks_remaining': our_remaining, 'opp_attacks_remaining': opp_remaining,
+            'war_progress': ((our_clan.attacks_used + opponent.attacks_used) / (total_attacks * 2)) * 100
         }
 
     def _analyze_townhall_matchup(self, war, our_clan, opponent) -> Dict[str, Any]:
-        our_th_sum = sum(m.town_hall for m in our_clan.members)
-        opp_th_sum = sum(m.town_hall for m in opponent.members)
-        th_advantage = (our_th_sum / len(our_clan.members)) - (opp_th_sum / len(opponent.members))
+        our_avg_th = sum(m.town_hall for m in our_clan.members) / len(our_clan.members)
+        opp_avg_th = sum(m.town_hall for m in opponent.members) / len(opponent.members)
+        th_advantage = our_avg_th - opp_avg_th
         return {'th_advantage': th_advantage}
 
     def _analyze_attack_efficiency(self, war, our_clan, opponent) -> Dict[str, Any]:
         our_attacks = [a for a in war.attacks if a.attacker.clan.tag == our_clan.tag]
         opp_attacks = [a for a in war.attacks if a.attacker.clan.tag == opponent.tag]
         
-        our_avg_stars = (sum(a.stars for a in our_attacks) / len(our_attacks)) if our_attacks else 0
-        opp_avg_stars = (sum(a.stars for a in opp_attacks) / len(opp_attacks)) if opp_attacks else 0
+        def calc_score(attacks):
+            if not attacks: return 0
+            avg_stars = sum(a.stars for a in attacks) / len(attacks)
+            three_star_rate = sum(1 for a in attacks if a.stars == 3) / len(attacks)
+            return (avg_stars / 3 * 60) + (three_star_rate * 40)
+            
+        our_eff_score = calc_score(our_attacks)
+        opp_eff_score = calc_score(opp_attacks)
         
-        return {'efficiency_advantage': our_avg_stars - opp_avg_stars}
+        return {'efficiency_advantage': our_eff_score - opp_eff_score}
 
     def _analyze_remaining_potential(self, war, our_clan, opponent) -> Dict[str, Any]:
         our_attackers_left = [m for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
         opp_attackers_left = [m for m in opponent.members if len(m.attacks) < war.attacks_per_member]
         
-        our_potential_th_sum = sum(m.town_hall for m in our_attackers_left)
-        opp_potential_th_sum = sum(m.town_hall for m in opp_attackers_left)
+        our_potential_score = sum(m.town_hall for m in our_attackers_left)
+        opp_potential_score = sum(m.town_hall for m in opp_attackers_left)
 
-        return {'potential_advantage': our_potential_th_sum - opp_potential_th_sum}
+        return {'potential_advantage': our_potential_score - opp_potential_score}
+    
+    def _analyze_time_pressure(self, war) -> Dict[str, Any]:
+        if not hasattr(war, 'end_time') or not war.end_time: return {'pressure_factor': 0.5}
+        
+        hours_left = war.end_time.seconds_until / 3600
+        if hours_left < 2: return {'pressure_factor': 1.0}
+        if hours_left < 6: return {'pressure_factor': 0.8}
+        if hours_left < 12: return {'pressure_factor': 0.6}
+        return {'pressure_factor': 0.4}
 
-    def _calculate_win_probability(self, basic, th, efficiency, potential) -> Tuple[float, List[str]]:
+    async def _analyze_historical_performance(self, our_clan) -> Dict[str, Any]:
+        if not self.db: return {'our_win_rate': 50.0}
+        
+        try:
+            # Apenas um exemplo simples, poderia ser mais complexo
+            recent_wars = await self.db.war_history.find(
+                {"war_data.clan_tag": our_clan.tag}
+            ).sort("war_data.end_time_iso", -1).limit(10).to_list(length=10)
+            
+            if not recent_wars: return {'our_win_rate': 50.0}
+
+            wins = sum(1 for w in recent_wars if w['war_data']['clan_stars'] > w['war_data']['opponent_stars'])
+            return {'our_win_rate': (wins / len(recent_wars)) * 100}
+        except Exception:
+            return {'our_win_rate': 50.0}
+
+    def _calculate_ml_prediction(self, basic, th, efficiency, potential, time, historical) -> Dict[str, Any]:
+        """Simula um cálculo ponderado para a probabilidade de vitória."""
         factors = {
-            'star_advantage': (basic['our_stars'] - basic['opp_stars']) * 10,
-            'efficiency_advantage': efficiency['efficiency_advantage'] * 20,
-            'potential_advantage': potential['potential_advantage'] * 1.5,
-            'th_advantage': th['th_advantage'] * 10
+            'town_hall_advantage': np.clip(th['th_advantage'] * 20, -30, 30),
+            'attack_efficiency': np.clip(efficiency['efficiency_advantage'], -40, 40),
+            'remaining_potential': np.clip(potential['potential_advantage'] * 0.5, -30, 30),
+            'time_pressure': (time['pressure_factor'] - 0.7) * 10, # penaliza/bonifica se o tempo for crítico
+            'historical_performance': (historical['our_win_rate'] - 50) * 0.2
         }
         
-        # Adicionar vantagem de destruição como desempate
-        if abs(factors['star_advantage']) < 5:
-            factors['destruction_advantage'] = (basic['our_destruction'] - basic['opp_destruction']) * 0.5
+        star_diff = basic['our_stars'] - basic['opp_stars']
+        
+        # Ponderação dinâmica baseada na diferença de estrelas
+        if abs(star_diff) > 5:
+            base_prob = 75 + star_diff * 2
         else:
-            factors['destruction_advantage'] = 0
+            base_prob = 50 + star_diff * 5
 
-        total_score = sum(factors.values())
-        win_probability = 50 + (total_score / 2)
-        win_probability = np.clip(win_probability, 1, 99)
-
-        # Identificar Fatores Chave
-        key_factors = sorted(factors, key=lambda k: abs(factors[k]), reverse=True)[:2]
+        # Aplica os fatores ponderados
+        weighted_adjustment = sum(factors[key] * self.WEIGHTS[key] for key in self.WEIGHTS)
+        final_probability = base_prob + weighted_adjustment
         
-        return win_probability, key_factors
+        # Ajuste final pela destruição se as estrelas estiverem próximas
+        if abs(star_diff) <= 1:
+            destruction_diff = basic['our_destruction'] - basic['opp_destruction']
+            final_probability += destruction_diff * 0.1
 
-    def _generate_final_message(self, prob, our_clan, opponent, basic, key_factors):
-        # Mapear fatores para texto amigável
-        factor_map = {
-            'star_advantage': "vantagem em estrelas",
-            'efficiency_advantage': "eficiência dos ataques",
-            'potential_advantage': "poder de fogo restante",
-            'th_advantage': "força dos Centros de Vila",
-            'destruction_advantage': "vantagem na destruição"
-        }
+        final_probability = np.clip(final_probability, 1, 99)
         
-        # Gerar a frase sobre os fatores chave
-        factors_text = ""
-        if key_factors:
-            factor1_text = factor_map.get(key_factors[0], "")
-            if len(key_factors) > 1:
-                factor2_text = factor_map.get(key_factors[1], "")
-                factors_text = f"A previsão se baseia principalmente na {factor1_text} e na {factor2_text}."
+        # Confiança baseada no progresso da guerra
+        confidence = np.clip(50 + basic['war_progress'] / 2, 50, 95)
+
+        return {'win_probability': final_probability, 'confidence': confidence}
+
+    def _generate_final_message(self, our_clan, opponent, ml_prediction, basic) -> str:
+        """Gera a mensagem final combinando o título tático com os dados numéricos."""
+        prob = ml_prediction['win_probability']
+        
+        # Seleciona o título
+        if prob >= 85: title = f"🎯 VITÓRIA ALTAMENTE PROVÁVEL"
+        elif prob >= 65: title = f"✅ VANTAGEM CLARA"
+        elif prob >= 55: title = f"⚖️ LIGEIRA VANTAGEM"
+        elif prob <= 15: title = f"🚨 SITUAÇÃO CRÍTICA"
+        elif prob <= 35: title = f"⚠️ DESVANTAGEM"
+        elif prob <= 45: title = f"🔄 LIGEIRA DESVANTAGEM"
+        else: title = "🔄 GUERRA TOTALMENTE EM ABERTO"
+
+        # Gera a parte numérica da mensagem
+        details = ""
+        if basic['our_stars'] < opponent.stars:
+            stars_needed = opponent.stars - basic['our_stars'] + 1
+            if stars_needed <= basic['our_attacks_remaining'] * 3:
+                 details = f"Para virar, {our_clan.name} precisa de {stars_needed}★ a mais que o oponente."
+        elif basic['our_stars'] > opponent.stars:
+            stars_needed_opp = basic['our_stars'] - opponent.stars + 1
+            if stars_needed_opp <= basic['opp_attacks_remaining'] * 3:
+                details = f"{opponent.name} ainda pode virar se conseguir {stars_needed_opp}★ a mais."
+        else: # Empate em estrelas
+            if basic['our_destruction'] < opponent.destruction:
+                destruction_needed = opponent.destruction - basic['our_destruction'] + 0.1
+                details = f"Para assumir a liderança, precisamos de 1★ ou {destruction_needed:.2f}% de destruição a mais."
             else:
-                factors_text = f"O fator decisivo no momento é a {factor1_text}."
+                 details = "A vantagem na destruição é nossa, mas qualquer ataque de 3★ do oponente pode virar o jogo."
 
-        # Gerar a mensagem principal com base na probabilidade
-        if prob >= 85:
-            main_message = f"Vitória Altamente Provável para {our_clan.name} ({prob:.1f}%). {factors_text}"
-        elif prob >= 65:
-            main_message = f"{our_clan.name} tem uma Vantagem Clara ({prob:.1f}%). {factors_text}"
-        elif prob >= 55:
-            main_message = f"Leve Favoritismo para {our_clan.name} ({prob:.1f}%). A guerra está acirrada."
-        elif prob <= 15:
-            main_message = f"Situação Crítica para {our_clan.name} ({prob:.1f}%). A virada é muito improvável."
-        elif prob <= 35:
-            main_message = f"{opponent.name} tem uma Vantagem Clara ({100-prob:.1f}%). Precisamos de ataques perfeitos."
-        elif prob <= 45:
-            main_message = f"Leve Favoritismo para {opponent.name} ({100-prob:.1f}%). A guerra está em aberto."
-        else: # Empate técnico
-            main_message = f"Guerra em Equilíbrio Total! ({prob:.1f}%). {factors_text}"
+        return f"{title} ({prob:.1f}%). {details}".strip()
 
-        return main_message
 # --- FIM: NOVO SISTEMA DE PREVISÃO DE GUERRA ---
 
 # --- FUNÇÕES DE BANCO DE DADOS (MongoDB) ---
@@ -1358,4 +1399,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
-
