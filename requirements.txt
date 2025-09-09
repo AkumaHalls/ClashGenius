@@ -6,3 +6,4 @@ pytz
 motor
 aiohttp-session
 cryptography
+numpy
