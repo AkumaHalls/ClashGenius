@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.50-AI-PREDICTION-COLOSSAL - Aprimoramento colossal na IA de previsão de guerra.
+# Versão 20.1.51-AI-ULTRA-INTELLIGENT - Integrado novo sistema de IA para previsão de guerra.
 
 import os
 import logging
@@ -20,6 +20,7 @@ from aiohttp_session import setup, get_session, session_middleware
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 import base64
 from cryptography.fernet import Fernet
+import numpy as np
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -46,7 +47,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.50-AI-PREDICTION-COLOSSAL"
+BOT_VERSION = "20.1.51-AI-ULTRA-INTELLIGENT"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False # Variável de estado global
 
@@ -70,8 +71,184 @@ WEB_API_CACHE_DURATION_SECONDS = 45
 last_war_end_time: Optional[datetime.datetime] = None
 war_attack_cache: Dict[str, Any] = {"war_end_time": None, "processed_attacks": set()}
 
+# --- INÍCIO: NOVO SISTEMA DE PREVISÃO DE GUERRA (IA AVANÇADA) ---
+class IntelligentWarPredictor:
+    """
+    Sistema de IA avançado para previsão de resultados de guerra em Clash of Clans.
+    Versão 2.0 - Ultra Inteligente
+    """
+    
+    def __init__(self, db_connection=None):
+        self.db = db_connection
+        self.logger = logging.getLogger("war_predictor")
+        
+        # Pesos para diferentes fatores de análise
+        self.WEIGHTS = {
+            'star_advantage': 0.35,
+            'efficiency_advantage': 0.25,
+            'potential_advantage': 0.20,
+            'th_advantage': 0.15,
+            'historical_performance': 0.05
+        }
+    
+    async def calculate_ultra_intelligent_prediction(self, war) -> Dict[str, Any]:
+        """
+        Análise ultra-inteligente que combina múltiplos fatores para previsão precisa
+        """
+        try:
+            if war.state != 'inWar':
+                return {"message": "A guerra não está em andamento para previsões avançadas."}
+
+            our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
+            opponent = war.opponent if war.clan.tag == CLAN_TAG else war.opponent
+
+            # === VERIFICAÇÃO DE CENÁRIOS DEFINITIVOS PRIMEIRO ===
+            definitive_scenario = self._check_definitive_scenarios(war, our_clan, opponent)
+            if definitive_scenario:
+                return definitive_scenario
+
+            # === ANÁLISES FUNDAMENTAIS ===
+            basic_analysis = self._analyze_basic_metrics(war, our_clan, opponent)
+            th_analysis = self._analyze_townhall_matchup(war, our_clan, opponent)
+            efficiency_analysis = self._analyze_attack_efficiency(war, our_clan, opponent)
+            potential_analysis = self._analyze_remaining_potential(war, our_clan, opponent)
+            
+            # === CÁLCULO DA PROBABILIDADE ===
+            win_probability, key_factors = self._calculate_win_probability(
+                basic_analysis, th_analysis, efficiency_analysis, potential_analysis
+            )
+            
+            # === GERAÇÃO DA MENSAGEM FINAL ===
+            final_message = self._generate_final_message(
+                win_probability, our_clan, opponent, basic_analysis, key_factors
+            )
+            
+            return {"message": final_message}
+            
+        except Exception as e:
+            self.logger.error(f"Erro na previsão ultra-inteligente: {e}", exc_info=True)
+            return {"message": "Erro na análise preditiva. Verificando status..."}
+
+    def _check_definitive_scenarios(self, war, our_clan, opponent) -> Optional[Dict[str, str]]:
+        """Verifica se a guerra já tem um resultado matematicamente definido."""
+        our_rem = (war.team_size * war.attacks_per_member) - our_clan.attacks_used
+        opp_rem = (war.team_size * war.attacks_per_member) - opponent.attacks_used
+
+        # Derrota: Sem ataques e perdendo
+        if our_rem == 0 and (our_clan.stars < opponent.stars or (our_clan.stars == opponent.stars and our_clan.destruction < opponent.destruction)):
+            return {"message": f"Derrota confirmada. {our_clan.name} usou todos os ataques e não pode mais alcançar o oponente."}
+
+        # Vitória: Oponente sem ataques e nós ganhando
+        if opp_rem == 0 and (our_clan.stars > opponent.stars or (our_clan.stars == opponent.stars and our_clan.destruction > opponent.destruction)):
+            return {"message": f"Vitória garantida! O oponente não tem mais ataques para tentar uma virada."}
+            
+        # Derrota: Matematicamente impossível de alcançar
+        if (our_clan.stars + our_rem * 3) < opponent.stars:
+            return {"message": "A derrota é matematicamente inevitável, mesmo com 100% de aproveitamento nos ataques restantes."}
+
+        # Vitória: Matematicamente garantida
+        if our_clan.stars > (opponent.stars + opp_rem * 3):
+            return {"message": f"Vitória garantida! {opponent.name} não pode mais nos alcançar, mesmo que façam 3 estrelas em todos os ataques."}
+        
+        return None
+
+    def _analyze_basic_metrics(self, war, our_clan, opponent) -> Dict[str, Any]:
+        total_attacks = war.team_size * war.attacks_per_member
+        return {
+            'our_stars': our_clan.stars, 'opp_stars': opponent.stars,
+            'our_destruction': our_clan.destruction, 'opp_destruction': opponent.destruction,
+            'our_attacks_remaining': total_attacks - our_clan.attacks_used,
+            'opp_attacks_remaining': total_attacks - opponent.attacks_used
+        }
+
+    def _analyze_townhall_matchup(self, war, our_clan, opponent) -> Dict[str, Any]:
+        our_th_sum = sum(m.town_hall for m in our_clan.members)
+        opp_th_sum = sum(m.town_hall for m in opponent.members)
+        th_advantage = (our_th_sum / len(our_clan.members)) - (opp_th_sum / len(opponent.members))
+        return {'th_advantage': th_advantage}
+
+    def _analyze_attack_efficiency(self, war, our_clan, opponent) -> Dict[str, Any]:
+        our_attacks = [a for a in war.attacks if a.attacker.clan.tag == our_clan.tag]
+        opp_attacks = [a for a in war.attacks if a.attacker.clan.tag == opponent.tag]
+        
+        our_avg_stars = (sum(a.stars for a in our_attacks) / len(our_attacks)) if our_attacks else 0
+        opp_avg_stars = (sum(a.stars for a in opp_attacks) / len(opp_attacks)) if opp_attacks else 0
+        
+        return {'efficiency_advantage': our_avg_stars - opp_avg_stars}
+
+    def _analyze_remaining_potential(self, war, our_clan, opponent) -> Dict[str, Any]:
+        our_attackers_left = [m for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
+        opp_attackers_left = [m for m in opponent.members if len(m.attacks) < war.attacks_per_member]
+        
+        our_potential_th_sum = sum(m.town_hall for m in our_attackers_left)
+        opp_potential_th_sum = sum(m.town_hall for m in opp_attackers_left)
+
+        return {'potential_advantage': our_potential_th_sum - opp_potential_th_sum}
+
+    def _calculate_win_probability(self, basic, th, efficiency, potential) -> Tuple[float, List[str]]:
+        factors = {
+            'star_advantage': (basic['our_stars'] - basic['opp_stars']) * 10,
+            'efficiency_advantage': efficiency['efficiency_advantage'] * 20,
+            'potential_advantage': potential['potential_advantage'] * 1.5,
+            'th_advantage': th['th_advantage'] * 10
+        }
+        
+        # Adicionar vantagem de destruição como desempate
+        if abs(factors['star_advantage']) < 5:
+            factors['destruction_advantage'] = (basic['our_destruction'] - basic['opp_destruction']) * 0.5
+        else:
+            factors['destruction_advantage'] = 0
+
+        total_score = sum(factors.values())
+        win_probability = 50 + (total_score / 2)
+        win_probability = np.clip(win_probability, 1, 99)
+
+        # Identificar Fatores Chave
+        key_factors = sorted(factors, key=lambda k: abs(factors[k]), reverse=True)[:2]
+        
+        return win_probability, key_factors
+
+    def _generate_final_message(self, prob, our_clan, opponent, basic, key_factors):
+        # Mapear fatores para texto amigável
+        factor_map = {
+            'star_advantage': "vantagem em estrelas",
+            'efficiency_advantage': "eficiência dos ataques",
+            'potential_advantage': "poder de fogo restante",
+            'th_advantage': "força dos Centros de Vila",
+            'destruction_advantage': "vantagem na destruição"
+        }
+        
+        # Gerar a frase sobre os fatores chave
+        factors_text = ""
+        if key_factors:
+            factor1_text = factor_map.get(key_factors[0], "")
+            if len(key_factors) > 1:
+                factor2_text = factor_map.get(key_factors[1], "")
+                factors_text = f"A previsão se baseia principalmente na {factor1_text} e na {factor2_text}."
+            else:
+                factors_text = f"O fator decisivo no momento é a {factor1_text}."
+
+        # Gerar a mensagem principal com base na probabilidade
+        if prob >= 85:
+            main_message = f"Vitória Altamente Provável para {our_clan.name} ({prob:.1f}%). {factors_text}"
+        elif prob >= 65:
+            main_message = f"{our_clan.name} tem uma Vantagem Clara ({prob:.1f}%). {factors_text}"
+        elif prob >= 55:
+            main_message = f"Leve Favoritismo para {our_clan.name} ({prob:.1f}%). A guerra está acirrada."
+        elif prob <= 15:
+            main_message = f"Situação Crítica para {our_clan.name} ({prob:.1f}%). A virada é muito improvável."
+        elif prob <= 35:
+            main_message = f"{opponent.name} tem uma Vantagem Clara ({100-prob:.1f}%). Precisamos de ataques perfeitos."
+        elif prob <= 45:
+            main_message = f"Leve Favoritismo para {opponent.name} ({100-prob:.1f}%). A guerra está em aberto."
+        else: # Empate técnico
+            main_message = f"Guerra em Equilíbrio Total! ({prob:.1f}%). {factors_text}"
+
+        return main_message
+# --- FIM: NOVO SISTEMA DE PREVISÃO DE GUERRA ---
 
 # --- FUNÇÕES DE BANCO DE DADOS (MongoDB) ---
+# ... (o resto do seu código continua aqui, sem alterações) ...
 async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
     if not hasattr(bot, 'db') or bot.db is None:
         logger.warning("Banco de dados não disponível, não é possível carregar as notas.")
@@ -527,86 +704,19 @@ async def fetch_clan_members_for_web():
         logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar lista de membros."}
 
-def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
+async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
     """
-    Calcula a previsão do resultado da guerra com uma lógica colossalmente mais inteligente,
-    combinando dados numéricos com análise tática.
+    Função de gateway que usa o novo sistema de IA.
     """
-    if war.state != 'inWar':
-        return {"message": "A guerra não está em andamento para previsões."}
-
-    our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-    opponent = war.opponent if war.clan.tag == CLAN_TAG else war.clan
-
-    # --- Análise de Recursos ---
-    total_attacks_allowed = war.team_size * war.attacks_per_member
-    our_attacks_remaining = total_attacks_allowed - our_clan.attacks_used
-    opponent_attacks_remaining = total_attacks_allowed - opponent.attacks_used
-    
-    our_potential_stars = our_attacks_remaining * 3
-    opponent_potential_stars = opponent_attacks_remaining * 3
-
-    # --- Análise de Cenários Definitivos ---
-    # Cenário A: Derrota garantida para nós (sem ataques e perdendo)
-    if our_attacks_remaining == 0 and (our_clan.stars < opponent.stars or (our_clan.stars == opponent.stars and our_clan.destruction < opponent.destruction)):
-        return {"message": f"Derrota confirmada. {our_clan.name} usou todos os ataques e não pode mais alcançar {opponent.name}."}
-
-    # Cenário B: Vitória garantida para nós (oponente sem ataques e perdendo)
-    if opponent_attacks_remaining == 0 and (our_clan.stars > opponent.stars or (our_clan.stars == opponent.stars and our_clan.destruction > opponent.destruction)):
-        return {"message": f"Vitória garantida para {our_clan.name}! O oponente não tem mais ataques para virar o placar."}
-
-    # Cenário C: Derrota matematicamente inevitável
-    if (our_clan.stars + our_potential_stars) < opponent.stars:
-        return {"message": f"A derrota é inevitável. Mesmo que {our_clan.name} consiga 3 estrelas em todos os ataques restantes, não alcançará o placar de {opponent.name}."}
-
-    # Cenário D: Vitória matematicamente garantida
-    if our_clan.stars > (opponent.stars + opponent_potential_stars):
-        return {"message": f"Vitória matematicamente garantida para {our_clan.name}! O oponente não pode mais nos alcançar."}
-    
-    # --- Análise Tática e Preditiva (Cenários Abertos) ---
-    main_message = ""
-    sub_message = ""
-
-    # Parte 1: Definir o líder atual
-    if our_clan.stars > opponent.stars or (our_clan.stars == opponent.stars and our_clan.destruction > opponent.destruction):
-        # Estamos na liderança
-        stars_to_overcome = our_clan.stars - opponent.stars
-        destruction_to_overcome = (our_clan.destruction - opponent.destruction) * 100
-        
-        main_message = f"{our_clan.name} está na liderança."
-        
-        needed_stars_for_opponent = stars_to_overcome + 1
-        
-        if opponent_attacks_remaining > 0:
-            if needed_stars_for_opponent <= opponent_potential_stars:
-                 sub_message = f"Para virar, {opponent.name} precisa de {needed_stars_for_opponent}★ a mais que nosso clã ou superar a destruição."
-            else:
-                 sub_message = "A virada do oponente é muito improvável, mas a vitória ainda não está garantida."
-        else:
-            sub_message = "O oponente não tem mais ataques, a vitória é quase certa!"
-
-    elif opponent.stars > our_clan.stars or (opponent.stars == our_clan.stars and opponent.destruction > our_clan.destruction):
-        # Estamos em desvantagem
-        stars_to_overcome = opponent.stars - our_clan.stars
-        destruction_to_overcome = (opponent.destruction - our_clan.destruction)
-        
-        main_message = f"{opponent.name} está na liderança."
-        
-        needed_stars_for_us = stars_to_overcome + 1
-
-        if our_attacks_remaining > 0:
-            if needed_stars_for_us <= our_potential_stars:
-                sub_message = f"Para uma virada espetacular, {our_clan.name} precisa de {needed_stars_for_us}★ e {destruction_to_overcome:.2f}% para garantir."
-            else:
-                sub_message = "A virada é matematicamente impossível. O foco é minimizar a diferença."
-        else:
-             sub_message = "Não há mais ataques disponíveis para tentar a virada."
-    else:
-        # Empate
-        main_message = "A guerra está perfeitamente empatada!"
-        sub_message = "O próximo ataque de 3 estrelas ou com alta destruição definirá o novo líder."
-
-    return {"message": f"{main_message} {sub_message}".strip()}
+    try:
+        db_connection = getattr(bot, 'db', None)
+        predictor = IntelligentWarPredictor(db_connection)
+        result = await predictor.calculate_ultra_intelligent_prediction(war)
+        return result
+            
+    except Exception as e:
+        logger.error(f"Erro fatal na previsão inteligente: {e}", exc_info=True)
+        return {"message": "Análise indisponível devido a um erro interno."}
 
 
 async def fetch_current_war_details_for_web():
@@ -668,7 +778,7 @@ async def fetch_current_war_details_for_web():
         our_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
         opp_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
 
-        prediction_data = calculate_war_prediction(war)
+        prediction_data = await calculate_war_prediction(war)
 
         return {
             "war_data": {
