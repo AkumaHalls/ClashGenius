@@ -66,10 +66,17 @@ intents.guilds = True
 # --- Inicialização dos Clientes ---
 bot = commands.Bot(command_prefix="!", intents=intents)
 api_client: Optional[coc.Client] = None
+events_client: Optional[coc.EventsClient] = None
+
 
 # --- Caches ---
+player_short_term_cache: Dict[str, Any] = {}
+clan_cache: Dict[str, Dict[str, Any]] = {}
 web_api_cache: Dict[str, Dict[str, Any]] = {}
+CACHE_DURATION_SECONDS = 300
 WEB_API_CACHE_DURATION_SECONDS = 45
+last_war_end_time: Optional[datetime.datetime] = None
+war_attack_cache: Dict[str, Any] = {"war_end_time": None, "processed_attacks": set()}
 
 
 # --- INÍCIO: NOVO SISTEMA DE PREVISÃO DE GUERRA (IA AVANÇADA) ---
@@ -119,20 +126,26 @@ class AdvancedWarMLPredictor:
             
             historical_data = await self._load_historical_training_data()
             
+            win_probability = 50.0 # Default
             if len(historical_data) >= 10: # Requer um mínimo de 10 guerras para treinar
-                X = np.array([list(d['features'].__dict__.values()) for d in historical_data])
-                y = np.array([d['result'] for d in historical_data])
-                
-                X_scaled = self.scaler.fit_transform(X)
-                self.model.fit(X_scaled, y)
-                
-                feature_vector_scaled = self.scaler.transform(feature_vector)
-                prediction = self.model.predict(feature_vector_scaled)[0]
-                win_probability = np.clip(prediction * 100, 1, 99)
+                try:
+                    X = np.array([list(d['features'].__dict__.values()) for d in historical_data])
+                    y = np.array([d['result'] for d in historical_data])
+                    
+                    X_scaled = self.scaler.fit_transform(X)
+                    self.model.fit(X_scaled, y)
+                    
+                    feature_vector_scaled = self.scaler.transform(feature_vector)
+                    prediction = self.model.predict(feature_vector_scaled)[0]
+                    win_probability = np.clip(prediction * 100, 1, 99)
+                except Exception as ml_error:
+                    self.logger.warning(f"Erro no treinamento/predição do modelo ML, usando heurística. Erro: {ml_error}")
+                    win_probability = self._heuristic_prediction(features)
             else:
+                self.logger.info(f"Dados históricos insuficientes ({len(historical_data)}/10). Usando predição heurística.")
                 win_probability = self._heuristic_prediction(features)
 
-            confidence = 50 + (features.war_progress_percentage / 2) # Confiança baseada no progresso
+            confidence = 50 + (features.war_progress_percentage / 2)
 
             return self._generate_final_message(win_probability, confidence, features, our_clan, opponent)
 
@@ -176,7 +189,7 @@ class AdvancedWarMLPredictor:
             town_hall_advantage=sum(m.town_hall for m in our_clan.members) - sum(m.town_hall for m in opponent.members),
             efficiency_ratio=our_efficiency / max(opp_efficiency, 0.01),
             three_star_rate_difference=our_3star_rate - opp_3star_rate,
-            war_progress_percentage=(len(our_attacks) + len(opp_attacks)) / (total_attacks * 2) * 100,
+            war_progress_percentage=(len(our_attacks) + len(opp_attacks)) / max((total_attacks * 2), 1) * 100,
             historical_win_rate=historical_data.get('win_rate', 50),
             unused_member_strength_diff=our_unused_strength - opp_unused_strength
         )
@@ -196,42 +209,54 @@ class AdvancedWarMLPredictor:
         if not self.db: return []
         try:
             cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(50)
-            return [self._process_historical_war(doc) for doc in await cursor.to_list(length=50) if self._process_historical_war(doc)]
+            processed_wars = []
+            async for doc in cursor:
+                processed = self._process_historical_war(doc)
+                if processed:
+                    processed_wars.append(processed)
+            return processed_wars
         except Exception as e:
             self.logger.error(f"Erro ao carregar dados históricos: {e}")
             return []
 
     def _process_historical_war(self, doc: Dict) -> Optional[Dict]:
         try:
-            wd = doc['war_data']
-            result = 1 if wd['clan_stars'] > wd['opponent_stars'] else 0
+            wd = doc.get('war_data', {})
+            our_clan_members = doc.get('our_clan_members_in_war', [])
+            opp_clan_members = doc.get('opponent_clan_members_in_war', [])
             
-            # Precisamos simular as features do passado
+            if not all([wd, our_clan_members, opp_clan_members]): return None
+
+            result = 1 if wd['clan_stars'] > wd['opponent_stars'] else 0
+
             features = WarFeatures(
                  star_difference=wd['clan_stars'] - wd['opponent_stars'],
                  destruction_difference=float(wd['clan_destruction'][:-1]) - float(wd['opponent_destruction'][:-1]),
-                 attacks_remaining_difference=0, # Simplificação para histórico
-                 town_hall_advantage=0, # Simplificação para histórico
-                 efficiency_ratio=1.0, # Simplificação para histórico
-                 three_star_rate_difference=0.0, # Simplificação para histórico
+                 attacks_remaining_difference=0,
+                 town_hall_advantage=sum(m['townhall'] for m in our_clan_members) - sum(m['townhall'] for m in opp_clan_members),
+                 efficiency_ratio=float(wd['clan_avg_stars']) / max(float(wd['opponent_avg_stars']), 0.01) if 'clan_avg_stars' in wd and 'opponent_avg_stars' in wd else 1.0,
+                 three_star_rate_difference=wd['clan_star_distribution']['3'] / max(wd['clan_attacks_used'],1) - wd['opponent_star_distribution']['3'] / max(wd['opponent_attacks_used'],1),
                  war_progress_percentage=100.0,
-                 historical_win_rate=50.0, # Evitar recursão
-                 unused_member_strength_diff=0.0 # Simplificação para histórico
+                 historical_win_rate=50.0,
+                 unused_member_strength_diff=0.0
             )
             return {'features': features, 'result': result}
-        except:
+        except (KeyError, TypeError) as e:
+            self.logger.debug(f"Skipping historical war due to missing data: {e}")
             return None
-            
+
     async def _get_clan_historical_performance(self, clan_tag: str) -> Dict:
-        # Lógica simplificada para obter win rate. Pode ser expandida.
         if not self.db: return {'win_rate': 50.0}
-        total_wars = await self.db.war_history.count_documents({"war_data.clan_tag": clan_tag})
-        if total_wars == 0: return {'win_rate': 50.0}
-        wins = await self.db.war_history.count_documents({
-            "war_data.clan_tag": clan_tag, 
-            "$expr": {"$gt": ["$war_data.clan_stars", "$war_data.opponent_stars"]}
-        })
-        return {'win_rate': (wins / total_wars) * 100}
+        try:
+            total_wars = await self.db.war_history.count_documents({"war_data.clan_tag": clan_tag})
+            if total_wars < 5: return {'win_rate': 50.0}
+            wins = await self.db.war_history.count_documents({
+                "war_data.clan_tag": clan_tag, 
+                "$expr": {"$gt": ["$war_data.clan_stars", "$war_data.opponent_stars"]}
+            })
+            return {'win_rate': (wins / total_wars) * 100}
+        except Exception:
+             return {'win_rate': 50.0}
 
     def _heuristic_prediction(self, features: WarFeatures) -> float:
         score = 50.0
@@ -239,8 +264,8 @@ class AdvancedWarMLPredictor:
         score += features.destruction_difference * 0.2
         score += features.attacks_remaining_difference * 3
         score += (features.efficiency_ratio - 1) * 20
-        score += features.town_hall_advantage * 2
-        score += features.unused_member_strength_diff * 0.5
+        score += features.town_hall_advantage * 0.1 # Reduzido para não dominar
+        score += features.unused_member_strength_diff * 0.05 # Reduzido para não dominar
         return np.clip(score, 1, 99)
 
     def _generate_final_message(self, prob, confidence, features, our_clan, opponent):
@@ -256,24 +281,23 @@ class AdvancedWarMLPredictor:
         details = ""
         star_diff = features.star_difference
         if star_diff < 0:
-            stars_needed = abs(star_diff) + 1
+            stars_needed = abs(int(star_diff)) + 1
             details = f"Para virar, {our_clan.name} precisa de {stars_needed}★ a mais que o oponente."
         elif star_diff > 0:
-            stars_needed_opp = star_diff + 1
-            details = f"Para virar, {opponent.name} precisa de {stars_needed_opp}★ a mais."
+            stars_needed_opp = int(star_diff) + 1
+            details = f"{opponent.name} ainda pode virar se conseguir {stars_needed_opp}★ a mais."
         else: # Empate
             if features.destruction_difference < 0:
-                destruction_needed = abs(features.destruction_difference) + 0.1
+                destruction_needed = abs(features.destruction_difference) + 0.01
                 details = f"Para liderar, precisamos de 1★ ou superar a destruição em {destruction_needed:.2f}%."
             else:
                 details = "A vantagem de destruição é nossa, mas a guerra segue indefinida."
 
-        return f"{title} ({prob:.1f}% | Confiança: {confidence:.0f}%). {details}"
+        return f"{title} ({prob:.1f}% | Confiança: {confidence:.0f}%). {details}".strip()
 
 # --- FIM: NOVO SISTEMA DE PREVISÃO DE GUERRA ---
 
 # --- FUNÇÕES DE BANCO DE DADOS (MongoDB) ---
-# ... (o resto do seu código continua aqui, sem alterações) ...
 async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
     if not hasattr(bot, 'db') or bot.db is None:
         logger.warning("Banco de dados não disponível, não é possível carregar as notas.")
@@ -588,7 +612,7 @@ async def on_member_received(old_member, new_member):
 
 # --- CONFIGURAÇÃO DOS EVENTOS COC ---
 async def setup_coc_events():
-    global coc_client, events_client
+    global events_client
     try:
         logger.info("Iniciando configuração dos eventos CoC...")
         events_client = coc.EventsClient()
@@ -599,45 +623,37 @@ async def setup_coc_events():
 
         @events_client.event
         @coc.ClanEvents.member_join()
-        async def _(member, clan):
-            await on_clan_member_join(member, clan)
+        async def _(member, clan): await on_clan_member_join(member, clan)
 
         @events_client.event
         @coc.ClanEvents.member_leave()
-        async def _(member, clan):
-            await on_clan_member_leave(member, clan)
-
+        async def _(member, clan): await on_clan_member_leave(member, clan)
+        
         @events_client.event
         @coc.ClanEvents.member_role()
-        async def _(old_member, new_member):
-            await on_clan_member_role_change(old_member, new_member)
+        async def _(old_member, new_member): await on_clan_member_role_change(old_member, new_member)
 
         @events_client.event
         @coc.ClanEvents.member_trophies()
-        async def _(old_member, new_member):
-            await on_clan_member_trophies_change(old_member, new_member)
+        async def _(old_member, new_member): await on_clan_member_trophies_change(old_member, new_member)
 
         @events_client.event
         @coc.ClanEvents.member_league()
-        async def _(old_member, new_member):
-            await on_clan_member_league_change(old_member, new_member)
+        async def _(old_member, new_member): await on_clan_member_league_change(old_member, new_member)
             
         @events_client.event
         @coc.ClanEvents.member_donations()
-        async def _(old_member, new_member):
-            await on_member_donations(old_member, new_member)
+        async def _(old_member, new_member): await on_member_donations(old_member, new_member)
 
         @events_client.event
         @coc.ClanEvents.member_received()
-        async def _(old_member, new_member):
-            await on_member_received(old_member, new_member)
+        async def _(old_member, new_member): await on_member_received(old_member, new_member)
 
-        coc_client = events_client
         logger.info("Eventos de CLÃ registrados com sucesso!")
 
     except Exception as e:
         logger.error(f"Erro ao configurar eventos CoC: {e}", exc_info=True)
-        coc_client = None
+        events_client = None
 
 # --- ROTINAS E HANDLERS DO PAINEL WEB ---
 async def get_cached_web_data(key: str, func, *args):
@@ -753,6 +769,9 @@ async def fetch_current_war_details_for_web():
             return {"error": "Dados da guerra incompletos (clã ou oponente faltando)."}
 
         our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
+        
+        prediction_data = await calculate_war_prediction(war)
+
         our_clan_name = getattr(our_clan, 'name', 'Nosso Clã')
         opp_clan_name = getattr(opp_clan, 'name', 'Oponente')
 
@@ -762,13 +781,10 @@ async def fetch_current_war_details_for_web():
             attacker = war.get_member(attack.attacker_tag)
             defender = war.get_member(attack.defender_tag)
             
-            attacker_clan_tag_to_save = None
-            if attacker and hasattr(attacker, 'clan') and hasattr(attacker.clan, 'tag'):
-                attacker_clan_tag_to_save = attacker.clan.tag
+            attacker_clan_tag_to_save = getattr(getattr(attacker, 'clan', None), 'tag', None)
 
             all_attacks_data.append({
-                "order": attack.order,
-                "attacker_clan_tag": attacker_clan_tag_to_save,
+                "order": attack.order, "attacker_clan_tag": attacker_clan_tag_to_save,
                 "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag),
                 "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
                 "attacker_townhall": getattr(attacker, 'town_hall', '?'),
@@ -784,10 +800,7 @@ async def fetch_current_war_details_for_web():
             for m in team.members:
                 if not m: continue
                 details.append({
-                    "name": m.name, 
-                    "tag": m.tag,
-                    "townhall": m.town_hall, 
-                    "map_position": m.map_position,
+                    "name": m.name, "tag": m.tag, "townhall": m.town_hall, "map_position": m.map_position,
                     "attacks_used": len(m.attacks),
                     "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
                     "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
@@ -802,13 +815,10 @@ async def fetch_current_war_details_for_web():
 
         our_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
         opp_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
-
-        prediction_data = await calculate_war_prediction(war)
-
+        
         return {
             "war_data": {
-                "clan_tag": our_clan.tag,
-                "status": str(war.state), "state_description": str(war.state).capitalize(),
+                "clan_tag": our_clan.tag, "status": str(war.state), "state_description": str(war.state).capitalize(),
                 "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0),
                 "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
                 "clan_badge_url": getattr(our_clan.badge, 'url', None) if hasattr(our_clan, 'badge') else None,
@@ -835,7 +845,7 @@ async def fetch_current_war_details_for_web():
         logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar dados da guerra."}
 
-# --- FUNÇÃO CORRIGIDA PARA ATAQUES PENDENTES (VERSÃO ESTÁVEL) ---
+
 async def fetch_missed_attacks_history_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
         return {"error": "Histórico indisponível (Banco de dados não conectado)."}
@@ -1263,7 +1273,6 @@ async def setup_web_server():
         status_str = "ATIVADO" if MAINTENANCE_MODE else "DESATIVADO"
         logger.info(f"Modo manutenção alterado para: {status_str}")
         
-        # Enviar um embed para o Discord notificando a mudança
         embed = discord.Embed(
             title=f"🚨 Modo Manutenção {status_str} 🚨",
             description=f"O painel e os alertas do bot foram {'pausados' if MAINTENANCE_MODE else 'reativados'}.",
@@ -1300,7 +1309,6 @@ async def setup_web_server():
             "version": BOT_VERSION
         })
 
-    # Adicionando as rotas de admin
     app.router.add_get("/admin", admin_login_page)
     app.router.add_post("/admin/login", admin_login_handler)
     app.router.add_get("/admin/logout", admin_logout_handler)
@@ -1309,7 +1317,6 @@ async def setup_web_server():
     app.router.add_post("/admin/send_test_embed", send_test_embed_handler)
     app.router.add_get("/api/admin/status", get_admin_status_handler)
 
-    # Middleware de sessão (necessário para o login admin)
     fernet_key = Fernet.generate_key() if not FERNET_KEY else FERNET_KEY.encode()
     secret_key = base64.urlsafe_b64decode(fernet_key)
     setup(app, EncryptedCookieStorage(secret_key))
@@ -1355,13 +1362,14 @@ async def ping(ctx):
 
 # --- FUNÇÃO PRINCIPAL ---
 async def main():
-    global api_client
+    global api_client, events_client
     try:
         api_client = coc.Client()
         await api_client.login(COC_EMAIL, COC_PASSWORD)
         logger.info("Login no coc.Client (api_client) bem-sucedido.")
     except Exception as e:
         logger.critical(f"Erro crítico ao fazer login no api_client: {e}", exc_info=True)
+        return
 
     try:
         await setup_coc_events()
