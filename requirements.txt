@@ -7,3 +7,5 @@ motor
 aiohttp-session
 cryptography
 numpy
+scikit-learn
+scipy
