@@ -369,13 +369,447 @@ async def send_log_embed(embed_to_log: discord.Embed, content: str = None, targe
     except (discord.NotFound, discord.Forbidden, Exception) as e:
         logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
+# --- FUNÇÕES DE BANCO DE DADOS (MongoDB) ---
+async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
+    if not hasattr(bot, 'db') or bot.db is None:
+        logger.warning("Banco de dados não disponível, não é possível carregar as notas.")
+        return {}
+    try:
+        notes_cursor = bot.db.player_notes.find({})
+        notes_from_db = {note_doc["_id"]: {"text": note_doc.get("text", ""),"priority": note_doc.get("priority", "none")} async for note_doc in notes_cursor if "_id" in note_doc}
+        logger.info(f"Carregadas {len(notes_from_db)} notas do MongoDB.")
+        return notes_from_db
+    except Exception as e:
+        logger.error(f"Erro ao carregar notas do MongoDB: {e}", exc_info=True)
+        return {}
+
+async def save_player_note_to_db(player_tag: str, text: str, priority: str):
+    if not hasattr(bot, 'db') or bot.db is None:
+        logger.error("Banco de dados não disponível, não é possível salvar a nota.")
+        raise ConnectionError("Banco de dados não conectado.")
+    try:
+        player_tag_decoded = coc.utils.correct_tag(player_tag)
+        await bot.db.player_notes.update_one(
+            {"_id": player_tag_decoded},
+            {"$set": {"text": text, "priority": priority}},
+            upsert=True
+        )
+        logger.info(f"Nota salva no MongoDB para {player_tag_decoded}.")
+    except Exception as e:
+        logger.error(f"Erro ao salvar nota no MongoDB para {player_tag}: {e}", exc_info=True)
+        raise
+
+def _sanitize_keys_for_mongo(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {str(k): _sanitize_keys_for_mongo(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_keys_for_mongo(elem) for elem in obj]
+    return obj
+
+async def save_war_to_history(war_data: Dict[str, Any]):
+    if MAINTENANCE_MODE: return
+    if not hasattr(bot, 'db') or bot.db is None:
+        logger.error("Banco de dados não disponível, não é possível salvar o histórico da guerra.")
+        return
+    try:
+        war_collection = bot.db.war_history
+        sanitized_war_data = _sanitize_keys_for_mongo(war_data)
+        if 'war_data' in sanitized_war_data and 'end_time_iso' in sanitized_war_data['war_data']:
+            sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
+            
+            await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
+            logger.info(f"Guerra finalizada em {sanitized_war_data['_id']} salva no histórico.")
+
+            count = await war_collection.count_documents({})
+            if count > 50: # Aumentado o limite para ter mais dados para o ML
+                oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 50)
+                async for old_war in oldest_wars_cursor:
+                    await war_collection.delete_one({"_id": old_war["_id"]})
+                    logger.info(f"Guerra mais antiga ({old_war['_id']}) removida do histórico para manter o limite de 50.")
+        else:
+            logger.error("Tentativa de salvar guerra no histórico sem 'end_time_iso'. Dados incompletos.")
+    except Exception as e:
+        logger.error(f"Erro ao salvar guerra no histórico do MongoDB: {e}", exc_info=True)
+
+# --- FUNÇÕES DE BUSCA DE DADOS (API CoC) ---
+async def get_player_data(tag: str) -> Optional[coc.Player]:
+    if not api_client: return None
+    normalized_tag = coc.utils.correct_tag(tag)
+    if normalized_tag in player_short_term_cache:
+        return player_short_term_cache[normalized_tag]
+    try:
+        player = await api_client.get_player(normalized_tag)
+        player_short_term_cache[normalized_tag] = player
+        return player
+    except Exception:
+        return None
+
+async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
+    if not api_client: return None
+    normalized_tag = coc.utils.correct_tag(tag)
+    now = datetime.datetime.now()
+    if normalized_tag in clan_cache and (now - clan_cache[normalized_tag]["timestamp"]).total_seconds() < CACHE_DURATION_SECONDS:
+        return clan_cache[normalized_tag]["data"]
+    try:
+        clan_data = await api_client.get_clan(normalized_tag)
+        clan_cache[normalized_tag] = {"data": clan_data, "timestamp": now}
+        return clan_data
+    except Exception as e:
+        logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
+        return None
+
+# --- DEFINIÇÃO DOS EVENTOS DO COC ---
+async def on_clan_member_join(member, clan):
+    if MAINTENANCE_MODE: return
+    try:
+        logger.info(f"Evento disparado: {member.name} entrou no clã {clan.name}")
+        if clan.tag != CLAN_TAG: return
+        embed = discord.Embed(
+            title="➡️ Novo Membro no Clã",
+            description=f"**{member.name}** ({member.tag}) entrou no clã.",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="CV", value=member.town_hall, inline=True)
+        embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
+        embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_join: {e}", exc_info=True)
+
+async def on_clan_member_leave(member, clan):
+    if MAINTENANCE_MODE: return
+    try:
+        logger.info(f"Evento disparado: {member.name} saiu do clã {clan.name}")
+        if clan.tag != CLAN_TAG: return
+        embed = discord.Embed(
+            title="⬅️ Membro Saiu do Clã",
+            description=f"**{member.name}** ({member.tag}) saiu do clã.",
+            color=discord.Color.dark_grey()
+        )
+        embed.add_field(name="CV", value=member.town_hall, inline=True)
+        embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_leave: {e}", exc_info=True)
+
+async def on_war_attack(attack, war):
+    if MAINTENANCE_MODE: return
+    try:
+        if not attack or not hasattr(attack, 'attacker') or not attack.attacker: return
+        
+        attacker = war.get_member(attack.attacker_tag)
+        defender = war.get_member(attack.defender_tag)
+        
+        if not attacker or not defender: return
+
+        is_our_attack = attacker.clan.tag == CLAN_TAG
+        war_type = "CWL" if war.is_cwl else "Guerra"
+        stars_str = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
+        
+        attacker_pos = f"{attacker.map_position:02d}"
+        defender_pos = f"{defender.map_position:02d}"
+        
+        attacker_str = f"{attacker_pos} {attacker.name} (CV{attacker.town_hall})"
+        defender_str = f"{defender_pos} {defender.name} (CV{defender.town_hall})"
+        
+        if is_our_attack:
+            logger.info(f"Ataque realizado por {attacker.name} processado.")
+            attack_embed = discord.Embed(
+                title=f"⚔️ Ataque Realizado ({war_type})",
+                description=f"{attacker.clan.name}",
+                color=discord.Color.blue()
+            )
+            attack_embed.add_field(
+                name="Detalhes",
+                value=f"{attacker_str} atacou {defender_str}",
+                inline=False
+            )
+            attack_embed.add_field(
+                name="Resultado",
+                value=f"{stars_str} ({attack.destruction}%)",
+                inline=False
+            )
+            if hasattr(war.opponent.badge, 'url'):
+                attack_embed.set_thumbnail(url=war.opponent.badge.url)
+            await send_log_embed(attack_embed)
+
+            if attack.stars <= 1:
+                logger.info(f"Ataque fora do padrão detectado por {attacker.name}.")
+                alert_embed = discord.Embed(
+                    title=f"⚠️ Ataque fora do padrão!",
+                    description=f"**{attacker.clan.name}**\n⚔️ **Ataque Realizado ({war_type})**",
+                    color=discord.Color.red()
+                )
+                alert_embed.add_field(
+                    name="Detalhes",
+                    value=f"{attacker_str} atacou {defender_str}",
+                    inline=False
+                )
+                alert_embed.add_field(
+                    name="Resultado",
+                    value=f"{'⚫⚫⚫' if attack.stars == 0 else '⭐⚫⚫'} ({attack.destruction}%)",
+                    inline=False
+                )
+                if hasattr(war.opponent.badge, 'url'):
+                    alert_embed.set_thumbnail(url=war.opponent.badge.url)
+                
+                role_mention = ""
+                if ROLE_ID_1STAR_ALERT:
+                    role_mention = f"<@&{ROLE_ID_1STAR_ALERT}>"
+                else:
+                    logger.warning("ROLE_ID_1STAR_ALERT não configurado.")
+                await send_log_embed(alert_embed, content=f"{role_mention} Atenção ao ataque fora do padrão!")
+        else:
+            logger.info(f"Defesa de {defender.name} processada.")
+            defense_embed = discord.Embed(
+                title=f"🛡️ Defesa Recebida ({war_type})",
+                description=f"{defender.clan.name}",
+                color=discord.Color.orange()
+            )
+            defense_embed.add_field(
+                name="Detalhes",
+                value=f"{defender_str} foi atacado por {attacker_str}",
+                inline=False
+            )
+            defense_embed.add_field(
+                name="Resultado",
+                value=f"{stars_str} ({attack.destruction}%)",
+                inline=False
+            )
+            if hasattr(war.clan.badge, 'url'):
+                defense_embed.set_thumbnail(url=war.clan.badge.url)
+            await send_log_embed(defense_embed)
+            
+    except Exception as e:
+        logger.error(f"Erro em on_war_attack: {e}", exc_info=True)
+
+
+async def on_clan_member_role_change(old_member, new_member):
+    if MAINTENANCE_MODE: return
+    try:
+        logger.info(f"Evento disparado: Mudança de cargo de {new_member.name}")
+        embed = discord.Embed(
+            title="✨ Mudança de Cargo",
+            description=f"O cargo de **{new_member.name}** foi alterado.",
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="Cargo Antigo", value=old_member.role.name.capitalize(), inline=True)
+        embed.add_field(name="Novo Cargo", value=new_member.role.name.capitalize(), inline=True)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_role_change: {e}", exc_info=True)
+
+
+async def on_clan_member_trophies_change(old_member, new_member):
+    if MAINTENANCE_MODE: return
+    try:
+        diff = new_member.trophies - old_member.trophies
+        if diff == 0: return
+        
+        logger.info(f"Evento disparado: {new_member.name} mudança de troféus: {diff}")
+        action = "ganhou" if diff > 0 else "perdeu"
+        color = discord.Color.green() if diff > 0 else discord.Color.red()
+        trophy_emoji = "🏆" if diff > 0 else "💔"
+        
+        embed = discord.Embed(
+            description=f"{trophy_emoji} **{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})",
+            color=color
+        )
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_trophies_change: {e}", exc_info=True)
+
+
+async def on_clan_member_league_change(old_member, new_member):
+    if MAINTENANCE_MODE: return
+    try:
+        logger.info(f"Evento disparado: {new_member.name} mudou de liga")
+        embed = discord.Embed(
+            title="🛡️ Mudança de Liga",
+            description=f"**{new_member.name}** mudou de liga!",
+            color=0x6E2C00
+        )
+        embed.add_field(name="Liga Anterior", value=old_member.league.name if old_member.league else "N/A", inline=True)
+        embed.add_field(name="Nova Liga", value=new_member.league.name if new_member.league else "N/A", inline=True)
+        
+        if hasattr(new_member.league, 'icon') and hasattr(new_member.league.icon, 'medium'):
+            embed.set_thumbnail(url=new_member.league.icon.medium)
+            
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_league_change: {e}", exc_info=True)
+
+async def on_member_donations(old_member, new_member):
+    if MAINTENANCE_MODE: return
+    try:
+        donation_diff = new_member.donations - old_member.donations
+        if donation_diff <= 0: return
+        logger.info(f"Evento: {new_member.name} doou {donation_diff} tropas.")
+        embed = discord.Embed(
+            description=f"🎁 **{new_member.name}** doou **{donation_diff}** tropas (Total: {new_member.donations}).",
+            color=0xf1c40f # Gold color
+        )
+        embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_donations: {e}", exc_info=True)
+
+async def on_member_received(old_member, new_member):
+    if MAINTENANCE_MODE: return
+    try:
+        received_diff = new_member.received - old_member.received
+        if received_diff <= 0: return
+        logger.info(f"Evento: {new_member.name} recebeu {received_diff} tropas.")
+        embed = discord.Embed(
+            description=f"📥 **{new_member.name}** recebeu **{received_diff}** tropas (Total: {new_member.received}).",
+            color=0x3498db # Blue color
+        )
+        embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
+        await send_log_embed(embed)
+    except Exception as e:
+        logger.error(f"Erro no evento member_received: {e}", exc_info=True)
+
+# --- CONFIGURAÇÃO DOS EVENTOS COC ---
+async def setup_coc_events():
+    global events_client
+    try:
+        logger.info("Iniciando configuração dos eventos CoC...")
+        events_client = coc.EventsClient()
+        await events_client.login(COC_EMAIL, COC_PASSWORD)
+        logger.info("Login no CoC EventsClient bem-sucedido.")
+        
+        events_client.add_clan_updates(CLAN_TAG)
+
+        @events_client.event
+        @coc.ClanEvents.member_join()
+        async def _(member, clan): await on_clan_member_join(member, clan)
+
+        @events_client.event
+        @coc.ClanEvents.member_leave()
+        async def _(member, clan): await on_clan_member_leave(member, clan)
+        
+        @events_client.event
+        @coc.ClanEvents.member_role()
+        async def _(old_member, new_member): await on_clan_member_role_change(old_member, new_member)
+
+        @events_client.event
+        @coc.ClanEvents.member_trophies()
+        async def _(old_member, new_member): await on_clan_member_trophies_change(old_member, new_member)
+
+        @events_client.event
+        @coc.ClanEvents.member_league()
+        async def _(old_member, new_member): await on_clan_member_league_change(old_member, new_member)
+            
+        @events_client.event
+        @coc.ClanEvents.member_donations()
+        async def _(old_member, new_member): await on_member_donations(old_member, new_member)
+
+        @events_client.event
+        @coc.ClanEvents.member_received()
+        async def _(old_member, new_member): await on_member_received(old_member, new_member)
+
+        logger.info("Eventos de CLÃ registrados com sucesso!")
+
+    except Exception as e:
+        logger.error(f"Erro ao configurar eventos CoC: {e}", exc_info=True)
+        events_client = None
+
+# --- ROTINAS E HANDLERS DO PAINEL WEB ---
+async def get_cached_web_data(key: str, func, *args):
+    now = datetime.datetime.now()
+    if key in web_api_cache and (now - web_api_cache[key]["timestamp"]).total_seconds() < WEB_API_CACHE_DURATION_SECONDS:
+        return web_api_cache[key]["data"]
+    data = await func(*args)
+    web_api_cache[key] = {"data": data, "timestamp": now}
+    return data
+
+def format_war_time_details(war_obj, time_now_tz):
+    details = {"time_key": "N/A", "time_value": "N/A", "time_remaining": "N/A", "end_time_iso": None}
+    if not war_obj: return details
+
+    state = getattr(war_obj, 'state', 'unknown')
+    end_time = getattr(war_obj, 'end_time', None)
+    start_time = getattr(war_obj, 'start_time', None)
+    
+    if end_time:
+        details["end_time_iso"] = end_time.time.isoformat()
+
+    if state == 'preparation':
+        details["time_key"] = "Guerra começa em"
+        details["time_value"] = start_time.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if start_time else "N/A"
+        time_left = start_time.seconds_until if start_time else 0
+        details["time_remaining"] = f"{time_left // 3600}h {(time_left % 3600) // 60}m"
+    elif state == 'inWar':
+        details["time_key"] = "Guerra termina em"
+        details["time_value"] = end_time.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if end_time else "N/A"
+        time_left = end_time.seconds_until if end_time else 0
+        details["time_remaining"] = f"{time_left // 3600}h {(time_left % 3600) // 60}m"
+    elif state == 'warEnded':
+        details["time_key"] = "Guerra terminou em"
+        details["time_value"] = end_time.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if end_time else "N/A"
+        details["time_remaining"] = "Finalizada"
+        
+    return details
+
+async def get_current_or_last_war(clan_tag):
+    if not api_client: return None
+    try:
+        return await api_client.get_current_war(clan_tag)
+    except (coc.PrivateWarLog, coc.NotFound):
+        return None
+    except Exception as e:
+        logger.error(f"Erro inesperado ao buscar guerra atual: {e}", exc_info=True)
+        return None
+
+
+async def fetch_clan_info_for_web():
+    try:
+        clan = await get_clan_data_with_cache(CLAN_TAG)
+        if not clan:
+            return {"error": "Não foi possível carregar os dados do clã."}
+        
+        return {
+            "name": clan.name, "tag": clan.tag, "level": clan.level, "points": clan.points,
+            "capital_points": getattr(clan, 'capital_points', 'N/A'),
+            "member_count": clan.member_count, "description": clan.description,
+            "war_wins": getattr(clan, 'war_wins', 'N/A'),
+            "location": getattr(clan.location, 'name', 'N/A') if clan.location else 'N/A',
+            "type": str(clan.type).capitalize(), "badge_url": clan.badge.url, "version": BOT_VERSION,
+            "capital_districts": [{"name": d.name, "level": d.hall_level} for d in getattr(clan, 'capital_districts', [])],
+            "capital_league": getattr(clan.capital_league, 'name', 'N/A') if hasattr(clan, 'capital_league') else 'N/A'
+        }
+    except Exception as e:
+        logger.error(f"Erro em fetch_clan_info_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar dados do clã."}
+
+async def fetch_clan_members_for_web():
+    try:
+        clan = await get_clan_data_with_cache(CLAN_TAG)
+        if not clan: return {"error": "Não foi possível carregar os membros do clã."}
+        
+        notes = await load_player_notes_from_db()
+        members_data = []
+        
+        for m in sorted(clan.members, key=lambda x: x.trophies, reverse=True):
+            if not m: continue
+            note = notes.get(m.tag, {})
+            members_data.append({
+                "name": m.name, "tag": m.tag, "town_hall": m.town_hall,
+                "league": getattr(m.league, 'name', 'Sem Liga'), "trophies": m.trophies,
+                "role": str(m.role).capitalize(), "donations": m.donations, "received": m.received,
+                "note": note.get("text", ""), "note_priority": note.get("priority", "none")
+            })
+        return {"members": members_data, "clan_name": clan.name}
+    except Exception as e:
+        logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar lista de membros."}
+
 async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
     try:
         db_connection = getattr(bot, 'db', None)
         predictor = AdvancedWarMLPredictor(db_connection)
         result = await predictor.predict_war_outcome(war)
 
-        # Envia o log detalhado para o Discord se o canal estiver configurado
         if 'analysis_log' in result and AI_LOG_CHANNEL_ID:
             await send_ai_log_embed(war, result['analysis_log'])
 
