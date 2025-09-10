@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.54-AI-TELEMETRY - Adicionada telemetria da IA para o Discord.
+# Versão 20.1.55-AI-TELEMETRY-FIX - Corrigido envio de telemetria da IA para o Discord.
 
 import os
 import logging
@@ -47,7 +47,7 @@ COC_EMAIL = os.getenv("COC_EMAIL")
 COC_PASSWORD = os.getenv("COC_PASSWORD")
 CLAN_TAG = os.getenv("CLAN_TAG")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
-AI_LOG_CHANNEL_ID = int(os.getenv("AI_LOG_CHANNEL_ID", 0)) # NOVO CANAL PARA LOGS DA IA
+AI_LOG_CHANNEL_ID = int(os.getenv("AI_LOG_CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0)) 
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
@@ -55,7 +55,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.54-AI-TELEMETRY"
+BOT_VERSION = "20.1.55-AI-TELEMETRY-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
