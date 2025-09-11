@@ -8,7 +8,6 @@ import logging
 import math
 from typing import Dict, List, Any, Tuple, Optional
 from dataclasses import dataclass, asdict
-from datetime import datetime
 from collections import defaultdict, Counter
 
 import numpy as np
@@ -39,16 +38,6 @@ class AdvancedWarFeatures:
     
     # Features psicológicas
     pressure_index: float = 0.0 # Nível de pressão sobre nosso clã
-
-@dataclass
-class PredictionResult:
-    """Resultado completo da predição"""
-    probability: float
-    confidence: float
-    summary_panel: str
-    summary_discord: str
-    tactical_insights: List[str]
-    risk_factors: List[str]
 
 # ================== FEATURE ENGINEERING ==================
 
@@ -188,7 +177,7 @@ class AdvancedFeatureEngineer:
     def _calculate_pressure_index(self, war: Any, our_clan: Any, opponent: Any) -> float:
         """Calcula um índice de pressão sobre nosso clã."""
         star_diff_normalized = (opponent.stars - our_clan.stars) / max(war.team_size, 1)
-        progress_factor = war.attacks_used / max(war.team_size * war.attacks_per_member, 1)
+        progress_factor = (our_clan.attacks_used + opponent.attacks_used) / max(war.team_size * war.attacks_per_member * 2, 1)
         
         pressure = (star_diff_normalized * 0.6) + (progress_factor * 0.4)
         return np.clip(pressure, 0, 1)
@@ -217,9 +206,26 @@ class EnsembleMLSystem:
             return
             
         try:
-            X = np.array([list(asdict(d['features']).values()) for d in historical_data])
-            y = np.array([d['result'] for d in historical_data])
-            
+            # Garante que todas as features existam nos dados históricos
+            feature_names = list(AdvancedWarFeatures.__annotations__.keys())
+            X_list = []
+            y_list = []
+
+            for d in historical_data:
+                feature_dict = asdict(d['features'])
+                # Garante a ordem correta e valores padrão para features faltantes
+                ordered_features = [feature_dict.get(name, 0.0) for name in feature_names]
+                X_list.append(ordered_features)
+                y_list.append(d['result'])
+
+            X = np.array(X_list)
+            y = np.array(y_list)
+
+            if X.shape[0] == 0:
+                self.logger.warning("Nenhum dado válido para treinamento após o processamento.")
+                self.is_trained = False
+                return
+
             X_scaled = self.scaler.fit_transform(X)
             
             for name, model in self.models.items():
@@ -230,6 +236,7 @@ class EnsembleMLSystem:
         except Exception as e:
             self.logger.error(f"Erro durante o treinamento do ensemble: {e}", exc_info=True)
             self.is_trained = False
+
 
     def predict(self, features: AdvancedWarFeatures) -> float:
         """Realiza uma predição combinando os resultados do ensemble."""
@@ -276,6 +283,8 @@ class WarPredictionSystemV3:
 
     async def initialize_system(self):
         """Carrega dados históricos e treina os modelos."""
+        if self.is_initialized:
+            return
         historical_data = await self._load_historical_data()
         self.ml_system.train(historical_data)
         self.is_initialized = True
@@ -302,7 +311,7 @@ class WarPredictionSystemV3:
             probability = self.ml_system.predict(features)
             confidence, tactical_insights, risk_factors = self._generate_qualitative_analysis(features, probability)
             
-            summaries = self._generate_summaries(features, probability, confidence, our_clan.name)
+            summaries = self._generate_summaries(features, probability, our_clan.name)
             
             return {
                 "probability": probability,
@@ -325,8 +334,9 @@ class WarPredictionSystemV3:
             cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(50)
             processed_wars = []
             async for doc in cursor:
-                # Simula a extração de features do passado. Em um sistema real, isso seria mais complexo.
                 try:
+                    # Simula a extração de features do passado. Em um sistema real, isso seria mais complexo.
+                    # Para simplificar, usamos apenas as features básicas que podemos derivar do histórico.
                     features = AdvancedWarFeatures(
                         star_difference=doc['war_data']['clan_stars'] - doc['war_data']['opponent_stars'],
                         destruction_difference=float(doc['war_data']['clan_destruction'][:-1]) - float(doc['war_data']['opponent_destruction'][:-1]),
@@ -335,13 +345,16 @@ class WarPredictionSystemV3:
                         efficiency_ratio=float(doc['war_data'].get('clan_avg_stars', 1.5)) / max(float(doc['war_data'].get('opponent_avg_stars', 1.5)), 0.1),
                         three_star_rate_difference=(doc['war_data']['clan_star_distribution']['3'] / max(doc['war_data']['clan_attacks_used'],1)) - (doc['war_data']['opponent_star_distribution']['3'] / max(doc['war_data']['opponent_attacks_used'],1)),
                         war_progress_percentage=100.0,
-                        historical_win_rate=50.0,
-                        unused_member_strength_diff=0.0
+                        historical_win_rate=50.0, # Dado não disponível no passado
+                        unused_member_strength_diff=0.0,
+                        momentum_indicator=0.5, # Dado não disponível no passado
+                        clan_synergy_score=0.5, # Dado não disponível no passado
+                        pressure_index=0.0 # Dado não disponível no passado
                     )
                     result = 1 if features.star_difference > 0 or (features.star_difference == 0 and features.destruction_difference > 0) else 0
                     processed_wars.append({'features': features, 'result': result})
-                except (KeyError, TypeError):
-                    continue # Pula guerras com dados incompletos
+                except (KeyError, TypeError, ValueError):
+                    continue # Pula guerras com dados históricos incompletos
             return processed_wars
         except Exception as e:
             self.logger.error(f"Erro ao carregar dados históricos: {e}")
@@ -354,11 +367,11 @@ class WarPredictionSystemV3:
 
         # Vitória garantida para nós
         if our_clan.stars > (opponent.stars + opp_rem * 3):
-            return {"summary_panel": "Vitória matematicamente garantida!", "probability": 100.0, "confidence": 100.0}
+            return {"summary_panel": "Vitória matematicamente garantida!", "summary_discord": "Vitória matematicamente garantida!", "probability": 100.0, "confidence": 100.0}
         
         # Derrota inevitável
         if (our_clan.stars + our_rem * 3) < opponent.stars:
-            return {"summary_panel": "Derrota matematicamente inevitável.", "probability": 0.0, "confidence": 100.0}
+            return {"summary_panel": "Derrota matematicamente inevitável.", "summary_discord": "Derrota matematicamente inevitável.", "probability": 0.0, "confidence": 100.0}
         
         return None
 
@@ -385,10 +398,10 @@ class WarPredictionSystemV3:
 
         return confidence, insights[:2], risks[:2]
 
-    def _generate_summaries(self, features: AdvancedWarFeatures, probability: float, confidence: float, our_clan_name: str) -> Dict[str, str]:
+    def _generate_summaries(self, features: AdvancedWarFeatures, probability: float, our_clan_name: str) -> Dict[str, str]:
         """Gera os textos de resumo para o painel e para o Discord."""
         # Título da previsão
-        if probability >= 85: title = "🚨 Vitória Altamente Provável"
+        if probability >= 85: title = "🎯 Vitória Altamente Provável"
         elif probability >= 65: title = "✅ Vantagem Clara"
         elif probability >= 55: title = "📈 Ligeira Vantagem"
         elif probability <= 15: title = "🚨 Situação Crítica"
@@ -406,5 +419,6 @@ class WarPredictionSystemV3:
             
         return {
             "panel": f"{title}. {detail}",
-            "discord": f"{title}\n{detail}"
+            "discord": f"**{title}**\n{detail}"
         }
+
