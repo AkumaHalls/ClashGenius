@@ -1,21 +1,31 @@
 # -*- coding: utf-8 -*-
 import datetime
+import pytz
 from typing import Dict, Any
 
 def format_war_time_details(war: Any, now: datetime.datetime) -> Dict[str, str]:
     """Formata os detalhes de tempo de uma guerra para exibição no painel."""
-    if war.state == 'preparation':
+    
+    # Garante que os tempos da API (que são 'naive' em UTC) se tornem 'aware'
+    start_time_utc = war.start_time.time.replace(tzinfo=pytz.utc) if hasattr(war.start_time, 'time') else None
+    end_time_utc = war.end_time.time.replace(tzinfo=pytz.utc) if hasattr(war.end_time, 'time') else None
+
+    if war.state == 'preparation' and start_time_utc:
         time_key = "Começa em"
-        time_delta = war.start_time.time - now
-        time_value = war.start_time.time.strftime('%d/%m %H:%M')
-    elif war.state == 'inWar':
+        time_delta = start_time_utc - now
+        time_value = start_time_utc.astimezone(now.tzinfo).strftime('%d/%m %H:%M')
+    elif war.state == 'inWar' and end_time_utc:
         time_key = "Termina em"
-        time_delta = war.end_time.time - now
-        time_value = war.end_time.time.strftime('%d/%m %H:%M')
-    else: # warEnded, notInWar, etc.
+        time_delta = end_time_utc - now
+        time_value = end_time_utc.astimezone(now.tzinfo).strftime('%d/%m %H:%M')
+    elif end_time_utc: # warEnded, notInWar, etc.
         time_key = "Terminou em"
-        time_delta = now - war.end_time.time
-        time_value = war.end_time.time.strftime('%d/%m %H:%M')
+        time_delta = now - end_time_utc
+        time_value = end_time_utc.astimezone(now.tzinfo).strftime('%d/%m %H:%M')
+    else: # Fallback
+        return {
+            "time_key": "Tempo", "time_value": "-", "time_remaining": "-", "end_time_iso": None
+        }
 
     total_seconds = time_delta.total_seconds()
     
@@ -36,7 +46,6 @@ def format_war_time_details(war: Any, now: datetime.datetime) -> Dict[str, str]:
         "time_key": time_key,
         "time_value": time_value,
         "time_remaining": time_remaining,
-        "end_time_iso": war.end_time.time.isoformat() if hasattr(war, 'end_time') and hasattr(war.end_time, 'time') else None,
+        "end_time_iso": end_time_utc.isoformat() if end_time_utc else None
     }
-
 
