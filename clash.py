@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.59-STABILITY-FIX - Corrigidos múltiplos erros internos e de API.
+# Versão 20.1.60-MODULAR-AI - IA refatorada para módulo separado 'war_predictor.py'.
 
 import os
 import logging
 import asyncio
 import datetime
 import json
-import math
-from typing import Dict, List, Any, Tuple, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Any, Optional
 
 import discord
 from discord.ext import commands, tasks
@@ -23,12 +21,10 @@ from aiohttp_session import setup, get_session, session_middleware
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 import base64
 from cryptography.fernet import Fernet
-import numpy as np
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
+
+# --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
+from war_predictor import AdvancedWarMLPredictor # <- IMPORTA A IA DO NOVO ARQUIVO
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -56,7 +52,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.59-STABILITY-FIX"
+BOT_VERSION = "20.1.60-MODULAR-AI"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -81,282 +77,9 @@ last_war_end_time: Optional[datetime.datetime] = None
 war_attack_cache: Dict[str, Any] = {"war_end_time": None, "processed_attacks": set()}
 
 
-# --- INÍCIO: NOVO SISTEMA DE PREVISÃO DE GUERRA (IA AVANÇADA) ---
-
-@dataclass
-class WarFeatures:
-    """Estrutura para organizar features do ML"""
-    star_difference: float
-    destruction_difference: float
-    attacks_remaining_difference: int
-    town_hall_advantage: float
-    efficiency_ratio: float
-    three_star_rate_difference: float
-    war_progress_percentage: float
-    historical_win_rate: float
-    unused_member_strength_diff: float
-
-class AdvancedWarMLPredictor:
-    """
-    Sistema avançado de Machine Learning para previsão de guerras CoC
-    """
-    
-    def __init__(self, db_connection=None):
-        self.db = db_connection
-        self.logger = logging.getLogger("advanced_war_ml")
-        if not self.logger.handlers:
-            self.logger.addHandler(logging.StreamHandler())
-            self.logger.setLevel(logging.INFO)
-            
-        self.model = GradientBoostingRegressor(n_estimators=100, max_depth=5, random_state=42)
-        self.scaler = StandardScaler()
-        self.analysis_log = {}
-
-    async def predict_war_outcome(self, war) -> Dict[str, Any]:
-        try:
-            self.analysis_log = {} 
-            if war.state != 'inWar':
-                return {"message": "A guerra não está em andamento para previsões."}
-
-            our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-            opponent = war.opponent if war.clan.tag == CLAN_TAG else war.clan
-
-            definitive_scenario = self._check_definitive_scenarios(war, our_clan, opponent)
-            if definitive_scenario:
-                self.analysis_log['method'] = "Cenário Definitivo"
-                self.analysis_log['reason'] = definitive_scenario['message']
-                definitive_scenario['analysis_log'] = self.analysis_log
-                return definitive_scenario
-            
-            features = await self._extract_war_features(war, our_clan, opponent)
-            if features is None:
-                 return {"message": "Aguardando dados completos da guerra para iniciar a análise..."}
-
-            feature_vector = np.array(list(features.__dict__.values())).reshape(1, -1)
-            
-            historical_data = await self._load_historical_training_data()
-            
-            win_probability = 50.0 
-            
-            if len(historical_data) >= 10: 
-                try:
-                    self.analysis_log['method'] = f"Modelo ML treinado com {len(historical_data)} guerras"
-                    X = np.array([list(d['features'].__dict__.values()) for d in historical_data])
-                    y = np.array([d['result'] for d in historical_data])
-                    
-                    X_scaled = self.scaler.fit_transform(X)
-                    self.model.fit(X_scaled, y)
-                    
-                    feature_vector_scaled = self.scaler.transform(feature_vector)
-                    prediction = self.model.predict(feature_vector_scaled)[0]
-                    win_probability = np.clip(prediction * 100, 1, 99)
-                except Exception as ml_error:
-                    self.analysis_log['method'] = "Heurístico (Fallback de ML)"
-                    self.logger.warning(f"Erro no ML, usando heurística. Erro: {ml_error}")
-                    win_probability = self._heuristic_prediction(features)
-            else:
-                self.analysis_log['method'] = f"Heurístico ({len(historical_data)}/10 guerras no histórico)"
-                self.logger.info(f"Dados históricos insuficientes. Usando predição heurística.")
-                win_probability = self._heuristic_prediction(features)
-
-            confidence = 50 + (features.war_progress_percentage / 2)
-            
-            total_attacks_per_team = war.team_size * war.attacks_per_member
-            final_result = self._generate_final_message(win_probability, confidence, features, our_clan, opponent, total_attacks_per_team, war.state)
-            final_result['analysis_log'] = self.analysis_log
-            return final_result
-
-        except Exception as e:
-            self.logger.error(f"Erro na predição ML avançada: {e}", exc_info=True)
-            return {"message": f"Erro na análise preditiva: {type(e).__name__}"}
-
-    def _check_definitive_scenarios(self, war, our_clan, opponent) -> Optional[Dict[str, str]]:
-        our_rem = (war.team_size * war.attacks_per_member) - our_clan.attacks_used
-        opp_rem = (war.team_size * war.attacks_per_member) - opponent.attacks_used
-
-        if our_rem == 0 and (our_clan.stars < opponent.stars or (our_clan.stars == opponent.stars and our_clan.destruction < opponent.destruction)):
-            return {"message": f"Derrota confirmada. {our_clan.name} usou todos os ataques e não pode mais virar."}
-        if opp_rem == 0 and (our_clan.stars > opponent.stars or (our_clan.stars == opponent.stars and our_clan.destruction > opponent.destruction)):
-            return {"message": f"Vitória garantida! O oponente não tem mais ataques."}
-        if (our_clan.stars + our_rem * 3) < opponent.stars:
-            return {"message": "A derrota é matematicamente inevitável."}
-        if our_clan.stars > (opponent.stars + opp_rem * 3):
-            return {"message": f"Vitória garantida! O oponente não pode mais nos alcançar."}
-        return None
-
-    async def _extract_war_features(self, war, our_clan, opponent) -> Optional[WarFeatures]:
-        try:
-            total_attacks = war.team_size * war.attacks_per_member
-            our_attacks = [a for a in war.attacks if getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
-            opp_attacks = [a for a in war.attacks if getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opponent.tag]
-
-            our_efficiency = self._calculate_attack_efficiency(our_attacks)
-            opp_efficiency = self._calculate_attack_efficiency(opp_attacks)
-            
-            our_3star_rate = sum(1 for a in our_attacks if a.stars == 3) / max(len(our_attacks), 1)
-            opp_3star_rate = sum(1 for a in opp_attacks if a.stars == 3) / max(len(opp_attacks), 1)
-            
-            our_unused_strength, opp_unused_strength = self._calculate_unused_strength(war, our_clan, opponent)
-            
-            historical_data = await self._get_clan_historical_performance(our_clan.tag)
-
-            our_th_sum = sum(getattr(m, 'town_hall', 0) for m in our_clan.members if m)
-            opp_th_sum = sum(getattr(m, 'town_hall', 0) for m in opponent.members if m)
-
-            features = WarFeatures(
-                star_difference=our_clan.stars - opponent.stars,
-                destruction_difference=our_clan.destruction - opponent.destruction,
-                attacks_remaining_difference=(total_attacks - our_clan.attacks_used) - (total_attacks - opponent.attacks_used),
-                town_hall_advantage=our_th_sum - opp_th_sum,
-                efficiency_ratio=our_efficiency / max(opp_efficiency, 0.01),
-                three_star_rate_difference=our_3star_rate - opp_3star_rate,
-                war_progress_percentage=(len(our_attacks) + len(opp_attacks)) / max((total_attacks * 2), 1) * 100,
-                historical_win_rate=historical_data.get('win_rate', 50),
-                unused_member_strength_diff=our_unused_strength - opp_unused_strength
-            )
-            self.analysis_log['features'] = features.__dict__ # Log features
-            return features
-        except (AttributeError, TypeError) as e:
-            self.logger.warning(f"Aguardando dados da guerra se estabilizarem. Erro: {e}")
-            return None # Retorna None para indicar que os dados não estão prontos
-
-    def _calculate_attack_efficiency(self, attacks: List) -> float:
-        if not attacks: return 1.0
-        return sum(a.stars + a.destruction / 100 for a in attacks) / len(attacks)
-
-    def _calculate_unused_strength(self, war, our_clan, opponent):
-        our_attackers_left = [m for m in our_clan.members if m and len(m.attacks) < war.attacks_per_member]
-        opp_attackers_left = [m for m in opponent.members if m and len(m.attacks) < war.attacks_per_member]
-        our_strength = sum(getattr(m, 'town_hall', 0) for m in our_attackers_left)
-        opp_strength = sum(getattr(m, 'town_hall', 0) for m in opp_attackers_left)
-        return our_strength, opp_strength
-
-    async def _load_historical_training_data(self) -> List[Dict]:
-        if self.db is None: return []
-        try:
-            cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(50)
-            processed_wars = []
-            async for doc in cursor:
-                processed = self._process_historical_war(doc)
-                if processed:
-                    processed_wars.append(processed)
-            return processed_wars
-        except Exception as e:
-            self.logger.error(f"Erro ao carregar dados históricos: {e}")
-            return []
-
-    def _process_historical_war(self, doc: Dict) -> Optional[Dict]:
-        try:
-            wd = doc.get('war_data', {})
-            our_clan_members = doc.get('our_clan_members_in_war', [])
-            opp_clan_members = doc.get('opponent_clan_members_in_war', [])
-            
-            if not all([wd, our_clan_members, opp_clan_members]): return None
-
-            result = 1 if wd['clan_stars'] > wd['opponent_stars'] else 0
-
-            our_th_sum = sum(m.get('townhall', 0) for m in our_clan_members)
-            opp_th_sum = sum(m.get('townhall', 0) for m in opp_clan_members)
-
-            features = WarFeatures(
-                 star_difference=wd['clan_stars'] - wd['opponent_stars'],
-                 destruction_difference=float(wd['clan_destruction'][:-1]) - float(wd['opponent_destruction'][:-1]),
-                 attacks_remaining_difference=0,
-                 town_hall_advantage=our_th_sum - opp_th_sum,
-                 efficiency_ratio=float(wd.get('clan_avg_stars', '1.0')) / max(float(wd.get('opponent_avg_stars', '1.0')), 0.01),
-                 three_star_rate_difference=wd.get('clan_star_distribution', {}).get('3', 0) / max(wd.get('clan_attacks_used', 1), 1) - wd.get('opponent_star_distribution', {}).get('3', 0) / max(wd.get('opponent_attacks_used', 1), 1),
-                 war_progress_percentage=100.0,
-                 historical_win_rate=50.0,
-                 unused_member_strength_diff=0.0
-            )
-            return {'features': features, 'result': result}
-        except (KeyError, TypeError, ValueError) as e:
-            self.logger.debug(f"Skipping historical war due to missing data: {e}")
-            return None
-
-    async def _get_clan_historical_performance(self, clan_tag: str) -> Dict:
-        if self.db is None: return {'win_rate': 50.0}
-        try:
-            total_wars = await self.db.war_history.count_documents({"war_data.clan_tag": clan_tag})
-            if total_wars < 5: return {'win_rate': 50.0}
-            wins = await self.db.war_history.count_documents({
-                "war_data.clan_tag": clan_tag, 
-                "$expr": {"$gt": ["$war_data.clan_stars", "$war_data.opponent_stars"]}
-            })
-            return {'win_rate': (wins / total_wars) * 100}
-        except Exception:
-             return {'win_rate': 50.0}
-
-    def _heuristic_prediction(self, features: WarFeatures) -> float:
-        score = 50.0
-        score += features.star_difference * 8
-        score += features.destruction_difference * 0.2
-        score += features.attacks_remaining_difference * 3
-        score += (features.efficiency_ratio - 1) * 20
-        score += features.town_hall_advantage * 0.1
-        score += features.unused_member_strength_diff * 0.05
-        return np.clip(score, 1, 99)
-
-    def _generate_final_message(self, prob, confidence, features, our_clan, opponent, total_attacks_per_team, war_state):
-        # Título
-        if prob >= 85: title = "🎯 Vitória Altamente Provável"
-        elif prob >= 65: title = "✅ Vantagem Clara"
-        elif prob >= 55: title = "⚖️ Ligeira Vantagem"
-        elif prob <= 15: title = "🚨 Situação Crítica"
-        elif prob <= 35: title = "⚠️ Desvantagem Clara"
-        else: title = "🔄 Guerra em Equilíbrio"
-
-        # Detalhes numéricos
-        details = ""
-        star_diff = features.star_difference
-        if star_diff < 0:
-            stars_needed = abs(int(star_diff)) + 1
-            details = f"Para virar, {our_clan.name} precisa de {stars_needed}★ a mais que o oponente."
-        elif star_diff > 0:
-            stars_needed_opp = int(star_diff) + 1
-            details = f"{opponent.name} ainda pode virar se conseguir {stars_needed_opp}★ a mais."
-        else: # Empate
-            if features.destruction_difference < 0:
-                destruction_needed = abs(features.destruction_difference) + 0.01
-                details = f"Para liderar, precisamos de 1★ ou superar a destruição em {destruction_needed:.2f}%."
-            else:
-                details = "A vantagem de destruição é nossa, mas a guerra segue indefinida."
-        
-        # Conselho Tático
-        tactical_advice = ""
-        our_rem_attacks = total_attacks_per_team - our_clan.attacks_used
-        opp_rem_attacks = total_attacks_per_team - opponent.attacks_used
-
-        if str(war_state) == 'inWar' and prob < 65 and our_rem_attacks > 0:
-            if star_diff < 0:
-                stars_to_catch_up = abs(int(star_diff)) + 1
-                if our_rem_attacks * 3 < stars_to_catch_up:
-                    tactical_advice = "Foco em maximizar a destruição, a virada por estrelas é improvável."
-                else:
-                    three_stars_needed = math.ceil(stars_to_catch_up / 3)
-                    if three_stars_needed > 0 and three_stars_needed <= our_rem_attacks:
-                        plural_s = "s" if three_stars_needed > 1 else ""
-                        tactical_advice = f"A virada é possível! Precisamos de pelo menos {three_stars_needed} ataque{plural_s} de 3 estrelas."
-                    else:
-                        tactical_advice = "A situação é difícil. Todos os ataques restantes precisam ser perfeitos."
-            elif star_diff == 0 and features.destruction_difference < 0:
-                tactical_advice = "Estamos empatados. O foco agora é conseguir 1 estrela a mais ou aumentar a porcentagem de destruição."
-            else:
-                if opp_rem_attacks > our_rem_attacks and prob < 55:
-                    tactical_advice = "Atenção! O oponente tem mais ataques. Defesas são cruciais agora."
-                else:
-                    tactical_advice = "Manter a consistência nos ataques garantirá a vitória. Evite ataques de 0 ou 1 estrela."
-        elif prob >= 85:
-            tactical_advice = "Administrar a vantagem é a chave. Ataques seguros para garantir estrelas e destruição."
-
-        final_message = f"{title} ({prob:.1f}% | Confiança: {confidence:.0f}%). {details} {tactical_advice}".strip()
-        self.analysis_log['final_prediction'] = final_message
-        return {"message": final_message}
-
-# --- FIM: NOVO SISTEMA DE PREVISÃO DE GUERRA ---
-
 # --- FUNÇÕES AUXILIARES E DE BUSCA DE DADOS ---
 async def send_ai_log_embed(war, analysis_log: Dict):
+    """Envia o log de análise detalhado da IA para um canal específico no Discord."""
     if not AI_LOG_CHANNEL_ID:
         logger.info(f"AI Analysis Log (AI_LOG_CHANNEL_ID not set): {analysis_log}")
         return
@@ -464,7 +187,7 @@ async def save_war_to_history(war_data: Dict[str, Any]):
             logger.info(f"Guerra finalizada em {sanitized_war_data['_id']} salva no histórico.")
 
             count = await war_collection.count_documents({})
-            if count > 50: # Aumentado o limite para ter mais dados para o ML
+            if count > 50: 
                 oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 50)
                 async for old_war in oldest_wars_cursor:
                     await war_collection.delete_one({"_id": old_war["_id"]})
@@ -571,16 +294,8 @@ async def on_war_attack(attack, war):
                 description=f"{attacker.clan.name}",
                 color=discord.Color.blue()
             )
-            attack_embed.add_field(
-                name="Detalhes",
-                value=f"{attacker_str} atacou {defender_str}",
-                inline=False
-            )
-            attack_embed.add_field(
-                name="Resultado",
-                value=f"{stars_str} ({attack.destruction}%)",
-                inline=False
-            )
+            attack_embed.add_field(name="Detalhes", value=f"{attacker_str} atacou {defender_str}", inline=False)
+            attack_embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
             if hasattr(war.opponent.badge, 'url'):
                 attack_embed.set_thumbnail(url=war.opponent.badge.url)
             await send_log_embed(attack_embed)
@@ -592,24 +307,12 @@ async def on_war_attack(attack, war):
                     description=f"**{attacker.clan.name}**\n⚔️ **Ataque Realizado ({war_type})**",
                     color=discord.Color.red()
                 )
-                alert_embed.add_field(
-                    name="Detalhes",
-                    value=f"{attacker_str} atacou {defender_str}",
-                    inline=False
-                )
-                alert_embed.add_field(
-                    name="Resultado",
-                    value=f"{'⚫⚫⚫' if attack.stars == 0 else '⭐⚫⚫'} ({attack.destruction}%)",
-                    inline=False
-                )
+                alert_embed.add_field(name="Detalhes", value=f"{attacker_str} atacou {defender_str}", inline=False)
+                alert_embed.add_field(name="Resultado", value=f"{'⚫⚫⚫' if attack.stars == 0 else '⭐⚫⚫'} ({attack.destruction}%)", inline=False)
                 if hasattr(war.opponent.badge, 'url'):
                     alert_embed.set_thumbnail(url=war.opponent.badge.url)
                 
-                role_mention = ""
-                if ROLE_ID_1STAR_ALERT:
-                    role_mention = f"<@&{ROLE_ID_1STAR_ALERT}>"
-                else:
-                    logger.warning("ROLE_ID_1STAR_ALERT não configurado.")
+                role_mention = f"<@&{ROLE_ID_1STAR_ALERT}>" if ROLE_ID_1STAR_ALERT else ""
                 await send_log_embed(alert_embed, content=f"{role_mention} Atenção ao ataque fora do padrão!")
         else:
             logger.info(f"Defesa de {defender.name} processada.")
@@ -618,16 +321,8 @@ async def on_war_attack(attack, war):
                 description=f"{defender.clan.name}",
                 color=discord.Color.orange()
             )
-            defense_embed.add_field(
-                name="Detalhes",
-                value=f"{defender_str} foi atacado por {attacker_str}",
-                inline=False
-            )
-            defense_embed.add_field(
-                name="Resultado",
-                value=f"{stars_str} ({attack.destruction}%)",
-                inline=False
-            )
+            defense_embed.add_field(name="Detalhes", value=f"{defender_str} foi atacado por {attacker_str}", inline=False)
+            defense_embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
             if hasattr(war.clan.badge, 'url'):
                 defense_embed.set_thumbnail(url=war.clan.badge.url)
             await send_log_embed(defense_embed)
@@ -640,11 +335,7 @@ async def on_clan_member_role_change(old_member, new_member):
     if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: Mudança de cargo de {new_member.name}")
-        embed = discord.Embed(
-            title="✨ Mudança de Cargo",
-            description=f"O cargo de **{new_member.name}** foi alterado.",
-            color=discord.Color.purple()
-        )
+        embed = discord.Embed(title="✨ Mudança de Cargo", description=f"O cargo de **{new_member.name}** foi alterado.", color=discord.Color.purple())
         embed.add_field(name="Cargo Antigo", value=old_member.role.name.capitalize(), inline=True)
         embed.add_field(name="Novo Cargo", value=new_member.role.name.capitalize(), inline=True)
         await send_log_embed(embed)
@@ -663,10 +354,7 @@ async def on_clan_member_trophies_change(old_member, new_member):
         color = discord.Color.green() if diff > 0 else discord.Color.red()
         trophy_emoji = "🏆" if diff > 0 else "💔"
         
-        embed = discord.Embed(
-            description=f"{trophy_emoji} **{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})",
-            color=color
-        )
+        embed = discord.Embed(description=f"{trophy_emoji} **{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})", color=color)
         await send_log_embed(embed)
     except Exception as e:
         logger.error(f"Erro no evento member_trophies_change: {e}", exc_info=True)
@@ -676,11 +364,7 @@ async def on_clan_member_league_change(old_member, new_member):
     if MAINTENANCE_MODE: return
     try:
         logger.info(f"Evento disparado: {new_member.name} mudou de liga")
-        embed = discord.Embed(
-            title="🛡️ Mudança de Liga",
-            description=f"**{new_member.name}** mudou de liga!",
-            color=0x6E2C00
-        )
+        embed = discord.Embed(title="🛡️ Mudança de Liga", description=f"**{new_member.name}** mudou de liga!", color=0x6E2C00)
         embed.add_field(name="Liga Anterior", value=old_member.league.name if old_member.league else "N/A", inline=True)
         embed.add_field(name="Nova Liga", value=new_member.league.name if new_member.league else "N/A", inline=True)
         
@@ -697,10 +381,7 @@ async def on_member_donations(old_member, new_member):
         donation_diff = new_member.donations - old_member.donations
         if donation_diff <= 0: return
         logger.info(f"Evento: {new_member.name} doou {donation_diff} tropas.")
-        embed = discord.Embed(
-            description=f"🎁 **{new_member.name}** doou **{donation_diff}** tropas (Total: {new_member.donations}).",
-            color=0xf1c40f # Gold color
-        )
+        embed = discord.Embed(description=f"🎁 **{new_member.name}** doou **{donation_diff}** tropas (Total: {new_member.donations}).", color=0xf1c40f)
         embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
         await send_log_embed(embed)
     except Exception as e:
@@ -712,10 +393,7 @@ async def on_member_received(old_member, new_member):
         received_diff = new_member.received - old_member.received
         if received_diff <= 0: return
         logger.info(f"Evento: {new_member.name} recebeu {received_diff} tropas.")
-        embed = discord.Embed(
-            description=f"📥 **{new_member.name}** recebeu **{received_diff}** tropas (Total: {new_member.received}).",
-            color=0x3498db # Blue color
-        )
+        embed = discord.Embed(description=f"📥 **{new_member.name}** recebeu **{received_diff}** tropas (Total: {new_member.received}).", color=0x3498db)
         embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
         await send_log_embed(embed)
     except Exception as e:
@@ -779,9 +457,8 @@ async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
     try:
         db_connection = getattr(bot, 'db', None)
         predictor = AdvancedWarMLPredictor(db_connection)
-        result = await predictor.predict_war_outcome(war)
+        result = await predictor.predict_war_outcome(war, CLAN_TAG)
 
-        # A verificação do canal e o envio agora são feitos dentro desta função
         if 'analysis_log' in result and AI_LOG_CHANNEL_ID:
             await send_ai_log_embed(war, result['analysis_log'])
 
@@ -802,19 +479,15 @@ async def fetch_clan_info_for_web():
              districts = [{"name": d.name, "level": d.district_hall_level} for d in clan.capital_districts]
         
         return {
-            "name": clan.name,
-            "tag": clan.tag,
+            "name": clan.name, "tag": clan.tag,
             "badge_url": clan.badge.url if clan.badge else None,
-            "level": clan.level,
-            "member_count": clan.member_count,
+            "level": clan.level, "member_count": clan.member_count,
             "location": clan.location.name if clan.location else "N/A",
             "type": clan.type.capitalize() if clan.type else "N/A",
-            "war_wins": clan.war_wins,
-            "points": clan.points,
+            "war_wins": clan.war_wins, "points": clan.points,
             "capital_points": clan.capital_points,
             "capital_league": clan.capital_league.name if clan.capital_league else "N/A",
-            "description": clan.description,
-            "capital_districts": districts,
+            "description": clan.description, "capital_districts": districts,
             "version": BOT_VERSION
         }
     except Exception as e:
@@ -832,28 +505,7 @@ async def fetch_current_war_details_for_web():
         prediction_data = await calculate_war_prediction(war)
 
         our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
-        our_clan_name = getattr(our_clan, 'name', 'Nosso Clã')
-        opp_clan_name = getattr(opp_clan, 'name', 'Oponente')
-
-        all_attacks_data = []
-        for attack in war.attacks:
-            if not attack: continue
-            attacker = war.get_member(attack.attacker_tag)
-            defender = war.get_member(attack.defender_tag)
-            
-            attacker_clan_tag_to_save = getattr(getattr(attacker, 'clan', None), 'tag', None)
-
-            all_attacks_data.append({
-                "order": attack.order, "attacker_clan_tag": attacker_clan_tag_to_save,
-                "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag),
-                "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
-                "attacker_townhall": getattr(attacker, 'town_hall', '?'),
-                "defender_name": getattr(defender, 'name', attack.defender_tag),
-                "defender_townhall": getattr(defender, 'town_hall', '?'),
-                "stars": attack.stars, "destruction": attack.destruction,
-                "duration": f"{attack.duration}s"
-            })
-
+        
         def get_team_details(team, war_obj):
             if not team or not hasattr(team, 'members'): return []
             details = []
@@ -876,21 +528,29 @@ async def fetch_current_war_details_for_web():
         our_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
         opp_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
         
+        all_attacks_data = []
+        for attack in war.attacks:
+            if not attack: continue
+            attacker = war.get_member(attack.attacker_tag)
+            defender = war.get_member(attack.defender_tag)
+            all_attacks_data.append({
+                "order": attack.order, "attacker_clan_tag": getattr(getattr(attacker, 'clan', None), 'tag', None),
+                "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag), "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
+                "attacker_townhall": getattr(attacker, 'town_hall', '?'), "defender_name": getattr(defender, 'name', attack.defender_tag),
+                "defender_townhall": getattr(defender, 'town_hall', '?'), "stars": attack.stars, "destruction": attack.destruction,
+                "duration": f"{attack.duration}s"
+            })
+
         return {
             "war_data": {
                 "clan_tag": our_clan.tag, "status": str(war.state), "state_description": str(war.state).capitalize(),
-                "clan_name": our_clan_name, "clan_stars": getattr(our_clan, 'stars', 0),
-                "clan_destruction": f"{getattr(our_clan, 'destruction', 0.0):.2f}%",
-                "clan_badge_url": getattr(our_clan.badge, 'url', None) if hasattr(our_clan, 'badge') else None,
-                "clan_attacks_used": getattr(our_clan, 'attacks_used', 0),
-                "opponent_name": opp_clan_name, "opponent_stars": getattr(opp_clan, 'stars', 0),
-                "opponent_destruction": f"{getattr(opp_clan, 'destruction', 0.0):.2f}%",
-                "opponent_badge_url": getattr(opp_clan.badge, 'url', None) if hasattr(opp_clan, 'badge') else None,
-                "opponent_attacks_used": getattr(opp_clan, 'attacks_used', 0),
+                "clan_name": our_clan.name, "clan_stars": our_clan.stars, "clan_destruction": f"{our_clan.destruction:.2f}%",
+                "clan_badge_url": our_clan.badge.url if our_clan.badge else None, "clan_attacks_used": our_clan.attacks_used,
+                "opponent_name": opp_clan.name, "opponent_stars": opp_clan.stars, "opponent_destruction": f"{opp_clan.destruction:.2f}%",
+                "opponent_badge_url": opp_clan.badge.url if opp_clan.badge else None, "opponent_attacks_used": opp_clan.attacks_used,
                 **format_war_time_details(war, datetime.datetime.now(TIMEZONE)),
                 "attacks_per_member": war.attacks_per_member, "team_size": war.team_size,
-                "clan_star_distribution": get_star_dist(our_attacks),
-                "opponent_star_distribution": get_star_dist(opp_attacks),
+                "clan_star_distribution": get_star_dist(our_attacks), "opponent_star_distribution": get_star_dist(opp_attacks),
                 "clan_avg_stars": f"{our_clan.stars / len(our_attacks):.2f}" if our_attacks else "0.00",
                 "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks):.2f}" if opp_attacks else "0.00",
                 "clan_avg_duration": f"{sum(a.duration for a in our_attacks) / len(our_attacks):.1f}s" if our_attacks else "0s",
@@ -912,38 +572,31 @@ async def fetch_clan_members_for_web():
             return {"error": "Não foi possível carregar os dados do clã."}
 
         player_notes = await load_player_notes_from_db()
-
         members_list = []
         for member in clan.members:
             note_data = player_notes.get(member.tag, {})
             members_list.append({
-                "tag": member.tag,
-                "name": member.name,
-                "town_hall": member.town_hall,
+                "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
                 "league": member.league.name if member.league else "Sem Liga",
-                "trophies": member.trophies,
-                "role": member.role.name.capitalize() if member.role else "Membro",
-                "donations": member.donations,
-                "received": member.received,
-                "note": note_data.get("text", ""),
-                "note_priority": note_data.get("priority", "none")
+                "trophies": member.trophies, "role": member.role.name.capitalize() if member.role else "Membro",
+                "donations": member.donations, "received": member.received,
+                "note": note_data.get("text", ""), "note_priority": note_data.get("priority", "none")
             })
         
         role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
-        sorted_members = sorted(
-            members_list,
-            key=lambda m: (role_order.get(m["role"], 4), -m["trophies"])
-        )
+        sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
 
-        return {
-            "clan_name": clan.name,
-            "members": sorted_members,
-            "version": BOT_VERSION
-        }
+        return {"clan_name": clan.name, "members": sorted_members, "version": BOT_VERSION}
     except Exception as e:
         logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar a lista de membros."}
 
+# [O restante do código de clash.py permanece o mesmo, sem alterações]
+# ... (Funções fetch_missed_attacks_history_for_web, fetch_war_log_for_web, etc.)
+# ... (Funções de API, Tarefas em Background, Configuração do Servidor Web, Eventos do Bot)
+# ... (Função main)
+
+# [Abaixo está o final do arquivo clash.py, para garantir que esteja completo]
 
 async def fetch_missed_attacks_history_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
@@ -971,27 +624,20 @@ async def fetch_missed_attacks_history_for_web():
                 attacks_left = attacks_per_member - attacks_made
                 if attacks_left > 0:
                     missed_attacks_members.append({
-                        "name": member.get("name", "Nome desconhecido"),
-                        "tag": member.get("tag", "#?"),
-                        "town_hall": member.get("townhall", "?"),
-                        "attacks_left": attacks_left,
+                        "name": member.get("name", "Nome desconhecido"), "tag": member.get("tag", "#?"),
+                        "town_hall": member.get("townhall", "?"), "attacks_left": attacks_left,
                     })
             
-            if missed_attacks_members:
-                if war_data.get("end_time_iso"):
-                    end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
-                    wars_with_missed_attacks.append({
-                        "opponent_name": war_data.get("opponent_name", "Oponente Desconhecido"),
-                        "end_date": end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y'),
-                        "missed_attacks_members": missed_attacks_members,
-                        "is_latest": is_first_war
-                    })
-                    is_first_war = False
+            if missed_attacks_members and war_data.get("end_time_iso"):
+                end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
+                wars_with_missed_attacks.append({
+                    "opponent_name": war_data.get("opponent_name", "Oponente Desconhecido"),
+                    "end_date": end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y'),
+                    "missed_attacks_members": missed_attacks_members, "is_latest": is_first_war
+                })
+                is_first_war = False
         
-        return {
-            "clan_name": clan.name,
-            "wars_with_missed_attacks": wars_with_missed_attacks
-        }
+        return {"clan_name": clan.name, "wars_with_missed_attacks": wars_with_missed_attacks}
     except Exception as e:
         logger.error(f"Erro em fetch_missed_attacks_history_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar histórico de ataques pendentes."}
@@ -1012,14 +658,10 @@ async def fetch_war_log_for_web():
                 entries.append({
                     "end_time_iso": war_data.get("end_time_iso"),
                     "end_time_formatted": end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M'),
-                    "opponent_name": war_data.get("opponent_name"),
-                    "opponent_badge_url": war_data.get("opponent_badge_url"),
-                    "clan_stars": war_data.get("clan_stars"),
-                    "clan_destruction": war_data.get("clan_destruction"),
-                    "opponent_stars": war_data.get("opponent_stars"),
-                    "opponent_destruction": war_data.get("opponent_destruction"),
-                    "result": result,
-                    "team_size": war_data.get("team_size"),
+                    "opponent_name": war_data.get("opponent_name"), "opponent_badge_url": war_data.get("opponent_badge_url"),
+                    "clan_stars": war_data.get("clan_stars"), "clan_destruction": war_data.get("clan_destruction"),
+                    "opponent_stars": war_data.get("opponent_stars"), "opponent_destruction": war_data.get("opponent_destruction"),
+                    "result": result, "team_size": war_data.get("team_size"),
                     "is_cwl": "CWL" in war_data.get("status", "").lower()
                 })
         return {"log": entries}
@@ -1029,45 +671,33 @@ async def fetch_war_log_for_web():
 
 async def fetch_cwl_info_for_web():
     try:
-        if not api_client:
-            return {"error": "CWLFeatureDisabled", "message": "API do CoC não iniciada."}
+        if not api_client: return {"error": "CWLFeatureDisabled", "message": "API do CoC não iniciada."}
         
         cwl_war = await api_client.get_league_group(CLAN_TAG)
+        if not cwl_war: return {"status": "NotInCwl", "message": "O clã não está em uma CWL."}
 
-        if not cwl_war:
-            return {"status": "NotInCwl", "message": "O clã não está em uma CWL."}
-
-        season = cwl_war.season
-        state = str(cwl_war.state).capitalize()
+        season, state = cwl_war.season, str(cwl_war.state).capitalize()
         clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_war.clans]
         
         rounds_info = []
-        for a_round in cwl_war.rounds:
-            round_data = {"round_number": cwl_war.rounds.index(a_round) + 1, "wars": []}
+        for i, a_round in enumerate(cwl_war.rounds):
+            round_data = {"round_number": i + 1, "wars": []}
             for war_tag in a_round:
                 try:
                     war = await api_client.get_league_war(war_tag)
                     if war:
-                        details = {
-                            "war_tag": war_tag,
-                            "clan_name": war.clan.name, "clan_badge_url": war.clan.badge.url,
+                        round_data["wars"].append({
+                            "war_tag": war_tag, "clan_name": war.clan.name, "clan_badge_url": war.clan.badge.url,
                             "clan_stars": war.clan.stars, "clan_destruction": f"{war.clan.destruction:.2f}%",
                             "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url,
                             "opponent_stars": war.opponent.stars, "opponent_destruction": f"{war.opponent.destruction:.2f}%",
                             **format_war_time_details(war, datetime.datetime.now(TIMEZONE))
-                        }
-                        round_data["wars"].append(details)
-                    else:
-                        round_data["wars"].append({"war_tag": war_tag, "message": "Guerra não encontrada."})
+                        })
                 except Exception as e:
                     logger.warning(f"Não foi possível buscar a guerra da CWL {war_tag}: {e}")
-                    round_data["wars"].append({"war_tag": war_tag, "error": "Erro ao buscar guerra."})
             rounds_info.append(round_data)
 
-        return {
-            "status": "InCwl", "season": season, "state": state,
-            "clans_in_group": clans_in_group, "rounds": rounds_info
-        }
+        return {"status": "InCwl", "season": season, "state": state, "clans_in_group": clans_in_group, "rounds": rounds_info}
     except coc.NotFound:
         return {"status": "NotInCwl", "message": "O clã não está em uma CWL."}
     except Exception as e:
@@ -1077,247 +707,130 @@ async def fetch_cwl_info_for_web():
 async def fetch_highlights_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
-        if not clan:
-            return {"error": "Não foi possível carregar os dados do clã."}
+        if not clan: return {"error": "Não foi possível carregar os dados do clã."}
         
         top_donors = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]
         top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in top_donors]
 
-        best_attacks_data = []
-        our_attacks_list = []
-        war_end_date_str = ""
-
+        best_attacks_data, war_end_date_str = [], ""
         if hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
-            
             if latest_war_doc:
-                our_members_in_war = latest_war_doc.get('our_clan_members_in_war', [])
-                our_member_tags = {member['tag'] for member in our_members_in_war if 'tag' in member}
-
-                if not our_member_tags:
-                    logger.warning(f"Não foram encontradas tags de membros na guerra {latest_war_doc.get('_id')}. Verifique se os dados estão sendo salvos corretamente.")
-
-                all_attacks_from_db = latest_war_doc.get('all_attacks', [])
+                our_member_tags = {m['tag'] for m in latest_war_doc.get('our_clan_members_in_war', []) if 'tag' in m}
+                our_attacks = [a for a in latest_war_doc.get('all_attacks', []) if a.get("attacker_tag") in our_member_tags]
                 
-                for atk in all_attacks_from_db:
-                    if atk.get("attacker_tag") and atk.get("attacker_tag") in our_member_tags:
-                        our_attacks_list.append(atk)
+                sorted_attacks = sorted(our_attacks, key=lambda a: (a.get('stars', 0), float(str(a.get('destruction', '0')).replace('%',''))), reverse=True)
+                best_attacks_data = sorted_attacks[:3]
                 
-                war_data = latest_war_doc.get("war_data", {})
-                end_time_iso = war_data.get("end_time_iso")
-                if end_time_iso:
-                    war_end_date = datetime.datetime.fromisoformat(end_time_iso)
-                    war_end_date_str = war_end_date.astimezone(TIMEZONE).strftime('%d/%m')
+                if latest_war_doc.get("war_data", {}).get("end_time_iso"):
+                    end_time = datetime.datetime.fromisoformat(latest_war_doc["war_data"]["end_time_iso"])
+                    war_end_date_str = end_time.astimezone(TIMEZONE).strftime('%d/%m')
         
-        if our_attacks_list:
-            sorted_attacks = sorted(
-                our_attacks_list, 
-                key=lambda a: (a.get('stars', 0), float(str(a.get('destruction', '0')).replace('%',''))),
-                reverse=True
-            )
-            best_attacks_data = sorted_attacks[:3]
-
         active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
-        chart_data = {
-            "labels": [m.name for m in active_members],
-            "donations": [m.donations for m in active_members],
-            "received": [m.received for m in active_members]
-        }
+        chart_data = {"labels": [m.name for m in active_members], "donations": [m.donations for m in active_members], "received": [m.received for m in active_members]}
 
-        return {
-            "top_donors": top_donors_data,
-            "best_attacks": best_attacks_data,
-            "activity_chart_data": chart_data,
-            "clan_name": clan.name,
-            "war_date": war_end_date_str
-        }
-
+        return {"top_donors": top_donors_data, "best_attacks": best_attacks_data, "activity_chart_data": chart_data, "clan_name": clan.name, "war_date": war_end_date_str}
     except Exception as e:
         logger.error(f"Erro em fetch_highlights_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar destaques."}
 
 
-async def api_clan_info_handler(request):
-    data = await get_cached_web_data('clan_info', fetch_clan_info_for_web)
-    return web.json_response(data)
-
-async def api_members_handler(request):
-    data = await get_cached_web_data('members', fetch_clan_members_for_web)
-    return web.json_response(data)
-
-async def api_current_war_details_handler(request):
-    data = await get_cached_web_data('current_war_details', fetch_current_war_details_for_web)
-    return web.json_response(data)
-
-async def api_missed_attacks_history_handler(request):
-    data = await get_cached_web_data('missed_attacks_history', fetch_missed_attacks_history_for_web)
-    return web.json_response(data)
-
-async def api_war_log_handler(request):
-    data = await get_cached_web_data('war_log', fetch_war_log_for_web)
-    return web.json_response(data)
-
-async def api_cwl_info_handler(request):
-    data = await get_cached_web_data('cwl_info', fetch_cwl_info_for_web)
-    return web.json_response(data)
-
-async def api_highlights_handler(request):
-    data = await get_cached_web_data('highlights', fetch_highlights_for_web)
-    return web.json_response(data)
+async def api_clan_info_handler(request): return web.json_response(await get_cached_web_data('clan_info', fetch_clan_info_for_web))
+async def api_members_handler(request): return web.json_response(await get_cached_web_data('members', fetch_clan_members_for_web))
+async def api_current_war_details_handler(request): return web.json_response(await get_cached_web_data('current_war_details', fetch_current_war_details_for_web))
+async def api_missed_attacks_history_handler(request): return web.json_response(await get_cached_web_data('missed_attacks_history', fetch_missed_attacks_history_for_web))
+async def api_war_log_handler(request): return web.json_response(await get_cached_web_data('war_log', fetch_war_log_for_web))
+async def api_cwl_info_handler(request): return web.json_response(await get_cached_web_data('cwl_info', fetch_cwl_info_for_web))
+async def api_highlights_handler(request): return web.json_response(await get_cached_web_data('highlights', fetch_highlights_for_web))
 
 async def api_save_player_note_handler(request):
-    player_tag_encoded = request.match_info['player_tag']
     try:
-        player_tag = coc.utils.correct_tag(player_tag_encoded)
+        player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         data = await request.json()
-        note_text = data.get('text', '')
-        priority = data.get('priority', 'none')
-        await save_player_note_to_db(player_tag, note_text, priority)
+        await save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
         web_api_cache.pop('members', None)
         return web.Response(status=204)
     except Exception as e:
-        logger.error(f"Erro ao salvar nota via API para {player_tag_encoded}: {e}", exc_info=True)
+        logger.error(f"Erro ao salvar nota via API: {e}", exc_info=True)
         return web.json_response({"error": "Erro ao salvar a nota."}, status=500)
 
-
 async def api_historic_war_handler(request):
-    war_id = request.match_info['war_id']
-    if not hasattr(bot, 'db') or bot.db is None:
-        return web.json_response({"error": "Banco de dados não conectado."}, status=503)
+    if not hasattr(bot, 'db') or bot.db is None: return web.json_response({"error": "Banco de dados não conectado."}, status=503)
     try:
-        war_doc = await bot.db.war_history.find_one({"_id": war_id})
-        if war_doc:
-            return web.json_response(war_doc)
-        else:
-            return web.json_response({"error": "Guerra não encontrada no histórico."}, status=404)
+        war_doc = await bot.db.war_history.find_one({"_id": request.match_info['war_id']})
+        return web.json_response(war_doc) if war_doc else web.json_response({"error": "Guerra não encontrada."}, status=404)
     except Exception as e:
-        logger.error(f"Erro ao buscar guerra histórica {war_id}: {e}", exc_info=True)
+        logger.error(f"Erro ao buscar guerra histórica: {e}", exc_info=True)
         return web.json_response({"error": "Erro interno no servidor."}, status=500)
         
-# --- TAREFAS EM BACKGROUND ---
 @tasks.loop(seconds=60.0)
 async def check_war_end_task():
     global last_war_end_time
     await bot.wait_until_ready()
     if not api_client: return
-
     try:
         war = await api_client.get_current_war(CLAN_TAG)
         if war and war.state == 'warEnded' and hasattr(war, 'end_time'):
-            current_end_time = war.end_time.time
-            if last_war_end_time is None or current_end_time > last_war_end_time:
-                logger.info(f"Nova guerra finalizada detectada: {war.clan.name} vs {war.opponent.name}.")
-                last_war_end_time = current_end_time
-
+            if last_war_end_time is None or war.end_time.time > last_war_end_time:
+                logger.info(f"Nova guerra finalizada detectada.")
+                last_war_end_time = war.end_time.time
                 our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-                missed_attacks_members = []
-                for member in our_clan.members:
-                    attacks_left = war.attacks_per_member - len(member.attacks)
-                    if attacks_left > 0:
-                        missed_attacks_members.append(f"**{member.name}** (CV{member.town_hall}): {attacks_left} ataque(s) perdido(s)")
-
-                if missed_attacks_members:
-                    logger.info("Gerando relatório de ataques perdidos.")
-                    war_type = "Guerra Normal" if not war.is_cwl else "CWL"
-                    report_embed = discord.Embed(
-                        title=f"🚩 Relatório de Ataques Perdidos - {war_type}",
-                        description=f"Guerra entre **{war.clan.name}** vs **{war.opponent.name}** finalizada.",
-                        color=discord.Color.dark_gold()
-                    )
-                    report_embed.add_field(
-                        name="Placar Final",
-                        value=f"**{war.clan.name}:** {war.clan.stars}⭐ ({war.clan.destruction:.2f}%)\n"
-                              f"**{war.opponent.name}:** {war.opponent.stars}⭐ ({war.opponent.destruction:.2f}%)",
-                        inline=False
-                    )
-                    report_embed.add_field(
-                        name="Detalhes dos Ataques Perdidos",
-                        value="\n".join(missed_attacks_members),
-                        inline=False
-                    )
-                    if hasattr(war.opponent.badge, 'url'):
-                        report_embed.set_thumbnail(url=war.opponent.badge.url)
-
-                    role_mention = ""
-                    if ROLE_ID_MISSED_ATTACK:
-                        role_mention = f"<@&{ROLE_ID_MISSED_ATTACK}>"
-                    await send_log_embed(report_embed, content=f"{role_mention} Atenção aos ataques perdidos!")
-
+                missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
+                if missed:
+                    embed = discord.Embed(title=f"🚩 Relatório de Ataques Perdidos", color=discord.Color.dark_gold())
+                    embed.add_field(name="Placar Final", value=f"**{war.clan.name}:** {war.clan.stars}⭐\n**{war.opponent.name}:** {war.opponent.stars}⭐", inline=False)
+                    embed.add_field(name="Detalhes", value="\n".join(missed), inline=False)
+                    if hasattr(war.opponent.badge, 'url'): embed.set_thumbnail(url=war.opponent.badge.url)
+                    role_mention = f"<@&{ROLE_ID_MISSED_ATTACK}>" if ROLE_ID_MISSED_ATTACK else ""
+                    await send_log_embed(embed, content=f"{role_mention} Atenção!")
+                
                 war_details = await fetch_current_war_details_for_web()
-                if 'error' not in war_details:
-                    await save_war_to_history(war_details)
-                else:
-                    logger.error(f"Não foi possível obter detalhes da guerra finalizada para salvar: {war_details.get('error')}")
-
-    except (coc.PrivateWarLog, coc.NotFound):
-        pass
+                if 'error' not in war_details: await save_war_to_history(war_details)
+    except (coc.PrivateWarLog, coc.NotFound): pass
     except Exception as e:
-        logger.error(f"Erro na task de verificação de fim de guerra: {e}", exc_info=True)
+        logger.error(f"Erro na task de fim de guerra: {e}", exc_info=True)
 
 @tasks.loop(seconds=30)
 async def check_new_attack_task():
     global war_attack_cache
     await bot.wait_until_ready()
     if not api_client: return
-
     try:
         war = await api_client.get_current_war(CLAN_TAG)
         if not war or war.state != 'inWar':
-            if war_attack_cache["war_end_time"] is not None:
-                logger.info("Guerra não está ativa. Limpando cache de ataques.")
-                war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
+            war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
             return
 
-        current_war_end_time = war.end_time.time
-        if war_attack_cache["war_end_time"] != current_war_end_time:
-            logger.info(f"Nova guerra detectada (fim em {current_war_end_time}). Resetando cache de ataques.")
-            war_attack_cache["war_end_time"] = current_war_end_time
-            war_attack_cache["processed_attacks"] = {attack.order for attack in war.attacks}
+        if war_attack_cache["war_end_time"] != war.end_time.time:
+            war_attack_cache = {"war_end_time": war.end_time.time, "processed_attacks": {a.order for a in war.attacks}}
             return
-
-        current_attack_orders = {attack.order for attack in war.attacks}
-        new_attack_orders = current_attack_orders - war_attack_cache["processed_attacks"]
-
-        if new_attack_orders:
-            logger.info(f"Detectados {len(new_attack_orders)} novo(s) ataque(s).")
-            for attack in sorted(war.attacks, key=lambda a: a.order):
-                if attack.order in new_attack_orders:
-                    await on_war_attack(attack, war)
-                    war_attack_cache["processed_attacks"].add(attack.order)
-
-    except (coc.PrivateWarLog, coc.NotFound):
-        pass
+        
+        new_attacks = [a for a in war.attacks if a.order not in war_attack_cache["processed_attacks"]]
+        if new_attacks:
+            for attack in sorted(new_attacks, key=lambda a: a.order):
+                await on_war_attack(attack, war)
+                war_attack_cache["processed_attacks"].add(attack.order)
+    except (coc.PrivateWarLog, coc.NotFound): pass
     except Exception as e:
-        logger.error(f"Erro na task de verificação de novos ataques: {e}", exc_info=True)
+        logger.error(f"Erro na task de novos ataques: {e}", exc_info=True)
 
 @tasks.loop(seconds=10, count=1)
 async def send_online_status_task():
     await bot.wait_until_ready()
-    while not api_client:
-        await asyncio.sleep(5)
-        logger.info("Aguardando inicialização do api_client para enviar status online...")
-
+    if not api_client: await asyncio.sleep(5)
     try:
         clan = await api_client.get_clan(CLAN_TAG)
-        embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}",
-                              description=f"Monitoramento ativado para **{clan.name} ({clan.tag})**.",
-                              color=discord.Color.green())
-        embed.add_field(name="📊 Status do Clã",
-                        value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", inline=True)
+        embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}", description=f"Monitoramento ativado para **{clan.name} ({clan.tag})**.", color=discord.Color.green())
+        embed.add_field(name="📊 Status do Clã", value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", inline=True)
         embed.add_field(name="⚙️ Status do Bot", value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK", inline=True)
-        if clan.badge:
-            embed.set_thumbnail(url=clan.badge.url)
+        if clan.badge: embed.set_thumbnail(url=clan.badge.url)
         await send_log_embed(embed)
-        logger.info("Notificação de status online enviada com sucesso.")
     except Exception as e:
-        logger.error(f"Falha ao enviar notificação de status online: {e}", exc_info=True)
-        embed = discord.Embed(title="❌ ClashGenius com Erro na Inicialização",
-                              description="Não foi possível obter dados do clã para a notificação de status. Verifique as permissões e a API do CoC.",
-                              color=discord.Color.red())
-        await send_log_embed(embed)
+        logger.error(f"Falha ao enviar status online: {e}", exc_info=True)
 
 async def setup_web_server():
     app = web.Application()
+    # Adiciona todas as rotas da API
     app.router.add_get("/api/clan", api_clan_info_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
@@ -1333,93 +846,46 @@ async def setup_web_server():
     app.router.add_static('/static/', path=static_dir, name='static')
     app.router.add_get("/painel", lambda r: web.FileResponse(os.path.join(static_dir, "painel.html")))
     app.router.add_get("/", lambda r: web.Response(text=f"Bot running! v{BOT_VERSION}"))
-    # --- ROTAS DO PAINEL ADMIN ---
-    async def admin_login_page(request):
-        session = await get_session(request)
-        if session.get('admin'):
+    
+    # Rotas do Admin
+    async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html")) if not (await get_session(r)).get('admin') else web.HTTPFound('/admin/panel')
+    async def admin_panel_page(r): return web.FileResponse(os.path.join(static_dir, "admin_panel.html")) if (await get_session(r)).get('admin') else web.HTTPFound('/admin')
+    async def admin_login_handler(r):
+        data = await r.post()
+        if data.get('password') == ADMIN_PASSWORD:
+            (await get_session(r))['admin'] = True
             return web.HTTPFound('/admin/panel')
-        return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
-
-    async def admin_login_handler(request):
-        data = await request.post()
-        password = data.get('password')
-        if password == ADMIN_PASSWORD:
-            session = await get_session(request)
-            session['admin'] = True
-            logger.info("Login de administrador bem-sucedido.")
-            return web.HTTPFound('/admin/panel')
-        else:
-            logger.warning("Tentativa de login de administrador falhou.")
-            return web.HTTPFound('/admin?error=1')
-
-    async def admin_logout_handler(request):
-        session = await get_session(request)
-        if 'admin' in session:
-            del session['admin']
-        logger.info("Administrador deslogado.")
+        return web.HTTPFound('/admin?error=1')
+    async def admin_logout_handler(r):
+        (await get_session(r)).pop('admin', None)
         return web.HTTPFound('/admin')
-
-    async def admin_panel_page(request):
-        session = await get_session(request)
-        if not session.get('admin'):
-            return web.HTTPFound('/admin')
-        return web.FileResponse(os.path.join(static_dir, "admin_panel.html"))
-        
-    async def toggle_maintenance_handler(request):
-        session = await get_session(request)
-        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
-        
-        global MAINTENANCE_MODE
-        MAINTENANCE_MODE = not MAINTENANCE_MODE
-        status_str = "ATIVADO" if MAINTENANCE_MODE else "DESATIVADO"
-        logger.info(f"Modo manutenção alterado para: {status_str}")
-        
-        embed = discord.Embed(
-            title=f"🚨 Modo Manutenção {status_str} 🚨",
-            description=f"O painel e os alertas do bot foram {'pausados' if MAINTENANCE_MODE else 'reativados'}.",
-            color=discord.Color.orange() if MAINTENANCE_MODE else discord.Color.green()
-        )
-        await send_log_embed(embed)
-        
-        return web.json_response({"status": "success", "maintenance_mode": MAINTENANCE_MODE})
-
-    async def send_test_embed_handler(request):
-        session = await get_session(request)
-        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
-        
-        try:
-            embed = discord.Embed(
-                title="✅ Mensagem de Teste",
-                description="Se você está vendo esta mensagem, a comunicação entre o painel admin e o Discord está funcionando!",
-                color=discord.Color.blue()
-            )
+    
+    # Rotas da API do Admin
+    async def admin_api_handler(request, action):
+        if not (await get_session(request)).get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        if action == 'toggle_maintenance':
+            global MAINTENANCE_MODE
+            MAINTENANCE_MODE = not MAINTENANCE_MODE
+            status_str = "ATIVADO" if MAINTENANCE_MODE else "DESATIVADO"
+            embed = discord.Embed(title=f"🚨 Modo Manutenção {status_str} 🚨", color=discord.Color.orange() if MAINTENANCE_MODE else discord.Color.green())
             await send_log_embed(embed)
-            logger.info("Embed de teste enviado com sucesso a partir do painel admin.")
+            return web.json_response({"status": "success", "maintenance_mode": MAINTENANCE_MODE})
+        elif action == 'send_test_embed':
+            embed = discord.Embed(title="✅ Mensagem de Teste", description="Comunicação OK!", color=discord.Color.blue())
+            await send_log_embed(embed)
             return web.json_response({"status": "success"})
-        except Exception as e:
-            logger.error(f"Erro ao enviar embed de teste do painel admin: {e}", exc_info=True)
-            return web.json_response({"status": "error", "message": str(e)}, status=500)
-            
-    async def get_admin_status_handler(request):
-        session = await get_session(request)
-        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
-        
-        return web.json_response({
-            "status": "ok",
-            "maintenance_mode": MAINTENANCE_MODE,
-            "version": BOT_VERSION
-        })
-
+        elif action == 'get_status':
+            return web.json_response({"status": "ok", "maintenance_mode": MAINTENANCE_MODE, "version": BOT_VERSION})
+    
     app.router.add_get("/admin", admin_login_page)
     app.router.add_post("/admin/login", admin_login_handler)
     app.router.add_get("/admin/logout", admin_logout_handler)
     app.router.add_get("/admin/panel", admin_panel_page)
-    app.router.add_post("/admin/toggle_maintenance", toggle_maintenance_handler)
-    app.router.add_post("/admin/send_test_embed", send_test_embed_handler)
-    app.router.add_get("/api/admin/status", get_admin_status_handler)
+    app.router.add_post("/admin/toggle_maintenance", lambda r: admin_api_handler(r, 'toggle_maintenance'))
+    app.router.add_post("/admin/send_test_embed", lambda r: admin_api_handler(r, 'send_test_embed'))
+    app.router.add_get("/api/admin/status", lambda r: admin_api_handler(r, 'get_status'))
 
-    fernet_key = Fernet.generate_key() if not FERNET_KEY else FERNET_KEY.encode()
-    secret_key = base64.urlsafe_b64decode(fernet_key)
+    secret_key = base64.urlsafe_b64decode(Fernet.generate_key() if not FERNET_KEY else FERNET_KEY.encode())
     setup(app, EncryptedCookieStorage(secret_key))
     
     runner = web.AppRunner(app)
@@ -1429,62 +895,44 @@ async def setup_web_server():
     await site.start()
     logger.info(f"Servidor web iniciado em http://0.0.0.0:{port}")
 
-# --- EVENTOS DO BOT DISCORD ---
 @bot.event
 async def on_ready():
     logger.info(f'Bot {bot.user} está online e pronto!')
-    
     try:
         if MONGO_DB_URL:
-            logger.info("Conectando ao MongoDB...")
-            parsed_uri = parse_uri(MONGO_DB_URL)
-            db_name = parsed_uri.get('database', 'clash_data')
+            db_name = parse_uri(MONGO_DB_URL).get('database', 'clash_data')
             bot.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL)
             bot.db = bot.mongo_client[db_name]
-            logger.info(f"Conectado ao MongoDB, usando banco de dados: {db_name}")
+            logger.info(f"Conectado ao MongoDB: {db_name}")
         else:
             bot.db = None
-            logger.warning("URL do MongoDB não fornecida. Recursos de persistência desativados.")
+            logger.warning("URL do MongoDB não fornecida.")
     except Exception as e:
         logger.error(f"Falha ao conectar com o MongoDB: {e}", exc_info=True)
         bot.db = None
 
-    if not check_war_end_task.is_running():
-        check_war_end_task.start()
-    if not check_new_attack_task.is_running():
-        check_new_attack_task.start()
-    if not send_online_status_task.is_running():
-        send_online_status_task.start()
+    if not check_war_end_task.is_running(): check_war_end_task.start()
+    if not check_new_attack_task.is_running(): check_new_attack_task.start()
+    if not send_online_status_task.is_running(): send_online_status_task.start()
 
-# --- COMANDOS DO BOT ---
 @bot.command()
-async def ping(ctx):
-    await ctx.send(f'Pong! Latência: {round(bot.latency * 1000)}ms')
+async def ping(ctx): await ctx.send(f'Pong! Latência: {round(bot.latency * 1000)}ms')
 
-# --- FUNÇÃO PRINCIPAL ---
 async def main():
-    global api_client, events_client
+    global api_client
     try:
         api_client = coc.Client()
         await api_client.login(COC_EMAIL, COC_PASSWORD)
         logger.info("Login no coc.Client (api_client) bem-sucedido.")
-    except Exception as e:
-        logger.critical(f"Erro crítico ao fazer login no api_client: {e}", exc_info=True)
-        return
-
-    try:
         await setup_coc_events()
         await setup_web_server()
         await bot.start(DISCORD_TOKEN)
     except Exception as e:
-        logger.critical(f"Erro crítico na inicialização do bot: {e}", exc_info=True)
+        logger.critical(f"Erro crítico na inicialização: {e}", exc_info=True)
     finally:
-        if 'events_client' in globals() and events_client:
-            await events_client.close()
-        if api_client:
-            await api_client.close()
-        if hasattr(bot, 'mongo_client'):
-            bot.mongo_client.close()
+        if events_client: await events_client.close()
+        if api_client: await api_client.close()
+        if hasattr(bot, 'mongo_client'): bot.mongo_client.close()
         await bot.close()
 
 if __name__ == "__main__":
@@ -1492,4 +940,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
-
