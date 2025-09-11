@@ -39,9 +39,7 @@
             <nav class="main-nav">
                 <ul>
                     <li><a href="#clan-info-nav" class="nav-link" data-section="clan-info-nav">Clã</a></li>
-                    <!-- INÍCIO: Adiciona o link da nova aba -->
                     <li><a href="#highlights-nav" class="nav-link" data-section="highlights-nav">Destaques</a></li>
-                    <!-- FIM: Adiciona o link da nova aba -->
                     <li><a href="#war-details-nav" class="nav-link" data-section="war-details-nav">Guerra</a></li>
                     <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav">Ataques Pendentes</a></li>
                     <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav">CWL</a></li>
@@ -100,7 +98,6 @@
                 </div>
             </section>
 
-            <!-- INÍCIO: Estrutura da nova aba Destaques -->
             <section id="highlights-nav" class="card content-section">
                 <h2>Destaques do Clã: <span id="highlightsClanName">-</span></h2>
                 <div id="highlightsContent">
@@ -129,7 +126,6 @@
                     Não foi possível carregar os destaques.
                 </div>
             </section>
-            <!-- FIM: Estrutura da nova aba Destaques -->
 
             <section id="war-details-nav" class="card war-details-card content-section">
                 <div class="war-header">
@@ -140,12 +136,15 @@
                 <p class="war-timing-overall"><strong id="warDetailTimeKey">Tempo:</strong> <span id="warDetailTimeValue">-</span> (<span id="warDetailTimeRemaining" class="time-remaining">-</span>)</p>
                 <p><strong>Estado:</strong> <span id="warDetailState" class="war-state">-</span></p>
                 
-                <!-- NOVA SEÇÃO DE PREVISÃO -->
+                <!-- INÍCIO: ESTRUTURA DA PREVISÃO MODIFICADA -->
                 <div id="warPredictionSection" class="war-prediction-container" style="display: none;">
-                    <h3>Previsão</h3>
-                    <p id="warPredictionText">-</p>
+                    <h3>Previsão da IA</h3>
+                    <p id="warPredictionText" class="prediction-summary">-</p>
+                    <div id="warPredictionTags" class="prediction-tags-container">
+                        <!-- As tags serão inseridas aqui pelo JavaScript -->
+                    </div>
                 </div>
-                <!-- FIM DA NOVA SEÇÃO -->
+                <!-- FIM: ESTRUTURA DA PREVISÃO MODIFICADA -->
 
                 <nav class="war-tabs">
                     <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
