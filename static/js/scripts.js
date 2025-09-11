@@ -451,25 +451,54 @@ document.addEventListener('DOMContentLoaded', () => {
             if (warTabsNav) warTabsNav.style.display = 'none';
             container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none');
             
-            // Esconde a previsão se não houver guerra
             const predictionSection = container.querySelector('#warPredictionSection');
             if (predictionSection) predictionSection.style.display = 'none';
             return;
         }
         
-        // NOVO CÓDIGO PARA PREVISÃO
-        if (!isModal) { // Apenas mostra a previsão na aba principal, não no modal histórico
+        // +++ INÍCIO DA MODIFICAÇÃO: LÓGICA DE PREVISÃO +++
+        if (!isModal) {
             const predictionSection = container.querySelector('#warPredictionSection');
-            const predictionText = container.querySelector('#warPredictionText');
+            const predictionTextEl = container.querySelector('#warPredictionText');
+            const predictionTagsEl = container.querySelector('#warPredictionTags');
     
-            if (predictionSection && predictionText && data.prediction && data.prediction.message) {
-                setText(predictionText, data.prediction.message);
+            if (predictionSection && predictionTextEl && predictionTagsEl && data.prediction && data.prediction.summary_panel) {
+                // Preenche o texto do sumário
+                setText(predictionTextEl, data.prediction.summary_panel);
+
+                // Limpa as tags antigas e cria as novas
+                predictionTagsEl.innerHTML = ''; 
+
+                const probability = data.prediction.probability || 0;
+                const confidence = data.prediction.confidence || 0;
+
+                const probabilityTag = `
+                    <div class="prediction-tag">
+                        <span class="prediction-tag-icon">🎯</span>
+                        <div class="prediction-tag-text">
+                            <span class="tag-label">Probabilidade</span>
+                            <span class="tag-value">${probability.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                `;
+                const confidenceTag = `
+                    <div class="prediction-tag">
+                        <span class="prediction-tag-icon">🧠</span>
+                        <div class="prediction-tag-text">
+                            <span class="tag-label">Confiança</span>
+                            <span class="tag-value">${confidence.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                `;
+
+                predictionTagsEl.innerHTML = probabilityTag + confidenceTag;
                 predictionSection.style.display = 'block';
+
             } else if (predictionSection) {
                 predictionSection.style.display = 'none';
             }
         }
-        // FIM DO NOVO CÓDIGO
+        // +++ FIM DA MODIFICAÇÃO: LÓGICA DE PREVISÃO +++
 
         if (noWarMsg) noWarMsg.style.display = 'none';
         if (warHeader) warHeader.style.display = 'flex';
