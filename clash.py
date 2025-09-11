@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.61-CLAN-TAB-FIX - Corrigido erro na aba Clã.
+# Versão 20.1.62-FINAL-CLAN-FIX - Lógica da aba Clã restaurada para versão estável.
 
 import os
 import logging
@@ -52,7 +52,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.61-CLAN-TAB-FIX"
+BOT_VERSION = "20.1.62-FINAL-CLAN-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -468,35 +468,34 @@ async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
         logger.error(f"Erro fatal na previsão inteligente: {e}", exc_info=True)
         return {"message": "Análise indisponível devido a um erro interno."}
 
+# +++ INÍCIO DA CORREÇÃO: fetch_clan_info_for_web +++
 async def fetch_clan_info_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
             return {"error": "Não foi possível carregar os dados do clã."}
         
-        districts = []
-        if clan.capital_districts:
-             districts = [{"name": d.name, "level": d.district_hall_level} for d in clan.capital_districts]
-        
+        # Lógica segura da versão antiga para evitar quebras
         return {
-            "name": clan.name,
-            "tag": clan.tag,
-            "badge_url": clan.badge.url if clan.badge else None,
-            "level": clan.level,
-            "member_count": clan.member_count,
-            "location": clan.location.name if hasattr(clan, 'location') and clan.location else "N/A",
-            "type": clan.type.capitalize() if hasattr(clan, 'type') and clan.type else "N/A",
-            "war_wins": clan.war_wins,
-            "points": clan.points,
-            "capital_points": clan.capital_points,
-            "capital_league": clan.capital_league.name if hasattr(clan, 'capital_league') and clan.capital_league else "N/A",
-            "description": clan.description,
-            "capital_districts": districts,
-            "version": BOT_VERSION
+            "name": getattr(clan, 'name', 'N/A'),
+            "tag": getattr(clan, 'tag', 'N/A'),
+            "level": getattr(clan, 'level', 0),
+            "points": getattr(clan, 'points', 0),
+            "capital_points": getattr(clan, 'capital_points', 0),
+            "member_count": getattr(clan, 'member_count', 0),
+            "description": getattr(clan, 'description', ''),
+            "war_wins": getattr(clan, 'war_wins', 0),
+            "location": getattr(clan.location, 'name', 'N/A') if hasattr(clan, 'location') and clan.location else 'N/A',
+            "type": str(getattr(clan, 'type', 'N/A')).capitalize(),
+            "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
+            "version": BOT_VERSION,
+            "capital_districts": [{"name": d.name, "level": d.hall_level} for d in getattr(clan, 'capital_districts', [])],
+            "capital_league": getattr(clan.capital_league, 'name', 'N/A') if hasattr(clan, 'capital_league') and clan.capital_league else 'N/A'
         }
     except Exception as e:
         logger.error(f"Erro em fetch_clan_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar informações do clã."}
+# +++ FIM DA CORREÇÃO +++
 
 async def fetch_current_war_details_for_web():
     try:
@@ -944,4 +943,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
-
