@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.62-FINAL-CLAN-FIX - Lógica da aba Clã restaurada para versão estável.
+# Versão 20.1.62-FINAL-CLAN-FIX - Lógica da aba Clã restaurada para versão estável.#
 
 import os
 import logging
