@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.55-AI-TELEMETRY-FIX - Corrigido envio de telemetria da IA para o Discord.
+# Versão 20.1.56-AI-ROBUSTNESS-FIX - Aprimorada a robustez da IA no início da guerra.
 
 import os
 import logging
@@ -55,7 +55,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.55-AI-TELEMETRY-FIX"
+BOT_VERSION = "20.1.56-AI-ROBUSTNESS-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -113,7 +113,7 @@ class AdvancedWarMLPredictor:
 
     async def predict_war_outcome(self, war) -> Dict[str, Any]:
         try:
-            self.analysis_log = {} # Limpa o log para uma nova previsão
+            self.analysis_log = {} 
             if war.state != 'inWar':
                 return {"message": "A guerra não está em andamento para previsões."}
 
@@ -128,6 +128,9 @@ class AdvancedWarMLPredictor:
                 return definitive_scenario
             
             features = await self._extract_war_features(war, our_clan, opponent)
+            if features is None:
+                 return {"message": "Aguardando dados completos da guerra para iniciar a análise..."}
+
             feature_vector = np.array(list(features.__dict__.values())).reshape(1, -1)
             
             historical_data = await self._load_historical_training_data()
@@ -163,7 +166,7 @@ class AdvancedWarMLPredictor:
 
         except Exception as e:
             self.logger.error(f"Erro na predição ML avançada: {e}", exc_info=True)
-            return {"message": "Erro na análise preditiva."}
+            return {"message": f"Erro na análise preditiva: {type(e).__name__}"}
 
     def _check_definitive_scenarios(self, war, our_clan, opponent) -> Optional[Dict[str, str]]:
         our_rem = (war.team_size * war.attacks_per_member) - our_clan.attacks_used
@@ -179,34 +182,38 @@ class AdvancedWarMLPredictor:
             return {"message": f"Vitória garantida! O oponente não pode mais nos alcançar."}
         return None
 
-    async def _extract_war_features(self, war, our_clan, opponent) -> WarFeatures:
-        total_attacks = war.team_size * war.attacks_per_member
-        our_attacks = [a for a in war.attacks if a.attacker.clan.tag == our_clan.tag]
-        opp_attacks = [a for a in war.attacks if a.attacker.clan.tag == opponent.tag]
+    async def _extract_war_features(self, war, our_clan, opponent) -> Optional[WarFeatures]:
+        try:
+            total_attacks = war.team_size * war.attacks_per_member
+            our_attacks = [a for a in war.attacks if getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
+            opp_attacks = [a for a in war.attacks if getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opponent.tag]
 
-        our_efficiency = self._calculate_attack_efficiency(our_attacks)
-        opp_efficiency = self._calculate_attack_efficiency(opp_attacks)
-        
-        our_3star_rate = sum(1 for a in our_attacks if a.stars == 3) / max(len(our_attacks), 1)
-        opp_3star_rate = sum(1 for a in opp_attacks if a.stars == 3) / max(len(opp_attacks), 1)
-        
-        our_unused_strength, opp_unused_strength = self._calculate_unused_strength(war, our_clan, opponent)
-        
-        historical_data = await self._get_clan_historical_performance(our_clan.tag)
+            our_efficiency = self._calculate_attack_efficiency(our_attacks)
+            opp_efficiency = self._calculate_attack_efficiency(opp_attacks)
+            
+            our_3star_rate = sum(1 for a in our_attacks if a.stars == 3) / max(len(our_attacks), 1)
+            opp_3star_rate = sum(1 for a in opp_attacks if a.stars == 3) / max(len(opp_attacks), 1)
+            
+            our_unused_strength, opp_unused_strength = self._calculate_unused_strength(war, our_clan, opponent)
+            
+            historical_data = await self._get_clan_historical_performance(our_clan.tag)
 
-        features = WarFeatures(
-            star_difference=our_clan.stars - opponent.stars,
-            destruction_difference=our_clan.destruction - opponent.destruction,
-            attacks_remaining_difference=(total_attacks - our_clan.attacks_used) - (total_attacks - opponent.attacks_used),
-            town_hall_advantage=sum(m.town_hall for m in our_clan.members) - sum(m.town_hall for m in opponent.members),
-            efficiency_ratio=our_efficiency / max(opp_efficiency, 0.01),
-            three_star_rate_difference=our_3star_rate - opp_3star_rate,
-            war_progress_percentage=(len(our_attacks) + len(opp_attacks)) / max((total_attacks * 2), 1) * 100,
-            historical_win_rate=historical_data.get('win_rate', 50),
-            unused_member_strength_diff=our_unused_strength - opp_unused_strength
-        )
-        self.analysis_log['features'] = features.__dict__ # Log features
-        return features
+            features = WarFeatures(
+                star_difference=our_clan.stars - opponent.stars,
+                destruction_difference=our_clan.destruction - opponent.destruction,
+                attacks_remaining_difference=(total_attacks - our_clan.attacks_used) - (total_attacks - opponent.attacks_used),
+                town_hall_advantage=sum(m.town_hall for m in our_clan.members) - sum(m.town_hall for m in opponent.members),
+                efficiency_ratio=our_efficiency / max(opp_efficiency, 0.01),
+                three_star_rate_difference=our_3star_rate - opp_3star_rate,
+                war_progress_percentage=(len(our_attacks) + len(opp_attacks)) / max((total_attacks * 2), 1) * 100,
+                historical_win_rate=historical_data.get('win_rate', 50),
+                unused_member_strength_diff=our_unused_strength - opp_unused_strength
+            )
+            self.analysis_log['features'] = features.__dict__ # Log features
+            return features
+        except (AttributeError, TypeError) as e:
+            self.logger.warning(f"Aguardando dados da guerra se estabilizarem. Erro: {e}")
+            return None # Retorna None para indicar que os dados não estão prontos
 
     def _calculate_attack_efficiency(self, attacks: List) -> float:
         if not attacks: return 1.0
@@ -248,14 +255,14 @@ class AdvancedWarMLPredictor:
                  destruction_difference=float(wd['clan_destruction'][:-1]) - float(wd['opponent_destruction'][:-1]),
                  attacks_remaining_difference=0,
                  town_hall_advantage=sum(m['townhall'] for m in our_clan_members) - sum(m['townhall'] for m in opp_clan_members),
-                 efficiency_ratio=float(wd.get('clan_avg_stars', 1.0)) / max(float(wd.get('opponent_avg_stars', 1.0)), 0.01),
-                 three_star_rate_difference=wd['clan_star_distribution']['3'] / max(wd['clan_attacks_used'],1) - wd['opponent_star_distribution']['3'] / max(wd['opponent_attacks_used'],1),
+                 efficiency_ratio=float(wd.get('clan_avg_stars', '1.0')) / max(float(wd.get('opponent_avg_stars', '1.0')), 0.01),
+                 three_star_rate_difference=wd.get('clan_star_distribution', {}).get('3', 0) / max(wd.get('clan_attacks_used', 1), 1) - wd.get('opponent_star_distribution', {}).get('3', 0) / max(wd.get('opponent_attacks_used', 1), 1),
                  war_progress_percentage=100.0,
                  historical_win_rate=50.0,
                  unused_member_strength_diff=0.0
             )
             return {'features': features, 'result': result}
-        except (KeyError, TypeError) as e:
+        except (KeyError, TypeError, ValueError) as e:
             self.logger.debug(f"Skipping historical war due to missing data: {e}")
             return None
 
@@ -723,87 +730,6 @@ async def get_cached_web_data(key: str, func, *args):
     web_api_cache[key] = {"data": data, "timestamp": now}
     return data
 
-def format_war_time_details(war_obj, time_now_tz):
-    details = {"time_key": "N/A", "time_value": "N/A", "time_remaining": "N/A", "end_time_iso": None}
-    if not war_obj: return details
-
-    state = getattr(war_obj, 'state', 'unknown')
-    end_time = getattr(war_obj, 'end_time', None)
-    start_time = getattr(war_obj, 'start_time', None)
-    
-    if end_time:
-        details["end_time_iso"] = end_time.time.isoformat()
-
-    if state == 'preparation':
-        details["time_key"] = "Guerra começa em"
-        details["time_value"] = start_time.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if start_time else "N/A"
-        time_left = start_time.seconds_until if start_time else 0
-        details["time_remaining"] = f"{time_left // 3600}h {(time_left % 3600) // 60}m"
-    elif state == 'inWar':
-        details["time_key"] = "Guerra termina em"
-        details["time_value"] = end_time.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if end_time else "N/A"
-        time_left = end_time.seconds_until if end_time else 0
-        details["time_remaining"] = f"{time_left // 3600}h {(time_left % 3600) // 60}m"
-    elif state == 'warEnded':
-        details["time_key"] = "Guerra terminou em"
-        details["time_value"] = end_time.time.astimezone(TIMEZONE).strftime('%d/%m %H:%M') if end_time else "N/A"
-        details["time_remaining"] = "Finalizada"
-        
-    return details
-
-async def get_current_or_last_war(clan_tag):
-    if not api_client: return None
-    try:
-        return await api_client.get_current_war(clan_tag)
-    except (coc.PrivateWarLog, coc.NotFound):
-        return None
-    except Exception as e:
-        logger.error(f"Erro inesperado ao buscar guerra atual: {e}", exc_info=True)
-        return None
-
-
-async def fetch_clan_info_for_web():
-    try:
-        clan = await get_clan_data_with_cache(CLAN_TAG)
-        if not clan:
-            return {"error": "Não foi possível carregar os dados do clã."}
-        
-        return {
-            "name": clan.name, "tag": clan.tag, "level": clan.level, "points": clan.points,
-            "capital_points": getattr(clan, 'capital_points', 'N/A'),
-            "member_count": clan.member_count, "description": clan.description,
-            "war_wins": getattr(clan, 'war_wins', 'N/A'),
-            "location": getattr(clan.location, 'name', 'N/A') if clan.location else 'N/A',
-            "type": str(clan.type).capitalize(), "badge_url": clan.badge.url, "version": BOT_VERSION,
-            "capital_districts": [{"name": d.name, "level": d.hall_level} for d in getattr(clan, 'capital_districts', [])],
-            "capital_league": getattr(clan.capital_league, 'name', 'N/A') if hasattr(clan, 'capital_league') else 'N/A'
-        }
-    except Exception as e:
-        logger.error(f"Erro em fetch_clan_info_for_web: {e}", exc_info=True)
-        return {"error": "Erro interno ao processar dados do clã."}
-
-async def fetch_clan_members_for_web():
-    try:
-        clan = await get_clan_data_with_cache(CLAN_TAG)
-        if not clan: return {"error": "Não foi possível carregar os membros do clã."}
-        
-        notes = await load_player_notes_from_db()
-        members_data = []
-        
-        for m in sorted(clan.members, key=lambda x: x.trophies, reverse=True):
-            if not m: continue
-            note = notes.get(m.tag, {})
-            members_data.append({
-                "name": m.name, "tag": m.tag, "town_hall": m.town_hall,
-                "league": getattr(m.league, 'name', 'Sem Liga'), "trophies": m.trophies,
-                "role": str(m.role).capitalize(), "donations": m.donations, "received": m.received,
-                "note": note.get("text", ""), "note_priority": note.get("priority", "none")
-            })
-        return {"members": members_data, "clan_name": clan.name}
-    except Exception as e:
-        logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
-        return {"error": "Erro interno ao processar lista de membros."}
-
 async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
     try:
         db_connection = getattr(bot, 'db', None)
@@ -828,10 +754,9 @@ async def fetch_current_war_details_for_web():
         if not war.clan or not war.opponent:
             return {"error": "Dados da guerra incompletos (clã ou oponente faltando)."}
 
-        our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
-        
         prediction_data = await calculate_war_prediction(war)
 
+        our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == CLAN_TAG else (war.opponent, war.clan)
         our_clan_name = getattr(our_clan, 'name', 'Nosso Clã')
         opp_clan_name = getattr(opp_clan, 'name', 'Oponente')
 
