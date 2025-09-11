@@ -8,7 +8,6 @@ aiohttp-session
 cryptography
 numpy
 scikit-learn
-scipy
+pandas
 xgboost
 lightgbm
-pandas
