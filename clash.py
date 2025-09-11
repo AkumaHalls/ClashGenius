@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.56-AI-ROBUSTNESS-FIX - Aprimorada a robustez da IA no início da guerra.
+# Versão 20.1.57-PANEL-FIX-AI-UPGRADE - Corrigido o painel web e aprimorada a IA com conselhos táticos.
 
 import os
 import logging
@@ -19,7 +19,7 @@ import motor.motor_asyncio
 from pymongo.uri_parser import parse_uri
 from pymongo import DESCENDING
 from aiohttp import web
-from aiohttp_session import setup, session_middleware
+from aiohttp_session import setup, get_session, session_middleware
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 import base64
 from cryptography.fernet import Fernet
@@ -28,6 +28,7 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+from formatting import format_war_time_details
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -55,7 +56,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.56-AI-ROBUSTNESS-FIX"
+BOT_VERSION = "20.1.57-PANEL-FIX-AI-UPGRADE"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -160,7 +161,8 @@ class AdvancedWarMLPredictor:
 
             confidence = 50 + (features.war_progress_percentage / 2)
             
-            final_result = self._generate_final_message(win_probability, confidence, features, our_clan, opponent)
+            total_attacks_per_team = war.team_size * war.attacks_per_member
+            final_result = self._generate_final_message(win_probability, confidence, features, our_clan, opponent, total_attacks_per_team, war.state)
             final_result['analysis_log'] = self.analysis_log
             return final_result
 
@@ -198,11 +200,14 @@ class AdvancedWarMLPredictor:
             
             historical_data = await self._get_clan_historical_performance(our_clan.tag)
 
+            our_th_sum = sum(m.town_hall for m in our_clan.members if m)
+            opp_th_sum = sum(m.town_hall for m in opponent.members if m)
+
             features = WarFeatures(
                 star_difference=our_clan.stars - opponent.stars,
                 destruction_difference=our_clan.destruction - opponent.destruction,
                 attacks_remaining_difference=(total_attacks - our_clan.attacks_used) - (total_attacks - opponent.attacks_used),
-                town_hall_advantage=sum(m.town_hall for m in our_clan.members) - sum(m.town_hall for m in opponent.members),
+                town_hall_advantage=our_th_sum - opp_th_sum,
                 efficiency_ratio=our_efficiency / max(opp_efficiency, 0.01),
                 three_star_rate_difference=our_3star_rate - opp_3star_rate,
                 war_progress_percentage=(len(our_attacks) + len(opp_attacks)) / max((total_attacks * 2), 1) * 100,
@@ -220,8 +225,8 @@ class AdvancedWarMLPredictor:
         return sum(a.stars + a.destruction / 100 for a in attacks) / len(attacks)
 
     def _calculate_unused_strength(self, war, our_clan, opponent):
-        our_attackers_left = [m for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
-        opp_attackers_left = [m for m in opponent.members if len(m.attacks) < war.attacks_per_member]
+        our_attackers_left = [m for m in our_clan.members if m and len(m.attacks) < war.attacks_per_member]
+        opp_attackers_left = [m for m in opponent.members if m and len(m.attacks) < war.attacks_per_member]
         our_strength = sum(m.town_hall for m in our_attackers_left)
         opp_strength = sum(m.town_hall for m in opp_attackers_left)
         return our_strength, opp_strength
@@ -250,11 +255,14 @@ class AdvancedWarMLPredictor:
 
             result = 1 if wd['clan_stars'] > wd['opponent_stars'] else 0
 
+            our_th_sum = sum(m.get('townhall', 0) for m in our_clan_members)
+            opp_th_sum = sum(m.get('townhall', 0) for m in opp_clan_members)
+
             features = WarFeatures(
                  star_difference=wd['clan_stars'] - wd['opponent_stars'],
                  destruction_difference=float(wd['clan_destruction'][:-1]) - float(wd['opponent_destruction'][:-1]),
                  attacks_remaining_difference=0,
-                 town_hall_advantage=sum(m['townhall'] for m in our_clan_members) - sum(m['townhall'] for m in opp_clan_members),
+                 town_hall_advantage=our_th_sum - opp_th_sum,
                  efficiency_ratio=float(wd.get('clan_avg_stars', '1.0')) / max(float(wd.get('opponent_avg_stars', '1.0')), 0.01),
                  three_star_rate_difference=wd.get('clan_star_distribution', {}).get('3', 0) / max(wd.get('clan_attacks_used', 1), 1) - wd.get('opponent_star_distribution', {}).get('3', 0) / max(wd.get('opponent_attacks_used', 1), 1),
                  war_progress_percentage=100.0,
@@ -289,7 +297,7 @@ class AdvancedWarMLPredictor:
         score += features.unused_member_strength_diff * 0.05
         return np.clip(score, 1, 99)
 
-    def _generate_final_message(self, prob, confidence, features, our_clan, opponent):
+    def _generate_final_message(self, prob, confidence, features, our_clan, opponent, total_attacks_per_team, war_state):
         # Título
         if prob >= 85: title = "🎯 Vitória Altamente Provável"
         elif prob >= 65: title = "✅ Vantagem Clara"
@@ -313,8 +321,35 @@ class AdvancedWarMLPredictor:
                 details = f"Para liderar, precisamos de 1★ ou superar a destruição em {destruction_needed:.2f}%."
             else:
                 details = "A vantagem de destruição é nossa, mas a guerra segue indefinida."
+        
+        # Conselho Tático
+        tactical_advice = ""
+        our_rem_attacks = total_attacks_per_team - our_clan.attacks_used
+        opp_rem_attacks = total_attacks_per_team - opponent.attacks_used
 
-        final_message = f"{title} ({prob:.1f}% | Confiança: {confidence:.0f}%). {details}".strip()
+        if str(war_state) == 'inWar' and prob < 65 and our_rem_attacks > 0:
+            if star_diff < 0:
+                stars_to_catch_up = abs(int(star_diff)) + 1
+                if our_rem_attacks * 3 < stars_to_catch_up:
+                    tactical_advice = "Foco em maximizar a destruição, a virada por estrelas é improvável."
+                else:
+                    three_stars_needed = math.ceil(stars_to_catch_up / 3)
+                    if three_stars_needed > 0 and three_stars_needed <= our_rem_attacks:
+                        plural_s = "s" if three_stars_needed > 1 else ""
+                        tactical_advice = f"A virada é possível! Precisamos de pelo menos {three_stars_needed} ataque{plural_s} de 3 estrelas."
+                    else:
+                        tactical_advice = "A situação é difícil. Todos os ataques restantes precisam ser perfeitos."
+            elif star_diff == 0 and features.destruction_difference < 0:
+                tactical_advice = "Estamos empatados. O foco agora é conseguir 1 estrela a mais ou aumentar a porcentagem de destruição."
+            else:
+                if opp_rem_attacks > our_rem_attacks and prob < 55:
+                    tactical_advice = "Atenção! O oponente tem mais ataques. Defesas são cruciais agora."
+                else:
+                    tactical_advice = "Manter a consistência nos ataques garantirá a vitória. Evite ataques de 0 ou 1 estrela."
+        elif prob >= 85:
+            tactical_advice = "Administrar a vantagem é a chave. Ataques seguros para garantir estrelas e destruição."
+
+        final_message = f"{title} ({prob:.1f}% | Confiança: {confidence:.0f}%). {details} {tactical_advice}".strip()
         self.analysis_log['final_prediction'] = final_message
         return {"message": final_message}
 
@@ -464,6 +499,15 @@ async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
     except Exception as e:
         logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
         return None
+        
+async def get_current_war_gracefully(clan_tag: str) -> Optional[coc.ClanWar]:
+    if not api_client:
+        return None
+    try:
+        return await api_client.get_current_war(clan_tag)
+    except (coc.NotFound, coc.PrivateWarLog):
+        return None
+
 
 # --- DEFINIÇÃO DOS EVENTOS DO COC ---
 async def on_clan_member_join(member, clan):
@@ -745,10 +789,35 @@ async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
         logger.error(f"Erro fatal na previsão inteligente: {e}", exc_info=True)
         return {"message": "Análise indisponível devido a um erro interno."}
 
+async def fetch_clan_info_for_web():
+    try:
+        clan = await get_clan_data_with_cache(CLAN_TAG)
+        if not clan:
+            return {"error": "Não foi possível carregar os dados do clã."}
+        
+        return {
+            "name": clan.name,
+            "tag": clan.tag,
+            "badge_url": clan.badge.url if clan.badge else None,
+            "level": clan.level,
+            "member_count": clan.member_count,
+            "location": clan.location.name if clan.location else "N/A",
+            "type": clan.type.capitalize() if clan.type else "N/A",
+            "war_wins": clan.war_wins,
+            "points": clan.points,
+            "capital_points": clan.capital_points,
+            "capital_league": clan.capital_league.name if clan.capital_league else "N/A",
+            "description": clan.description,
+            "capital_districts": [{"name": d.name, "level": d.level} for d in clan.capital_districts],
+            "version": BOT_VERSION
+        }
+    except Exception as e:
+        logger.error(f"Erro em fetch_clan_info_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar informações do clã."}
 
 async def fetch_current_war_details_for_web():
     try:
-        war = await get_current_or_last_war(CLAN_TAG)
+        war = await get_current_war_gracefully(CLAN_TAG)
         if not war or war.state == "notInWar":
             return {"error": "Nenhuma guerra para detalhar."}
         if not war.clan or not war.opponent:
@@ -829,6 +898,45 @@ async def fetch_current_war_details_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar dados da guerra."}
+
+async def fetch_clan_members_for_web():
+    try:
+        clan = await get_clan_data_with_cache(CLAN_TAG)
+        if not clan:
+            return {"error": "Não foi possível carregar os dados do clã."}
+
+        player_notes = await load_player_notes_from_db()
+
+        members_list = []
+        for member in clan.members:
+            note_data = player_notes.get(member.tag, {})
+            members_list.append({
+                "tag": member.tag,
+                "name": member.name,
+                "town_hall": member.town_hall,
+                "league": member.league.name if member.league else "Sem Liga",
+                "trophies": member.trophies,
+                "role": member.role.name.capitalize() if member.role else "Membro",
+                "donations": member.donations,
+                "received": member.received,
+                "note": note_data.get("text", ""),
+                "note_priority": note_data.get("priority", "none")
+            })
+        
+        role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
+        sorted_members = sorted(
+            members_list,
+            key=lambda m: (role_order.get(m["role"], 4), -m["trophies"])
+        )
+
+        return {
+            "clan_name": clan.name,
+            "members": sorted_members,
+            "version": BOT_VERSION
+        }
+    except Exception as e:
+        logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
+        return {"error": "Erro interno ao processar a lista de membros."}
 
 
 async def fetch_missed_attacks_history_for_web():
@@ -1376,4 +1484,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
-
+```
