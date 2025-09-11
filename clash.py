@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.58-FINAL-FIX - Corrigidos erros internos do painel e reativado o envio de logs da IA.
+# Versão 20.1.59-STABILITY-FIX - Corrigidos múltiplos erros internos e de API.
 
 import os
 import logging
@@ -56,7 +56,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.58-FINAL-FIX"
+BOT_VERSION = "20.1.59-STABILITY-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -232,7 +232,7 @@ class AdvancedWarMLPredictor:
         return our_strength, opp_strength
 
     async def _load_historical_training_data(self) -> List[Dict]:
-        if not self.db: return []
+        if self.db is None: return []
         try:
             cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(50)
             processed_wars = []
@@ -275,7 +275,7 @@ class AdvancedWarMLPredictor:
             return None
 
     async def _get_clan_historical_performance(self, clan_tag: str) -> Dict:
-        if not self.db: return {'win_rate': 50.0}
+        if self.db is None: return {'win_rate': 50.0}
         try:
             total_wars = await self.db.war_history.count_documents({"war_data.clan_tag": clan_tag})
             if total_wars < 5: return {'win_rate': 50.0}
@@ -781,6 +781,7 @@ async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
         predictor = AdvancedWarMLPredictor(db_connection)
         result = await predictor.predict_war_outcome(war)
 
+        # A verificação do canal e o envio agora são feitos dentro desta função
         if 'analysis_log' in result and AI_LOG_CHANNEL_ID:
             await send_ai_log_embed(war, result['analysis_log'])
 
@@ -798,7 +799,7 @@ async def fetch_clan_info_for_web():
         
         districts = []
         if clan.capital_districts:
-             districts = [{"name": d.name, "level": d.level} for d in clan.capital_districts]
+             districts = [{"name": d.name, "level": d.district_hall_level} for d in clan.capital_districts]
         
         return {
             "name": clan.name,
