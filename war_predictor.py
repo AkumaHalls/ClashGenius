@@ -38,4 +38,4 @@ def format_war_time_details(war: Any, now: datetime.datetime) -> Dict[str, str]:
         "time_remaining": time_remaining,
         "end_time_iso": war.end_time.time.isoformat() if hasattr(war, 'end_time') and hasattr(war.end_time, 'time') else None,
     }
-```
+
