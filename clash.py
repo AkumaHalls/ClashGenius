@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.62-FINAL-CLAN-FIX - Lógica da aba Clã restaurada para versão estável.#
+# Versão 20.1.65-AI-V3-INTEGRATION - Integração com o novo sistema de IA v3.0
 
 import os
 import logging
 import asyncio
 import datetime
-import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional, Any
 
 import discord
 from discord.ext import commands, tasks
@@ -17,14 +16,14 @@ import motor.motor_asyncio
 from pymongo.uri_parser import parse_uri
 from pymongo import DESCENDING
 from aiohttp import web
-from aiohttp_session import setup, get_session, session_middleware
+from aiohttp_session import setup, get_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 import base64
 from cryptography.fernet import Fernet
 
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
-from war_predictor import AdvancedWarMLPredictor 
+from war_predictor import WarPredictionSystemV3
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -52,7 +51,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.62-FINAL-CLAN-FIX"
+BOT_VERSION = "20.1.65-AI-V3-INTEGRATION"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -61,11 +60,11 @@ intents.message_content = True
 intents.members = True
 intents.guilds = True
 
-# --- Inicialização dos Clientes ---
+# --- Inicialização dos Clientes e Sistemas ---
 bot = commands.Bot(command_prefix="!", intents=intents)
 api_client: Optional[coc.Client] = None
 events_client: Optional[coc.EventsClient] = None
-
+war_prediction_system: Optional[WarPredictionSystemV3] = None
 
 # --- Caches ---
 player_short_term_cache: Dict[str, Any] = {}
@@ -77,11 +76,11 @@ last_war_end_time: Optional[datetime.datetime] = None
 war_attack_cache: Dict[str, Any] = {"war_end_time": None, "processed_attacks": set()}
 
 
-# --- FUNÇÕES AUXILIARES E DE BUSCA DE DADOS ---
-async def send_ai_log_embed(war, analysis_log: Dict):
+# --- FUNÇÕES AUXILIARES E DE LOG ---
+async def send_ai_log_embed(war, prediction_result: Dict):
     """Envia o log de análise detalhado da IA para um canal específico no Discord."""
     if not AI_LOG_CHANNEL_ID:
-        logger.info(f"AI Analysis Log (AI_LOG_CHANNEL_ID not set): {analysis_log}")
+        logger.info(f"AI Analysis Log (AI_LOG_CHANNEL_ID not set): {prediction_result.get('analysis_log')}")
         return
     
     try:
@@ -90,33 +89,37 @@ async def send_ai_log_embed(war, analysis_log: Dict):
         opponent = war.opponent if war.clan.tag == CLAN_TAG else war.clan
 
         embed = discord.Embed(
-            title="🧠 Relatório de Análise da IA de Guerra",
-            description=f"Análise da guerra: **{our_clan.name}** vs **{opponent.name}**",
+            title="🧠 Relatório de Análise da IA de Guerra (v3.0)",
+            description=f"**{our_clan.name}** vs **{opponent.name}**\n\n{prediction_result.get('summary_discord', 'N/A')}",
             color=discord.Color.blue()
         )
         
-        embed.add_field(name="Predição Final", value=analysis_log.get('final_prediction', 'N/A'), inline=False)
-        embed.add_field(name="Método de Análise", value=analysis_log.get('method', 'Desconhecido'), inline=False)
+        embed.add_field(name="Probabilidade de Vitória", value=f"**{prediction_result.get('probability', 0):.1f}%**", inline=True)
+        embed.add_field(name="Confiança da IA", value=f"{prediction_result.get('confidence', 0):.1f}%", inline=True)
+        embed.add_field(name="Método de Análise", value=prediction_result.get('analysis_log', {}).get('method', 'Desconhecido'), inline=True)
         
-        features = analysis_log.get('features')
+        if prediction_result.get('tactical_insights'):
+            embed.add_field(name="💡 Insights Táticos", value="• " + "\n• ".join(prediction_result['tactical_insights']), inline=False)
+            
+        if prediction_result.get('risk_factors'):
+            embed.add_field(name="⚠️ Fatores de Risco", value="• " + "\n• ".join(prediction_result['risk_factors']), inline=False)
+
+        features = prediction_result.get('analysis_log', {}).get('features')
         if features:
             features_text = (
                 f"```"
-                f"Star Diff: {features['star_difference']:>+7.2f}\n"
-                f"Destr Diff: {features['destruction_difference']:>+7.2f}%\n"
-                f"Atk Rem Diff: {features['attacks_remaining_difference']:>+4}\n"
-                f"TH Adv: {features['town_hall_advantage']:>+7.2f}\n"
-                f"Effic Ratio: {features['efficiency_ratio']:>+7.2f}x\n"
-                f"3-Star Diff: {features['three_star_rate_difference']:>+7.2f}\n"
-                f"Hist Win Rate: {features['historical_win_rate']:>+6.1f}%\n"
-                f"Unused Str: {features['unused_member_strength_diff']:>+7.2f}\n"
-                f"War Progress: {features['war_progress_percentage']:>+6.1f}%\n"
+                f"Star Diff: {features.get('star_difference', 0):>+.2f}\n"
+                f"Destr Diff: {features.get('destruction_difference', 0):>+.2f}%\n"
+                f"Atk Rem Diff: {features.get('attacks_remaining_difference', 0):>+d}\n"
+                f"Momentum: {features.get('momentum_indicator', 0):>.2f}\n"
+                f"Synergy: {features.get('clan_synergy_score', 0):>.2f}\n"
+                f"Pressure: {features.get('pressure_index', 0):>.2f}\n"
                 f"```"
             )
-            embed.add_field(name="Métricas Analisadas (Features)", value=features_text, inline=False)
+            embed.add_field(name="Métricas Chave Analisadas", value=features_text, inline=False)
         
         await send_log_embed(embed, target_channel_id=AI_LOG_CHANNEL_ID)
-        logger.info(f"Log de análise da IA enviado para o canal {AI_LOG_CHANNEL_ID}.")
+        logger.info(f"Log de análise da IA v3.0 enviado para o canal {AI_LOG_CHANNEL_ID}.")
 
     except Exception as e:
         logger.error(f"Erro ao enviar log da IA para o Discord: {e}", exc_info=True)
@@ -454,28 +457,26 @@ async def get_cached_web_data(key: str, func, *args):
     return data
 
 async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
+    if not war_prediction_system:
+        return {"summary_panel": "Sistema de IA não inicializado.", "probability": 50.0, "confidence": 0.0}
     try:
-        db_connection = getattr(bot, 'db', None)
-        predictor = AdvancedWarMLPredictor(db_connection)
-        result = await predictor.predict_war_outcome(war, CLAN_TAG)
+        result = await war_prediction_system.predict_war_outcome(war, CLAN_TAG)
 
         if 'analysis_log' in result and AI_LOG_CHANNEL_ID:
-            await send_ai_log_embed(war, result['analysis_log'])
-
+            await send_ai_log_embed(war, result)
+        
         return result
             
     except Exception as e:
         logger.error(f"Erro fatal na previsão inteligente: {e}", exc_info=True)
-        return {"message": "Análise indisponível devido a um erro interno."}
+        return {"summary_panel": "Análise indisponível devido a um erro interno."}
 
-# +++ INÍCIO DA CORREÇÃO: fetch_clan_info_for_web +++
 async def fetch_clan_info_for_web():
     try:
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
             return {"error": "Não foi possível carregar os dados do clã."}
         
-        # Lógica segura da versão antiga para evitar quebras
         return {
             "name": getattr(clan, 'name', 'N/A'),
             "tag": getattr(clan, 'tag', 'N/A'),
@@ -495,7 +496,6 @@ async def fetch_clan_info_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_clan_info_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar informações do clã."}
-# +++ FIM DA CORREÇÃO +++
 
 async def fetch_current_war_details_for_web():
     try:
@@ -551,7 +551,7 @@ async def fetch_current_war_details_for_web():
                 "clan_badge_url": our_clan.badge.url if our_clan.badge else None, "clan_attacks_used": our_clan.attacks_used,
                 "opponent_name": opp_clan.name, "opponent_stars": opp_clan.stars, "opponent_destruction": f"{opp_clan.destruction:.2f}%",
                 "opponent_badge_url": opp_clan.badge.url if opp_clan.badge else None, "opponent_attacks_used": opp_clan.attacks_used,
-                **format_war_time_details(war, datetime.datetime.now(TIMEZONE)),
+                **format_war_time_details(war, datetime.datetime.now(pytz.utc)),
                 "attacks_per_member": war.attacks_per_member, "team_size": war.team_size,
                 "clan_star_distribution": get_star_dist(our_attacks), "opponent_star_distribution": get_star_dist(opp_attacks),
                 "clan_avg_stars": f"{our_clan.stars / len(our_attacks):.2f}" if our_attacks else "0.00",
@@ -593,13 +593,6 @@ async def fetch_clan_members_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_clan_members_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar a lista de membros."}
-
-# [O restante do código de clash.py permanece o mesmo, sem alterações]
-# ... (Funções fetch_missed_attacks_history_for_web, fetch_war_log_for_web, etc.)
-# ... (Funções de API, Tarefas em Background, Configuração do Servidor Web, Eventos do Bot)
-# ... (Função main)
-
-# [Abaixo está o final do arquivo clash.py, para garantir que esteja completo]
 
 async def fetch_missed_attacks_history_for_web():
     if not hasattr(bot, 'db') or bot.db is None:
@@ -694,7 +687,7 @@ async def fetch_cwl_info_for_web():
                             "clan_stars": war.clan.stars, "clan_destruction": f"{war.clan.destruction:.2f}%",
                             "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url,
                             "opponent_stars": war.opponent.stars, "opponent_destruction": f"{war.opponent.destruction:.2f}%",
-                            **format_war_time_details(war, datetime.datetime.now(TIMEZONE))
+                            **format_war_time_details(war, datetime.datetime.now(pytz.utc))
                         })
                 except Exception as e:
                     logger.warning(f"Não foi possível buscar a guerra da CWL {war_tag}: {e}")
@@ -900,6 +893,7 @@ async def setup_web_server():
 
 @bot.event
 async def on_ready():
+    global war_prediction_system
     logger.info(f'Bot {bot.user} está online e pronto!')
     try:
         if MONGO_DB_URL:
@@ -907,12 +901,21 @@ async def on_ready():
             bot.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL)
             bot.db = bot.mongo_client[db_name]
             logger.info(f"Conectado ao MongoDB: {db_name}")
+            # Inicializa o sistema de IA com a conexão do DB
+            war_prediction_system = WarPredictionSystemV3(db_connection=bot.db)
+            await war_prediction_system.initialize_system()
         else:
             bot.db = None
             logger.warning("URL do MongoDB não fornecida.")
+            # Inicializa o sistema de IA sem conexão com o DB
+            war_prediction_system = WarPredictionSystemV3()
+            await war_prediction_system.initialize_system()
     except Exception as e:
         logger.error(f"Falha ao conectar com o MongoDB: {e}", exc_info=True)
         bot.db = None
+        war_prediction_system = WarPredictionSystemV3()
+        await war_prediction_system.initialize_system()
+
 
     if not check_war_end_task.is_running(): check_war_end_task.start()
     if not check_new_attack_task.is_running(): check_new_attack_task.start()
@@ -943,3 +946,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
+
