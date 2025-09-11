@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.60-MODULAR-AI - IA refatorada para módulo separado 'war_predictor.py'.
+# Versão 20.1.61-CLAN-TAB-FIX - Corrigido erro na aba Clã.
 
 import os
 import logging
@@ -24,7 +24,7 @@ from cryptography.fernet import Fernet
 
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
-from war_predictor import AdvancedWarMLPredictor # <- IMPORTA A IA DO NOVO ARQUIVO
+from war_predictor import AdvancedWarMLPredictor 
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -52,7 +52,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.60-MODULAR-AI"
+BOT_VERSION = "20.1.61-CLAN-TAB-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -479,15 +479,19 @@ async def fetch_clan_info_for_web():
              districts = [{"name": d.name, "level": d.district_hall_level} for d in clan.capital_districts]
         
         return {
-            "name": clan.name, "tag": clan.tag,
+            "name": clan.name,
+            "tag": clan.tag,
             "badge_url": clan.badge.url if clan.badge else None,
-            "level": clan.level, "member_count": clan.member_count,
-            "location": clan.location.name if clan.location else "N/A",
-            "type": clan.type.capitalize() if clan.type else "N/A",
-            "war_wins": clan.war_wins, "points": clan.points,
+            "level": clan.level,
+            "member_count": clan.member_count,
+            "location": clan.location.name if hasattr(clan, 'location') and clan.location else "N/A",
+            "type": clan.type.capitalize() if hasattr(clan, 'type') and clan.type else "N/A",
+            "war_wins": clan.war_wins,
+            "points": clan.points,
             "capital_points": clan.capital_points,
-            "capital_league": clan.capital_league.name if clan.capital_league else "N/A",
-            "description": clan.description, "capital_districts": districts,
+            "capital_league": clan.capital_league.name if hasattr(clan, 'capital_league') and clan.capital_league else "N/A",
+            "description": clan.description,
+            "capital_districts": districts,
             "version": BOT_VERSION
         }
     except Exception as e:
@@ -940,3 +944,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
+
