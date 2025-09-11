@@ -1,4 +1,4 @@
-# ⚡️💥 ClashGenius v20.1.48 — O Gênio das Guerras está estável! 💥⚡️
+# ⚡️💥ClashGenius v20.1.65 — O Gênio das Guerras está estável!💥⚡️
 
 ![Versão](https://img.shields.io/badge/versão-20.1.48--WAR--PREDICTION-blueviolet?style=flat-square)
 ![Status](https://img.shields.io/badge/Projeto-Estável-brightgreen?style=flat-square)
