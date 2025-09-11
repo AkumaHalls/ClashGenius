@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.60-MODULAR-AI - Módulo de Inteligência Artificial para Previsão de Guerras.
+# Versão 20.1.63-UI-IMPROVEMENTS - Melhorias na interface do painel.
 
 import logging
 import math
@@ -40,9 +40,8 @@ class AdvancedWarMLPredictor:
             self.logger.addHandler(logging.StreamHandler())
             self.logger.setLevel(logging.INFO)
             
-        # Modelo de Machine Learning: Gradient Boosting é robusto para este tipo de tarefa.
         self.model = GradientBoostingRegressor(n_estimators=100, max_depth=5, random_state=42)
-        self.scaler = StandardScaler() # Usado para normalizar os dados antes de treinar o modelo.
+        self.scaler = StandardScaler() 
         self.analysis_log = {}
 
     async def predict_war_outcome(self, war, clan_tag) -> Dict[str, Any]:
@@ -52,33 +51,29 @@ class AdvancedWarMLPredictor:
         try:
             self.analysis_log = {} 
             if war.state != 'inWar':
-                return {"message": "A guerra não está em andamento para previsões."}
+                return {"summary": "A guerra não está em andamento para previsões.", "probability": 0, "confidence": 0}
 
             our_clan = war.clan if war.clan.tag == clan_tag else war.opponent
             opponent = war.opponent if war.clan.tag == clan_tag else war.clan
 
-            # 1. Verifica cenários matematicamente definidos (vitória/derrota garantida)
             definitive_scenario = self._check_definitive_scenarios(war, our_clan, opponent)
             if definitive_scenario:
                 self.analysis_log['method'] = "Cenário Definitivo"
-                self.analysis_log['reason'] = definitive_scenario['message']
+                self.analysis_log['reason'] = definitive_scenario['summary']
                 definitive_scenario['analysis_log'] = self.analysis_log
                 return definitive_scenario
             
-            # 2. Extrai as características da guerra atual
             features = await self._extract_war_features(war, our_clan, opponent)
             if features is None:
-                 return {"message": "Aguardando dados completos da guerra para iniciar a análise..."}
+                 return {"summary": "Aguardando dados completos da guerra para iniciar a análise...", "probability": 0, "confidence": 0}
 
             feature_vector = np.array(list(features.__dict__.values())).reshape(1, -1)
             
-            # 3. Carrega e processa dados de guerras passadas para treinar o modelo
             historical_data = await self._load_historical_training_data()
             
             win_probability = 50.0 
             
-            # 4. Decide se usa o modelo de ML ou uma heurística baseada em regras
-            if len(historical_data) >= 10: # Requer um mínimo de 10 guerras para treinar o ML
+            if len(historical_data) >= 10:
                 try:
                     self.analysis_log['method'] = f"Modelo ML treinado com {len(historical_data)} guerras"
                     X = np.array([list(d['features'].__dict__.values()) for d in historical_data])
@@ -94,37 +89,40 @@ class AdvancedWarMLPredictor:
                     self.analysis_log['method'] = "Heurístico (Fallback de ML)"
                     self.logger.warning(f"Erro no ML, usando heurística. Erro: {ml_error}")
                     win_probability = self._heuristic_prediction(features)
-            else: # Fallback para heurística se não houver dados suficientes
+            else:
                 self.analysis_log['method'] = f"Heurístico ({len(historical_data)}/10 guerras no histórico)"
                 self.logger.info(f"Dados históricos insuficientes. Usando predição heurística.")
                 win_probability = self._heuristic_prediction(features)
 
-            # 5. Calcula a confiança da previsão baseada no progresso da guerra
             confidence = 50 + (features.war_progress_percentage / 2)
             
-            # 6. Gera a mensagem final com o conselho tático
             total_attacks_per_team = war.team_size * war.attacks_per_member
             final_result = self._generate_final_message(win_probability, confidence, features, our_clan, opponent, total_attacks_per_team, war.state)
+            self.analysis_log['final_prediction'] = final_result['summary_discord'] # Log para o Discord
             final_result['analysis_log'] = self.analysis_log
             return final_result
 
         except Exception as e:
             self.logger.error(f"Erro na predição ML avançada: {e}", exc_info=True)
-            return {"message": f"Erro na análise preditiva: {type(e).__name__}"}
+            return {"summary": f"Erro na análise preditiva: {type(e).__name__}", "probability": 0, "confidence": 0}
 
-    def _check_definitive_scenarios(self, war, our_clan, opponent) -> Optional[Dict[str, str]]:
+    def _check_definitive_scenarios(self, war, our_clan, opponent) -> Optional[Dict[str, Any]]:
         """Verifica se o resultado da guerra já está matematicamente decidido."""
         our_rem = (war.team_size * war.attacks_per_member) - our_clan.attacks_used
         opp_rem = (war.team_size * war.attacks_per_member) - opponent.attacks_used
 
+        message = None
         if our_rem == 0 and (our_clan.stars < opponent.stars or (our_clan.stars == opponent.stars and our_clan.destruction < opponent.destruction)):
-            return {"message": f"Derrota confirmada. {our_clan.name} usou todos os ataques e não pode mais virar."}
+            message = f"Derrota confirmada. {our_clan.name} usou todos os ataques e não pode mais virar."
         if opp_rem == 0 and (our_clan.stars > opponent.stars or (our_clan.stars == opponent.stars and our_clan.destruction > opponent.destruction)):
-            return {"message": f"Vitória garantida! O oponente não tem mais ataques."}
+            message = f"Vitória garantida! O oponente não tem mais ataques."
         if (our_clan.stars + our_rem * 3) < opponent.stars:
-            return {"message": "A derrota é matematicamente inevitável."}
+            message = "A derrota é matematicamente inevitável."
         if our_clan.stars > (opponent.stars + opp_rem * 3):
-            return {"message": f"Vitória garantida! O oponente não pode mais nos alcançar."}
+            message = f"Vitória garantida! O oponente não pode mais nos alcançar."
+
+        if message:
+            return {"summary": message, "probability": 0 if our_clan.stars < opponent.stars else 100, "confidence": 100}
         return None
 
     async def _extract_war_features(self, war, our_clan, opponent) -> Optional[WarFeatures]:
@@ -249,7 +247,6 @@ class AdvancedWarMLPredictor:
 
     def _generate_final_message(self, prob, confidence, features, our_clan, opponent, total_attacks_per_team, war_state):
         """Cria a mensagem final de predição, incluindo um conselho tático."""
-        # Título
         if prob >= 85: title = "🎯 Vitória Altamente Provável"
         elif prob >= 65: title = "✅ Vantagem Clara"
         elif prob >= 55: title = "⚖️ Ligeira Vantagem"
@@ -257,7 +254,6 @@ class AdvancedWarMLPredictor:
         elif prob <= 35: title = "⚠️ Desvantagem Clara"
         else: title = "🔄 Guerra em Equilíbrio"
 
-        # Detalhes
         details = ""
         star_diff = features.star_difference
         if star_diff < 0:
@@ -267,35 +263,22 @@ class AdvancedWarMLPredictor:
             stars_needed_opp = int(star_diff) + 1
             details = f"{opponent.name} ainda pode virar se conseguir {stars_needed_opp}★ a mais."
         else: 
-            if features.destruction_difference < 0:
-                destruction_needed = abs(features.destruction_difference) + 0.01
-                details = f"Para liderar, precisamos de 1★ ou superar a destruição em {destruction_needed:.2f}%."
-            else:
-                details = "A vantagem de destruição é nossa, mas a guerra segue indefinida."
+            details = "A guerra está empatada em estrelas."
         
-        # Conselho Tático
         tactical_advice = ""
         our_rem_attacks = total_attacks_per_team - our_clan.attacks_used
-        
         if str(war_state) == 'inWar' and prob < 65 and our_rem_attacks > 0:
             if star_diff < 0:
-                stars_to_catch_up = abs(int(star_diff)) + 1
-                if our_rem_attacks * 3 < stars_to_catch_up:
-                    tactical_advice = "Foco em maximizar a destruição, a virada por estrelas é improvável."
-                else:
-                    three_stars_needed = math.ceil(stars_to_catch_up / 3)
-                    if three_stars_needed > 0 and three_stars_needed <= our_rem_attacks:
-                        plural_s = "s" if three_stars_needed > 1 else ""
-                        tactical_advice = f"A virada é possível! Precisamos de pelo menos {three_stars_needed} ataque{plural_s} de 3 estrelas."
-                    else:
-                        tactical_advice = "A situação é difícil. Todos os ataques restantes precisam ser perfeitos."
-            elif star_diff == 0 and features.destruction_difference < 0:
-                tactical_advice = "Estamos empatados. O foco agora é conseguir 1 estrela a mais ou aumentar a porcentagem de destruição."
+                tactical_advice = "A virada é possível! Precisamos de ataques de 3 estrelas."
             else:
-                 tactical_advice = "Manter a consistência nos ataques garantirá a vitória. Evite ataques de 0 ou 1 estrela."
+                 tactical_advice = "Manter a consistência nos ataques garantirá a vitória."
         elif prob >= 85:
-            tactical_advice = "Administrar a vantagem é a chave. Ataques seguros para garantir estrelas e destruição."
+            tactical_advice = "Administrar a vantagem é a chave. Ataques seguros para garantir estrelas."
 
-        final_message = f"{title} ({prob:.1f}% | Confiança: {confidence:.0f}%). {details} {tactical_advice}".strip()
-        self.analysis_log['final_prediction'] = final_message
-        return {"message": final_message}
+        # Retorna um dicionário com as informações separadas
+        return {
+            "summary_panel": f"{title}. {details}", # Mensagem curta para o painel
+            "summary_discord": f"{title}. {details} {tactical_advice}".strip(), # Mensagem para o Discord
+            "probability": prob,
+            "confidence": confidence
+        }
