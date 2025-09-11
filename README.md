@@ -32,6 +32,37 @@
 
 ## 🔄 CHANGELOG
 
+### v20.1.65 (11/09/2025)
+
+-✨ NOVO RECURSO (IA v3.0): Implementada a arquitetura avançada de IA (WarPredictionSystemV3), refatorando toda a lógica de previsão.
+
+  -🧠 Modularização: O código da IA foi movido para um arquivo dedicado (war_predictor.py), tornando o projeto mais limpo e organizado para futuras expansões.
+
+  -🤖 Ensemble de Modelos: O sistema agora utiliza múltiplos modelos de Machine Learning (GradientBoostingRegressor e RandomForestRegressor) para criar uma previsão combinada, aumentando a precisão e robustez.
+
+  -🎯 Engenharia de Features Avançada: A IA agora calcula métricas novas e sofisticadas para suas análises, como:
+
+momentum_indicator: Analisa a tendência dos ataques mais recentes para ver qual clã está com "a mão quente".
+
+clan_synergy_score: Mede a eficiência do clã em ataques de limpeza ("cleanup"), indicando o nível de coordenação.
+
+pressure_index: Calcula um índice de pressão psicológica, que aumenta quando o clã está atrás no placar em estágios avançados da guerra.
+
+  -📊 Relatórios Detalhados para o Discord: A análise enviada para o Discord foi completamente reformulada para incluir insights táticos, fatores de risco e as principais métricas que levaram à previsão.
+
+  -🌐 Resumo Otimizado para o Painel: O painel web recebe uma versão resumida e direta da previsão, mantendo a interface limpa e de fácil leitura.
+
+  -✅ Correção (Banco de Dados): Resolvido erro NotImplementedError que ocorria ao verificar a conexão com o banco de dados. A verificação foi atualizada para if self.db is None:, que é o padrão moderno da biblioteca pymongo.
+
+  -✅ Correção (API): Resolvido AttributeError na aba "Clã" que ocorria quando a API do Clash of Clans não retornava algum dado (como localização ou liga da capital). A função fetch_clan_info_for_web agora usa getattr para acessar os dados de forma segura, prevenindo quebras no painel.
+
+### v20.1.59 (11/09/2025)
+- 🎨 MELHORIA DE INTERFACE: Aprimorada a visualização da previsão da IA no painel web.
+
+  -✨ Tags de Dados: Os valores de "Probabilidade" e "Confiança" agora são exibidos em "badges" (etiquetas) modernas e informativas, com ícones e rótulos claros.
+
+  -✨ Tooltips Explicativos: Adicionadas caixas de ajuda (tooltips) que aparecem ao passar o mouse sobre as novas badges, explicando o que cada métrica significa. Isso torna a interface mais intuitiva para todos os membros do clã.
+
 ### v20.1.48 (08/09/2025)
 - ✨ **NOVO RECURSO:** Implementada a funcionalidade de **Previsão de Guerra** na aba "Guerra".
     - 🧠 **Análise Tática:** O sistema agora analisa estrelas, destruição e ataques restantes para gerar uma previsão textual do resultado da guerra em tempo real.
