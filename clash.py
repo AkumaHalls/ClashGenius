@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.57-PANEL-FIX-AI-UPGRADE - Corrigido o painel web e aprimorada a IA com conselhos táticos.
+# Versão 20.1.58-FINAL-FIX - Corrigidos erros internos do painel e reativado o envio de logs da IA.
 
 import os
 import logging
@@ -56,7 +56,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.57-PANEL-FIX-AI-UPGRADE"
+BOT_VERSION = "20.1.58-FINAL-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -200,8 +200,8 @@ class AdvancedWarMLPredictor:
             
             historical_data = await self._get_clan_historical_performance(our_clan.tag)
 
-            our_th_sum = sum(m.town_hall for m in our_clan.members if m)
-            opp_th_sum = sum(m.town_hall for m in opponent.members if m)
+            our_th_sum = sum(getattr(m, 'town_hall', 0) for m in our_clan.members if m)
+            opp_th_sum = sum(getattr(m, 'town_hall', 0) for m in opponent.members if m)
 
             features = WarFeatures(
                 star_difference=our_clan.stars - opponent.stars,
@@ -227,8 +227,8 @@ class AdvancedWarMLPredictor:
     def _calculate_unused_strength(self, war, our_clan, opponent):
         our_attackers_left = [m for m in our_clan.members if m and len(m.attacks) < war.attacks_per_member]
         opp_attackers_left = [m for m in opponent.members if m and len(m.attacks) < war.attacks_per_member]
-        our_strength = sum(m.town_hall for m in our_attackers_left)
-        opp_strength = sum(m.town_hall for m in opp_attackers_left)
+        our_strength = sum(getattr(m, 'town_hall', 0) for m in our_attackers_left)
+        opp_strength = sum(getattr(m, 'town_hall', 0) for m in opp_attackers_left)
         return our_strength, opp_strength
 
     async def _load_historical_training_data(self) -> List[Dict]:
@@ -358,7 +358,7 @@ class AdvancedWarMLPredictor:
 # --- FUNÇÕES AUXILIARES E DE BUSCA DE DADOS ---
 async def send_ai_log_embed(war, analysis_log: Dict):
     if not AI_LOG_CHANNEL_ID:
-        logger.info(f"AI Analysis Log: {analysis_log}")
+        logger.info(f"AI Analysis Log (AI_LOG_CHANNEL_ID not set): {analysis_log}")
         return
     
     try:
@@ -393,6 +393,7 @@ async def send_ai_log_embed(war, analysis_log: Dict):
             embed.add_field(name="Métricas Analisadas (Features)", value=features_text, inline=False)
         
         await send_log_embed(embed, target_channel_id=AI_LOG_CHANNEL_ID)
+        logger.info(f"Log de análise da IA enviado para o canal {AI_LOG_CHANNEL_ID}.")
 
     except Exception as e:
         logger.error(f"Erro ao enviar log da IA para o Discord: {e}", exc_info=True)
@@ -456,7 +457,7 @@ async def save_war_to_history(war_data: Dict[str, Any]):
     try:
         war_collection = bot.db.war_history
         sanitized_war_data = _sanitize_keys_for_mongo(war_data)
-        if 'war_data' in sanitized_war_data and 'end_time_iso' in sanitized_war_data['war_data']:
+        if 'war_data' in sanitized_war_data and 'end_time_iso' in sanitized_war_data['war_data'] and sanitized_war_data['war_data']['end_time_iso']:
             sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
             
             await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
@@ -795,6 +796,10 @@ async def fetch_clan_info_for_web():
         if not clan:
             return {"error": "Não foi possível carregar os dados do clã."}
         
+        districts = []
+        if clan.capital_districts:
+             districts = [{"name": d.name, "level": d.level} for d in clan.capital_districts]
+        
         return {
             "name": clan.name,
             "tag": clan.tag,
@@ -808,7 +813,7 @@ async def fetch_clan_info_for_web():
             "capital_points": clan.capital_points,
             "capital_league": clan.capital_league.name if clan.capital_league else "N/A",
             "description": clan.description,
-            "capital_districts": [{"name": d.name, "level": d.level} for d in clan.capital_districts],
+            "capital_districts": districts,
             "version": BOT_VERSION
         }
     except Exception as e:
@@ -848,7 +853,7 @@ async def fetch_current_war_details_for_web():
                 "duration": f"{attack.duration}s"
             })
 
-        def get_team_details(team):
+        def get_team_details(team, war_obj):
             if not team or not hasattr(team, 'members'): return []
             details = []
             for m in team.members:
@@ -856,8 +861,8 @@ async def fetch_current_war_details_for_web():
                 details.append({
                     "name": m.name, "tag": m.tag, "townhall": m.town_hall, "map_position": m.map_position,
                     "attacks_used": len(m.attacks),
-                    "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
-                    "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
+                    "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war_obj.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war_obj.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
+                    "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war_obj.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war_obj.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
                 })
             return sorted(details, key=lambda x: x['map_position'])
 
@@ -891,8 +896,8 @@ async def fetch_current_war_details_for_web():
                 "opponent_avg_duration": f"{sum(a.duration for a in opp_attacks) / len(opp_attacks):.1f}s" if opp_attacks else "0s",
             },
             "all_attacks": all_attacks_data,
-            "our_clan_members_in_war": get_team_details(our_clan),
-            "opponent_clan_members_in_war": get_team_details(opp_clan),
+            "our_clan_members_in_war": get_team_details(our_clan, war),
+            "opponent_clan_members_in_war": get_team_details(opp_clan, war),
             "prediction": prediction_data
         }
     except Exception as e:
@@ -972,14 +977,15 @@ async def fetch_missed_attacks_history_for_web():
                     })
             
             if missed_attacks_members:
-                end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
-                wars_with_missed_attacks.append({
-                    "opponent_name": war_data.get("opponent_name", "Oponente Desconhecido"),
-                    "end_date": end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y'),
-                    "missed_attacks_members": missed_attacks_members,
-                    "is_latest": is_first_war
-                })
-                is_first_war = False
+                if war_data.get("end_time_iso"):
+                    end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
+                    wars_with_missed_attacks.append({
+                        "opponent_name": war_data.get("opponent_name", "Oponente Desconhecido"),
+                        "end_date": end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y'),
+                        "missed_attacks_members": missed_attacks_members,
+                        "is_latest": is_first_war
+                    })
+                    is_first_war = False
         
         return {
             "clan_name": clan.name,
@@ -998,22 +1004,23 @@ async def fetch_war_log_for_web():
         entries = []
         async for war_doc in log_cursor:
             war_data = war_doc.get("war_data", {})
-            end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
-            result = "Vitória" if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else \
-                     "Derrota" if war_data.get("clan_stars", 0) < war_data.get("opponent_stars", 0) else "Empate"
-            entries.append({
-                "end_time_iso": war_data.get("end_time_iso"),
-                "end_time_formatted": end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M'),
-                "opponent_name": war_data.get("opponent_name"),
-                "opponent_badge_url": war_data.get("opponent_badge_url"),
-                "clan_stars": war_data.get("clan_stars"),
-                "clan_destruction": war_data.get("clan_destruction"),
-                "opponent_stars": war_data.get("opponent_stars"),
-                "opponent_destruction": war_data.get("opponent_destruction"),
-                "result": result,
-                "team_size": war_data.get("team_size"),
-                "is_cwl": "CWL" in war_data.get("status", "").lower()
-            })
+            if war_data.get("end_time_iso"):
+                end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
+                result = "Vitória" if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else \
+                         "Derrota" if war_data.get("clan_stars", 0) < war_data.get("opponent_stars", 0) else "Empate"
+                entries.append({
+                    "end_time_iso": war_data.get("end_time_iso"),
+                    "end_time_formatted": end_time_dt.astimezone(TIMEZONE).strftime('%d/%m/%y %H:%M'),
+                    "opponent_name": war_data.get("opponent_name"),
+                    "opponent_badge_url": war_data.get("opponent_badge_url"),
+                    "clan_stars": war_data.get("clan_stars"),
+                    "clan_destruction": war_data.get("clan_destruction"),
+                    "opponent_stars": war_data.get("opponent_stars"),
+                    "opponent_destruction": war_data.get("opponent_destruction"),
+                    "result": result,
+                    "team_size": war_data.get("team_size"),
+                    "is_cwl": "CWL" in war_data.get("status", "").lower()
+                })
         return {"log": entries}
     except Exception as e:
         logger.error(f"Erro em fetch_war_log_for_web: {e}", exc_info=True)
