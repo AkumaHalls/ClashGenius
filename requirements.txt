@@ -9,3 +9,6 @@ cryptography
 numpy
 scikit-learn
 scipy
+xgboost
+lightgbm
+pandas
