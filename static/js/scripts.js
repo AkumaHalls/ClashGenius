@@ -108,6 +108,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalButton = document.querySelector('.modal .close-button');
 
 
+    // --- NOVO: ELEMENTOS DO MODAL DE PERFIL ---
+    const memberProfileModal = document.getElementById('memberProfileModal');
+    const memberProfileContent = document.getElementById('memberProfileContent');
+    const closeProfileModalButton = document.querySelector('#memberProfileModal .close-button');
+    let memberTrophyChart = null;
+
+
     // --- LÓGICA DA MÚSICA DE FUNDO ---
     if (backgroundMusicEl && muteButtonEl) {
         backgroundMusicEl.volume = 0.2;
@@ -341,8 +348,27 @@ document.addEventListener('DOMContentLoaded', () => {
             setHtml(topDonorsListEl, '<p>Nenhum doador encontrado.</p>');
         }
 
+        // --- NOVO: LÓGICA PARA EXIBIR O MVP ---
+        const warHeroTitleEl = document.getElementById('warHeroTitle');
+        if (data.mvp && data.mvp.name) {
+            setText(warHeroTitleEl, '🏆 MVP da Última Guerra');
+            const mvpHtml = `
+                <div class="mvp-card">
+                    <p class="mvp-title">Jogador Mais Valioso</p>
+                    <h4 class="mvp-name">${data.mvp.name} <span>(CV${data.mvp.town_hall})</span></h4>
+                    <span class="tooltip-text">${data.mvp.reason}</span>
+                </div>
+            `;
+            // Adiciona o card do MVP antes da lista de melhores ataques
+            bestAttacksListEl.innerHTML = mvpHtml;
+        } else {
+            setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra');
+        }
+        // --- FIM DA LÓGICA DO MVP ---
+
+
         if (data.best_attacks && data.best_attacks.length > 0) {
-            let attacksHtml = '';
+            let attacksHtml = bestAttacksListEl.innerHTML; // Mantém o MVP se ele existir
             data.best_attacks.forEach(attack => {
                 attacksHtml += `
                     <div class="attack-item">
@@ -356,7 +382,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             setHtml(bestAttacksListEl, attacksHtml);
         } else {
-            setHtml(bestAttacksListEl, '<p>Nenhum ataque na última guerra para destacar.</p>');
+             // Se não houver MVP, limpa a lista e mostra a mensagem
+            if (!data.mvp || !data.mvp.name) {
+                 setHtml(bestAttacksListEl, '<p>Nenhum ataque na última guerra para destacar.</p>');
+            }
         }
 
         if (activityChart) {
@@ -755,7 +784,10 @@ document.addEventListener('DOMContentLoaded', () => {
             data.members.forEach((m, index) => {
                 const row = membersTableBodyEl.insertRow();
                 setText(row.insertCell(), index + 1);
-                setText(row.insertCell(), m.name);
+                const nameCell = row.insertCell();
+                nameCell.className = 'member-name-cell'; // Adiciona classe para clique
+                nameCell.dataset.playerTag = m.tag; // Adiciona tag para API
+                setText(nameCell, m.name);
                 setText(row.insertCell(), m.town_hall);
                 setText(row.insertCell(), m.league);
                 setText(row.insertCell(), m.trophies);
@@ -853,6 +885,90 @@ document.addEventListener('DOMContentLoaded', () => {
         const row = event.target.closest('.historic-war-row');
         if (row && row.dataset.warId) { openHistoricWarModal(row.dataset.warId); }
     });
+
+
+    // --- NOVO: LÓGICA DO MODAL DE PERFIL DE MEMBRO ---
+    if (closeProfileModalButton) {
+        closeProfileModalButton.addEventListener('click', () => { memberProfileModal.style.display = 'none'; });
+    }
+    window.addEventListener('click', (event) => {
+        if (event.target == memberProfileModal) { memberProfileModal.style.display = 'none'; }
+    });
+
+    membersTableBodyEl.addEventListener('click', (event) => {
+        const nameCell = event.target.closest('.member-name-cell');
+        if (nameCell && nameCell.dataset.playerTag) {
+            openMemberProfileModal(nameCell.dataset.playerTag);
+        }
+    });
+
+    async function openMemberProfileModal(playerTag) {
+        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando perfil do membro...</p>');
+        memberProfileModal.style.display = 'block';
+
+        const profileData = await fetchData(`member/${playerTag}`);
+
+        if (profileData.error) {
+            setHtml(memberProfileContent, `<p class="message-box">${profileData.error}</p>`);
+            return;
+        }
+        
+        const heroesHtml = profileData.heroes.map(hero => `
+            <div class="hero-item">
+                <img src="/static/images/heroes/${hero.name.toLowerCase().replace(/\s+/g, '-')}.png" alt="${hero.name}" onerror="this.style.display='none'">
+                <p><strong>${hero.level}</strong> / ${hero.max_level}</p>
+            </div>
+        `).join('');
+
+        const profileHtml = `
+            <div class="profile-header">
+                <h2>${profileData.name} (CV${profileData.town_hall})</h2>
+                <p class="player-tag">${profileData.tag}</p>
+            </div>
+            <div class="profile-stats-grid">
+                <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league}</p></div>
+                <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies}</p></div>
+                <div class="profile-stat-card"><h4> Tropas Doadas</h4><p>🎁 ${profileData.donations}</p></div>
+                <div class="profile-stat-card"><h4>Tropas Recebidas</h4><p>📥 ${profileData.received}</p></div>
+            </div>
+            <h3>Heróis</h3>
+            <div class="heroes-list">${heroesHtml || '<p>Nenhum herói encontrado.</p>'}</div>
+            
+            <div class="profile-chart-container">
+                 <h3>Evolução de Troféus</h3>
+                <canvas id="trophyChart"></canvas>
+            </div>
+        `;
+        setHtml(memberProfileContent, profileHtml);
+
+        // Renderiza o gráfico
+        if (memberTrophyChart) {
+            memberTrophyChart.destroy();
+        }
+        if (profileData.trophy_history && profileData.trophy_history.length > 0) {
+            const trophyCtx = document.getElementById('trophyChart').getContext('2d');
+            memberTrophyChart = new Chart(trophyCtx, {
+                type: 'line',
+                data: {
+                    labels: profileData.trophy_history.map(h => h.timestamp),
+                    datasets: [{
+                        label: 'Troféus',
+                        data: profileData.trophy_history.map(h => h.trophies),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+    }
+
 
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
