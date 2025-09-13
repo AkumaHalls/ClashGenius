@@ -30,6 +30,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const activityChartCanvas = document.getElementById('activityChart');
     const noHighlightsMessageEl = document.getElementById('noHighlightsMessage');
     let activityChart = null;
+    
+    // --- Seletores da Aba de Guerra ---
+    const warTabButtons = document.querySelectorAll('.war-tab-button');
+    const warTabContents = document.querySelectorAll('.war-tab-content');
 
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
@@ -693,6 +697,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
     }
+    
+    // --- LÓGICA DE CLIQUE NAS ABAS DE GUERRA (CORRIGIDO) ---
+    warTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const parentSection = button.closest('.content-section');
+            if (!parentSection) return;
+
+            parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            const tabId = button.dataset.tab;
+            parentSection.querySelectorAll('.war-tab-content').forEach(content => {
+                content.style.display = content.id === tabId ? 'block' : 'none';
+            });
+        });
+    });
 
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
@@ -741,3 +761,4 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 60000);
 });
+
