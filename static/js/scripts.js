@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
     const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
 
-    // --- ELEMENTOS DO DOM ---
+    // --- ELEMENTOS DO DOM ---3
     const loadingOverlayEl = document.getElementById('loading-overlay');
     const backgroundMusicEl = document.getElementById('background-music');
     const muteButtonEl = document.getElementById('mute-button');
@@ -23,15 +23,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
     const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
 
-    // --- INÍCIO: Seletores para a nova aba Destaques ---
     const highlightsClanNameEl = document.getElementById('highlightsClanName');
     const topDonorsListEl = document.getElementById('topDonorsList');
     const bestAttacksListEl = document.getElementById('bestAttacksList');
     const warDateHighlightEl = document.getElementById('warDateHighlight');
     const activityChartCanvas = document.getElementById('activityChart');
     const noHighlightsMessageEl = document.getElementById('noHighlightsMessage');
-    let activityChart = null; // Variável para armazenar a instância do gráfico
-    // --- FIM: Seletores para a nova aba Destaques ---
+    let activityChart = null;
+    
+    // --- Seletores da Aba de Guerra ---
+    const warTabButtons = document.querySelectorAll('.war-tab-button');
+    const warTabContents = document.querySelectorAll('.war-tab-content');
 
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
@@ -42,8 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const warDetailTimeRemainingEl = document.getElementById('warDetailTimeRemaining');
     const warDetailStateEl = document.getElementById('warDetailState');
     const noWarDetailMessageEl = document.getElementById('noWarDetailMessage');
-    const warTabButtons = document.querySelectorAll('.war-tab-button');
-    const warTabContents = document.querySelectorAll('.war-tab-content');
     const statsOurClanNameEl = document.getElementById('statsOurClanName');
     const statsOurStarsEl = document.getElementById('statsOurStars');
     const statsOurDestructionEl = document.getElementById('statsOurDestruction');
@@ -88,12 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const noWarLogMessageEl = document.getElementById('noWarLogMessage');
 
     const membersClanNameEl = document.getElementById('membersClanName');
-    const membersTableBodyEl = document.getElementById('membersTableBody');
     const filterNameInput = document.getElementById('filterName');
     const filterTHInput = document.getElementById('filterTH');
-    const filterLeagueInput = document.getElementById('filterLeague');
-    const filterTrophiesInput = document.getElementById('filterTrophies');
-    const filterRoleInput = document.getElementById('filterRole');
+    const membersGridEl = document.getElementById('membersGrid');
 
     const botVersionEl = document.getElementById('botVersion');
     const lastUpdatedEl = document.getElementById('lastUpdated');
@@ -102,10 +99,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const contentSections = document.querySelectorAll('.content-section');
     let isFirstLoad = true;
 
-    // --- ELEMENTOS DO MODAL ---
     const historicWarModal = document.getElementById('historicWarModal');
     const historicWarDetailContent = document.getElementById('historicWarDetailContent');
-    const closeModalButton = document.querySelector('.modal .close-button');
+    const closeModalButton = document.querySelector('#historicWarModal .close-button');
+
+    const memberProfileModal = document.getElementById('memberProfileModal');
+    const memberProfileContent = document.getElementById('memberProfileContent');
+    const closeProfileModalButton = document.querySelector('#memberProfileModal .close-button');
+    let memberTrophyChart = null;
 
 
     // --- LÓGICA DA MÚSICA DE FUNDO ---
@@ -115,30 +116,21 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 await backgroundMusicEl.play();
                 document.body.removeEventListener('click', playMusic);
-                console.log('Música de fundo iniciada.');
             } catch (err) {
-                console.log('Autoplay da música bloqueado pelo navegador. Aguardando interação do usuário.');
+                console.log('Autoplay da música bloqueado pelo navegador.');
             }
         };
         document.body.addEventListener('click', playMusic, { once: true });
 
         muteButtonEl.addEventListener('click', () => {
             backgroundMusicEl.muted = !backgroundMusicEl.muted;
-            if (backgroundMusicEl.muted) {
-                muteButtonEl.textContent = '🔇';
-                localStorage.setItem('musicMuted', 'true');
-            } else {
-                muteButtonEl.textContent = '🔊';
-                localStorage.setItem('musicMuted', 'false');
-            }
+            muteButtonEl.textContent = backgroundMusicEl.muted ? '🔇' : '🔊';
+            localStorage.setItem('musicMuted', backgroundMusicEl.muted);
         });
 
         if (localStorage.getItem('musicMuted') === 'true') {
             backgroundMusicEl.muted = true;
             muteButtonEl.textContent = '🔇';
-        } else {
-            backgroundMusicEl.muted = false;
-            muteButtonEl.textContent = '🔊';
         }
     }
 
@@ -151,9 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error(`HTTP error! status: ${response.status} for ${endpoint}`, errorData);
                 return { error: errorData.error || `Falha ao carregar ${endpoint}. Status: ${response.status}` };
             }
-            if (options.method && options.method !== 'GET' && response.status === 204) {
-                return { success: true };
-            }
+            if (response.status === 204) return { success: true };
             return await response.json();
         } catch (error) {
             console.error(`Could not fetch data from ${endpoint}:`, error);
@@ -175,37 +165,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setBadge(element, url) {
-        if (element) {
-            element.src = url || DEFAULT_BADGE_URL;
-            element.style.display = 'inline-block';
-        }
-    }
-
-    function copyToClipboard(text, buttonElement) {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-            document.execCommand('copy');
-            if (buttonElement) {
-                const originalText = buttonElement.innerHTML;
-                buttonElement.innerHTML = 'Copiado!';
-                buttonElement.disabled = true;
-                setTimeout(() => {
-                    buttonElement.innerHTML = originalText;
-                    buttonElement.disabled = false;
-                }, 1500);
-            }
-        } catch (err) {
-            console.error('Falha ao copiar texto: ', err);
-        }
-        document.body.removeChild(textarea);
+        if (element) element.src = url || DEFAULT_BADGE_URL;
     }
     
-
     // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
-    const initialSectionId = (navLinks.length > 0 && navLinks[0].dataset.section) ? navLinks[0].dataset.section : 'clan-info-nav';
+    const initialSectionId = navLinks.length > 0 ? navLinks[0].dataset.section : 'clan-info-nav';
     let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
     let currentActiveIndex = Array.from(navLinks).findIndex(link => link.dataset.section === currentActiveSectionId);
     if (currentActiveIndex === -1) {
@@ -214,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     contentSections.forEach(section => {
-        section.classList.remove('active-section', 'slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right');
+        section.classList.remove('active-section');
         if (section.id === currentActiveSectionId) {
             section.classList.add('active-section');
         }
@@ -228,40 +192,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const oldSectionEl = document.getElementById(currentActiveSectionId);
         const newSectionEl = document.getElementById(newSectionId);
-        const oldIndex = currentActiveIndex;
-
-        if (!newSectionEl) {
-            console.error("Nova seção não encontrada:", newSectionId);
-            return;
-        }
-
-        newSectionEl.classList.remove('slide-out-to-left', 'slide-out-to-right', 'slide-prepare', 'slide-from-left', 'slide-from-right');
-
-        if (oldSectionEl) {
-            oldSectionEl.classList.remove('active-section');
-            if (newIndex > oldIndex) {
-                oldSectionEl.classList.add('slide-out-to-left');
-            } else {
-                oldSectionEl.classList.add('slide-out-to-right');
-            }
-            oldSectionEl.addEventListener('transitionend', function handleOldOut() {
-                oldSectionEl.classList.remove('slide-out-to-left', 'slide-out-to-right');
-                oldSectionEl.removeEventListener('transitionend', handleOldOut);
-            }, { once: true });
-        }
         
-        newSectionEl.classList.add('slide-prepare');
-        if (newIndex > oldIndex) {
-            newSectionEl.classList.add('slide-from-right');
-        } else {
-            newSectionEl.classList.add('slide-from-left');
-        }
+        if (!newSectionEl) return;
 
-        void newSectionEl.offsetWidth; 
-
-        newSectionEl.classList.remove('slide-prepare', 'slide-from-left', 'slide-from-right');
+        if (oldSectionEl) oldSectionEl.classList.remove('active-section');
         newSectionEl.classList.add('active-section');
-
+        
         navLinks.forEach(link => {
             link.classList.toggle('active-nav-link', link.dataset.section === newSectionId);
         });
@@ -274,8 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
     navLinks.forEach((link, index) => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
-            const sectionId = link.dataset.section;
-            setActiveSection(sectionId, index);
+            setActiveSection(link.dataset.section, index);
         });
     });
 
@@ -300,12 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(clanCapitalPointsEl, `${data.capital_points || '-'} 🏆`);
         setText(clanCapitalLeagueEl, data.capital_league);
         setText(clanDescriptionEl, data.description, 'Sem descrição.');
-        setHtml(clanCapitalDistrictsEl, '');
-        if (data.capital_districts && data.capital_districts.length > 0) {
-            data.capital_districts.forEach(d => setHtml(clanCapitalDistrictsEl, clanCapitalDistrictsEl.innerHTML + `<p><strong>${d.name || 'N/A'}:</strong> Nv ${d.level || '?'}</p>`));
-        } else {
-            setHtml(clanCapitalDistrictsEl, '<p>Nenhum distrito encontrado.</p>');
-        }
+        setHtml(clanCapitalDistrictsEl, data.capital_districts?.map(d => `<p><strong>${d.name || 'N/A'}:</strong> Nv ${d.level || '?'}</p>`).join('') || '<p>Nenhum distrito encontrado.</p>');
         setText(botVersionEl, data.version, '?');
     }
 
@@ -322,83 +252,54 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(highlightsClanNameEl, data.clan_name);
         setText(warDateHighlightEl, data.war_date ? `(${data.war_date})` : '');
 
-        if (data.top_donors && data.top_donors.length > 0) {
+        setHtml(topDonorsListEl, data.top_donors?.map((donor, index) => {
             const medals = ['gold', 'silver', 'bronze'];
-            let donorsHtml = '';
-            data.top_donors.forEach((donor, index) => {
-                donorsHtml += `
-                    <div class="podium-item ${medals[index] || ''}">
-                        <span class="podium-rank">${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}</span>
+            const medal_icons = ['🥇', '🥈', '🥉'];
+            return `<div class="podium-item ${medals[index] || ''}">
+                        <span class="podium-rank">${medal_icons[index] || ''}</span>
                         <div class="podium-details">
                             <div class="member-name">${donor.name} (CV${donor.town_hall})</div>
                             <div class="donation-count"><strong>${donor.donations.toLocaleString()}</strong> tropas doadas</div>
                         </div>
-                    </div>
-                `;
-            });
-            setHtml(topDonorsListEl, donorsHtml);
-        } else {
-            setHtml(topDonorsListEl, '<p>Nenhum doador encontrado.</p>');
-        }
+                    </div>`;
+        }).join('') || '<p>Nenhum doador encontrado.</p>');
 
-        if (data.best_attacks && data.best_attacks.length > 0) {
-            let attacksHtml = '';
-            data.best_attacks.forEach(attack => {
-                attacksHtml += `
-                    <div class="attack-item">
-                        <div class="attack-header">${attack.attacker_name} vs ${attack.defender_name} (CV${attack.defender_townhall})</div>
-                        <div class="attack-details">
-                            <span class="attack-stars">${'⭐'.repeat(attack.stars)}</span>
-                            <strong>${attack.destruction}%</strong> de destruição
-                        </div>
-                    </div>
-                `;
-            });
-            setHtml(bestAttacksListEl, attacksHtml);
-        } else {
-            setHtml(bestAttacksListEl, '<p>Nenhum ataque na última guerra para destacar.</p>');
-        }
+        const warHeroTitleEl = document.getElementById('warHeroTitle');
+        setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra');
+        setHtml(bestAttacksListEl, data.war_heroes?.map(hero => {
+            const isMvp = hero.rank === 1;
+            const heroClass = isMvp ? 'mvp-card' : 'attack-item';
+            const medals = ['🥇', '🥈', '🥉'];
+            const titleHtml = isMvp 
+                ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p><h4 class="mvp-name">${hero.name} <span>(CV${hero.town_hall})</span></h4>`
+                : `<div class="attack-header">${medals[hero.rank - 1] || ''} ${hero.name} (CV${hero.town_hall})</div>`;
+            
+            return `<div class="${heroClass}">
+                        ${titleHtml}
+                        <span class="tooltip-text">${hero.reason}</span>
+                    </div>`;
+        }).join('') || '<p>Nenhum herói para destacar na última guerra.</p>');
 
-        if (activityChart) {
-            activityChart.destroy();
-        }
-        if (data.activity_chart_data && data.activity_chart_data.labels.length > 0) {
-            const ctx = activityChartCanvas.getContext('2d');
-            activityChart = new Chart(ctx, {
+        if (activityChart) activityChart.destroy();
+        if (data.activity_chart_data?.labels.length > 0) {
+            activityChart = new Chart(activityChartCanvas.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: data.activity_chart_data.labels,
                     datasets: [
-                        { label: 'Tropas Doadas', data: data.activity_chart_data.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 },
-                        { label: 'Tropas Recebidas', data: data.activity_chart_data.received, backgroundColor: 'rgba(255, 99, 132, 0.6)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 }
+                        { label: 'Tropas Doadas', data: data.activity_chart_data.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
+                        { label: 'Tropas Recebidas', data: data.activity_chart_data.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
                     ]
                 },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } },
-                    plugins: { legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } }
-                }
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } }, plugins: { legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } } }
             });
         }
     }
 
-    warTabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const parentSection = button.closest('.content-section, .modal-content');
-            if (!parentSection) return;
-            parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            const tabId = button.dataset.tab;
-            parentSection.querySelectorAll('.war-tab-content').forEach(content => {
-                content.style.display = content.id.endsWith(tabId) ? 'block' : 'none';
-            });
-        });
-    });
-
     function createStarString(stars) {
         return '⭐'.repeat(stars) + '⚫'.repeat(Math.max(0, 3 - stars));
     }
-
+    
     function populateWarDetails(data, containerId = 'war-details-nav', isModal = false) {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -418,7 +319,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // +++ INÍCIO DA MODIFICAÇÃO: LÓGICA DE PREVISÃO COM TOOLTIPS +++
         if (!isModal) {
             const predictionSection = container.querySelector('#warPredictionSection');
             const predictionTextEl = container.querySelector('#warPredictionText');
@@ -426,42 +326,28 @@ document.addEventListener('DOMContentLoaded', () => {
     
             if (predictionSection && predictionTextEl && predictionTagsEl && data.prediction && data.prediction.summary_panel) {
                 setText(predictionTextEl, data.prediction.summary_panel);
-                predictionTagsEl.innerHTML = ''; 
-
-                const probability = data.prediction.probability || 0;
-                const confidence = data.prediction.confidence || 0;
-
-                // Tag de Probabilidade com Tooltip
-                const probabilityTag = `
+                predictionTagsEl.innerHTML = `
                     <div class="prediction-tag">
                         <span class="prediction-tag-icon">🎯</span>
                         <div class="prediction-tag-text">
                             <span class="tag-label">Probabilidade</span>
-                            <span class="tag-value">${probability.toFixed(1)}%</span>
+                            <span class="tag-value">${(data.prediction.probability || 0).toFixed(1)}%</span>
                         </div>
                         <span class="tooltip-text">Chance de vitória do nosso clã no final da guerra, calculada pela IA.</span>
                     </div>
-                `;
-                // Tag de Confiança com Tooltip
-                const confidenceTag = `
                     <div class="prediction-tag">
                         <span class="prediction-tag-icon">🧠</span>
                         <div class="prediction-tag-text">
                             <span class="tag-label">Confiança</span>
-                            <span class="tag-value">${confidence.toFixed(1)}%</span>
+                            <span class="tag-value">${(data.prediction.confidence || 0).toFixed(1)}%</span>
                         </div>
                         <span class="tooltip-text">Nível de certeza da IA sobre a sua própria previsão, baseado na qualidade e quantidade de dados disponíveis.</span>
-                    </div>
-                `;
-
-                predictionTagsEl.innerHTML = probabilityTag + confidenceTag;
+                    </div>`;
                 predictionSection.style.display = 'block';
-
             } else if (predictionSection) {
                 predictionSection.style.display = 'none';
             }
         }
-        // +++ FIM DA MODIFICAÇÃO +++
 
         if (noWarMsg) noWarMsg.style.display = 'none';
         if (warHeader) warHeader.style.display = 'flex';
@@ -489,336 +375,303 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(container.querySelector(`#${prefix}statsOpponentDestruction`), war.opponent_destruction.replace('%', ''));
         setText(container.querySelector(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
         
-        const populateStats = (prefix) => {
-            const ourAvgStarsEl = container.querySelector(`#${prefix}statsOurAvgStars`);
-            if(ourAvgStarsEl) setText(ourAvgStarsEl, war.clan_avg_stars);
-            const ourAvgDurationEl = container.querySelector(`#${prefix}statsOurAvgDuration`);
-            if(ourAvgDurationEl) setText(ourAvgDurationEl, war.clan_avg_duration);
-            const oppAvgStarsEl = container.querySelector(`#${prefix}statsOpponentAvgStars`);
-            if(oppAvgStarsEl) setText(oppAvgStarsEl, war.opponent_avg_stars);
-            const oppAvgDurationEl = container.querySelector(`#${prefix}statsOpponentAvgDuration`);
-            if(oppAvgDurationEl) setText(oppAvgDurationEl, war.opponent_avg_duration);
-            const ourStars3El = container.querySelector(`#${prefix}statsOurStars3`);
-            if(ourStars3El) setText(ourStars3El, war.clan_star_distribution['3']);
-            const ourStars2El = container.querySelector(`#${prefix}statsOurStars2`);
-            if(ourStars2El) setText(ourStars2El, war.clan_star_distribution['2']);
-            const ourStars1El = container.querySelector(`#${prefix}statsOurStars1`);
-            if(ourStars1El) setText(ourStars1El, war.clan_star_distribution['1']);
-            const ourStars0El = container.querySelector(`#${prefix}statsOurStars0`);
-            if(ourStars0El) setText(ourStars0El, war.clan_star_distribution['0']);
-            const oppStars3El = container.querySelector(`#${prefix}statsOpponentStars3`);
-            if(oppStars3El) setText(oppStars3El, war.opponent_star_distribution['3']);
-            const oppStars2El = container.querySelector(`#${prefix}statsOpponentStars2`);
-            if(oppStars2El) setText(oppStars2El, war.opponent_star_distribution['2']);
-            const oppStars1El = container.querySelector(`#${prefix}statsOpponentStars1`);
-            if(oppStars1El) setText(oppStars1El, war.opponent_star_distribution['1']);
-            const oppStars0El = container.querySelector(`#${prefix}statsOpponentStars0`);
-            if(oppStars0El) setText(oppStars0El, war.opponent_star_distribution['0']);
+        const populateStats = (p) => {
+            setText(container.querySelector(`#${p}statsOurAvgStars`), war.clan_avg_stars);
+            setText(container.querySelector(`#${p}statsOurAvgDuration`), war.clan_avg_duration);
+            setText(container.querySelector(`#${p}statsOpponentAvgStars`), war.opponent_avg_stars);
+            setText(container.querySelector(`#${p}statsOpponentAvgDuration`), war.opponent_avg_duration);
+            for(let i=0; i<=3; i++) {
+                setText(container.querySelector(`#${p}statsOurStars${i}`), war.clan_star_distribution[i]);
+                setText(container.querySelector(`#${p}statsOpponentStars${i}`), war.opponent_star_distribution[i]);
+            }
         };
-
         populateStats(prefix);
 
         const eventsTableBody = container.querySelector(`#${prefix}warEventsTableBody`);
         setText(container.querySelector(`#${prefix}warTotalAttacksCount`), data.all_attacks.length);
-        setHtml(eventsTableBody, '');
-        if (data.all_attacks && data.all_attacks.length > 0) {
-            data.all_attacks.forEach(att => {
-                const row = eventsTableBody.insertRow();
-                setText(row.insertCell(), att.order);
-                setText(row.insertCell(), `${att.attacker_name} (CV${att.attacker_townhall})`);
-                const resultCell = row.insertCell();
-                resultCell.innerHTML = `<span class="attack-stars">${createStarString(att.stars)}</span> ${att.destruction}%`;
-                setText(row.insertCell(), `${att.defender_name} (CV${att.defender_townhall})`);
-                setText(row.insertCell(), att.duration);
-            });
-        } else {
-            setHtml(eventsTableBody, '<tr><td colspan="5">Nenhum ataque registrado.</td></tr>');
-        }
+        setHtml(eventsTableBody, data.all_attacks.map(att => `
+            <tr>
+                <td>${att.order}</td>
+                <td>${att.attacker_name} (CV${att.attacker_townhall})</td>
+                <td><span class="attack-stars">${createStarString(att.stars)}</span> ${att.destruction}%</td>
+                <td>${att.defender_name} (CV${att.defender_townhall})</td>
+                <td>${att.duration}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="5">Nenhum ataque registrado.</td></tr>');
 
         const populateTeamTabData = (teamMembersData, teamNameKey, teamElement) => {
             setText(container.querySelector(`#${prefix}war${teamNameKey}TeamName`), war[`${teamNameKey === 'Our' ? 'clan' : 'opponent'}_name`]);
-            setHtml(teamElement, '');
-            if (teamMembersData && teamMembersData.length > 0) {
-                teamMembersData.forEach(member => {
-                    let attacksHtml = '<h5>Ataques Feitos:</h5><ul class="member-attack-list">';
-                    if (member.attacks_made && member.attacks_made.length > 0) {
-                        member.attacks_made.forEach(atk => { attacksHtml += `<li>${createStarString(atk.stars)} ${atk.destruction}% vs ${atk.defender_name} (CV${atk.defender_townhall})</li>`; });
-                    } else { attacksHtml += '<li>Nenhum ataque feito.</li>'; }
-                    attacksHtml += '</ul>';
+            setHtml(teamElement, teamMembersData.map(member => {
+                const attacksHtml = '<h5>Ataques Feitos:</h5><ul class="member-attack-list">' + 
+                    (member.attacks_made?.length > 0 
+                        ? member.attacks_made.map(atk => `<li>${createStarString(atk.stars)} ${atk.destruction}% vs ${atk.defender_name} (CV${atk.defender_townhall})</li>`).join('')
+                        : '<li>Nenhum ataque feito.</li>') + '</ul>';
 
-                    let defensesHtml = '<h5>Defesas Recebidas:</h5><ul class="member-defense-list">';
-                    if (member.defenses_received && member.defenses_received.length > 0) {
-                        member.defenses_received.forEach(def => { defensesHtml += `<li>${createStarString(def.stars)} ${def.destruction}% por ${def.attacker_name} (CV${def.attacker_townhall})</li>`; });
-                    } else { defensesHtml += '<li>Nenhuma defesa registrada.</li>'; }
-                    defensesHtml += '</ul>';
+                const defensesHtml = '<h5>Defesas Recebidas:</h5><ul class="member-defense-list">' +
+                    (member.defenses_received?.length > 0
+                        ? member.defenses_received.map(def => `<li>${createStarString(def.stars)} ${def.destruction}% por ${def.attacker_name} (CV${def.attacker_townhall})</li>`).join('')
+                        : '<li>Nenhuma defesa registrada.</li>') + '</ul>';
 
-                    const memberCard = document.createElement('div');
-                    memberCard.className = 'team-member-card';
-                    memberCard.innerHTML = `<h4><img src="/static/images/townhall${member.townhall}.png" alt="CV${member.townhall}" onerror="this.style.display='none'"/> ${member.map_position}. ${member.name} (CV${member.townhall})</h4><p>Ataques: ${member.attacks_used}/${war.attacks_per_member}</p>${attacksHtml}${defensesHtml}`;
-                    teamElement.appendChild(memberCard);
-                });
-            } else {
-                setHtml(teamElement, '<p>Nenhum membro nesta equipe para a guerra.</p>');
-            }
+                return `<div class="team-member-card">
+                            <h4><img src="/static/images/townhall${member.townhall}.png" alt="CV${member.townhall}" onerror="this.style.display='none'"/> ${member.map_position}. ${member.name} (CV${member.townhall})</h4>
+                            <p>Ataques: ${member.attacks_used}/${war.attacks_per_member}</p>
+                            ${attacksHtml}${defensesHtml}
+                        </div>`;
+            }).join('') || '<p>Nenhum membro nesta equipe para a guerra.</p>');
         };
 
         populateTeamTabData(data.our_clan_members_in_war, "Our", container.querySelector(`#${prefix}warOurTeamMembers`));
         populateTeamTabData(data.opponent_clan_members_in_war, "Opponent", container.querySelector(`#${prefix}warOpponentTeamMembers`));
         
-        let activeWarTabFound = false;
-        container.querySelectorAll('.war-tab-button').forEach(btn => { if (btn.classList.contains('active')) activeWarTabFound = true; });
-        if (!activeWarTabFound) {
-            const firstWarTabButton = container.querySelector('.war-tab-button[data-tab="war-stats"]');
-            const firstWarTabContent = container.querySelector(isModal ? '#historic-war-stats' : '#war-stats');
-            if (firstWarTabButton && firstWarTabContent) {
-                container.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
-                container.querySelectorAll('.war-tab-content').forEach(tc => tc.style.display = 'none');
-                firstWarTabButton.classList.add('active');
-                firstWarTabContent.style.display = 'block';
-            }
+        if (!container.querySelector('.war-tab-button.active')) {
+            container.querySelector('.war-tab-button[data-tab="war-stats"]')?.classList.add('active');
+            container.querySelector(isModal ? '#historic-war-stats' : '#war-stats').style.display = 'block';
         }
     }
 
     function populateMissedAttacksHistory(data) {
-        const clanNameSpan = attacksRemainingTitleEl.querySelector('span');
-        if (clanNameSpan) { setText(clanNameSpan, data.clan_name); }
+        setText(attacksRemainingTitleEl.querySelector('span'), data.clan_name);
 
-        if (data.error || !data.wars_with_missed_attacks || data.wars_with_missed_attacks.length === 0) {
-            const message = data.error || "Nenhuma pendência de ataque encontrada no histórico de guerras.";
+        if (data.error || !data.wars_with_missed_attacks?.length) {
             setHtml(missedAttacksContainerEl, '');
-            if (noMissedAttacksMessageEl) { noMissedAttacksMessageEl.style.display = 'block'; setText(noMissedAttacksMessageEl, message); }
+            if (noMissedAttacksMessageEl) { noMissedAttacksMessageEl.style.display = 'block'; setText(noMissedAttacksMessageEl, data.error || "Nenhuma pendência de ataque encontrada."); }
             return;
         }
 
         if (noMissedAttacksMessageEl) noMissedAttacksMessageEl.style.display = 'none';
-        setHtml(missedAttacksContainerEl, '');
-
-        data.wars_with_missed_attacks.forEach(war => {
-            const warGroup = document.createElement('div');
-            warGroup.className = 'war-group';
-            const warHeader = document.createElement('h3');
-            warHeader.className = 'war-group-header';
-            warHeader.innerHTML = `Guerra vs <strong>${war.opponent_name}</strong> (${war.end_date})`;
-            if (war.is_latest) {
-                const latestBadge = document.createElement('span');
-                latestBadge.className = 'latest-war-badge';
-                latestBadge.textContent = '💥 Última Guerra';
-                warHeader.appendChild(latestBadge);
-            }
-            warGroup.appendChild(warHeader);
-            const cardGrid = document.createElement('div');
-            cardGrid.className = 'player-card-grid';
-            war.missed_attacks_members.forEach(member => {
-                const card = document.createElement('div');
-                card.className = 'missed-attack-card';
-                if (member.attacks_left >= 2) { card.classList.add('severity-high'); } else { card.classList.add('severity-medium'); }
-                card.innerHTML = `<div class="player-info"><h4>${member.name} <span>(CV${member.town_hall})</span></h4><div class="player-tag-container"><span class="player-tag">${member.tag}</span><button class="copy-tag-btn" data-tag="${member.tag}">Copiar</button></div></div><div class="attacks-info"><span class="attacks-count">${member.attacks_left}</span><span class="attacks-label">Ataque${member.attacks_left > 1 ? 's' : ''} Pendente${member.attacks_left > 1 ? 's' : ''}</span></div>`;
-                cardGrid.appendChild(card);
-            });
-            warGroup.appendChild(cardGrid);
-            missedAttacksContainerEl.appendChild(warGroup);
-        });
-        document.querySelectorAll('.copy-tag-btn').forEach(button => { button.addEventListener('click', (e) => { copyToClipboard(e.target.dataset.tag, e.target); }); });
+        setHtml(missedAttacksContainerEl, data.wars_with_missed_attacks.map(war => `
+            <div class="war-group">
+                <h3 class="war-group-header">Guerra vs <strong>${war.opponent_name}</strong> (${war.end_date}) ${war.is_latest ? '<span class="latest-war-badge">💥 Última Guerra</span>' : ''}</h3>
+                <div class="player-card-grid">
+                    ${war.missed_attacks_members.map(member => `
+                        <div class="missed-attack-card ${member.attacks_left >= 2 ? 'severity-high' : 'severity-medium'}">
+                            <div class="player-info">
+                                <h4>${member.name} <span>(CV${member.town_hall})</span></h4>
+                                <div class="player-tag-container">
+                                    <span class="player-tag">${member.tag}</span>
+                                </div>
+                            </div>
+                            <div class="attacks-info">
+                                <span class="attacks-count">${member.attacks_left}</span>
+                                <span class="attacks-label">Ataque${member.attacks_left > 1 ? 's' : ''} Pendente${member.attacks_left > 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join(''));
     }
 
     function populateCwlInfo(data) {
-        setText(cwlStatusTextEl, "Carregando...");
-        if (cwlStatusTextEl) cwlStatusTextEl.className = 'war-state';
         if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
             if(noCwlMessageEl) noCwlMessageEl.style.display = 'block';
             setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
             if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
-            setText(cwlStatusTextEl, data.message || (data.error ? "Erro" : "Fora da CWL"));
-            if (cwlStatusTextEl) cwlStatusTextEl.classList.add((data.status || 'notincwl').toLowerCase());
             return;
         }
         if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
         if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
-        setText(cwlStatusTextEl, "Em CWL");
-        if (cwlStatusTextEl) cwlStatusTextEl.classList.add('incwl');
         setText(cwlSeasonEl, data.season);
         setText(cwlGroupStateEl, data.state);
-        setHtml(cwlGroupClansEl, '');
-        if (data.clans_in_group && data.clans_in_group.length > 0) {
-            data.clans_in_group.forEach(c => setHtml(cwlGroupClansEl, cwlGroupClansEl.innerHTML + `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name}"> <strong>${c.name}</strong> (${c.tag}) Nv ${c.level}</p>`));
-        } else { setHtml(cwlGroupClansEl, '<p>Nenhum clã no grupo.</p>'); }
-        setHtml(cwlRoundsInfoEl, '');
-        if (data.rounds && data.rounds.length > 0) {
-            data.rounds.forEach(r => {
-                let roundHtml = `<div class="cwl-round"><h4>Rodada ${r.round_number}</h4>`;
-                if (r.wars && r.wars.length > 0) {
-                    r.wars.forEach(w => {
-                        if (w.error) { roundHtml += `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`; } 
-                        else if (w.message) { roundHtml += `<p class="cwl-war-entry">${w.message}</p>`; } 
-                        else {
-                            const cBadge = w.clan_badge_url ? `<img src="${w.clan_badge_url}" alt="Emblema ${w.clan_name}" class="cwl-war-badge">` : "";
-                            const oBadge = w.opponent_badge_url ? `<img src="${w.opponent_badge_url}" alt="Emblema ${w.opponent_name}" class="cwl-war-badge">` : "";
-                            roundHtml += `<p class="cwl-war-entry"><strong>${cBadge} ${w.clan_name}</strong> ${w.clan_stars}⭐ (${w.clan_destruction}) vs ${w.opponent_stars}⭐ (${w.opponent_destruction}) <strong>${oBadge} ${w.opponent_name}</strong><br><small>Estado: ${w.state} | ${w.time_key}: ${w.time_value} (${w.time_remaining})</small></p>`;
-                        }
-                    });
-                } else { roundHtml += "<p>Nenhuma guerra nesta rodada.</p>"; }
-                roundHtml += "</div>";
-                setHtml(cwlRoundsInfoEl, cwlRoundsInfoEl.innerHTML + roundHtml);
-            });
-        } else { setHtml(cwlRoundsInfoEl, "Nenhuma info de rodada."); }
+        setHtml(cwlGroupClansEl, data.clans_in_group?.map(c => `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name}"> <strong>${c.name}</strong> (${c.tag}) Nv ${c.level}</p>`).join('') || '<p>Nenhum clã no grupo.</p>');
+        setHtml(cwlRoundsInfoEl, data.rounds?.map(r => `
+            <div class="cwl-round">
+                <h4>Rodada ${r.round_number}</h4>
+                ${r.wars?.map(w => {
+                    if (w.error) return `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`;
+                    if (w.message) return `<p class="cwl-war-entry">${w.message}</p>`;
+                    return `<p class="cwl-war-entry">
+                                <strong><img src="${w.clan_badge_url}" class="cwl-war-badge"> ${w.clan_name}</strong> ${w.clan_stars}⭐ vs ${w.opponent_stars}⭐ <strong><img src="${w.opponent_badge_url}" class="cwl-war-badge"> ${w.opponent_name}</strong>
+                                <br><small>Estado: ${w.state}</small>
+                            </p>`;
+                }).join('') || "<p>Nenhuma guerra nesta rodada.</p>"}
+            </div>
+        `).join('') || "Nenhuma info de rodada.");
     }
 
     function populateWarLog(data) {
-        setText(warLogLimitEl, data.log ? data.log.length : '9');
-        if (data.error || !data.log) {
+        setText(warLogLimitEl, data.log?.length || '0');
+        if (data.error || !data.log?.length) {
             if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'block';
             setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
-            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "N/A"}</td></tr>`);
+            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "Nenhum registro encontrado."}</td></tr>`);
             return;
         }
         if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none';
-        setHtml(warLogTableBodyEl, '');
-        if (data.log.length > 0) {
-            data.log.forEach(e => {
-                const row = warLogTableBodyEl.insertRow();
-                row.classList.add('historic-war-row');
-                row.dataset.warId = e.end_time_iso;
-                setText(row.insertCell(), e.end_time_formatted);
-                const oppCell = row.insertCell();
-                const oppBadge = e.opponent_badge_url ? `<img src="${e.opponent_badge_url}" alt="Emblema ${e.opponent_name}" class="log-opponent-badge">` : "";
-                setHtml(oppCell, `${oppBadge}${e.opponent_name || 'N/A'}`);
-                setText(row.insertCell(), `${e.clan_stars}⭐ (${e.clan_destruction}) vs ${e.opponent_stars}⭐ (${e.opponent_destruction})`);
-                const resCell = row.insertCell();
-                setText(resCell, e.result);
-                resCell.className = e.result ? `war-result-${e.result.toLowerCase()}` : '';
-                setText(row.insertCell(), e.team_size);
-                setText(row.insertCell(), e.is_cwl ? "CWL" : "Normal");
-            });
-        } else {
-            setHtml(warLogTableBodyEl, '<tr><td colspan="6">Nenhum registro encontrado.</td></tr>');
-        }
+        setHtml(warLogTableBodyEl, data.log.map(e => `
+            <tr class="historic-war-row" data-war-id="${e.end_time_iso}">
+                <td>${e.end_time_formatted}</td>
+                <td><img src="${e.opponent_badge_url}" alt="Emblema" class="log-opponent-badge">${e.opponent_name || 'N/A'}</td>
+                <td>${e.clan_stars}⭐ vs ${e.opponent_stars}⭐</td>
+                <td class="war-result-${e.result?.toLowerCase()}">${e.result}</td>
+                <td>${e.team_size}</td>
+                <td>${e.is_cwl ? "CWL" : "Normal"}</td>
+            </tr>
+        `).join(''));
     }
-    
-    function applyMemberFilters() {
-        const nameFilter = filterNameInput.value.toLowerCase();
-        const thFilter = filterTHInput.value.toLowerCase().replace(/\s/g, '');
-        const leagueFilter = filterLeagueInput.value.toLowerCase();
-        const trophiesFilterText = filterTrophiesInput.value;
-        const roleFilter = filterRoleInput.value.toLowerCase();
-        const rows = membersTableBodyEl.getElementsByTagName('tr');
-        for (let i = 0; i < rows.length; i++) {
-            const cells = rows[i].getElementsByTagName('td');
-            const name = cells[1].textContent.toLowerCase();
-            const th = `cv${cells[2].textContent}`.toLowerCase();
-            const league = cells[3].textContent.toLowerCase();
-            const trophies = parseInt(cells[4].textContent, 10);
-            const role = cells[5].textContent.toLowerCase();
-            let show = true;
-            if (nameFilter && !name.includes(nameFilter)) show = false;
-            if (thFilter && th !== thFilter) show = false;
-            if (leagueFilter && !league.includes(leagueFilter)) show = false;
-            if (roleFilter && !role.includes(roleFilter)) show = false;
-            if (trophiesFilterText) {
-                const match = trophiesFilterText.match(/(>=|<=|>|<)?\s*(\d+)/);
-                if (match) {
-                    const operator = match[1] || '==';
-                    const value = parseInt(match[2], 10);
-                    if (operator === '>=' && trophies < value) show = false;
-                    else if (operator === '<=' && trophies > value) show = false;
-                    else if (operator === '>' && trophies <= value) show = false;
-                    else if (operator === '<' && trophies >= value) show = false;
-                    else if (operator === '==' && trophies !== value) show = false;
-                }
-            }
-            rows[i].style.display = show ? '' : 'none';
-        }
-    }
-
-    [filterNameInput, filterTHInput, filterLeagueInput, filterTrophiesInput, filterRoleInput].forEach(input => {
-        if(input) input.addEventListener('keyup', applyMemberFilters);
-    });
 
     async function savePlayerNote(playerTag, text, priority) {
         const encodedPlayerTag = encodeURIComponent(playerTag);
-        try {
-            await fetchData(`notes/${encodedPlayerTag}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, priority })
-            });
-        } catch (error) { console.error('Erro de rede ao salvar nota:', error); }
+        await fetchData(`notes/${encodedPlayerTag}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, priority })
+        });
     }
-
+    
     function populateMembersList(data) {
         setText(membersClanNameEl, data.clan_name);
         if (data.error || !data.members) {
-            setHtml(membersTableBodyEl, `<tr><td colspan="9">${data.error || "N/A"}</td></tr>`);
+            setHtml(membersGridEl, `<p class="message-box">${data.error || "Não foi possível carregar os membros."}</p>`);
             return;
         }
-        setHtml(membersTableBodyEl, '');
-        if (data.members.length > 0) {
-            data.members.forEach((m, index) => {
-                const row = membersTableBodyEl.insertRow();
-                setText(row.insertCell(), index + 1);
-                setText(row.insertCell(), m.name);
-                setText(row.insertCell(), m.town_hall);
-                setText(row.insertCell(), m.league);
-                setText(row.insertCell(), m.trophies);
-                setText(row.insertCell(), m.role);
-                setText(row.insertCell(), m.donations);
-                setText(row.insertCell(), m.received);
-                const noteCell = row.insertCell();
-                noteCell.className = 'member-note-cell';
-                const noteContainer = document.createElement('div');
-                noteContainer.className = `note-container note-priority-${m.note_priority || 'none'}`;
-                const noteTextSpan = document.createElement('span');
-                noteTextSpan.className = 'note-text';
-                noteTextSpan.textContent = m.note || 'Clique para editar...';
-                noteTextSpan.title = m.note || 'Sem observação';
-                noteContainer.appendChild(noteTextSpan);
-                const noteInput = document.createElement('input');
-                noteInput.type = 'text';
-                noteInput.className = 'note-input';
-                noteInput.value = m.note;
-                noteInput.style.display = 'none';
-                noteContainer.appendChild(noteInput);
-                const prioritySelector = document.createElement('div');
-                prioritySelector.className = 'priority-selector';
-                ['green', 'yellow', 'red', 'none'].forEach(prio => {
-                    const btn = document.createElement('button');
-                    btn.className = `priority-btn priority-${prio}`;
-                    btn.dataset.priority = prio;
-                    if (prio === 'green') btn.innerHTML = '&#10003;';
-                    else if (prio === 'yellow') btn.innerHTML = '!';
-                    else if (prio === 'red') btn.innerHTML = '&#10007;';
-                    else if (prio === 'none') btn.innerHTML = '&times;';
-                    if (prio === (m.note_priority || 'none')) btn.classList.add('active');
-                    btn.addEventListener('click', () => {
-                        const currentText = noteInput.style.display === 'none' ? (noteTextSpan.textContent === 'Clique para editar...' ? '' : noteTextSpan.textContent) : noteInput.value;
-                        savePlayerNote(m.tag, currentText, prio);
-                        noteContainer.className = `note-container note-priority-${prio}`;
-                        prioritySelector.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
-                        btn.classList.add('active');
-                    });
-                    prioritySelector.appendChild(btn);
-                });
-                noteContainer.appendChild(prioritySelector);
-                noteTextSpan.addEventListener('click', () => {
-                    noteTextSpan.style.display = 'none';
-                    noteInput.style.display = 'inline-block';
-                    noteInput.focus();
-                });
-                noteInput.addEventListener('blur', () => {
-                    const newText = noteInput.value;
-                    const currentPriority = prioritySelector.querySelector('.priority-btn.active')?.dataset.priority || 'none';
-                    savePlayerNote(m.tag, newText, currentPriority);
-                    noteTextSpan.textContent = newText || 'Clique para editar...';
-                    noteTextSpan.title = newText || 'Sem observação';
-                    noteInput.style.display = 'none';
-                    noteTextSpan.style.display = 'inline-block';
-                });
-                noteInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') noteInput.blur(); });
-                noteCell.appendChild(noteContainer);
+
+        setHtml(membersGridEl, data.members.map(m => `
+            <div class="member-card" data-th="${m.town_hall}" data-name="${m.name.toLowerCase()}">
+                <div class="member-card-header" data-player-tag="${m.tag}">
+                    <img src="/static/images/townhall${m.town_hall}.png" alt="CV${m.town_hall}" class="member-th-icon" onerror="this.style.display='none'">
+                    <div class="member-info">
+                        <h4>${m.name}</h4>
+                        <p>${m.role} • 🏆 ${m.trophies}</p>
+                    </div>
+                </div>
+                <div class="member-card-stats">
+                    <span>🎁 Doadas: ${m.donations}</span>
+                    <span>📥 Recebidas: ${m.received}</span>
+                </div>
+                <div class="member-card-note">
+                    <div class="note-container note-priority-${m.note_priority || 'none'}">
+                        <span class="note-text">${m.note || 'Clique para editar...'}</span>
+                        <input type="text" class="note-input" value="${m.note}" style="display: none;">
+                        <div class="priority-selector">
+                            ${['green', 'yellow', 'red', 'none'].map(prio => `
+                                <button class="priority-btn priority-${prio} ${prio === (m.note_priority || 'none') ? 'active' : ''}" data-priority="${prio}">
+                                    ${prio === 'green' ? '✓' : prio === 'yellow' ? '!' : prio === 'red' ? '✗' : '×'}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>`).join(''));
+        attachMemberEventListeners();
+    }
+
+    function attachMemberEventListeners() {
+        document.querySelectorAll('.member-card-header').forEach(header => {
+            header.addEventListener('click', () => openMemberProfileModal(header.dataset.playerTag));
+        });
+
+        document.querySelectorAll('.note-text').forEach(span => {
+            span.addEventListener('click', () => {
+                const input = span.nextElementSibling;
+                span.style.display = 'none';
+                input.style.display = 'inline-block';
+                input.focus();
             });
-        } else {
-            setHtml(membersTableBodyEl, '<tr><td colspan="9">Nenhum membro.</td></tr>');
+        });
+
+        document.querySelectorAll('.note-input').forEach(input => {
+            const saveChanges = () => {
+                const container = input.closest('.note-container');
+                const span = container.querySelector('.note-text');
+                const playerTag = input.closest('.member-card').querySelector('.member-card-header').dataset.playerTag;
+                const activePriority = container.querySelector('.priority-btn.active')?.dataset.priority || 'none';
+                
+                span.textContent = input.value || 'Clique para editar...';
+                input.style.display = 'none';
+                span.style.display = 'inline-block';
+                savePlayerNote(playerTag, input.value, activePriority);
+            };
+            input.addEventListener('blur', saveChanges);
+            input.addEventListener('keypress', e => { if (e.key === 'Enter') input.blur(); });
+        });
+
+        document.querySelectorAll('.priority-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const container = btn.closest('.note-container');
+                const playerTag = btn.closest('.member-card').querySelector('.member-card-header').dataset.playerTag;
+                const text = container.querySelector('.note-input').value;
+                const newPriority = btn.dataset.priority;
+
+                container.className = `note-container note-priority-${newPriority}`;
+                container.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                savePlayerNote(playerTag, text, newPriority);
+            });
+        });
+    }
+
+    function applyMemberFilters() {
+        const nameFilter = filterNameInput.value.toLowerCase();
+        const thFilter = filterTHInput.value;
+        document.querySelectorAll('.member-card').forEach(card => {
+            const name = card.dataset.name;
+            const th = card.dataset.th;
+            const showName = name.includes(nameFilter);
+            const showTH = !thFilter || th === thFilter;
+            card.style.display = showName && showTH ? 'flex' : 'none';
+        });
+    }
+    
+    [filterNameInput, filterTHInput].forEach(input => input.addEventListener('keyup', applyMemberFilters));
+
+
+    async function openMemberProfileModal(playerTag) {
+        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando perfil do membro...</p>');
+        memberProfileModal.style.display = 'block';
+
+        const encodedTag = encodeURIComponent(playerTag);
+        const profileData = await fetchData(`player_profile/${encodedTag}`);
+
+        if (profileData.error) {
+            setHtml(memberProfileContent, `<p class="message-box">${profileData.error}</p>`);
+            return;
         }
-        applyMemberFilters();
+        
+        const heroesHtml = profileData.heroes.map(hero => `
+            <div class="hero-item">
+                <img src="/static/images/heroes/${hero.name.toLowerCase().replace(/\s+/g, '-')}.png" alt="${hero.name}" onerror="this.style.display='none'">
+                <p><strong>${hero.level}</strong> / ${hero.max_level}</p>
+            </div>
+        `).join('');
+
+        setHtml(memberProfileContent, `
+            <div class="profile-header">
+                <h2>${profileData.name} (CV${profileData.town_hall})</h2>
+                <p class="player-tag">${profileData.tag}</p>
+            </div>
+            <div class="profile-stats-grid">
+                <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league}</p></div>
+                <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies}</p></div>
+                <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations}</p></div>
+                <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received}</p></div>
+            </div>
+            <h3>Heróis</h3>
+            <div class="heroes-list">${heroesHtml || '<p>Nenhum herói encontrado.</p>'}</div>
+            <div class="profile-chart-container">
+                 <h3>Evolução de Troféus</h3>
+                <canvas id="trophyChart"></canvas>
+            </div>
+        `);
+
+        if (memberTrophyChart) memberTrophyChart.destroy();
+        if (profileData.trophy_history?.length > 0) {
+            memberTrophyChart = new Chart(document.getElementById('trophyChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: profileData.trophy_history.map(h => h.timestamp),
+                    datasets: [{
+                        label: 'Troféus',
+                        data: profileData.trophy_history.map(h => h.trophies),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } }, plugins: { legend: { display: false } } }
+            });
+        }
     }
 
     async function openHistoricWarModal(warId) {
@@ -827,7 +680,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const historicWarData = await fetchData(`war_history/${warId}`);
         const template = document.getElementById('historic-war-template');
         if (!template) {
-            console.error("Template 'historic-war-template' não encontrado!");
             setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro: Template do modal não encontrado.</p>');
             return;
         }
@@ -837,7 +689,6 @@ document.addEventListener('DOMContentLoaded', () => {
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
                 const modalContentEl = button.closest('.modal-content');
-                if (!modalContentEl) return;
                 modalContentEl.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
                 const tabId = button.dataset.tab;
@@ -846,24 +697,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
     }
+    
+    // --- LÓGICA DE CLIQUE NAS ABAS DE GUERRA (CORRIGIDO) ---
+    warTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const parentSection = button.closest('.content-section');
+            if (!parentSection) return;
 
-    if (closeModalButton) { closeModalButton.addEventListener('click', () => { historicWarModal.style.display = 'none'; }); }
-    window.addEventListener('click', (event) => { if (event.target == historicWarModal) { historicWarModal.style.display = 'none'; } });
-    warLogTableBodyEl.addEventListener('click', (event) => {
-        const row = event.target.closest('.historic-war-row');
-        if (row && row.dataset.warId) { openHistoricWarModal(row.dataset.warId); }
+            parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            const tabId = button.dataset.tab;
+            parentSection.querySelectorAll('.war-tab-content').forEach(content => {
+                content.style.display = content.id === tabId ? 'block' : 'none';
+            });
+        });
     });
 
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
         try {
             const [clanData, membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData, highlightsData] = await Promise.all([
-                fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
-                fetchData('missed_attacks_history'), fetchData('war_log'), fetchData('cwl_info'), fetchData('highlights')
+                fetchData('clan'), 
+                fetchData('members'), 
+                fetchData('current_war_details'),
+                fetchData('missed_attacks_history'), 
+                fetchData('war_log'), 
+                fetchData('cwl_info'), 
+                fetchData('highlights')
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
-            populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
+            populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
@@ -878,79 +743,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+    
+    // --- EVENT LISTENERS DOS MODAIS ---
+    if (closeModalButton) closeModalButton.addEventListener('click', () => historicWarModal.style.display = 'none');
+    if (closeProfileModalButton) closeProfileModalButton.addEventListener('click', () => memberProfileModal.style.display = 'none');
+    window.addEventListener('click', (event) => {
+        if (event.target == historicWarModal) historicWarModal.style.display = 'none';
+        if (event.target == memberProfileModal) memberProfileModal.style.display = 'none';
+    });
+    warLogTableBodyEl.addEventListener('click', (event) => {
+        const row = event.target.closest('.historic-war-row');
+        if (row && row.dataset.warId) {
+             openHistoricWarModal(row.dataset.warId);
+        }
+    });
 
     loadAllData();
     setInterval(loadAllData, 60000);
-
-    // --- ANIMAÇÃO DE PARTÍCULAS DE FUNDO ---
-    const particleCanvas = document.getElementById('particle-background');
-    if (particleCanvas) {
-        const ctx = particleCanvas.getContext('2d');
-        let particlesArrayLocal = [];
-        let mouse = { x: undefined, y: undefined, radius: 120 };
-        const particleSettings = { count: 35, minSize: 1, maxSize: 3, minSpeed: 0.1, maxSpeed: 0.5, color: 'rgba(255, 215, 0, 0.6)', lineColor: 'rgba(255, 215, 0, 0.1)' };
-        particleCanvas.width = window.innerWidth;
-        particleCanvas.height = window.innerHeight;
-        window.addEventListener('resize', () => {
-            particleCanvas.width = window.innerWidth;
-            particleCanvas.height = window.innerHeight;
-            mouse.radius = 120;
-            initParticles();
-        });
-        particleCanvas.addEventListener('mousemove', (event) => { mouse.x = event.x; mouse.y = event.y; });
-        particleCanvas.addEventListener('mouseout', () => { mouse.x = undefined; mouse.y = undefined; });
-        class Particle {
-            constructor(x, y, size, speedX, speedY, color) { this.x = x; this.y = y; this.size = size; this.speedX = speedX; this.speedY = speedY; this.color = color; }
-            draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false); ctx.fillStyle = this.color; ctx.fill(); }
-            update() {
-                if (this.x > particleCanvas.width || this.x < 0) this.speedX = -this.speedX;
-                if (this.y > particleCanvas.height || this.y < 0) this.speedY = -this.speedY;
-                this.x += this.speedX; this.y += this.speedY;
-                let dx = mouse.x - this.x; let dy = mouse.y - this.y; let distance = Math.sqrt(dx * dx + dy * dy);
-                if (distance < mouse.radius + this.size) {
-                    if (mouse.x < this.x && this.x < particleCanvas.width - this.size * 10) this.x += 5;
-                    if (mouse.x > this.x && this.x > this.size * 10) this.x -= 5;
-                    if (mouse.y < this.y && this.y < particleCanvas.height - this.size * 10) this.y += 5;
-                    if (mouse.y > this.y && this.y > this.size * 10) this.y -= 5;
-                }
-            }
-        }
-        function initParticles() {
-            particlesArrayLocal = [];
-            for (let i = 0; i < particleSettings.count; i++) {
-                let size = (Math.random() * (particleSettings.maxSize - particleSettings.minSize)) + particleSettings.minSize;
-                let x = (Math.random() * ((innerWidth - size * 2) - (size * 2)) + size * 2);
-                let y = (Math.random() * ((innerHeight - size * 2) - (size * 2)) + size * 2);
-                let speedX = (Math.random() * (particleSettings.maxSpeed - particleSettings.minSpeed) * 2) - particleSettings.maxSpeed;
-                let speedY = (Math.random() * (particleSettings.maxSpeed - particleSettings.minSpeed) * 2) - particleSettings.maxSpeed;
-                particlesArrayLocal.push(new Particle(x, y, size, speedX, speedY, particleSettings.color));
-            }
-        }
-        function connectParticles() {
-            let opacityValue = 1;
-            for (let a = 0; a < particlesArrayLocal.length; a++) {
-                for (let b = a; b < particlesArrayLocal.length; b++) {
-                    let distance = ((particlesArrayLocal[a].x - particlesArrayLocal[b].x) ** 2) + ((particlesArrayLocal[a].y - particlesArrayLocal[b].y) ** 2);
-                    if (distance < (particleCanvas.width / 7) * (particleCanvas.height / 7)) {
-                        opacityValue = 1 - (distance / 20000);
-                        ctx.strokeStyle = particleSettings.lineColor.replace('0.1', opacityValue.toString());
-                        ctx.lineWidth = 1;
-                        ctx.beginPath(); ctx.moveTo(particlesArrayLocal[a].x, particlesArrayLocal[a].y); ctx.lineTo(particlesArrayLocal[b].x, particlesArrayLocal[b].y); ctx.stroke();
-                    }
-                }
-            }
-        }
-        function animateParticles() {
-            requestAnimationFrame(animateParticles);
-            ctx.clearRect(0, 0, innerWidth, innerHeight);
-            for (let i = 0; i < particlesArrayLocal.length; i++) {
-                particlesArrayLocal[i].update();
-                particlesArrayLocal[i].draw();
-            }
-            connectParticles();
-        }
-        initParticles();
-        animateParticles();
-    }
 });
+
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.65-AI-V3-INTEGRATION - Integração com o novo sistema de IA v3.0
+# Versão 20.1.72-AI-V3-HEROES-FIX
 
 import os
 import logging
@@ -20,6 +20,7 @@ from aiohttp_session import setup, get_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 import base64
 from cryptography.fernet import Fernet
+import json
 
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
@@ -44,6 +45,8 @@ COC_PASSWORD = os.getenv("COC_PASSWORD")
 CLAN_TAG = os.getenv("CLAN_TAG")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 AI_LOG_CHANNEL_ID = int(os.getenv("AI_LOG_CHANNEL_ID", 0))
+POST_WAR_ANALYSIS_CHANNEL_ID = int(os.getenv("POST_WAR_ANALYSIS_CHANNEL_ID", 0))
+CLAN_GAMES_CHANNEL_ID = int(os.getenv("CLAN_GAMES_CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0)) 
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
@@ -51,7 +54,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.65-AI-V3-INTEGRATION"
+BOT_VERSION = "20.1.72-AI-V3-HEROES-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -209,6 +212,13 @@ async def get_player_data(tag: str) -> Optional[coc.Player]:
     try:
         player = await api_client.get_player(normalized_tag)
         player_short_term_cache[normalized_tag] = player
+        # Adiciona o jogador ao histórico de troféus
+        if hasattr(bot, 'db') and bot.db is not None:
+            await bot.db.trophy_history.insert_one({
+                "player_tag": normalized_tag,
+                "trophies": player.trophies,
+                "timestamp": datetime.datetime.now(pytz.utc)
+            })
         return player
     except Exception:
         return None
@@ -708,15 +718,12 @@ async def fetch_highlights_for_web():
         top_donors = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]
         top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in top_donors]
 
-        best_attacks_data, war_end_date_str = [], ""
+        war_heroes, war_end_date_str = [], ""
         if hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             if latest_war_doc:
-                our_member_tags = {m['tag'] for m in latest_war_doc.get('our_clan_members_in_war', []) if 'tag' in m}
-                our_attacks = [a for a in latest_war_doc.get('all_attacks', []) if a.get("attacker_tag") in our_member_tags]
-                
-                sorted_attacks = sorted(our_attacks, key=lambda a: (a.get('stars', 0), float(str(a.get('destruction', '0')).replace('%',''))), reverse=True)
-                best_attacks_data = sorted_attacks[:3]
+                analysis = _calculate_post_war_stats(latest_war_doc)
+                war_heroes = analysis.get("war_heroes", [])
                 
                 if latest_war_doc.get("war_data", {}).get("end_time_iso"):
                     end_time = datetime.datetime.fromisoformat(latest_war_doc["war_data"]["end_time_iso"])
@@ -725,10 +732,141 @@ async def fetch_highlights_for_web():
         active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
         chart_data = {"labels": [m.name for m in active_members], "donations": [m.donations for m in active_members], "received": [m.received for m in active_members]}
 
-        return {"top_donors": top_donors_data, "best_attacks": best_attacks_data, "activity_chart_data": chart_data, "clan_name": clan.name, "war_date": war_end_date_str}
+        return {
+            "top_donors": top_donors_data, 
+            "war_heroes": war_heroes,
+            "activity_chart_data": chart_data, 
+            "clan_name": clan.name, 
+            "war_date": war_end_date_str
+        }
     except Exception as e:
         logger.error(f"Erro em fetch_highlights_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar destaques."}
+
+
+# --- NOVAS FUNÇÕES DE ANÁLISE PÓS-GUERRA ---
+
+def _calculate_post_war_stats(war_doc: Dict) -> Dict:
+    """Calcula estatísticas detalhadas de uma guerra finalizada a partir do documento do DB."""
+    our_member_tags = {m['tag'] for m in war_doc.get('our_clan_members_in_war', []) if 'tag' in m}
+    all_attacks = war_doc.get('all_attacks', [])
+    our_attacks = [a for a in all_attacks if a.get("attacker_tag") in our_member_tags]
+
+    # Calcula os scores dos jogadores
+    player_scores = {}
+    if our_attacks:
+        for attack in our_attacks:
+            # Score base: 1000 * estrelas + destruição
+            score = attack.get('stars', 0) * 1000 + attack.get('destruction', 0)
+            
+            # Bônus por atacar CV mais alto
+            th_diff = attack.get('defender_townhall', 0) - attack.get('attacker_townhall', 0)
+            if th_diff > 0:
+                score += th_diff * 200 # Bônus de 200 pontos por nível de CV acima
+            
+            attacker_tag = attack.get('attacker_tag')
+            if attacker_tag not in player_scores:
+                player_scores[attacker_tag] = {"score": 0, "attacks": []}
+            
+            player_scores[attacker_tag]["score"] += score
+            player_scores[attacker_tag]["attacks"].append(attack)
+
+    # Classifica os jogadores e pega o top 3
+    sorted_players = sorted(player_scores.items(), key=lambda item: item[1]["score"], reverse=True)
+    
+    war_heroes = []
+    for i, (player_tag, data) in enumerate(sorted_players[:3]):
+        member_info = next((m for m in war_doc.get('our_clan_members_in_war', []) if m.get('tag') == player_tag), {})
+        total_stars = sum(a.get('stars', 0) for a in data["attacks"])
+        avg_destruction = sum(a.get('destruction', 0) for a in data["attacks"]) / len(data["attacks"]) if data["attacks"] else 0
+        
+        reason = f"{total_stars} estrelas e {avg_destruction:.1f}% de destruição média em {len(data['attacks'])} ataque(s)."
+        if any(a.get('defender_townhall', 0) > a.get('attacker_townhall', 0) for a in data["attacks"]):
+            reason += " Destaque por atacar CVs mais altos."
+
+        war_heroes.append({
+            "rank": i + 1,
+            "name": member_info.get("name", "N/A"),
+            "tag": player_tag,
+            "town_hall": member_info.get("townhall", "?"),
+            "reason": reason,
+            "attacks": data["attacks"]
+        })
+
+    # Pontos a Melhorar
+    points_to_improve = []
+    for th_level in range(10, 17): # Analisa de CV10 a CV16
+        attacks_against_th = [a for a in our_attacks if a.get('defender_townhall') == th_level]
+        if len(attacks_against_th) >= 3:
+            avg_stars = sum(a.get('stars', 0) for a in attacks_against_th) / len(attacks_against_th)
+            if avg_stars < 2.3:
+                points_to_improve.append(f"Baixa média de estrelas ({avg_stars:.2f}⭐) contra CV{th_level}.")
+    
+    if not points_to_improve:
+        points_to_improve.append("Bom desempenho geral, manter o foco!")
+
+    return {
+        "war_heroes": war_heroes,
+        "points_to_improve": points_to_improve
+    }
+
+async def generate_post_war_analysis(war_doc: Dict):
+    """Gera e envia o relatório de análise pós-guerra para o Discord."""
+    if not POST_WAR_ANALYSIS_CHANNEL_ID:
+        logger.warning("ID do canal de análise pós-guerra não configurado. Análise não será enviada.")
+        return
+
+    try:
+        war_data = war_doc.get("war_data", {})
+        analysis = _calculate_post_war_stats(war_doc)
+        
+        war_heroes = analysis["war_heroes"]
+        points_to_improve = analysis["points_to_improve"]
+
+        result_color = discord.Color.green() if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else discord.Color.red()
+        result_text = "Vitória" if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else "Derrota"
+        
+        embed = discord.Embed(
+            title=f"Análise Pós-Guerra: {result_text} vs {war_data.get('opponent_name')}",
+            description=f"Placar final: **{war_data.get('clan_stars')}⭐** vs {war_data.get('opponent_stars')}⭐",
+            color=result_color
+        )
+
+        if war_heroes:
+            mvp = war_heroes[0]
+            embed.add_field(
+                name="🏆 MVP da Guerra",
+                value=f"**{mvp.get('name')} (CV{mvp.get('town_hall')})**\n*_{mvp.get('reason')}_*",
+                inline=False
+            )
+            
+            jogadas_str = ""
+            for hero in war_heroes:
+                ataque_destaque = max(hero['attacks'], key=lambda a: a.get('stars', 0) * 1000 + a.get('destruction', 0))
+                stars_str = "⭐" * ataque_destaque.get('stars', 0)
+                jogadas_str += f"`{hero['rank']}.` **{hero.get('name')}** vs {ataque_destaque.get('defender_name')} - {stars_str} {ataque_destaque.get('destruction')}% \n"
+            
+            embed.add_field(
+                name="⚔️ Heróis da Guerra",
+                value=jogadas_str,
+                inline=False
+            )
+        
+        if points_to_improve:
+            embed.add_field(
+                name="🎯 Pontos a Melhorar",
+                value="• " + "\n• ".join(points_to_improve),
+                inline=False
+            )
+        
+        if war_data.get('clan_badge_url'):
+            embed.set_thumbnail(url=war_data.get('clan_badge_url'))
+
+        await send_log_embed(embed, target_channel_id=POST_WAR_ANALYSIS_CHANNEL_ID)
+        logger.info(f"Análise pós-guerra enviada para o canal {POST_WAR_ANALYSIS_CHANNEL_ID}.")
+
+    except Exception as e:
+        logger.error(f"Erro ao gerar análise pós-guerra: {e}", exc_info=True)
 
 
 async def api_clan_info_handler(request): return web.json_response(await get_cached_web_data('clan_info', fetch_clan_info_for_web))
@@ -754,11 +892,44 @@ async def api_historic_war_handler(request):
     if not hasattr(bot, 'db') or bot.db is None: return web.json_response({"error": "Banco de dados não conectado."}, status=503)
     try:
         war_doc = await bot.db.war_history.find_one({"_id": request.match_info['war_id']})
-        return web.json_response(war_doc) if war_doc else web.json_response({"error": "Guerra não encontrada."}, status=404)
+        return web.json_response(war_doc, dumps=lambda v: json.dumps(v, default=str)) if war_doc else web.json_response({"error": "Guerra não encontrada."}, status=404)
     except Exception as e:
         logger.error(f"Erro ao buscar guerra histórica: {e}", exc_info=True)
         return web.json_response({"error": "Erro interno no servidor."}, status=500)
         
+async def api_member_profile_handler(request):
+    """API para buscar o perfil detalhado de um membro."""
+    try:
+        player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
+        logger.info(f"Buscando perfil para a tag: {player_tag}")
+        
+        player_data = await get_player_data(player_tag)
+        if not player_data:
+            logger.warning(f"Jogador com a tag {player_tag} não encontrado pela API do CoC.")
+            return web.json_response({"error": "Jogador não encontrado."}, status=404)
+        
+        # Coleta de dados históricos (ex: troféus)
+        trophy_history = []
+        if hasattr(bot, 'db') and bot.db is not None:
+             cursor = bot.db.trophy_history.find({"player_tag": player_tag}).sort("timestamp", DESCENDING).limit(30)
+             trophy_history = [{"trophies": doc["trophies"], "timestamp": doc["timestamp"].strftime("%d/%m")} async for doc in cursor]
+             trophy_history.reverse()
+
+        profile = {
+            "name": player_data.name, "tag": player_data.tag, "town_hall": player_data.town_hall,
+            "heroes": [{"name": h.name, "level": h.level, "max_level": h.max_level} for h in player_data.heroes if h.is_home_base],
+            "donations": player_data.donations, "received": player_data.received,
+            "trophies": player_data.trophies, "league": player_data.league.name if player_data.league else "N/A",
+            "trophy_history": trophy_history,
+        }
+        return web.json_response(profile)
+    except coc.NotFound:
+        logger.warning(f"coc.NotFound para a tag {request.match_info['player_tag']}")
+        return web.json_response({"error": "Jogador não encontrado (API)."}, status=404)
+    except Exception as e:
+        logger.error(f"Erro ao buscar perfil do membro via API para tag {request.match_info['player_tag']}: {e}", exc_info=True)
+        return web.json_response({"error": "Erro interno ao buscar perfil."}, status=500)
+
 @tasks.loop(seconds=60.0)
 async def check_war_end_task():
     global last_war_end_time
@@ -770,6 +941,20 @@ async def check_war_end_task():
             if last_war_end_time is None or war.end_time.time > last_war_end_time:
                 logger.info(f"Nova guerra finalizada detectada.")
                 last_war_end_time = war.end_time.time
+                
+                # Salva a guerra no histórico PRIMEIRO
+                war_details = await fetch_current_war_details_for_web()
+                if 'error' not in war_details: 
+                    await save_war_to_history(war_details)
+                
+                # Busca o documento recém-salvo para garantir que temos todos os dados
+                war_doc_from_db = await bot.db.war_history.find_one({"_id": war_details["war_data"]["end_time_iso"]})
+                
+                # Gera e envia a análise pós-guerra
+                if war_doc_from_db:
+                    await generate_post_war_analysis(war_doc_from_db)
+
+                # Gera o alerta de ataques perdidos
                 our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
                 missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
                 if missed:
@@ -780,8 +965,6 @@ async def check_war_end_task():
                     role_mention = f"<@&{ROLE_ID_MISSED_ATTACK}>" if ROLE_ID_MISSED_ATTACK else ""
                     await send_log_embed(embed, content=f"{role_mention} Atenção!")
                 
-                war_details = await fetch_current_war_details_for_web()
-                if 'error' not in war_details: await save_war_to_history(war_details)
     except (coc.PrivateWarLog, coc.NotFound): pass
     except Exception as e:
         logger.error(f"Erro na task de fim de guerra: {e}", exc_info=True)
@@ -810,6 +993,33 @@ async def check_new_attack_task():
     except Exception as e:
         logger.error(f"Erro na task de novos ataques: {e}", exc_info=True)
 
+@tasks.loop(hours=24)
+async def daily_player_data_snapshot():
+    """Tira um 'snapshot' diário dos dados dos jogadores para histórico."""
+    await bot.wait_until_ready()
+    if not api_client or not hasattr(bot, 'db') or bot.db is None:
+        logger.info("Snapshot diário pulado (API ou DB não prontos).")
+        return
+    
+    logger.info("Iniciando snapshot diário de dados dos jogadores.")
+    try:
+        clan = await api_client.get_clan(CLAN_TAG)
+        snapshot_time = datetime.datetime.now(pytz.utc)
+        records = []
+        for member in clan.members:
+            records.append({
+                "player_tag": member.tag,
+                "trophies": member.trophies,
+                "donations": member.donations,
+                "received": member.received,
+                "timestamp": snapshot_time
+            })
+        if records:
+            await bot.db.trophy_history.insert_many(records)
+            logger.info(f"Snapshot salvo para {len(records)} jogadores.")
+    except Exception as e:
+        logger.error(f"Erro na task de snapshot diário: {e}", exc_info=True)
+
 @tasks.loop(seconds=10, count=1)
 async def send_online_status_task():
     await bot.wait_until_ready()
@@ -836,6 +1046,7 @@ async def setup_web_server():
     app.router.add_get("/api/highlights", api_highlights_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
+    app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler) # ROTA CORRIGIDA
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     
     static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -920,6 +1131,7 @@ async def on_ready():
     if not check_war_end_task.is_running(): check_war_end_task.start()
     if not check_new_attack_task.is_running(): check_new_attack_task.start()
     if not send_online_status_task.is_running(): send_online_status_task.start()
+    if not daily_player_data_snapshot.is_running(): daily_player_data_snapshot.start()
 
 @bot.command()
 async def ping(ctx): await ctx.send(f'Pong! Latência: {round(bot.latency * 1000)}ms')

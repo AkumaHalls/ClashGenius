@@ -392,24 +392,74 @@ main.container {
     color: var(--color-text-secondary);
 }
 
-.attacks-list .attack-item {
-    padding: 10px;
+/* NOVO: Estilos para o MVP e Heróis na aba Destaques */
+.mvp-card, .attack-item {
+    position: relative; /* Para tooltip */
+    padding: 12px;
     margin-bottom: 10px;
-    background-color: rgba(0,0,0,0.2);
     border-radius: var(--border-radius-base);
+}
+
+.mvp-card {
+    background: linear-gradient(145deg, rgba(255, 215, 0, 0.1), rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--color-gold);
+    text-align: center;
+}
+.attack-item {
+    background-color: rgba(0,0,0,0.2);
     border-left: 3px solid var(--color-success);
 }
-.attacks-list .attack-header {
+
+.mvp-card .mvp-title {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: var(--color-gold);
+    margin: 0 0 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.mvp-card .mvp-name {
+    font-size: 1.2em;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+}
+.mvp-card .mvp-name span {
+    font-size: 0.8em;
+    font-weight: 400;
+    color: var(--color-text-secondary);
+}
+
+.attack-header {
     font-weight: 600;
     color: var(--color-text-main);
 }
-.attacks-list .attack-details {
-    font-size: 0.9em;
-    color: var(--color-text-secondary);
+.attack-details {
+    display: none; /* Esconde a descrição por padrão */
 }
-.attacks-list .attack-stars {
-    font-size: 1.2em;
-    color: var(--color-star-gold);
+
+.mvp-card .tooltip-text, .attack-item .tooltip-text {
+    visibility: hidden;
+    width: 250px;
+    background-color: var(--color-background);
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 10px;
+    position: absolute;
+    z-index: 10;
+    bottom: 110%;
+    left: 50%;
+    margin-left: -125px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.85em;
+    border: 1px solid var(--color-border-light);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+.mvp-card:hover .tooltip-text, .attack-item:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
 }
 
 .chart-card {
@@ -531,7 +581,7 @@ main.container {
 .star-distribution-container p span { color: var(--color-text-main); font-weight: 500; }
 
 
-/* Tabelas */
+/* Tabelas e a nova visualização de Membros */
 .table-container { overflow-x: auto; max-height: 750px; border: 1px solid var(--color-border); border-radius: var(--border-radius-base); background-color: var(--color-card-background); }
 .medium-table { max-height: 500px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
@@ -582,6 +632,65 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 .member-filters input[type="text"]::placeholder { color: var(--color-text-secondary); opacity: 0.7; }
 .member-filters input[type="text"]:focus { border-color: var(--color-accent); outline: none; background-color: #354154; }
+
+
+/* --- NOVO: Estilos para o Grid de Membros --- */
+.members-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 15px;
+}
+.member-card {
+    background-color: rgba(74, 85, 104, 0.15);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-base);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.member-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--box-shadow-card);
+}
+.member-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 15px;
+    cursor: pointer;
+}
+.member-th-icon {
+    width: 40px;
+    height: 40px;
+}
+.member-info h4 {
+    margin: 0;
+    font-size: 1.15em;
+    color: var(--color-text-main);
+}
+.member-info p {
+    margin: 0;
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+}
+.member-card-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    font-size: 0.85em;
+    margin-bottom: 15px;
+}
+.member-card-stats span {
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 5px 8px;
+    border-radius: 4px;
+}
+.member-card-note {
+    margin-top: auto; /* Empurra a nota para o final do card */
+}
+
+/* --- FIM: Estilos do Grid de Membros --- */
 
 
 /* --- INÍCIO: NOVOS ESTILOS PARA ATAQUES PENDENTES --- */
@@ -707,7 +816,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 
 
 /* Observações dos Membros */
-.member-note-cell { min-width: 200px; }
 .note-container {
     display: flex;
     flex-direction: column;
@@ -715,6 +823,9 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     padding: 5px;
     border-radius: var(--border-radius-base);
     transition: background-color 0.3s;
+    background-color: rgba(0,0,0,0.15);
+    border-top: 1px solid var(--color-border);
+    padding-top: 10px;
 }
 .note-text {
     cursor: pointer;
@@ -724,8 +835,10 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     overflow: hidden;
     text-overflow: ellipsis;
     display: inline-block;
-    max-width: 180px;
+    width: 100%;
     min-height: 20px;
+    font-size: 0.85em;
+    color: var(--color-text-secondary);
 }
 .note-text:hover { background-color: rgba(255,255,255,0.1); }
 .note-input {
@@ -759,10 +872,10 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .priority-btn.priority-yellow.active { background-color: var(--color-priority-yellow); border-color: var(--color-priority-yellow); color: var(--color-priority-text-dark); }
 .priority-btn.priority-red.active { background-color: var(--color-priority-red); border-color: var(--color-priority-red); color: white;}
 
-.note-priority-none { background-color: var(--color-priority-none-bg); }
-.note-priority-green { background-color: rgba(56, 161, 105, 0.3); }
-.note-priority-yellow { background-color: rgba(236, 201, 75, 0.3); }
-.note-priority-red { background-color: rgba(229, 62, 62, 0.3); }
+.note-priority-none .note-text { background-color: var(--color-priority-none-bg); }
+.note-priority-green .note-text { background-color: rgba(56, 161, 105, 0.3); }
+.note-priority-yellow .note-text { background-color: rgba(236, 201, 75, 0.3); }
+.note-priority-red .note-text { background-color: rgba(229, 62, 62, 0.3); }
 
 
 /* CWL e Capital */
@@ -858,6 +971,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .note-text { max-width: 120px; }
     .clan-profile-header { flex-direction: column; text-align: center; } /* Centraliza no mobile */
     .highlights-grid { grid-template-columns: 1fr; }
+    .members-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
     .loading-badge { width: 70vw; max-width: 300px; }
@@ -940,6 +1054,74 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .historic-war-row:hover td {
     color: #fff;
 }
+
+/* --- NOVO: Estilos para o Modal de Perfil de Membro --- */
+#memberProfileContent {
+    padding: 10px;
+}
+.profile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 25px;
+}
+.profile-header h2 {
+    font-size: 1.8em;
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+.profile-header .player-tag {
+    font-size: 1em;
+    background-color: transparent;
+    padding: 0;
+    color: var(--color-text-secondary);
+}
+.profile-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+.profile-stat-card {
+    background-color: rgba(74, 85, 104, 0.2);
+    border-radius: var(--border-radius-base);
+    padding: 15px;
+    text-align: center;
+}
+.profile-stat-card h4 {
+    margin: 0 0 5px 0;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+.profile-stat-card p {
+    margin: 0;
+    font-size: 1.4em;
+    font-weight: 700;
+}
+.heroes-list {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+.hero-item {
+    text-align: center;
+}
+.hero-item img {
+    height: 50px;
+}
+.hero-item p {
+    margin: 5px 0 0 0;
+    font-size: 0.9em;
+}
+.profile-chart-container {
+    height: 300px;
+    margin-top: 20px;
+}
+
 
 /* --- PÁGINAS DE ADMIN E MANUTENÇÃO --- */
 .admin-page, .maintenance-page {
