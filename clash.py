@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.70-AI-V3-POST-WAR-ANALYSIS
+# Versão 20.1.72-AI-V3-HEROES-FIX
 
 import os
 import logging
@@ -54,7 +54,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.70-AI-V3-POST-WAR-ANALYSIS"
+BOT_VERSION = "20.1.72-AI-V3-HEROES-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -718,13 +718,12 @@ async def fetch_highlights_for_web():
         top_donors = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]
         top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in top_donors]
 
-        best_attacks_data, war_end_date_str, mvp_data = [], "", {}
+        war_heroes, war_end_date_str = [], ""
         if hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             if latest_war_doc:
                 analysis = _calculate_post_war_stats(latest_war_doc)
-                mvp_data = analysis.get("mvp", {})
-                best_attacks_data = analysis.get("best_attacks", [])
+                war_heroes = analysis.get("war_heroes", [])
                 
                 if latest_war_doc.get("war_data", {}).get("end_time_iso"):
                     end_time = datetime.datetime.fromisoformat(latest_war_doc["war_data"]["end_time_iso"])
@@ -735,8 +734,7 @@ async def fetch_highlights_for_web():
 
         return {
             "top_donors": top_donors_data, 
-            "best_attacks": best_attacks_data, 
-            "mvp": mvp_data,
+            "war_heroes": war_heroes,
             "activity_chart_data": chart_data, 
             "clan_name": clan.name, 
             "war_date": war_end_date_str
@@ -754,44 +752,52 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
     all_attacks = war_doc.get('all_attacks', [])
     our_attacks = [a for a in all_attacks if a.get("attacker_tag") in our_member_tags]
 
-    # Calcula o MVP
-    mvp = {}
+    # Calcula os scores dos jogadores
+    player_scores = {}
     if our_attacks:
-        player_scores = {}
         for attack in our_attacks:
-            score = attack.get('stars', 0) * 100 + attack.get('destruction', 0)
+            # Score base: 1000 * estrelas + destruição
+            score = attack.get('stars', 0) * 1000 + attack.get('destruction', 0)
+            
             # Bônus por atacar CV mais alto
-            if attack.get('attacker_townhall', 0) < attack.get('defender_townhall', 0):
-                score += 50
+            th_diff = attack.get('defender_townhall', 0) - attack.get('attacker_townhall', 0)
+            if th_diff > 0:
+                score += th_diff * 200 # Bônus de 200 pontos por nível de CV acima
             
             attacker_tag = attack.get('attacker_tag')
-            player_scores[attacker_tag] = player_scores.get(attacker_tag, 0) + score
-        
-        if player_scores:
-            mvp_tag = max(player_scores, key=player_scores.get)
-            mvp_member_info = next((m for m in war_doc.get('our_clan_members_in_war', []) if m.get('tag') == mvp_tag), {})
-            mvp_attacks = [a for a in our_attacks if a.get('attacker_tag') == mvp_tag]
+            if attacker_tag not in player_scores:
+                player_scores[attacker_tag] = {"score": 0, "attacks": []}
             
-            total_stars = sum(a.get('stars',0) for a in mvp_attacks)
-            avg_destruction = sum(a.get('destruction',0) for a in mvp_attacks) / len(mvp_attacks) if mvp_attacks else 0
+            player_scores[attacker_tag]["score"] += score
+            player_scores[attacker_tag]["attacks"].append(attack)
 
-            mvp = {
-                "name": mvp_member_info.get("name", "N/A"),
-                "tag": mvp_tag,
-                "town_hall": mvp_member_info.get("townhall", "?"),
-                "reason": f"Melhor performance geral com {len(mvp_attacks)} ataque(s), somando {total_stars} estrelas e uma média de {avg_destruction:.2f}% de destruição."
-            }
+    # Classifica os jogadores e pega o top 3
+    sorted_players = sorted(player_scores.items(), key=lambda item: item[1]["score"], reverse=True)
+    
+    war_heroes = []
+    for i, (player_tag, data) in enumerate(sorted_players[:3]):
+        member_info = next((m for m in war_doc.get('our_clan_members_in_war', []) if m.get('tag') == player_tag), {})
+        total_stars = sum(a.get('stars', 0) for a in data["attacks"])
+        avg_destruction = sum(a.get('destruction', 0) for a in data["attacks"]) / len(data["attacks"]) if data["attacks"] else 0
+        
+        reason = f"{total_stars} estrelas e {avg_destruction:.1f}% de destruição média em {len(data['attacks'])} ataque(s)."
+        if any(a.get('defender_townhall', 0) > a.get('attacker_townhall', 0) for a in data["attacks"]):
+            reason += " Destaque por atacar CVs mais altos."
 
-    # Melhores ataques
-    sorted_attacks = sorted(our_attacks, key=lambda a: (a.get('stars', 0), float(str(a.get('destruction', '0')).replace('%',''))), reverse=True)
-    best_attacks_data = sorted_attacks[:3]
+        war_heroes.append({
+            "rank": i + 1,
+            "name": member_info.get("name", "N/A"),
+            "tag": player_tag,
+            "town_hall": member_info.get("townhall", "?"),
+            "reason": reason,
+            "attacks": data["attacks"]
+        })
 
     # Pontos a Melhorar
     points_to_improve = []
-    avg_stars_per_th = {}
     for th_level in range(10, 17): # Analisa de CV10 a CV16
         attacks_against_th = [a for a in our_attacks if a.get('defender_townhall') == th_level]
-        if len(attacks_against_th) >= 3: # Analisa se houver um número razoável de ataques
+        if len(attacks_against_th) >= 3:
             avg_stars = sum(a.get('stars', 0) for a in attacks_against_th) / len(attacks_against_th)
             if avg_stars < 2.3:
                 points_to_improve.append(f"Baixa média de estrelas ({avg_stars:.2f}⭐) contra CV{th_level}.")
@@ -800,8 +806,7 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
         points_to_improve.append("Bom desempenho geral, manter o foco!")
 
     return {
-        "mvp": mvp,
-        "best_attacks": best_attacks_data,
+        "war_heroes": war_heroes,
         "points_to_improve": points_to_improve
     }
 
@@ -815,8 +820,7 @@ async def generate_post_war_analysis(war_doc: Dict):
         war_data = war_doc.get("war_data", {})
         analysis = _calculate_post_war_stats(war_doc)
         
-        mvp = analysis["mvp"]
-        best_attacks = analysis["best_attacks"]
+        war_heroes = analysis["war_heroes"]
         points_to_improve = analysis["points_to_improve"]
 
         result_color = discord.Color.green() if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else discord.Color.red()
@@ -828,21 +832,23 @@ async def generate_post_war_analysis(war_doc: Dict):
             color=result_color
         )
 
-        if mvp:
+        if war_heroes:
+            mvp = war_heroes[0]
             embed.add_field(
                 name="🏆 MVP da Guerra",
                 value=f"**{mvp.get('name')} (CV{mvp.get('town_hall')})**\n*_{mvp.get('reason')}_*",
                 inline=False
             )
-        
-        if best_attacks:
-            attacks_str = ""
-            for i, attack in enumerate(best_attacks):
-                stars_str = "⭐" * attack.get('stars', 0)
-                attacks_str += f"`{i+1}.` **{attack.get('attacker_name')}** vs {attack.get('defender_name')} (CV{attack.get('defender_townhall')}) - {stars_str} {attack.get('destruction')}% \n"
+            
+            jogadas_str = ""
+            for hero in war_heroes:
+                ataque_destaque = max(hero['attacks'], key=lambda a: a.get('stars', 0) * 1000 + a.get('destruction', 0))
+                stars_str = "⭐" * ataque_destaque.get('stars', 0)
+                jogadas_str += f"`{hero['rank']}.` **{hero.get('name')}** vs {ataque_destaque.get('defender_name')} - {stars_str} {ataque_destaque.get('destruction')}% \n"
+            
             embed.add_field(
-                name="⚔️ Jogadas da Guerra",
-                value=attacks_str,
+                name="⚔️ Heróis da Guerra",
+                value=jogadas_str,
                 inline=False
             )
         
@@ -1039,7 +1045,7 @@ async def setup_web_server():
     app.router.add_get("/api/highlights", api_highlights_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
-    app.router.add_get("/api/member/{player_tag:.*}", api_member_profile_handler) # NOVO
+    app.router.add_get("/api/member/{player_tag:.*}", api_member_profile_handler) # CORREÇÃO APLICADA AQUI
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     
     static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -1151,3 +1157,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
+
