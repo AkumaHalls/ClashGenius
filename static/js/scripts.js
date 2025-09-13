@@ -296,193 +296,230 @@ document.addEventListener('DOMContentLoaded', () => {
         return '⭐'.repeat(stars) + '⚫'.repeat(Math.max(0, 3 - stars));
     }
     
-    // ... [O resto das funções como populateWarDetails, populateMissedAttacksHistory, etc., continuam iguais]
+    function populateWarDetails(data, containerId = 'war-details-nav', isModal = false) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
 
-    async function savePlayerNote(playerTag, text, priority) {
-        const encodedPlayerTag = encodeURIComponent(playerTag);
-        await fetchData(`notes/${encodedPlayerTag}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, priority })
-        });
-    }
-    
-    // --- FUNÇÃO DE POPULAR MEMBROS ATUALIZADA ---
-    function populateMembersList(data) {
-        setText(membersClanNameEl, data.clan_name);
-        if (data.error || !data.members) {
-            setHtml(membersGridEl, `<p class="message-box">${data.error || "Não foi possível carregar os membros."}</p>`);
-            return;
-        }
+        const prefix = isModal ? 'historic-' : '';
+        const warHeader = container.querySelector('.war-header');
+        const warTabsNav = container.querySelector('.war-tabs');
+        const noWarMsg = container.querySelector(isModal ? '.message-box' : '#noWarDetailMessage');
 
-        setHtml(membersGridEl, data.members.map(m => {
-            return `
-            <div class="member-card" data-th="${m.town_hall}" data-name="${m.name.toLowerCase()}">
-                <div class="member-card-header" data-player-tag="${m.tag}">
-                    <img src="/static/images/townhall${m.town_hall}.png" alt="CV${m.town_hall}" class="member-th-icon" onerror="this.style.display='none'">
-                    <div class="member-info">
-                        <h4>${m.name}</h4>
-                        <p>${m.role} • 🏆 ${m.trophies}</p>
-                    </div>
-                </div>
-                <div class="member-card-stats">
-                    <span>🎁 Doadas: ${m.donations}</span>
-                    <span>📥 Recebidas: ${m.received}</span>
-                </div>
-                <div class="member-card-note">
-                    <div class="note-container note-priority-${m.note_priority || 'none'}">
-                        <span class="note-text">${m.note || 'Clique para editar...'}</span>
-                        <input type="text" class="note-input" value="${m.note}" style="display: none;">
-                        <div class="priority-selector">
-                            ${['green', 'yellow', 'red', 'none'].map(prio => `
-                                <button class="priority-btn priority-${prio} ${prio === (m.note_priority || 'none') ? 'active' : ''}" data-priority="${prio}">
-                                    ${prio === 'green' ? '✓' : prio === 'yellow' ? '!' : prio === 'red' ? '✗' : '×'}
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-            </div>`;
-        }).join(''));
-
-        // Reanexar todos os event listeners
-        attachMemberEventListeners();
-    }
-
-    // --- FUNÇÃO PARA ANEXAR LISTENERS AOS CARDS DE MEMBROS ---
-    function attachMemberEventListeners() {
-        document.querySelectorAll('.member-card-header').forEach(header => {
-            header.addEventListener('click', () => openMemberProfileModal(header.dataset.playerTag));
-        });
-
-        document.querySelectorAll('.note-text').forEach(span => {
-            span.addEventListener('click', () => {
-                const input = span.nextElementSibling;
-                span.style.display = 'none';
-                input.style.display = 'inline-block';
-                input.focus();
-            });
-        });
-
-        document.querySelectorAll('.note-input').forEach(input => {
-            const saveChanges = () => {
-                const container = input.closest('.note-container');
-                const span = container.querySelector('.note-text');
-                const playerTag = input.closest('.member-card').querySelector('.member-card-header').dataset.playerTag;
-                const activePriority = container.querySelector('.priority-btn.active')?.dataset.priority || 'none';
-                
-                span.textContent = input.value || 'Clique para editar...';
-                input.style.display = 'none';
-                span.style.display = 'inline-block';
-                savePlayerNote(playerTag, input.value, activePriority);
-            };
-            input.addEventListener('blur', saveChanges);
-            input.addEventListener('keypress', e => { if (e.key === 'Enter') input.blur(); });
-        });
-
-        document.querySelectorAll('.priority-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const container = btn.closest('.note-container');
-                const playerTag = btn.closest('.member-card').querySelector('.member-card-header').dataset.playerTag;
-                const text = container.querySelector('.note-input').value;
-                const newPriority = btn.dataset.priority;
-
-                container.className = `note-container note-priority-${newPriority}`;
-                container.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                savePlayerNote(playerTag, text, newPriority);
-            });
-        });
-    }
-
-    function applyMemberFilters() {
-        const nameFilter = filterNameInput.value.toLowerCase();
-        const thFilter = filterTHInput.value;
-        document.querySelectorAll('.member-card').forEach(card => {
-            const name = card.dataset.name;
-            const th = card.dataset.th;
-            const showName = name.includes(nameFilter);
-            const showTH = !thFilter || th === thFilter;
-            card.style.display = showName && showTH ? 'flex' : 'none';
-        });
-    }
-    
-    [filterNameInput, filterTHInput].forEach(input => input.addEventListener('keyup', applyMemberFilters));
-
-
-    async function openMemberProfileModal(playerTag) {
-        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando perfil do membro...</p>');
-        memberProfileModal.style.display = 'block';
-
-        const encodedTag = encodeURIComponent(playerTag);
-        const profileData = await fetchData(`player_profile/${encodedTag}`);
-
-        if (profileData.error) {
-            setHtml(memberProfileContent, `<p class="message-box">${profileData.error}</p>`);
+        if (data.error || !data.war_data) {
+            if (noWarMsg) { noWarMsg.style.display = 'block'; setText(noWarMsg, data.error || "Nenhuma guerra para detalhar."); }
+            if (warHeader) warHeader.style.display = 'none';
+            if (warTabsNav) warTabsNav.style.display = 'none';
+            container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none');
+            const predictionSection = container.querySelector('#warPredictionSection');
+            if (predictionSection) predictionSection.style.display = 'none';
             return;
         }
         
-        const heroesHtml = profileData.heroes.map(hero => `
-            <div class="hero-item">
-                <img src="/static/images/heroes/${hero.name.toLowerCase().replace(/\s+/g, '-')}.png" alt="${hero.name}" onerror="this.style.display='none'">
-                <p><strong>${hero.level}</strong> / ${hero.max_level}</p>
-            </div>
-        `).join('');
-
-        setHtml(memberProfileContent, `
-            <div class="profile-header">
-                <h2>${profileData.name} (CV${profileData.town_hall})</h2>
-                <p class="player-tag">${profileData.tag}</p>
-            </div>
-            <div class="profile-stats-grid">
-                <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league}</p></div>
-                <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies}</p></div>
-                <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations}</p></div>
-                <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received}</p></div>
-            </div>
-            <h3>Heróis</h3>
-            <div class="heroes-list">${heroesHtml || '<p>Nenhum herói encontrado.</p>'}</div>
-            <div class="profile-chart-container">
-                 <h3>Evolução de Troféus</h3>
-                <canvas id="trophyChart"></canvas>
-            </div>
-        `);
-
-        if (memberTrophyChart) memberTrophyChart.destroy();
-        if (profileData.trophy_history?.length > 0) {
-            memberTrophyChart = new Chart(document.getElementById('trophyChart').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: profileData.trophy_history.map(h => h.timestamp),
-                    datasets: [{
-                        label: 'Troféus',
-                        data: profileData.trophy_history.map(h => h.trophies),
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        fill: true,
-                        tension: 0.1
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } }, plugins: { legend: { display: false } } }
-            });
+        if (!isModal) {
+            const predictionSection = container.querySelector('#warPredictionSection');
+            const predictionTextEl = container.querySelector('#warPredictionText');
+            const predictionTagsEl = container.querySelector('#warPredictionTags');
+    
+            if (predictionSection && predictionTextEl && predictionTagsEl && data.prediction && data.prediction.summary_panel) {
+                setText(predictionTextEl, data.prediction.summary_panel);
+                predictionTagsEl.innerHTML = `
+                    <div class="prediction-tag">
+                        <span class="prediction-tag-icon">🎯</span>
+                        <div class="prediction-tag-text">
+                            <span class="tag-label">Probabilidade</span>
+                            <span class="tag-value">${(data.prediction.probability || 0).toFixed(1)}%</span>
+                        </div>
+                        <span class="tooltip-text">Chance de vitória do nosso clã no final da guerra, calculada pela IA.</span>
+                    </div>
+                    <div class="prediction-tag">
+                        <span class="prediction-tag-icon">🧠</span>
+                        <div class="prediction-tag-text">
+                            <span class="tag-label">Confiança</span>
+                            <span class="tag-value">${(data.prediction.confidence || 0).toFixed(1)}%</span>
+                        </div>
+                        <span class="tooltip-text">Nível de certeza da IA sobre a sua própria previsão, baseado na qualidade e quantidade de dados disponíveis.</span>
+                    </div>`;
+                predictionSection.style.display = 'block';
+            } else if (predictionSection) {
+                predictionSection.style.display = 'none';
+            }
         }
+
+        if (noWarMsg) noWarMsg.style.display = 'none';
+        if (warHeader) warHeader.style.display = 'flex';
+        if (warTabsNav) warTabsNav.style.display = 'flex';
+        
+        const war = data.war_data;
+
+        setText(container.querySelector(`#${prefix}warDetailOurClanName`), war.clan_name);
+        setText(container.querySelector(`#${prefix}warDetailOpponentName`), war.opponent_name);
+        setBadge(container.querySelector(`#${prefix}warDetailClanBadge`), war.clan_badge_url);
+        setBadge(container.querySelector(`#${prefix}warDetailOpponentBadge`), war.opponent_badge_url);
+        setText(container.querySelector(`#${prefix}warDetailTimeKey`), war.time_key);
+        setText(container.querySelector(`#${prefix}warDetailTimeValue`), war.time_value);
+        setText(container.querySelector(`#${prefix}warDetailTimeRemaining`), war.time_remaining);
+        const stateEl = container.querySelector(`#${prefix}warDetailState`);
+        setText(stateEl, war.state_description);
+        if(stateEl) stateEl.className = 'war-state ' + (war.status || '').toLowerCase();
+
+        setText(container.querySelector(`#${prefix}statsOurClanName`), war.clan_name);
+        setText(container.querySelector(`#${prefix}statsOurStars`), war.clan_stars);
+        setText(container.querySelector(`#${prefix}statsOurDestruction`), war.clan_destruction.replace('%', ''));
+        setText(container.querySelector(`#${prefix}statsOurAttacksUsed`), `${war.clan_attacks_used}/${war.team_size * war.attacks_per_member}`);
+        setText(container.querySelector(`#${prefix}statsOpponentName`), war.opponent_name);
+        setText(container.querySelector(`#${prefix}statsOpponentStars`), war.opponent_stars);
+        setText(container.querySelector(`#${prefix}statsOpponentDestruction`), war.opponent_destruction.replace('%', ''));
+        setText(container.querySelector(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
+        
+        const populateStats = (p) => {
+            setText(container.querySelector(`#${p}statsOurAvgStars`), war.clan_avg_stars);
+            setText(container.querySelector(`#${p}statsOurAvgDuration`), war.clan_avg_duration);
+            setText(container.querySelector(`#${p}statsOpponentAvgStars`), war.opponent_avg_stars);
+            setText(container.querySelector(`#${p}statsOpponentAvgDuration`), war.opponent_avg_duration);
+            for(let i=0; i<=3; i++) {
+                setText(container.querySelector(`#${p}statsOurStars${i}`), war.clan_star_distribution[i]);
+                setText(container.querySelector(`#${p}statsOpponentStars${i}`), war.opponent_star_distribution[i]);
+            }
+        };
+        populateStats(prefix);
+
+        const eventsTableBody = container.querySelector(`#${prefix}warEventsTableBody`);
+        setText(container.querySelector(`#${prefix}warTotalAttacksCount`), data.all_attacks.length);
+        setHtml(eventsTableBody, data.all_attacks.map(att => `
+            <tr>
+                <td>${att.order}</td>
+                <td>${att.attacker_name} (CV${att.attacker_townhall})</td>
+                <td><span class="attack-stars">${createStarString(att.stars)}</span> ${att.destruction}%</td>
+                <td>${att.defender_name} (CV${att.defender_townhall})</td>
+                <td>${att.duration}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="5">Nenhum ataque registrado.</td></tr>');
+
+        const populateTeamTabData = (teamMembersData, teamNameKey, teamElement) => {
+            setText(container.querySelector(`#${prefix}war${teamNameKey}TeamName`), war[`${teamNameKey === 'Our' ? 'clan' : 'opponent'}_name`]);
+            setHtml(teamElement, teamMembersData.map(member => {
+                const attacksHtml = '<h5>Ataques Feitos:</h5><ul class="member-attack-list">' + 
+                    (member.attacks_made?.length > 0 
+                        ? member.attacks_made.map(atk => `<li>${createStarString(atk.stars)} ${atk.destruction}% vs ${atk.defender_name} (CV${atk.defender_townhall})</li>`).join('')
+                        : '<li>Nenhum ataque feito.</li>') + '</ul>';
+
+                const defensesHtml = '<h5>Defesas Recebidas:</h5><ul class="member-defense-list">' +
+                    (member.defenses_received?.length > 0
+                        ? member.defenses_received.map(def => `<li>${createStarString(def.stars)} ${def.destruction}% por ${def.attacker_name} (CV${def.attacker_townhall})</li>`).join('')
+                        : '<li>Nenhuma defesa registrada.</li>') + '</ul>';
+
+                return `<div class="team-member-card">
+                            <h4><img src="/static/images/townhall${member.townhall}.png" alt="CV${member.townhall}" onerror="this.style.display='none'"/> ${member.map_position}. ${member.name} (CV${member.townhall})</h4>
+                            <p>Ataques: ${member.attacks_used}/${war.attacks_per_member}</p>
+                            ${attacksHtml}${defensesHtml}
+                        </div>`;
+            }).join('') || '<p>Nenhum membro nesta equipe para a guerra.</p>');
+        };
+
+        populateTeamTabData(data.our_clan_members_in_war, "Our", container.querySelector(`#${prefix}warOurTeamMembers`));
+        populateTeamTabData(data.opponent_clan_members_in_war, "Opponent", container.querySelector(`#${prefix}warOpponentTeamMembers`));
+        
+        if (!container.querySelector('.war-tab-button.active')) {
+            container.querySelector('.war-tab-button[data-tab="war-stats"]')?.classList.add('active');
+            container.querySelector(isModal ? '#historic-war-stats' : '#war-stats').style.display = 'block';
+        }
+    }
+
+    function populateMissedAttacksHistory(data) {
+        setText(attacksRemainingTitleEl.querySelector('span'), data.clan_name);
+
+        if (data.error || !data.wars_with_missed_attacks?.length) {
+            setHtml(missedAttacksContainerEl, '');
+            if (noMissedAttacksMessageEl) { noMissedAttacksMessageEl.style.display = 'block'; setText(noMissedAttacksMessageEl, data.error || "Nenhuma pendência de ataque encontrada."); }
+            return;
+        }
+
+        if (noMissedAttacksMessageEl) noMissedAttacksMessageEl.style.display = 'none';
+        setHtml(missedAttacksContainerEl, data.wars_with_missed_attacks.map(war => `
+            <div class="war-group">
+                <h3 class="war-group-header">Guerra vs <strong>${war.opponent_name}</strong> (${war.end_date}) ${war.is_latest ? '<span class="latest-war-badge">💥 Última Guerra</span>' : ''}</h3>
+                <div class="player-card-grid">
+                    ${war.missed_attacks_members.map(member => `
+                        <div class="missed-attack-card ${member.attacks_left >= 2 ? 'severity-high' : 'severity-medium'}">
+                            <div class="player-info">
+                                <h4>${member.name} <span>(CV${member.town_hall})</span></h4>
+                                <div class="player-tag-container">
+                                    <span class="player-tag">${member.tag}</span>
+                                </div>
+                            </div>
+                            <div class="attacks-info">
+                                <span class="attacks-count">${member.attacks_left}</span>
+                                <span class="attacks-label">Ataque${member.attacks_left > 1 ? 's' : ''} Pendente${member.attacks_left > 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join(''));
+    }
+
+    function populateCwlInfo(data) {
+        if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
+            if(noCwlMessageEl) noCwlMessageEl.style.display = 'block';
+            setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
+            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
+            return;
+        }
+        if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
+        if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
+        setText(cwlSeasonEl, data.season);
+        setText(cwlGroupStateEl, data.state);
+        setHtml(cwlGroupClansEl, data.clans_in_group?.map(c => `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name}"> <strong>${c.name}</strong> (${c.tag}) Nv ${c.level}</p>`).join('') || '<p>Nenhum clã no grupo.</p>');
+        setHtml(cwlRoundsInfoEl, data.rounds?.map(r => `
+            <div class="cwl-round">
+                <h4>Rodada ${r.round_number}</h4>
+                ${r.wars?.map(w => {
+                    if (w.error) return `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`;
+                    if (w.message) return `<p class="cwl-war-entry">${w.message}</p>`;
+                    return `<p class="cwl-war-entry">
+                                <strong><img src="${w.clan_badge_url}" class="cwl-war-badge"> ${w.clan_name}</strong> ${w.clan_stars}⭐ vs ${w.opponent_stars}⭐ <strong><img src="${w.opponent_badge_url}" class="cwl-war-badge"> ${w.opponent_name}</strong>
+                                <br><small>Estado: ${w.state}</small>
+                            </p>`;
+                }).join('') || "<p>Nenhuma guerra nesta rodada.</p>"}
+            </div>
+        `).join('') || "Nenhuma info de rodada.");
+    }
+
+    function populateWarLog(data) {
+        setText(warLogLimitEl, data.log?.length || '0');
+        if (data.error || !data.log?.length) {
+            if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'block';
+            setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
+            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "Nenhum registro encontrado."}</td></tr>`);
+            return;
+        }
+        if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none';
+        setHtml(warLogTableBodyEl, data.log.map(e => `
+            <tr class="historic-war-row" data-war-id="${e.end_time_iso}">
+                <td>${e.end_time_formatted}</td>
+                <td><img src="${e.opponent_badge_url}" alt="Emblema" class="log-opponent-badge">${e.opponent_name || 'N/A'}</td>
+                <td>${e.clan_stars}⭐ vs ${e.opponent_stars}⭐</td>
+                <td class="war-result-${e.result?.toLowerCase()}">${e.result}</td>
+                <td>${e.team_size}</td>
+                <td>${e.is_cwl ? "CWL" : "Normal"}</td>
+            </tr>
+        `).join(''));
     }
 
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
         try {
-            const data = await Promise.all([
+            const [clanData, membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData, highlightsData] = await Promise.all([
                 fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
                 fetchData('missed_attacks_history'), fetchData('war_log'), fetchData('cwl_info'), fetchData('highlights')
             ]);
-            populateClanInfo(data[0]);
-            populateMembersList(data[1]);
-            // Oculto por enquanto para evitar erros com a função não mostrada
-            // populateWarDetails(data[2], 'war-details-nav', false); 
-            // populateMissedAttacksHistory(data[3]);
-            // populateWarLog(data[4]);
-            // populateCwlInfo(data[5]);
-            populateHighlights(data[6]);
+            populateClanInfo(clanData);
+            populateMembersList(membersData);
+            populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
+            populateMissedAttacksHistory(missedAttacksData);
+            populateWarLog(warLogData);
+            populateCwlInfo(cwlInfoData);
+            populateHighlights(highlightsData);
             updateLastUpdated();
         } catch (error) {
             console.error("Erro ao carregar todos os dados:", error);
@@ -494,12 +531,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- Ocultando funções não utilizadas para simplificar
-    if (closeModalButton) { closeModalButton.addEventListener('click', () => historicWarModal.style.display = 'none'); }
-    if (closeProfileModalButton) { closeProfileModalButton.addEventListener('click', () => memberProfileModal.style.display = 'none'); }
+    // --- EVENT LISTENERS DOS MODAIS ---
+    if (closeModalButton) closeModalButton.addEventListener('click', () => historicWarModal.style.display = 'none');
+    if (closeProfileModalButton) closeProfileModalButton.addEventListener('click', () => memberProfileModal.style.display = 'none');
     window.addEventListener('click', (event) => {
         if (event.target == historicWarModal) historicWarModal.style.display = 'none';
         if (event.target == memberProfileModal) memberProfileModal.style.display = 'none';
+    });
+    warLogTableBodyEl.addEventListener('click', (event) => {
+        const row = event.target.closest('.historic-war-row');
+        if (row && row.dataset.warId) {
+             // Lógica para abrir modal de guerra histórica
+        }
     });
 
     loadAllData();
