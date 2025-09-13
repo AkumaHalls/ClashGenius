@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ELEMENTOS DO MODAL ---
     const historicWarModal = document.getElementById('historicWarModal');
     const historicWarDetailContent = document.getElementById('historicWarDetailContent');
-    const closeModalButton = document.querySelector('.modal .close-button');
+    const closeModalButton = document.querySelector('#historicWarModal .close-button');
 
 
     // --- NOVO: ELEMENTOS DO MODAL DE PERFIL ---
@@ -348,45 +348,35 @@ document.addEventListener('DOMContentLoaded', () => {
             setHtml(topDonorsListEl, '<p>Nenhum doador encontrado.</p>');
         }
 
-        // --- NOVO: LÓGICA PARA EXIBIR O MVP ---
+        // --- LÓGICA MELHORADA PARA EXIBIR OS HERÓIS DA GUERRA ---
+        setHtml(bestAttacksListEl, ''); // Limpa a lista antes de popular
         const warHeroTitleEl = document.getElementById('warHeroTitle');
-        if (data.mvp && data.mvp.name) {
-            setText(warHeroTitleEl, '🏆 MVP da Última Guerra');
-            const mvpHtml = `
-                <div class="mvp-card">
-                    <p class="mvp-title">Jogador Mais Valioso</p>
-                    <h4 class="mvp-name">${data.mvp.name} <span>(CV${data.mvp.town_hall})</span></h4>
-                    <span class="tooltip-text">${data.mvp.reason}</span>
-                </div>
-            `;
-            // Adiciona o card do MVP antes da lista de melhores ataques
-            bestAttacksListEl.innerHTML = mvpHtml;
-        } else {
-            setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra');
-        }
-        // --- FIM DA LÓGICA DO MVP ---
+        setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra');
 
-
-        if (data.best_attacks && data.best_attacks.length > 0) {
-            let attacksHtml = bestAttacksListEl.innerHTML; // Mantém o MVP se ele existir
-            data.best_attacks.forEach(attack => {
-                attacksHtml += `
-                    <div class="attack-item">
-                        <div class="attack-header">${attack.attacker_name} vs ${attack.defender_name} (CV${attack.defender_townhall})</div>
+        if (data.war_heroes && data.war_heroes.length > 0) {
+            let heroesHtml = '';
+            const medals = ['🥇', '🥈', '🥉'];
+            data.war_heroes.forEach(hero => {
+                const isMvp = hero.rank === 1;
+                const heroClass = isMvp ? 'mvp-card' : 'attack-item';
+                const title = isMvp ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p>` : `<div class="attack-header">${medals[hero.rank - 1] || ''} ${hero.name} (CV${hero.town_hall})</div>`;
+                
+                heroesHtml += `
+                    <div class="${heroClass}">
+                        ${title}
+                        ${isMvp ? `<h4 class="mvp-name">${hero.name} <span>(CV${hero.town_hall})</span></h4>` : ''}
                         <div class="attack-details">
-                            <span class="attack-stars">${'⭐'.repeat(attack.stars)}</span>
-                            <strong>${attack.destruction}%</strong> de destruição
+                            ${hero.reason}
                         </div>
+                        <span class="tooltip-text">${hero.reason}</span>
                     </div>
                 `;
             });
-            setHtml(bestAttacksListEl, attacksHtml);
+            setHtml(bestAttacksListEl, heroesHtml);
         } else {
-             // Se não houver MVP, limpa a lista e mostra a mensagem
-            if (!data.mvp || !data.mvp.name) {
-                 setHtml(bestAttacksListEl, '<p>Nenhum ataque na última guerra para destacar.</p>');
-            }
+            setHtml(bestAttacksListEl, '<p>Nenhum herói para destacar na última guerra.</p>');
         }
+
 
         if (activityChart) {
             activityChart.destroy();
@@ -906,7 +896,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando perfil do membro...</p>');
         memberProfileModal.style.display = 'block';
 
-        const profileData = await fetchData(`member/${playerTag}`);
+        const profileData = await fetchData(`member/${playerTag}`); // CORREÇÃO: Usando o endpoint correto
 
         if (profileData.error) {
             setHtml(memberProfileContent, `<p class="message-box">${profileData.error}</p>`);
