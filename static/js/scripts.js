@@ -359,15 +359,16 @@ document.addEventListener('DOMContentLoaded', () => {
             data.war_heroes.forEach(hero => {
                 const isMvp = hero.rank === 1;
                 const heroClass = isMvp ? 'mvp-card' : 'attack-item';
-                const title = isMvp ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p>` : `<div class="attack-header">${medals[hero.rank - 1] || ''} ${hero.name} (CV${hero.town_hall})</div>`;
                 
+                // Para o MVP, o título é diferente
+                let titleHtml = isMvp 
+                    ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p><h4 class="mvp-name">${hero.name} <span>(CV${hero.town_hall})</span></h4>`
+                    : `<div class="attack-header">${medals[hero.rank - 1] || ''} ${hero.name} (CV${hero.town_hall})</div>`;
+
+                // A descrição (reason) agora vai apenas para o tooltip
                 heroesHtml += `
                     <div class="${heroClass}">
-                        ${title}
-                        ${isMvp ? `<h4 class="mvp-name">${hero.name} <span>(CV${hero.town_hall})</span></h4>` : ''}
-                        <div class="attack-details">
-                            ${hero.reason}
-                        </div>
+                        ${titleHtml}
                         <span class="tooltip-text">${hero.reason}</span>
                     </div>
                 `;
@@ -896,7 +897,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando perfil do membro...</p>');
         memberProfileModal.style.display = 'block';
 
-        const profileData = await fetchData(`member/${playerTag}`); // CORREÇÃO: Usando o endpoint correto
+        const profileData = await fetchData(`player_profile/${playerTag}`); // ROTA CORRIGIDA
 
         if (profileData.error) {
             setHtml(memberProfileContent, `<p class="message-box">${profileData.error}</p>`);
