@@ -506,16 +506,185 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join(''));
     }
 
+    async function savePlayerNote(playerTag, text, priority) {
+        const encodedPlayerTag = encodeURIComponent(playerTag);
+        await fetchData(`notes/${encodedPlayerTag}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, priority })
+        });
+    }
+    
+    function populateMembersList(data) {
+        setText(membersClanNameEl, data.clan_name);
+        if (data.error || !data.members) {
+            setHtml(membersGridEl, `<p class="message-box">${data.error || "Não foi possível carregar os membros."}</p>`);
+            return;
+        }
+
+        setHtml(membersGridEl, data.members.map(m => `
+            <div class="member-card" data-th="${m.town_hall}" data-name="${m.name.toLowerCase()}">
+                <div class="member-card-header" data-player-tag="${m.tag}">
+                    <img src="/static/images/townhall${m.town_hall}.png" alt="CV${m.town_hall}" class="member-th-icon" onerror="this.style.display='none'">
+                    <div class="member-info">
+                        <h4>${m.name}</h4>
+                        <p>${m.role} • 🏆 ${m.trophies}</p>
+                    </div>
+                </div>
+                <div class="member-card-stats">
+                    <span>🎁 Doadas: ${m.donations}</span>
+                    <span>📥 Recebidas: ${m.received}</span>
+                </div>
+                <div class="member-card-note">
+                    <div class="note-container note-priority-${m.note_priority || 'none'}">
+                        <span class="note-text">${m.note || 'Clique para editar...'}</span>
+                        <input type="text" class="note-input" value="${m.note}" style="display: none;">
+                        <div class="priority-selector">
+                            ${['green', 'yellow', 'red', 'none'].map(prio => `
+                                <button class="priority-btn priority-${prio} ${prio === (m.note_priority || 'none') ? 'active' : ''}" data-priority="${prio}">
+                                    ${prio === 'green' ? '✓' : prio === 'yellow' ? '!' : prio === 'red' ? '✗' : '×'}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>`).join(''));
+        attachMemberEventListeners();
+    }
+
+    function attachMemberEventListeners() {
+        document.querySelectorAll('.member-card-header').forEach(header => {
+            header.addEventListener('click', () => openMemberProfileModal(header.dataset.playerTag));
+        });
+
+        document.querySelectorAll('.note-text').forEach(span => {
+            span.addEventListener('click', () => {
+                const input = span.nextElementSibling;
+                span.style.display = 'none';
+                input.style.display = 'inline-block';
+                input.focus();
+            });
+        });
+
+        document.querySelectorAll('.note-input').forEach(input => {
+            const saveChanges = () => {
+                const container = input.closest('.note-container');
+                const span = container.querySelector('.note-text');
+                const playerTag = input.closest('.member-card').querySelector('.member-card-header').dataset.playerTag;
+                const activePriority = container.querySelector('.priority-btn.active')?.dataset.priority || 'none';
+                
+                span.textContent = input.value || 'Clique para editar...';
+                input.style.display = 'none';
+                span.style.display = 'inline-block';
+                savePlayerNote(playerTag, input.value, activePriority);
+            };
+            input.addEventListener('blur', saveChanges);
+            input.addEventListener('keypress', e => { if (e.key === 'Enter') input.blur(); });
+        });
+
+        document.querySelectorAll('.priority-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const container = btn.closest('.note-container');
+                const playerTag = btn.closest('.member-card').querySelector('.member-card-header').dataset.playerTag;
+                const text = container.querySelector('.note-input').value;
+                const newPriority = btn.dataset.priority;
+
+                container.className = `note-container note-priority-${newPriority}`;
+                container.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                savePlayerNote(playerTag, text, newPriority);
+            });
+        });
+    }
+
+    function applyMemberFilters() {
+        const nameFilter = filterNameInput.value.toLowerCase();
+        const thFilter = filterTHInput.value;
+        document.querySelectorAll('.member-card').forEach(card => {
+            const name = card.dataset.name;
+            const th = card.dataset.th;
+            const showName = name.includes(nameFilter);
+            const showTH = !thFilter || th === thFilter;
+            card.style.display = showName && showTH ? 'flex' : 'none';
+        });
+    }
+    
+    [filterNameInput, filterTHInput].forEach(input => input.addEventListener('keyup', applyMemberFilters));
+
+
+    async function openMemberProfileModal(playerTag) {
+        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando perfil do membro...</p>');
+        memberProfileModal.style.display = 'block';
+
+        const encodedTag = encodeURIComponent(playerTag);
+        const profileData = await fetchData(`player_profile/${encodedTag}`);
+
+        if (profileData.error) {
+            setHtml(memberProfileContent, `<p class="message-box">${profileData.error}</p>`);
+            return;
+        }
+        
+        const heroesHtml = profileData.heroes.map(hero => `
+            <div class="hero-item">
+                <img src="/static/images/heroes/${hero.name.toLowerCase().replace(/\s+/g, '-')}.png" alt="${hero.name}" onerror="this.style.display='none'">
+                <p><strong>${hero.level}</strong> / ${hero.max_level}</p>
+            </div>
+        `).join('');
+
+        setHtml(memberProfileContent, `
+            <div class="profile-header">
+                <h2>${profileData.name} (CV${profileData.town_hall})</h2>
+                <p class="player-tag">${profileData.tag}</p>
+            </div>
+            <div class="profile-stats-grid">
+                <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league}</p></div>
+                <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies}</p></div>
+                <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations}</p></div>
+                <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received}</p></div>
+            </div>
+            <h3>Heróis</h3>
+            <div class="heroes-list">${heroesHtml || '<p>Nenhum herói encontrado.</p>'}</div>
+            <div class="profile-chart-container">
+                 <h3>Evolução de Troféus</h3>
+                <canvas id="trophyChart"></canvas>
+            </div>
+        `);
+
+        if (memberTrophyChart) memberTrophyChart.destroy();
+        if (profileData.trophy_history?.length > 0) {
+            memberTrophyChart = new Chart(document.getElementById('trophyChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: profileData.trophy_history.map(h => h.timestamp),
+                    datasets: [{
+                        label: 'Troféus',
+                        data: profileData.trophy_history.map(h => h.trophies),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } }, plugins: { legend: { display: false } } }
+            });
+        }
+    }
+
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
         try {
             const [clanData, membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData, highlightsData] = await Promise.all([
-                fetchData('clan'), fetchData('members'), fetchData('current_war_details'),
-                fetchData('missed_attacks_history'), fetchData('war_log'), fetchData('cwl_info'), fetchData('highlights')
+                fetchData('clan'), 
+                fetchData('members'), 
+                fetchData('current_war_details'),
+                fetchData('missed_attacks_history'), 
+                fetchData('war_log'), 
+                fetchData('cwl_info'), 
+                fetchData('highlights')
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
-            populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
+            populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
