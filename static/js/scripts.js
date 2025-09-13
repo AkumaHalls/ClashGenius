@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
     const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
 
-    // --- ELEMENTOS DO DOM ---
+    // --- ELEMENTOS DO DOM ---3
     const loadingOverlayEl = document.getElementById('loading-overlay');
     const backgroundMusicEl = document.getElementById('background-music');
     const muteButtonEl = document.getElementById('mute-button');
@@ -761,4 +761,5 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 60000);
 });
+
 
