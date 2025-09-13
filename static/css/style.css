@@ -392,16 +392,24 @@ main.container {
     color: var(--color-text-secondary);
 }
 
-/* NOVO: Estilos para o MVP na aba Destaques */
+/* NOVO: Estilos para o MVP e Heróis na aba Destaques */
+.mvp-card, .attack-item {
+    position: relative; /* Para tooltip */
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: var(--border-radius-base);
+}
+
 .mvp-card {
     background: linear-gradient(145deg, rgba(255, 215, 0, 0.1), rgba(0, 0, 0, 0.2));
     border: 1px solid var(--color-gold);
-    border-radius: var(--border-radius-base);
-    padding: 12px;
-    margin-bottom: 15px;
     text-align: center;
-    position: relative; /* Para tooltip */
 }
+.attack-item {
+    background-color: rgba(0,0,0,0.2);
+    border-left: 3px solid var(--color-success);
+}
+
 .mvp-card .mvp-title {
     font-size: 0.9em;
     font-weight: 500;
@@ -422,7 +430,15 @@ main.container {
     color: var(--color-text-secondary);
 }
 
-.mvp-card .tooltip-text {
+.attack-header {
+    font-weight: 600;
+    color: var(--color-text-main);
+}
+.attack-details {
+    display: none; /* Esconde a descrição por padrão */
+}
+
+.mvp-card .tooltip-text, .attack-item .tooltip-text {
     visibility: hidden;
     width: 250px;
     background-color: var(--color-background);
@@ -441,29 +457,9 @@ main.container {
     border: 1px solid var(--color-border-light);
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
-.mvp-card:hover .tooltip-text {
+.mvp-card:hover .tooltip-text, .attack-item:hover .tooltip-text {
     visibility: visible;
     opacity: 1;
-}
-
-.attacks-list .attack-item {
-    padding: 10px;
-    margin-bottom: 10px;
-    background-color: rgba(0,0,0,0.2);
-    border-radius: var(--border-radius-base);
-    border-left: 3px solid var(--color-success);
-}
-.attacks-list .attack-header {
-    font-weight: 600;
-    color: var(--color-text-main);
-}
-.attacks-list .attack-details {
-    font-size: 0.9em;
-    color: var(--color-text-secondary);
-}
-.attacks-list .attack-stars {
-    font-size: 1.2em;
-    color: var(--color-star-gold);
 }
 
 .chart-card {
