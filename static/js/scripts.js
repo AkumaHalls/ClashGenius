@@ -670,6 +670,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function openHistoricWarModal(warId) {
+        setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Carregando detalhes da guerra...</p>');
+        historicWarModal.style.display = 'block';
+        const historicWarData = await fetchData(`war_history/${warId}`);
+        const template = document.getElementById('historic-war-template');
+        if (!template) {
+            setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro: Template do modal não encontrado.</p>');
+            return;
+        }
+        const warDetailsContent = template.content.cloneNode(true);
+        setHtml(historicWarDetailContent, '');
+        historicWarDetailContent.appendChild(warDetailsContent);
+        historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const modalContentEl = button.closest('.modal-content');
+                modalContentEl.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                const tabId = button.dataset.tab;
+                modalContentEl.querySelectorAll('.war-tab-content').forEach(content => { content.style.display = content.id.endsWith(tabId) ? 'block' : 'none'; });
+            });
+        });
+        populateWarDetails(historicWarData, 'historicWarDetailContent', true);
+    }
+
     // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
         try {
@@ -710,11 +734,10 @@ document.addEventListener('DOMContentLoaded', () => {
     warLogTableBodyEl.addEventListener('click', (event) => {
         const row = event.target.closest('.historic-war-row');
         if (row && row.dataset.warId) {
-             // Lógica para abrir modal de guerra histórica
+             openHistoricWarModal(row.dataset.warId);
         }
     });
 
     loadAllData();
     setInterval(loadAllData, 60000);
 });
-
