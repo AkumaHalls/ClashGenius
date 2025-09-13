@@ -136,12 +136,10 @@
                 <p class="war-timing-overall"><strong id="warDetailTimeKey">Tempo:</strong> <span id="warDetailTimeValue">-</span> (<span id="warDetailTimeRemaining" class="time-remaining">-</span>)</p>
                 <p><strong>Estado:</strong> <span id="warDetailState" class="war-state">-</span></p>
                 
-                <!-- ESTRUTURA DA PREVISÃO MODIFICADA -->
                 <div id="warPredictionSection" class="war-prediction-container" style="display: none;">
                     <h3>Previsão da IA</h3>
                     <p id="warPredictionText" class="prediction-summary">-</p>
                     <div id="warPredictionTags" class="prediction-tags-container">
-                        <!-- As tags serão inseridas aqui pelo JavaScript -->
                     </div>
                 </div>
 
@@ -260,28 +258,11 @@
                 <h2>Membros do Clã <span id="membersClanName">-</span></h2>
                 <div class="member-filters">
                     <input type="text" id="filterName" placeholder="Filtrar por Nome...">
-                    <input type="text" id="filterTH" placeholder="Filtrar por CV (ex: CV12)...">
-                    <input type="text" id="filterLeague" placeholder="Filtrar por Liga...">
-                    <input type="text" id="filterTrophies" placeholder="Filtrar por Troféus...">
-                    <input type="text" id="filterRole" placeholder="Filtrar por Cargo...">
+                    <input type="text" id="filterTH" placeholder="Filtrar por CV (ex: 12)...">
                 </div>
-                <div class="table-container scrollable-box">
-                    <table id="membersTable">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Nome</th>
-                                <th>CV</th>
-                                <th>Liga</th>
-                                <th>Troféus</th>
-                                <th>Cargo</th>
-                                <th>Doações</th>
-                                <th>Recebidas</th>
-                                <th>Observação</th>
-                            </tr>
-                        </thead>
-                        <tbody id="membersTableBody"></tbody>
-                    </table>
+                <!-- NOVO: Container para os cards de membros -->
+                <div id="membersGrid" class="members-grid">
+                    <!-- Cards dos membros serão inseridos aqui -->
                 </div>
             </section>
         </div>
@@ -291,19 +272,15 @@
     <div id="historicWarModal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
-            <div id="historicWarDetailContent">
-                <!-- O conteúdo será preenchido via JS -->
-            </div>
+            <div id="historicWarDetailContent"></div>
         </div>
     </div>
 
-    <!-- NOVO: Modal para Perfil do Membro -->
+    <!-- Modal para Perfil do Membro -->
     <div id="memberProfileModal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
-            <div id="memberProfileContent">
-                <!-- O conteúdo será preenchido via JS -->
-            </div>
+            <div id="memberProfileContent"></div>
         </div>
     </div>
     
@@ -324,7 +301,6 @@
         </nav>
         <div id="historic-noWarDetailMessage" class="message-box" style="display: none;"></div>
         <div id="historic-war-stats" class="war-tab-content" style="display: block;">
-             <!-- Conteúdo das Estatísticas (similar ao da aba principal) -->
              <h3>Placar Geral</h3>
              <div class="war-score-container">
                  <div class="team-score our-clan-score">
@@ -367,9 +343,7 @@
         </div>
     </footer>
 
-    <!-- Botão de Mudo Adicionado -->
     <button id="mute-button" class="mute-btn">🔊</button>
-
     <script src="/static/js/scripts.js"></script>
 </body>
 </html>
