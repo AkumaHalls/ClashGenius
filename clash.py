@@ -898,11 +898,14 @@ async def api_historic_war_handler(request):
         return web.json_response({"error": "Erro interno no servidor."}, status=500)
         
 async def api_member_profile_handler(request):
-    """NOVO: API para buscar o perfil detalhado de um membro."""
+    """API para buscar o perfil detalhado de um membro."""
     try:
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
+        logger.info(f"Buscando perfil para a tag: {player_tag}")
+        
         player_data = await get_player_data(player_tag)
         if not player_data:
+            logger.warning(f"Jogador com a tag {player_tag} não encontrado pela API do CoC.")
             return web.json_response({"error": "Jogador não encontrado."}, status=404)
         
         # Coleta de dados históricos (ex: troféus)
@@ -910,23 +913,21 @@ async def api_member_profile_handler(request):
         if hasattr(bot, 'db') and bot.db is not None:
              cursor = bot.db.trophy_history.find({"player_tag": player_tag}).sort("timestamp", DESCENDING).limit(30)
              trophy_history = [{"trophies": doc["trophies"], "timestamp": doc["timestamp"].strftime("%d/%m")} async for doc in cursor]
-             trophy_history.reverse() # para o gráfico ficar na ordem correta
-
-        # Coleta de dados de guerras
-        war_stars_avg = "N/A"
-        # (Lógica para calcular média de estrelas pode ser adicionada aqui, consultando o histórico de guerras)
+             trophy_history.reverse()
 
         profile = {
             "name": player_data.name, "tag": player_data.tag, "town_hall": player_data.town_hall,
             "heroes": [{"name": h.name, "level": h.level, "max_level": h.max_level} for h in player_data.heroes if h.is_home_base],
             "donations": player_data.donations, "received": player_data.received,
             "trophies": player_data.trophies, "league": player_data.league.name if player_data.league else "N/A",
-            "war_stars_avg": war_stars_avg,
             "trophy_history": trophy_history,
         }
         return web.json_response(profile)
+    except coc.NotFound:
+        logger.warning(f"coc.NotFound para a tag {request.match_info['player_tag']}")
+        return web.json_response({"error": "Jogador não encontrado (API)."}, status=404)
     except Exception as e:
-        logger.error(f"Erro ao buscar perfil do membro via API: {e}", exc_info=True)
+        logger.error(f"Erro ao buscar perfil do membro via API para tag {request.match_info['player_tag']}: {e}", exc_info=True)
         return web.json_response({"error": "Erro interno ao buscar perfil."}, status=500)
 
 @tasks.loop(seconds=60.0)
@@ -1045,7 +1046,7 @@ async def setup_web_server():
     app.router.add_get("/api/highlights", api_highlights_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
-    app.router.add_get("/api/member/{player_tag:.*}", api_member_profile_handler) # CORREÇÃO APLICADA AQUI
+    app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler) # ROTA CORRIGIDA
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     
     static_dir = os.path.join(os.path.dirname(__file__), "static")
