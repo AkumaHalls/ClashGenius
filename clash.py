@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.86-WEB-FIX
+# Versão 20.1.87-SYNTAX-FIX
 
 import os
 import logging
@@ -47,7 +47,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.86-WEB-FIX"
+BOT_VERSION = "20.1.87-SYNTAX-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -379,13 +379,22 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         }
         return web.json_response(profile)
 
-    app.router.add_get("/api/clan", lambda r: web.json_response(await get_cached_web_data('clan', fetch_clan_info_for_web)))
-    app.router.add_get("/api/members", lambda r: web.json_response(await get_cached_web_data('members', fetch_clan_members_for_web)))
-    app.router.add_get("/api/current_war_details", lambda r: web.json_response(await get_cached_web_data('war_details', fetch_current_war_details_for_web)))
-    app.router.add_get("/api/missed_attacks_history", lambda r: web.json_response(await get_cached_web_data('missed_attacks', fetch_missed_attacks_history_for_web)))
-    app.router.add_get("/api/war_log", lambda r: web.json_response(await get_cached_web_data('war_log', fetch_war_log_for_web)))
-    app.router.add_get("/api/cwl_info", lambda r: web.json_response(await get_cached_web_data('cwl', fetch_cwl_info_for_web)))
-    app.router.add_get("/api/highlights", lambda r: web.json_response(await get_cached_web_data('highlights', fetch_highlights_for_web)))
+    # --- Handlers da API ---
+    async def api_clan_handler(request): return web.json_response(await get_cached_web_data('clan', fetch_clan_info_for_web))
+    async def api_members_handler(request): return web.json_response(await get_cached_web_data('members', fetch_clan_members_for_web))
+    async def api_current_war_details_handler(request): return web.json_response(await get_cached_web_data('war_details', fetch_current_war_details_for_web))
+    async def api_missed_attacks_history_handler(request): return web.json_response(await get_cached_web_data('missed_attacks', fetch_missed_attacks_history_for_web))
+    async def api_war_log_handler(request): return web.json_response(await get_cached_web_data('war_log', fetch_war_log_for_web))
+    async def api_cwl_info_handler(request): return web.json_response(await get_cached_web_data('cwl', fetch_cwl_info_for_web))
+    async def api_highlights_handler(request): return web.json_response(await get_cached_web_data('highlights', fetch_highlights_for_web))
+    
+    app.router.add_get("/api/clan", api_clan_handler)
+    app.router.add_get("/api/members", api_members_handler)
+    app.router.add_get("/api/current_war_details", api_current_war_details_handler)
+    app.router.add_get("/api/missed_attacks_history", api_missed_attacks_history_handler)
+    app.router.add_get("/api/war_log", api_war_log_handler)
+    app.router.add_get("/api/cwl_info", api_cwl_info_handler)
+    app.router.add_get("/api/highlights", api_highlights_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
@@ -462,3 +471,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
