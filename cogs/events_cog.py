@@ -3,8 +3,7 @@ import logging
 import discord
 from discord.ext import commands, tasks
 import coc
-import pytz
-import datetime
+import asyncio
 
 logger = logging.getLogger("events_cog")
 
@@ -16,30 +15,38 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         self.api_client: coc.Client = bot.api_client
         self.events_client: coc.EventsClient = None
         
-        # Cache para a task de verificação de ataques
         self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
 
     async def cog_load(self):
         """Inicia o cliente de eventos e as tasks quando o cog é carregado."""
         try:
             logger.info("Iniciando cliente de eventos CoC...")
-            # Usa as credenciais do bot, que devem estar no .env
-            coc_email = self.bot.api_client.email
-            coc_password = self.bot.api_client.password
+            coc_email = self.bot.coc_email
+            coc_password = self.bot.coc_password
+            
+            if not coc_email or not coc_password:
+                logger.error("Email ou senha do CoC não encontrados no bot. Não é possível iniciar o EventsClient.")
+                return
+
             self.events_client = coc.EventsClient()
             
-            # Registra os listeners de eventos
             self.events_client.add_clan_updates(self.bot.clan_tag)
             self._add_event_listeners()
 
-            # Inicia o login do cliente de eventos
-            self.bot.loop.create_task(self.events_client.login(email=coc_email, password=coc_password))
-            logger.info("Cliente de eventos CoC configurado e iniciando login.")
+            # O login agora é uma task para não bloquear
+            self.bot.loop.create_task(self.start_events_client(coc_email, coc_password))
 
-            # Inicia as tasks deste cog
             self.check_new_attack_task.start()
         except Exception as e:
             logger.error(f"Erro crítico ao carregar EventsCog: {e}", exc_info=True)
+            self.events_client = None
+            
+    async def start_events_client(self, email, password):
+        try:
+            await self.events_client.login(email, password)
+            logger.info("Cliente de eventos CoC logado e escutando eventos.")
+        except Exception as e:
+            logger.error(f"Falha no login do EventsClient: {e}", exc_info=True)
             self.events_client = None
 
     async def cog_unload(self):
@@ -58,7 +65,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         self.events_client.add_listener(self.on_clan_member_league_change, "member_league")
         self.events_client.add_listener(self.on_member_donations, "member_donations")
         self.events_client.add_listener(self.on_member_received, "member_received")
-        # O evento on_war_attack é tratado pela task abaixo para maior confiabilidade
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
         """Função centralizada para enviar embeds para o canal de log."""
@@ -68,8 +74,8 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self.bot.wait_until_ready()
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
-            embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {datetime.datetime.now(self.bot.timezone).strftime('%d/%m/%Y %H:%M')}")
-            embed_to_log.timestamp = datetime.datetime.now(self.bot.timezone)
+            embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {self.bot.timezone.localize(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')}")
+            embed_to_log.timestamp = self.bot.timezone.localize(datetime.datetime.now())
             await channel.send(content=content, embed=embed_to_log)
         except (discord.NotFound, discord.Forbidden, Exception) as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
@@ -187,14 +193,11 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             new_attacks = [a for a in war.attacks if a.order not in self.war_attack_cache["processed_attacks"]]
             if new_attacks:
                 for attack in sorted(new_attacks, key=lambda a: a.order):
-                    # Chama a função de evento diretamente
                     await self.on_war_attack(attack, war)
                     self.war_attack_cache["processed_attacks"].add(attack.order)
         except (coc.PrivateWarLog, coc.NotFound): pass
         except Exception as e:
             logger.error(f"Erro na task de novos ataques: {e}", exc_info=True)
 
-
 async def setup(bot: commands.Bot):
     await bot.add_cog(EventsCog(bot))
-
