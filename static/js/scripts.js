@@ -471,42 +471,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateCwlInfo(data) {
-        // MODIFICADO PARA TESTE: Força a exibição do planejador
+        // VERSÃO FINAL: Lógica inteligente de exibição
+        cwlPlannerSectionEl.style.display = 'block'; // Mostra sempre a seção do planejador
+
         if (data.error || data.status === "NotInCwl") {
             if(noCwlMessageEl) noCwlMessageEl.style.display = 'block';
-            setText(noCwlMessageEl, data.message || data.error || "CWL indisponível (normal fora da semana da liga).");
+            setText(noCwlMessageEl, data.message || data.error || "O clã não está em CWL no momento.");
             if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
-            if(cwlPlannerSectionEl) {
-                cwlPlannerSectionEl.style.display = 'block'; // FORÇADO PARA TESTE
-                console.warn("MODO DE TESTE: Planejador de CWL sendo exibido mesmo sem uma CWL ativa.");
-            }
-            return;
+            
+            // Desabilita o botão do planejador
+            generateCwlPlanBtn.disabled = true;
+            generateCwlPlanBtn.classList.add('disabled');
+        } else {
+            // Lógica normal para quando está em CWL
+            if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
+            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
+            setText(cwlSeasonEl, data.season);
+            setText(cwlGroupStateEl, data.state);
+            setHtml(cwlGroupClansEl, data.clans_in_group?.map(c => `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name}"> <strong>${c.name}</strong> (${c.tag}) Nv ${c.level}</p>`).join('') || '<p>Nenhum clã no grupo.</p>');
+            setHtml(cwlRoundsInfoEl, data.rounds?.map(r => `
+                <div class="cwl-round">
+                    <h4>Rodada ${r.round_number}</h4>
+                    ${r.wars?.map(w => {
+                        if (w.error) return `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`;
+                        if (w.message) return `<p class="cwl-war-entry">${w.message}</p>`;
+                        return `<p class="cwl-war-entry">
+                                    <strong><img src="${w.clan_badge_url}" class="cwl-war-badge"> ${w.clan_name}</strong> ${w.clan_stars}⭐ vs ${w.opponent_stars}⭐ <strong><img src="${w.opponent_badge_url}" class="cwl-war-badge"> ${w.opponent_name}</strong>
+                                    <br><small>Estado: ${w.state}</small>
+                                </p>`;
+                    }).join('') || "<p>Nenhuma guerra nesta rodada.</p>"}
+                </div>
+            `).join('') || "Nenhuma info de rodada.");
+            
+            // Habilita o botão do planejador
+            generateCwlPlanBtn.disabled = false;
+            generateCwlPlanBtn.classList.remove('disabled');
+            
+            checkCwlInactivity(); 
+            setInterval(checkCwlInactivity, 60000);
         }
-
-        // Lógica normal
-        if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
-        if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
-        if(cwlPlannerSectionEl) cwlPlannerSectionEl.style.display = 'block'; // Mostra o planejador
-        setText(cwlSeasonEl, data.season);
-        setText(cwlGroupStateEl, data.state);
-        setHtml(cwlGroupClansEl, data.clans_in_group?.map(c => `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name}"> <strong>${c.name}</strong> (${c.tag}) Nv ${c.level}</p>`).join('') || '<p>Nenhum clã no grupo.</p>');
-        setHtml(cwlRoundsInfoEl, data.rounds?.map(r => `
-            <div class="cwl-round">
-                <h4>Rodada ${r.round_number}</h4>
-                ${r.wars?.map(w => {
-                    if (w.error) return `<p class="cwl-war-entry">Guerra (${w.war_tag || 'N/A'}): ${w.error}</p>`;
-                    if (w.message) return `<p class="cwl-war-entry">${w.message}</p>`;
-                    return `<p class="cwl-war-entry">
-                                <strong><img src="${w.clan_badge_url}" class="cwl-war-badge"> ${w.clan_name}</strong> ${w.clan_stars}⭐ vs ${w.opponent_stars}⭐ <strong><img src="${w.opponent_badge_url}" class="cwl-war-badge"> ${w.opponent_name}</strong>
-                                <br><small>Estado: ${w.state}</small>
-                            </p>`;
-                }).join('') || "<p>Nenhuma guerra nesta rodada.</p>"}
-            </div>
-        `).join('') || "Nenhuma info de rodada.");
-        
-        // Inicia a verificação de inatividade
-        checkCwlInactivity(); 
-        setInterval(checkCwlInactivity, 60000); // Verifica a cada minuto
     }
     
     // --- NOVAS Funções do Planejador CWL ---
@@ -540,7 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             setHtml(cwlPlanContentEl, planHtml);
         }
-        generateCwlPlanBtn.disabled = false;
+        // Não re-habilita o botão aqui, a lógica de `populateCwlInfo` cuida disso
     }
 
     async function checkCwlInactivity() {
