@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands, tasks
 import coc
 import asyncio
+import datetime  # CORREÇÃO: Importa a biblioteca datetime
 
 logger = logging.getLogger("events_cog")
 
@@ -29,8 +30,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                 return
 
             self.events_client = coc.EventsClient()
-            
-            self.events_client.add_clan_updates(self.bot.clan_tag)
             self._add_event_listeners()
 
             # O login agora é uma task para não bloquear
@@ -58,13 +57,17 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     def _add_event_listeners(self):
         """Adiciona todos os decoradores de evento ao cliente."""
-        self.events_client.add_listener(self.on_clan_member_join, "member_join")
-        self.events_client.add_listener(self.on_clan_member_leave, "member_leave")
-        self.events_client.add_listener(self.on_clan_member_role_change, "member_role")
-        self.events_client.add_listener(self.on_clan_member_trophies_change, "member_trophies")
-        self.events_client.add_listener(self.on_clan_member_league_change, "member_league")
-        self.events_client.add_listener(self.on_member_donations, "member_donations")
-        self.events_client.add_listener(self.on_member_received, "member_received")
+        # CORREÇÃO: Usa o método add_clan_updates para registrar os listeners
+        self.events_client.add_clan_updates(
+            self.bot.clan_tag,
+            member_join=self.on_clan_member_join,
+            member_leave=self.on_clan_member_leave,
+            member_role=self.on_clan_member_role_change,
+            member_trophies=self.on_clan_member_trophies_change,
+            member_league=self.on_clan_member_league_change,
+            member_donations=self.on_member_donations,
+            member_received=self.on_member_received
+        )
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
         """Função centralizada para enviar embeds para o canal de log."""
@@ -74,6 +77,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self.bot.wait_until_ready()
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
+            # CORREÇÃO: Usa datetime.datetime.now()
             embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {self.bot.timezone.localize(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')}")
             embed_to_log.timestamp = self.bot.timezone.localize(datetime.datetime.now())
             await channel.send(content=content, embed=embed_to_log)
@@ -201,3 +205,4 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EventsCog(bot))
+
