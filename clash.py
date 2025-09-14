@@ -1023,6 +1023,15 @@ async def on_ready():
 @bot.command()
 async def ping(ctx): await ctx.send(f'Pong! Latência: {round(bot.latency * 1000)}ms')
 
+# --- COMANDOS DOS JOGOS DO CLÃ ---
+@bot.command(name='cgs')
+async def cgs(ctx):
+    """Mostra o status atual dos Jogos do Clã."""
+    if clan_games_manager:
+        await clan_games_manager.post_status_update(ctx)
+    else:
+        await ctx.send("O módulo de Jogos do Clã não está ativado.")
+
 async def main():
     global api_client, clan_games_manager
     try:
@@ -1031,11 +1040,11 @@ async def main():
         logger.info("Login no coc.Client (api_client) bem-sucedido.")
 
         # --- INICIALIZAÇÃO DOS MÓDULOS DEPENDENTES DA API ---
-        if CLAN_GAMES_CHANNEL_ID:
-            clan_games_manager = ClanGamesManager(bot, CLAN_GAMES_CHANNEL_ID, api_client, CLAN_TAG)
-            clan_games_manager.start_task()
+        if CLAN_GAMES_CHANNEL_ID and bot.db:
+            clan_games_manager = ClanGamesManager(bot, CLAN_GAMES_CHANNEL_ID, api_client, CLAN_TAG, bot.db)
+            logger.info("Módulo de Jogos do Clã ativado e configurado.")
         else:
-            logger.warning("ID do Canal dos Jogos do Clã não configurado. Módulo desativado.")
+            logger.warning("Módulo de Jogos do Clã desativado (ID do canal ou DB não configurado).")
         
         await setup_coc_events()
         await setup_web_server()
@@ -1053,3 +1062,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
+
