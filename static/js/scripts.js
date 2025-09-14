@@ -2,10 +2,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
     const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
 
-    // --- ELEMENTOS DO DOM ---3
+    // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
     const backgroundMusicEl = document.getElementById('background-music');
     const muteButtonEl = document.getElementById('mute-button');
+    const adminLinkBtn = document.querySelector('.admin-link-btn');
 
     const clanNameHeaderEl = document.getElementById('clanNameHeader');
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
@@ -33,8 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- Seletores da Aba de Guerra ---
     const warTabButtons = document.querySelectorAll('.war-tab-button');
-    const warTabContents = document.querySelectorAll('.war-tab-content');
-
     const warDetailClanBadgeEl = document.getElementById('warDetailClanBadge');
     const warDetailOurClanNameEl = document.getElementById('warDetailOurClanName');
     const warDetailOpponentNameEl = document.getElementById('warDetailOpponentName');
@@ -82,6 +81,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const cwlGroupClansEl = document.getElementById('cwlGroupClans');
     const cwlRoundsInfoEl = document.getElementById('cwlRoundsInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
+
+    // --- NOVOS Seletores para o Planejador CWL ---
+    const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
+    const generateCwlPlanBtn = document.getElementById('generateCwlPlanBtn');
+    const cwlPlanResultEl = document.getElementById('cwlPlanResult');
+    const cwlPlanSpinner = document.getElementById('cwlPlanSpinner');
+    const cwlPlanContentEl = document.getElementById('cwlPlanContent');
+    const cwlInactivityAlertEl = document.getElementById('cwlInactivityAlert');
+    const cwlInactivityTextEl = document.getElementById('cwlInactivityText');
 
     const warLogLimitEl = document.getElementById('warLogLimit');
     const warLogTableBodyEl = document.getElementById('warLogTableBody');
@@ -463,14 +471,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateCwlInfo(data) {
-        if (data.error || data.status === "NotInCwl" || data.status === "CwlFeatureDisabled") {
+        if (data.error || data.status === "NotInCwl") {
             if(noCwlMessageEl) noCwlMessageEl.style.display = 'block';
             setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
             if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
+            if(cwlPlannerSectionEl) cwlPlannerSectionEl.style.display = 'none'; // Esconde o planejador se não estiver em CWL
             return;
         }
         if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
         if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
+        if(cwlPlannerSectionEl) cwlPlannerSectionEl.style.display = 'block'; // Mostra o planejador
         setText(cwlSeasonEl, data.season);
         setText(cwlGroupStateEl, data.state);
         setHtml(cwlGroupClansEl, data.clans_in_group?.map(c => `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name}"> <strong>${c.name}</strong> (${c.tag}) Nv ${c.level}</p>`).join('') || '<p>Nenhum clã no grupo.</p>');
@@ -487,6 +497,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).join('') || "<p>Nenhuma guerra nesta rodada.</p>"}
             </div>
         `).join('') || "Nenhuma info de rodada.");
+        
+        // Inicia a verificação de inatividade
+        checkCwlInactivity(); 
+        setInterval(checkCwlInactivity, 60000); // Verifica a cada minuto
+    }
+    
+    // --- NOVAS Funções do Planejador CWL ---
+    async function handleGenerateCwlPlan() {
+        generateCwlPlanBtn.disabled = true;
+        cwlPlanResultEl.style.display = 'block';
+        cwlPlanSpinner.style.display = 'block';
+        setHtml(cwlPlanContentEl, '');
+
+        const data = await fetchData('cwl/generate_plan', { method: 'POST' });
+        
+        cwlPlanSpinner.style.display = 'none';
+        if (data.error) {
+            setHtml(cwlPlanContentEl, `<p class="message-box">${data.error}</p>`);
+        } else {
+            let planHtml = `<h4 class="plan-summary">${data.summary}</h4>`;
+            for (const day in data.plan) {
+                planHtml += `<div class="day-plan"><h5>${day.replace('_', ' ').toUpperCase()}</h5>`;
+                if (data.plan[day].substitutions.length > 0) {
+                    data.plan[day].substitutions.forEach(sub => {
+                        planHtml += `<div class="substitution-card">
+                                        <p><strong>Sai:</strong> ${sub.out.name} (CV${sub.out.town_hall})</p>
+                                        <p><strong>Entra:</strong> ${sub.in.name} (CV${sub.in.town_hall})</p>
+                                        <p class="reason"><em>IA: ${sub.reason}</em></p>
+                                    </div>`;
+                    });
+                } else {
+                    planHtml += `<p>Manter a escalação do dia anterior.</p>`;
+                }
+                planHtml += `</div>`;
+            }
+            setHtml(cwlPlanContentEl, planHtml);
+        }
+        generateCwlPlanBtn.disabled = false;
+    }
+
+    async function checkCwlInactivity() {
+        const data = await fetchData('cwl/inactivity_check');
+        if (data && data.alert) {
+            const alert = data.alert;
+            let alertText = `<strong>${alert.inactive_players.map(p => p.name).join(', ')}</strong> ainda não atacou(aram)! Faltam ${alert.time_remaining} horas.`;
+            if (alert.best_substitute) {
+                alertText += `<br>A IA sugere a substituição imediata por <strong>${alert.best_substitute.name}</strong> para não afetar a próxima rodada.`;
+            }
+            setHtml(cwlInactivityTextEl, alertText);
+            cwlInactivityAlertEl.style.display = 'block';
+        } else {
+            cwlInactivityAlertEl.style.display = 'none';
+        }
+    }
+
+    if (generateCwlPlanBtn) {
+        generateCwlPlanBtn.addEventListener('click', handleGenerateCwlPlan);
     }
 
     function populateWarLog(data) {
@@ -761,5 +828,4 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 60000);
 });
-
 
