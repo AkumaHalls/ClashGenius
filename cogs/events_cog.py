@@ -28,10 +28,8 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                 logger.error("Email ou senha do CoC não encontrados no bot. Não é possível iniciar o EventsClient.")
                 return
 
-            # REESTABELECENDO A LÓGICA ORIGINAL E FUNCIONAL
             self.events_client = coc.EventsClient()
             
-            # Registra os eventos usando decoradores, a forma correta
             @self.events_client.event
             @coc.ClanEvents.member_join()
             async def on_clan_member_join(member, clan):
@@ -98,8 +96,10 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self.bot.wait_until_ready()
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
-            embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {self.bot.timezone.localize(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')}")
-            embed_to_log.timestamp = self.bot.timezone.localize(datetime.datetime.now())
+            # CORREÇÃO: Usa o timezone definido no bot para formatar a hora corretamente
+            now_in_timezone = datetime.datetime.now(self.bot.timezone)
+            embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {now_in_timezone.strftime('%d/%m/%Y %H:%M')}")
+            embed_to_log.timestamp = now_in_timezone
             await channel.send(content=content, embed=embed_to_log)
         except (discord.NotFound, discord.Forbidden, Exception) as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
