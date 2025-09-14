@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.75-EVENTS-COG
+# Versão 20.1.78-TASKS-COG
 
 import os
 import logging
@@ -8,7 +8,7 @@ import datetime
 from typing import Dict, List, Optional, Any
 
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 import coc
 import pytz
 from dotenv import load_dotenv
@@ -25,7 +25,6 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
-from cogs.post_war_analysis import create_post_war_analysis_embed
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -55,7 +54,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.75-EVENTS-COG"
+BOT_VERSION = "20.1.78-TASKS-COG"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -75,9 +74,8 @@ clan_cache: Dict[str, Dict[str, Any]] = {}
 web_api_cache: Dict[str, Dict[str, Any]] = {}
 CACHE_DURATION_SECONDS = 300
 WEB_API_CACHE_DURATION_SECONDS = 45
-last_war_end_time: Optional[datetime.datetime] = None
 
-# --- FUNÇÕES AUXILIARES E DE LOG ---
+# --- FUNÇÕES UTILITÁRIAS (Acessadas pelo bot e cogs) ---
 async def send_ai_log_embed(war, prediction_result: Dict):
     """Envia o log de análise detalhado da IA para um canal específico no Discord."""
     events_cog = bot.get_cog("Eventos do Clã")
@@ -94,7 +92,6 @@ async def send_ai_log_embed(war, prediction_result: Dict):
             description=f"**{our_clan.name}** vs **{opponent.name}**\n\n{prediction_result.get('summary_discord', 'N/A')}",
             color=discord.Color.blue()
         )
-        
         embed.add_field(name="Probabilidade de Vitória", value=f"**{prediction_result.get('probability', 0):.1f}%**", inline=True)
         embed.add_field(name="Confiança da IA", value=f"{prediction_result.get('confidence', 0):.1f}%", inline=True)
         embed.add_field(name="Método de Análise", value=prediction_result.get('analysis_log', {}).get('method', 'Desconhecido'), inline=True)
@@ -107,16 +104,14 @@ async def send_ai_log_embed(war, prediction_result: Dict):
 
         features = prediction_result.get('analysis_log', {}).get('features')
         if features:
-            features_text = (
-                f"```"
-                f"Star Diff: {features.get('star_difference', 0):>+.2f}\n"
-                f"Destr Diff: {features.get('destruction_difference', 0):>+.2f}%\n"
-                f"Atk Rem Diff: {features.get('attacks_remaining_difference', 0):>+d}\n"
-                f"Momentum: {features.get('momentum_indicator', 0):>.2f}\n"
-                f"Synergy: {features.get('clan_synergy_score', 0):>.2f}\n"
-                f"Pressure: {features.get('pressure_index', 0):>.2f}\n"
-                f"```"
-            )
+            features_text = (f"```"
+                             f"Star Diff: {features.get('star_difference', 0):>+.2f}\n"
+                             f"Destr Diff: {features.get('destruction_difference', 0):>+.2f}%\n"
+                             f"Atk Rem Diff: {features.get('attacks_remaining_difference', 0):>+d}\n"
+                             f"Momentum: {features.get('momentum_indicator', 0):>.2f}\n"
+                             f"Synergy: {features.get('clan_synergy_score', 0):>.2f}\n"
+                             f"Pressure: {features.get('pressure_index', 0):>.2f}\n"
+                             f"```")
             embed.add_field(name="Métricas Chave Analisadas", value=features_text, inline=False)
         
         await events_cog._send_log_embed(embed, target_channel_id=AI_LOG_CHANNEL_ID)
@@ -125,43 +120,6 @@ async def send_ai_log_embed(war, prediction_result: Dict):
     except Exception as e:
         logger.error(f"Erro ao enviar log da IA para o Discord: {e}", exc_info=True)
 
-# --- FUNÇÕES DE BANCO DE DADOS (MongoDB) ---
-async def load_player_notes_from_db() -> Dict[str, Dict[str, str]]:
-    if not hasattr(bot, 'db') or bot.db is None:
-        logger.warning("Banco de dados não disponível, não é possível carregar as notas.")
-        return {}
-    try:
-        notes_cursor = bot.db.player_notes.find({})
-        notes_from_db = {note_doc["_id"]: {"text": note_doc.get("text", ""),"priority": note_doc.get("priority", "none")} async for note_doc in notes_cursor if "_id" in note_doc}
-        logger.info(f"Carregadas {len(notes_from_db)} notas do MongoDB.")
-        return notes_from_db
-    except Exception as e:
-        logger.error(f"Erro ao carregar notas do MongoDB: {e}", exc_info=True)
-        return {}
-
-async def save_player_note_to_db(player_tag: str, text: str, priority: str):
-    if not hasattr(bot, 'db') or bot.db is None:
-        logger.error("Banco de dados não disponível, não é possível salvar a nota.")
-        raise ConnectionError("Banco de dados não conectado.")
-    try:
-        player_tag_decoded = coc.utils.correct_tag(player_tag)
-        await bot.db.player_notes.update_one(
-            {"_id": player_tag_decoded},
-            {"$set": {"text": text, "priority": priority}},
-            upsert=True
-        )
-        logger.info(f"Nota salva no MongoDB para {player_tag_decoded}.")
-    except Exception as e:
-        logger.error(f"Erro ao salvar nota no MongoDB para {player_tag}: {e}", exc_info=True)
-        raise
-
-def _sanitize_keys_for_mongo(obj: Any) -> Any:
-    if isinstance(obj, dict):
-        return {str(k): _sanitize_keys_for_mongo(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_sanitize_keys_for_mongo(elem) for elem in obj]
-    return obj
-
 async def save_war_to_history(war_data: Dict[str, Any]):
     if MAINTENANCE_MODE: return
     if not hasattr(bot, 'db') or bot.db is None:
@@ -169,7 +127,8 @@ async def save_war_to_history(war_data: Dict[str, Any]):
         return
     try:
         war_collection = bot.db.war_history
-        sanitized_war_data = _sanitize_keys_for_mongo(war_data)
+        # Sanitize for MongoDB
+        sanitized_war_data = json.loads(json.dumps(war_data, default=str))
         if 'war_data' in sanitized_war_data and 'end_time_iso' in sanitized_war_data['war_data'] and sanitized_war_data['war_data']['end_time_iso']:
             sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
             
@@ -181,31 +140,8 @@ async def save_war_to_history(war_data: Dict[str, Any]):
                 oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 50)
                 async for old_war in oldest_wars_cursor:
                     await war_collection.delete_one({"_id": old_war["_id"]})
-                    logger.info(f"Guerra mais antiga ({old_war['_id']}) removida do histórico para manter o limite de 50.")
-        else:
-            logger.error("Tentativa de salvar guerra no histórico sem 'end_time_iso'. Dados incompletos.")
     except Exception as e:
         logger.error(f"Erro ao salvar guerra no histórico do MongoDB: {e}", exc_info=True)
-
-# --- FUNÇÕES DE BUSCA DE DADOS (API CoC) ---
-async def get_player_data(tag: str) -> Optional[coc.Player]:
-    if not api_client: return None
-    normalized_tag = coc.utils.correct_tag(tag)
-    if normalized_tag in player_short_term_cache:
-        return player_short_term_cache[normalized_tag]
-    try:
-        player = await api_client.get_player(normalized_tag)
-        player_short_term_cache[normalized_tag] = player
-        # Adiciona o jogador ao histórico de troféus
-        if hasattr(bot, 'db') and bot.db is not None:
-            await bot.db.trophy_history.insert_one({
-                "player_tag": normalized_tag,
-                "trophies": player.trophies,
-                "timestamp": datetime.datetime.now(pytz.utc)
-            })
-        return player
-    except Exception:
-        return None
 
 async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
     if not api_client: return None
@@ -220,14 +156,25 @@ async def get_clan_data_with_cache(tag: str) -> Optional[coc.Clan]:
     except Exception as e:
         logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
         return None
-        
+
 async def get_current_war_gracefully(clan_tag: str) -> Optional[coc.ClanWar]:
-    if not api_client:
-        return None
+    if not api_client: return None
     try:
         return await api_client.get_current_war(clan_tag)
     except (coc.NotFound, coc.PrivateWarLog):
         return None
+
+async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
+    if not war_prediction_system:
+        return {"summary_panel": "Sistema de IA não inicializado.", "probability": 50.0, "confidence": 0.0}
+    try:
+        result = await war_prediction_system.predict_war_outcome(war, CLAN_TAG)
+        if 'analysis_log' in result and AI_LOG_CHANNEL_ID:
+            await send_ai_log_embed(war, result)
+        return result
+    except Exception as e:
+        logger.error(f"Erro fatal na previsão inteligente: {e}", exc_info=True)
+        return {"summary_panel": "Análise indisponível devido a um erro interno."}
 
 # --- ROTINAS E HANDLERS DO PAINEL WEB ---
 async def get_cached_web_data(key: str, func, *args):
@@ -237,21 +184,6 @@ async def get_cached_web_data(key: str, func, *args):
     data = await func(*args)
     web_api_cache[key] = {"data": data, "timestamp": now}
     return data
-
-async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
-    if not war_prediction_system:
-        return {"summary_panel": "Sistema de IA não inicializado.", "probability": 50.0, "confidence": 0.0}
-    try:
-        result = await war_prediction_system.predict_war_outcome(war, CLAN_TAG)
-
-        if 'analysis_log' in result and AI_LOG_CHANNEL_ID:
-            await send_ai_log_embed(war, result)
-        
-        return result
-            
-    except Exception as e:
-        logger.error(f"Erro fatal na previsão inteligente: {e}", exc_info=True)
-        return {"summary_panel": "Análise indisponível devido a um erro interno."}
 
 async def fetch_clan_info_for_web():
     try:
@@ -355,8 +287,10 @@ async def fetch_clan_members_for_web():
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
             return {"error": "Não foi possível carregar os dados do clã."}
-
-        player_notes = await load_player_notes_from_db()
+        
+        from cogs.tasks_cog import load_player_notes_from_db # Importa a função do cog de tasks
+        player_notes = await load_player_notes_from_db(bot.db)
+        
         members_list = []
         for member in clan.members:
             note_data = player_notes.get(member.tag, {})
@@ -524,7 +458,6 @@ async def api_missed_attacks_history_handler(request): return web.json_response(
 async def api_war_log_handler(request): return web.json_response(await get_cached_web_data('war_log', fetch_war_log_for_web))
 async def api_cwl_info_handler(request): return web.json_response(await get_cached_web_data('cwl_info', fetch_cwl_info_for_web))
 async def api_highlights_handler(request): return web.json_response(await get_cached_web_data('highlights', fetch_highlights_for_web))
-
 async def api_save_player_note_handler(request):
     try:
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
@@ -546,14 +479,10 @@ async def api_historic_war_handler(request):
         return web.json_response({"error": "Erro interno no servidor."}, status=500)
         
 async def api_member_profile_handler(request):
-    """API para buscar o perfil detalhado de um membro."""
     try:
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
-        logger.info(f"Buscando perfil para a tag: {player_tag}")
-        
         player_data = await get_player_data(player_tag)
         if not player_data:
-            logger.warning(f"Jogador com a tag {player_tag} não encontrado pela API do CoC.")
             return web.json_response({"error": "Jogador não encontrado."}, status=404)
         
         trophy_history = []
@@ -570,100 +499,9 @@ async def api_member_profile_handler(request):
             "trophy_history": trophy_history,
         }
         return web.json_response(profile)
-    except coc.NotFound:
-        logger.warning(f"coc.NotFound para a tag {request.match_info['player_tag']}")
-        return web.json_response({"error": "Jogador não encontrado (API)."}, status=404)
     except Exception as e:
-        logger.error(f"Erro ao buscar perfil do membro via API para tag {request.match_info['player_tag']}: {e}", exc_info=True)
+        logger.error(f"Erro ao buscar perfil do membro via API: {e}", exc_info=True)
         return web.json_response({"error": "Erro interno ao buscar perfil."}, status=500)
-
-@tasks.loop(seconds=60.0)
-async def check_war_end_task():
-    global last_war_end_time
-    await bot.wait_until_ready()
-    if not api_client: return
-
-    events_cog = bot.get_cog("Eventos do Clã")
-    if not events_cog: return
-
-    try:
-        war = await api_client.get_current_war(CLAN_TAG)
-        if war and war.state == 'warEnded' and hasattr(war, 'end_time'):
-            if last_war_end_time is None or war.end_time.time > last_war_end_time:
-                logger.info(f"Nova guerra finalizada detectada.")
-                last_war_end_time = war.end_time.time
-                
-                war_details = await fetch_current_war_details_for_web()
-                if 'error' not in war_details: 
-                    await save_war_to_history(war_details)
-                
-                war_doc_from_db = await bot.db.war_history.find_one({"_id": war_details["war_data"]["end_time_iso"]})
-                
-                if war_doc_from_db and POST_WAR_ANALYSIS_CHANNEL_ID:
-                    analysis_embed = create_post_war_analysis_embed(war_doc_from_db)
-                    if analysis_embed:
-                        await events_cog._send_log_embed(analysis_embed, target_channel_id=POST_WAR_ANALYSIS_CHANNEL_ID)
-                        logger.info(f"Análise pós-guerra enviada para o canal {POST_WAR_ANALYSIS_CHANNEL_ID}.")
-
-                our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
-                missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
-                if missed:
-                    embed = discord.Embed(title=f"🚩 Relatório de Ataques Perdidos", color=discord.Color.dark_gold())
-                    embed.add_field(name="Placar Final", value=f"**{war.clan.name}:** {war.clan.stars}⭐\n**{war.opponent.name}:** {war.opponent.stars}⭐", inline=False)
-                    embed.add_field(name="Detalhes", value="\n".join(missed), inline=False)
-                    if hasattr(war.opponent.badge, 'url'): embed.set_thumbnail(url=war.opponent.badge.url)
-                    role_mention = f"<@&{ROLE_ID_MISSED_ATTACK}>" if ROLE_ID_MISSED_ATTACK else ""
-                    await events_cog._send_log_embed(embed, content=f"{role_mention} Atenção!")
-                
-    except (coc.PrivateWarLog, coc.NotFound): pass
-    except Exception as e:
-        logger.error(f"Erro na task de fim de guerra: {e}", exc_info=True)
-
-@tasks.loop(hours=24)
-async def daily_player_data_snapshot():
-    await bot.wait_until_ready()
-    if not api_client or not hasattr(bot, 'db') or bot.db is None:
-        logger.info("Snapshot diário pulado (API ou DB não prontos).")
-        return
-    
-    logger.info("Iniciando snapshot diário de dados dos jogadores.")
-    try:
-        clan = await api_client.get_clan(CLAN_TAG)
-        snapshot_time = datetime.datetime.now(pytz.utc)
-        records = []
-        for member in clan.members:
-            records.append({
-                "player_tag": member.tag,
-                "trophies": member.trophies,
-                "donations": member.donations,
-                "received": member.received,
-                "timestamp": snapshot_time
-            })
-        if records:
-            await bot.db.trophy_history.insert_many(records)
-            logger.info(f"Snapshot salvo para {len(records)} jogadores.")
-    except Exception as e:
-        logger.error(f"Erro na task de snapshot diário: {e}", exc_info=True)
-
-@tasks.loop(seconds=10, count=1)
-async def send_online_status_task():
-    await bot.wait_until_ready()
-    if not api_client: await asyncio.sleep(5)
-    
-    events_cog = bot.get_cog("Eventos do Clã")
-    if not events_cog:
-        logger.error("Cog de eventos não encontrado para enviar status online.")
-        return
-
-    try:
-        clan = await api_client.get_clan(CLAN_TAG)
-        embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}", description=f"Monitoramento ativado para **{clan.name} ({clan.tag})**.", color=discord.Color.green())
-        embed.add_field(name="📊 Status do Clã", value=f"**Membros:** {clan.member_count}/50\n**Troféus:** 🏆 {clan.points}", inline=True)
-        embed.add_field(name="⚙️ Status do Bot", value=f"**Versão:** {BOT_VERSION}\n**API CoC:** ✅ OK", inline=True)
-        if clan.badge: embed.set_thumbnail(url=clan.badge.url)
-        await events_cog._send_log_embed(embed)
-    except Exception as e:
-        logger.error(f"Falha ao enviar status online: {e}", exc_info=True)
 
 async def setup_web_server():
     app = web.Application()
@@ -684,18 +522,15 @@ async def setup_web_server():
     app.router.add_get("/painel", lambda r: web.FileResponse(os.path.join(static_dir, "painel.html")))
     app.router.add_get("/", lambda r: web.Response(text=f"Bot running! v{BOT_VERSION}"))
     
-    # Rotas do Admin
     async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html")) if not (await get_session(r)).get('admin') else web.HTTPFound('/admin/panel')
     async def admin_panel_page(r): return web.FileResponse(os.path.join(static_dir, "admin_panel.html")) if (await get_session(r)).get('admin') else web.HTTPFound('/admin')
     async def admin_login_handler(r):
         data = await r.post()
         if data.get('password') == ADMIN_PASSWORD:
-            (await get_session(r))['admin'] = True
-            return web.HTTPFound('/admin/panel')
+            (await get_session(r))['admin'] = True; return web.HTTPFound('/admin/panel')
         return web.HTTPFound('/admin?error=1')
     async def admin_logout_handler(r):
-        (await get_session(r)).pop('admin', None)
-        return web.HTTPFound('/admin')
+        (await get_session(r)).pop('admin', None); return web.HTTPFound('/admin')
     
     async def admin_api_handler(request, action):
         if not (await get_session(request)).get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
@@ -736,8 +571,9 @@ async def setup_web_server():
 
 @bot.event
 async def on_ready():
-    global war_prediction_system, api_client
+    global war_prediction_system
     logger.info(f'Bot {bot.user} está online e pronto!')
+    
     try:
         if MONGO_DB_URL:
             db_name = parse_uri(MONGO_DB_URL).get('database', 'clash_data')
@@ -765,10 +601,7 @@ async def on_ready():
     bot.maintenance_mode = MAINTENANCE_MODE
     bot.bot_version = BOT_VERSION
     bot.timezone = TIMEZONE
-
-    if not check_war_end_task.is_running(): check_war_end_task.start()
-    if not send_online_status_task.is_running(): send_online_status_task.start()
-    if not daily_player_data_snapshot.is_running(): daily_player_data_snapshot.start()
+    bot.post_war_analysis_channel_id = POST_WAR_ANALYSIS_CHANNEL_ID
 
 async def main():
     global api_client
@@ -778,6 +611,10 @@ async def main():
             await api_client.login(COC_EMAIL, COC_PASSWORD)
             bot.api_client = api_client
             logger.info("Login no coc.Client (api_client) bem-sucedido.")
+
+            bot.save_war_to_history = save_war_to_history
+            bot.fetch_current_war_details_for_web = fetch_current_war_details_for_web
+            bot.get_clan_data_with_cache = get_clan_data_with_cache
 
             logger.info("Carregando cogs...")
             for filename in os.listdir('./cogs'):
