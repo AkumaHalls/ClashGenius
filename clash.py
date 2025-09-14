@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.84-FINAL-ARCH-FIX
+# Versão 20.1.85-CACHE-FIX
 
 import os
 import logging
@@ -47,7 +47,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.84-FINAL-ARCH-FIX"
+BOT_VERSION = "20.1.85-CACHE-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -73,8 +73,25 @@ class ClashGeniusBot(commands.Bot):
         self.db = None
         self.mongo_client = None
 
+        self.clan_cache: Dict[str, Dict[str, Any]] = {}
+        self.CACHE_DURATION_SECONDS = 300
         self.web_api_cache: Dict[str, Dict[str, Any]] = {}
         self.WEB_API_CACHE_DURATION_SECONDS = 45
+
+    async def get_clan_data_with_cache(self, tag: str) -> Optional[coc.Clan]:
+        """Busca dados do clã com um sistema de cache interno."""
+        if not self.api_client: return None
+        normalized_tag = coc.utils.correct_tag(tag)
+        now = datetime.datetime.now()
+        if normalized_tag in self.clan_cache and (now - self.clan_cache[normalized_tag]["timestamp"]).total_seconds() < self.CACHE_DURATION_SECONDS:
+            return self.clan_cache[normalized_tag]["data"]
+        try:
+            clan_data = await self.api_client.get_clan(normalized_tag)
+            self.clan_cache[normalized_tag] = {"data": clan_data, "timestamp": now}
+            return clan_data
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
+            return None
 
     async def setup_hook(self) -> None:
         """Hook de setup assíncrono para inicializar conexões e carregar cogs."""
@@ -83,7 +100,7 @@ class ClashGeniusBot(commands.Bot):
         # Conecta ao MongoDB
         if MONGO_DB_URL:
             try:
-                db_name = parse_uri(MONGO_DB_URL).get('database', 'clash_data')
+                db_name = parse_uri(MONGO_DB_URL).get('database', 'genius_db')
                 self.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL)
                 self.db = self.mongo_client[db_name]
                 logger.info(f"Conectado ao MongoDB: {db_name}")
@@ -128,7 +145,6 @@ class ClashGeniusBot(commands.Bot):
             await self.api_client.close()
         if self.mongo_client:
             self.mongo_client.close()
-        # Os cogs são responsáveis por fechar seus próprios clientes (ex: events_cog)
         await super().close()
 
 # --- ROTINAS E HANDLERS DO PAINEL WEB ---
@@ -144,7 +160,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         return data
 
     async def fetch_clan_info_for_web():
-        clan = await bot_instance.api_client.get_clan(bot_instance.clan_tag)
+        clan = await bot_instance.get_clan_data_with_cache(bot_instance.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
         return {
             "name": getattr(clan, 'name', 'N/A'), "tag": getattr(clan, 'tag', 'N/A'),
@@ -226,7 +242,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             return {"error": "Erro interno ao processar dados da guerra."}
 
     async def fetch_clan_members_for_web():
-        clan = await bot_instance.api_client.get_clan(bot_instance.clan_tag)
+        clan = await bot_instance.get_clan_data_with_cache(bot_instance.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
         db_cog = bot_instance.get_cog("Banco de Dados")
         player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
@@ -246,7 +262,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
     async def fetch_missed_attacks_history_for_web():
         if bot_instance.db is None: return {"error": "Histórico indisponível."}
-        clan = await bot_instance.api_client.get_clan(bot_instance.clan_tag)
+        clan = await bot_instance.get_clan_data_with_cache(bot_instance.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã para o histórico."}
         log_cursor = bot_instance.db.war_history.find({}).sort("war_data.end_time_iso", DESCENDING)
         wars_with_missed_attacks = []
@@ -315,7 +331,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         except coc.NotFound: return {"status": "NotInCwl"}
 
     async def fetch_highlights_for_web():
-        clan = await bot_instance.api_client.get_clan(bot_instance.clan_tag)
+        clan = await bot_instance.get_clan_data_with_cache(bot_instance.clan_tag)
         if not clan: return {"error": "Não foi possível carregar destaques."}
         top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]]
         war_heroes, war_end_date_str = [], ""
