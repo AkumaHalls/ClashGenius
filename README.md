@@ -32,6 +32,16 @@
 
 ## 🔄 CHANGELOG
 
+#### v20.1.87 (14/09/2025)
+- 🚀 **REARQUITETURA COMPLETA PARA COGS:** Todo o código do bot foi refatorado para o sistema de Cogs do `discord.py`, resultando em um projeto mais limpo, modular e fácil de manter.
+    - ✨ **`clash.py` Simplificado:** O arquivo principal agora é responsável apenas pela inicialização, configuração e carregamento dos módulos, sem lógica de comandos ou eventos.
+    - ✨ **Cog de Eventos (`events_cog.py`):** Centraliza todo o monitoramento em tempo real do clã, como entrada/saída de membros, doações e ataques de guerra, usando um `EventsClient` dedicado para máxima estabilidade.
+    - ✨ **Cog de Tarefas (`tasks_cog.py`):** Isola todas as tarefas que rodam em segundo plano, como a verificação de fim de guerra e o "snapshot" diário de dados.
+    - ✨ **Cog de Banco de Dados (`database_cog.py`):** Todas as funções de interação com o MongoDB foram movidas para este cog, criando uma camada de acesso a dados clara e organizada.
+- ✅ **Correção Definitiva de Erros de Inicialização:** Resolvidos múltiplos erros `AttributeError` e `TypeError` que ocorriam durante a inicialização, garantindo que os clientes de API e as tarefas em segundo plano só comecem a rodar depois que o bot estiver 100% pronto.
+- ✅ **Correção de Erros 500 no Painel Web:** A reestruturação da inicialização e a correção de uma `SyntaxError` nas rotas da API resolveram os erros 500 que impediam o painel de carregar.
+- ✅ **Correção de Fuso Horário:** Ajustada a formatação da hora nos embeds do Discord para usar o fuso horário correto (`America/Sao_Paulo`), garantindo que os registros de eventos apareçam com a hora local certa.
+
 #### v20.1.65 (11/09/2025)
 - ✨ **NOVO RECURSO (IA v3.0):** Implementada a arquitetura avançada de IA (`WarPredictionSystemV3`), refatorando toda a lógica de previsão.
     - 🧠 **Modularização:** O código da IA foi movido para um arquivo dedicado (`war_predictor.py`), tornando o projeto mais limpo e organizado para futuras expansões.
