@@ -25,6 +25,8 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
+from modules.post_war_analysis import create_post_war_analysis_embed
+from modules.clan_games import ClanGamesManager
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -68,6 +70,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 api_client: Optional[coc.Client] = None
 events_client: Optional[coc.EventsClient] = None
 war_prediction_system: Optional[WarPredictionSystemV3] = None
+clan_games_manager: Optional[ClanGamesManager] = None
 
 # --- Caches ---
 player_short_term_cache: Dict[str, Any] = {}
@@ -722,6 +725,7 @@ async def fetch_highlights_for_web():
         if hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             if latest_war_doc:
+                from modules.post_war_analysis import _calculate_post_war_stats
                 analysis = _calculate_post_war_stats(latest_war_doc)
                 war_heroes = analysis.get("war_heroes", [])
                 
@@ -742,131 +746,6 @@ async def fetch_highlights_for_web():
     except Exception as e:
         logger.error(f"Erro em fetch_highlights_for_web: {e}", exc_info=True)
         return {"error": "Erro interno ao processar destaques."}
-
-
-# --- NOVAS FUNÇÕES DE ANÁLISE PÓS-GUERRA ---
-
-def _calculate_post_war_stats(war_doc: Dict) -> Dict:
-    """Calcula estatísticas detalhadas de uma guerra finalizada a partir do documento do DB."""
-    our_member_tags = {m['tag'] for m in war_doc.get('our_clan_members_in_war', []) if 'tag' in m}
-    all_attacks = war_doc.get('all_attacks', [])
-    our_attacks = [a for a in all_attacks if a.get("attacker_tag") in our_member_tags]
-
-    # Calcula os scores dos jogadores
-    player_scores = {}
-    if our_attacks:
-        for attack in our_attacks:
-            # Score base: 1000 * estrelas + destruição
-            score = attack.get('stars', 0) * 1000 + attack.get('destruction', 0)
-            
-            # Bônus por atacar CV mais alto
-            th_diff = attack.get('defender_townhall', 0) - attack.get('attacker_townhall', 0)
-            if th_diff > 0:
-                score += th_diff * 200 # Bônus de 200 pontos por nível de CV acima
-            
-            attacker_tag = attack.get('attacker_tag')
-            if attacker_tag not in player_scores:
-                player_scores[attacker_tag] = {"score": 0, "attacks": []}
-            
-            player_scores[attacker_tag]["score"] += score
-            player_scores[attacker_tag]["attacks"].append(attack)
-
-    # Classifica os jogadores e pega o top 3
-    sorted_players = sorted(player_scores.items(), key=lambda item: item[1]["score"], reverse=True)
-    
-    war_heroes = []
-    for i, (player_tag, data) in enumerate(sorted_players[:3]):
-        member_info = next((m for m in war_doc.get('our_clan_members_in_war', []) if m.get('tag') == player_tag), {})
-        total_stars = sum(a.get('stars', 0) for a in data["attacks"])
-        avg_destruction = sum(a.get('destruction', 0) for a in data["attacks"]) / len(data["attacks"]) if data["attacks"] else 0
-        
-        reason = f"{total_stars} estrelas e {avg_destruction:.1f}% de destruição média em {len(data['attacks'])} ataque(s)."
-        if any(a.get('defender_townhall', 0) > a.get('attacker_townhall', 0) for a in data["attacks"]):
-            reason += " Destaque por atacar CVs mais altos."
-
-        war_heroes.append({
-            "rank": i + 1,
-            "name": member_info.get("name", "N/A"),
-            "tag": player_tag,
-            "town_hall": member_info.get("townhall", "?"),
-            "reason": reason,
-            "attacks": data["attacks"]
-        })
-
-    # Pontos a Melhorar
-    points_to_improve = []
-    for th_level in range(10, 17): # Analisa de CV10 a CV16
-        attacks_against_th = [a for a in our_attacks if a.get('defender_townhall') == th_level]
-        if len(attacks_against_th) >= 3:
-            avg_stars = sum(a.get('stars', 0) for a in attacks_against_th) / len(attacks_against_th)
-            if avg_stars < 2.3:
-                points_to_improve.append(f"Baixa média de estrelas ({avg_stars:.2f}⭐) contra CV{th_level}.")
-    
-    if not points_to_improve:
-        points_to_improve.append("Bom desempenho geral, manter o foco!")
-
-    return {
-        "war_heroes": war_heroes,
-        "points_to_improve": points_to_improve
-    }
-
-async def generate_post_war_analysis(war_doc: Dict):
-    """Gera e envia o relatório de análise pós-guerra para o Discord."""
-    if not POST_WAR_ANALYSIS_CHANNEL_ID:
-        logger.warning("ID do canal de análise pós-guerra não configurado. Análise não será enviada.")
-        return
-
-    try:
-        war_data = war_doc.get("war_data", {})
-        analysis = _calculate_post_war_stats(war_doc)
-        
-        war_heroes = analysis["war_heroes"]
-        points_to_improve = analysis["points_to_improve"]
-
-        result_color = discord.Color.green() if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else discord.Color.red()
-        result_text = "Vitória" if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else "Derrota"
-        
-        embed = discord.Embed(
-            title=f"Análise Pós-Guerra: {result_text} vs {war_data.get('opponent_name')}",
-            description=f"Placar final: **{war_data.get('clan_stars')}⭐** vs {war_data.get('opponent_stars')}⭐",
-            color=result_color
-        )
-
-        if war_heroes:
-            mvp = war_heroes[0]
-            embed.add_field(
-                name="🏆 MVP da Guerra",
-                value=f"**{mvp.get('name')} (CV{mvp.get('town_hall')})**\n*_{mvp.get('reason')}_*",
-                inline=False
-            )
-            
-            jogadas_str = ""
-            for hero in war_heroes:
-                ataque_destaque = max(hero['attacks'], key=lambda a: a.get('stars', 0) * 1000 + a.get('destruction', 0))
-                stars_str = "⭐" * ataque_destaque.get('stars', 0)
-                jogadas_str += f"`{hero['rank']}.` **{hero.get('name')}** vs {ataque_destaque.get('defender_name')} - {stars_str} {ataque_destaque.get('destruction')}% \n"
-            
-            embed.add_field(
-                name="⚔️ Heróis da Guerra",
-                value=jogadas_str,
-                inline=False
-            )
-        
-        if points_to_improve:
-            embed.add_field(
-                name="🎯 Pontos a Melhorar",
-                value="• " + "\n• ".join(points_to_improve),
-                inline=False
-            )
-        
-        if war_data.get('clan_badge_url'):
-            embed.set_thumbnail(url=war_data.get('clan_badge_url'))
-
-        await send_log_embed(embed, target_channel_id=POST_WAR_ANALYSIS_CHANNEL_ID)
-        logger.info(f"Análise pós-guerra enviada para o canal {POST_WAR_ANALYSIS_CHANNEL_ID}.")
-
-    except Exception as e:
-        logger.error(f"Erro ao gerar análise pós-guerra: {e}", exc_info=True)
 
 
 async def api_clan_info_handler(request): return web.json_response(await get_cached_web_data('clan_info', fetch_clan_info_for_web))
@@ -950,9 +829,17 @@ async def check_war_end_task():
                 # Busca o documento recém-salvo para garantir que temos todos os dados
                 war_doc_from_db = await bot.db.war_history.find_one({"_id": war_details["war_data"]["end_time_iso"]})
                 
-                # Gera e envia a análise pós-guerra
+                # Gera e envia a análise pós-guerra a partir do módulo
                 if war_doc_from_db:
-                    await generate_post_war_analysis(war_doc_from_db)
+                    if POST_WAR_ANALYSIS_CHANNEL_ID:
+                        analysis_embed = create_post_war_analysis_embed(war_doc_from_db)
+                        if analysis_embed:
+                            await send_log_embed(analysis_embed, target_channel_id=POST_WAR_ANALYSIS_CHANNEL_ID)
+                            logger.info(f"Análise pós-guerra enviada para o canal {POST_WAR_ANALYSIS_CHANNEL_ID}.")
+                        else:
+                            logger.error("Falha ao gerar o embed da análise pós-guerra.")
+                    else:
+                        logger.warning("ID do canal de análise pós-guerra não configurado. Análise não será enviada.")
 
                 # Gera o alerta de ataques perdidos
                 our_clan = war.clan if war.clan.tag == CLAN_TAG else war.opponent
@@ -1137,11 +1024,19 @@ async def on_ready():
 async def ping(ctx): await ctx.send(f'Pong! Latência: {round(bot.latency * 1000)}ms')
 
 async def main():
-    global api_client
+    global api_client, clan_games_manager
     try:
         api_client = coc.Client()
         await api_client.login(COC_EMAIL, COC_PASSWORD)
         logger.info("Login no coc.Client (api_client) bem-sucedido.")
+
+        # --- INICIALIZAÇÃO DOS MÓDULOS DEPENDENTES DA API ---
+        if CLAN_GAMES_CHANNEL_ID:
+            clan_games_manager = ClanGamesManager(bot, CLAN_GAMES_CHANNEL_ID, api_client, CLAN_TAG)
+            clan_games_manager.start_task()
+        else:
+            logger.warning("ID do Canal dos Jogos do Clã não configurado. Módulo desativado.")
+        
         await setup_coc_events()
         await setup_web_server()
         await bot.start(DISCORD_TOKEN)
@@ -1158,4 +1053,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
-
