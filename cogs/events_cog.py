@@ -13,33 +13,85 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Este cog terá seu próprio cliente de eventos, como manda a biblioteca coc.py
+        self.events_client = coc.EventsClient()
         self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
 
+        # Registra os handlers de eventos usando a sintaxe de decorador correta
+        self._add_event_listeners()
+
+    def _add_event_listeners(self):
+        """Aplica os decoradores de evento aos métodos de handle."""
+        @self.events_client.event
+        @coc.ClanEvents.member_join()
+        async def on_clan_member_join(member, clan):
+            await self.handle_clan_member_join(member, clan)
+
+        @self.events_client.event
+        @coc.ClanEvents.member_leave()
+        async def on_clan_member_leave(member, clan):
+            await self.handle_clan_member_leave(member, clan)
+
+        @self.events_client.event
+        @coc.ClanEvents.member_role()
+        async def on_clan_member_role_change(old_member, new_member):
+            await self.handle_clan_member_role_change(old_member, new_member)
+        
+        @self.events_client.event
+        @coc.ClanEvents.member_trophies()
+        async def on_clan_member_trophies_change(old_member, new_member):
+            await self.handle_clan_member_trophies_change(old_member, new_member)
+
+        @self.events_client.event
+        @coc.ClanEvents.member_league()
+        async def on_clan_member_league_change(old_member, new_member):
+            await self.handle_clan_member_league_change(old_member, new_member)
+
+        @self.events_client.event
+        @coc.ClanEvents.member_donations()
+        async def on_member_donations(old_member, new_member):
+            await self.handle_member_donations(old_member, new_member)
+        
+        @self.events_client.event
+        @coc.ClanEvents.member_received()
+        async def on_member_received(old_member, new_member):
+            await self.handle_member_received(old_member, new_member)
+
     async def cog_load(self):
-        """Inicia a task de verificação de ataques."""
+        """Inicia o login do cliente de eventos e a task de ataques."""
+        self.bot.loop.create_task(self.start_events_client())
         self.check_new_attack_task.start()
-        logger.info("Cog de Eventos carregado e task de ataques iniciada.")
+        logger.info("Cog de Eventos carregado e task de login/ataques iniciada.")
+
+    async def start_events_client(self):
+        """Função segura para logar o cliente de eventos após o bot estar pronto."""
+        await self.bot.wait_until_ready()
+        try:
+            self.events_client.add_clan_updates(self.bot.clan_tag)
+            await self.events_client.login(self.bot.coc_email, self.bot.coc_password, client=self.bot.api_client)
+            logger.info("Cliente de eventos (EventsClient) logado e escutando.")
+        except Exception as e:
+            logger.error(f"Falha CRÍTICA no login do EventsClient: {e}", exc_info=True)
 
     async def cog_unload(self):
-        """Para a task ao descarregar o cog."""
+        """Para a task e fecha o cliente de eventos."""
         self.check_new_attack_task.cancel()
+        if self.events_client:
+            await self.events_client.close()
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
-        """Função centralizada para enviar embeds para o canal de log."""
         channel_id_to_use = target_channel_id or self.bot.channel_id
         if not channel_id_to_use: return
-
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
             now_in_timezone = datetime.datetime.now(self.bot.timezone)
             embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {now_in_timezone.strftime('%d/%m/%Y %H:%M')}")
             embed_to_log.timestamp = now_in_timezone
             await channel.send(content=content, embed=embed_to_log)
-        except (discord.NotFound, discord.Forbidden, Exception) as e:
+        except Exception as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
     # --- FUNÇÕES QUE RESPONDEM AOS EVENTOS ---
-    # Estas funções são chamadas pelo listener central no clash.py
     async def handle_clan_member_join(self, member, clan):
         if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
         embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
