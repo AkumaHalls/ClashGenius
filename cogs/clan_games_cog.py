@@ -31,7 +31,6 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
 
     async def _is_snapshot_active(self) -> bool:
         """Verifica se existe um snapshot ativo no banco de dados."""
-        # CORREÇÃO: Usa 'is None' para checar a coleção
         if self.snapshot_collection is None:
             return False
         return await self.snapshot_collection.count_documents({}) > 0
@@ -130,7 +129,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         await self.take_snapshot(automated=False)
         await ctx.message.remove_reaction("🔄", self.bot.user)
         await ctx.message.add_reaction("✅")
-        await ctx.send("Monitoramento dos Jogos do Clã iniciado manualmente.")
+        await ctx.send("Monitoramento dos Jogos do Clã iniciado manually.")
 
     @cgs.command(name='stop')
     @commands.has_permissions(administrator=True)
