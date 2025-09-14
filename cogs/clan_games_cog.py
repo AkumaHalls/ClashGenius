@@ -31,7 +31,8 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
 
     async def _is_snapshot_active(self) -> bool:
         """Verifica se existe um snapshot ativo no banco de dados."""
-        if not self.snapshot_collection:
+        # CORREÇÃO: Usa 'is None' para checar a coleção
+        if self.snapshot_collection is None:
             return False
         return await self.snapshot_collection.count_documents({}) > 0
 
@@ -48,7 +49,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
 
     async def take_snapshot(self, automated: bool = False):
         """Tira um snapshot dos pontos de todos os membros no início dos Jogos do Clã."""
-        if not self.snapshot_collection: return
+        if self.snapshot_collection is None: return
 
         if await self._is_snapshot_active():
             logger.warning("Tentativa de iniciar Jogos do Clã, mas um snapshot já está ativo.")
@@ -79,7 +80,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
 
     async def clear_snapshot(self, automated: bool = False):
         """Limpa o snapshot, finalizando o monitoramento dos Jogos do Clã."""
-        if not self.snapshot_collection: return
+        if self.snapshot_collection is None: return
         
         await self.snapshot_collection.delete_many({})
         msg = "⏹️ Monitoramento dos Jogos do Clã finalizado. Dados limpos."
@@ -146,7 +147,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         """Busca os dados, calcula os pontos e posta uma atualização."""
         is_manual_request = ctx is not None
         
-        if not self.snapshot_collection or not await self._is_snapshot_active():
+        if not await self._is_snapshot_active():
             if is_manual_request: await ctx.send("Nenhum monitoramento dos Jogos do Clã ativo no momento.")
             return
         
@@ -202,7 +203,6 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             await ctx.message.add_reaction("✅")
 
 async def setup(bot: commands.Bot):
-    # CORREÇÃO: Usa 'is not None' para checar o objeto do banco de dados
     if bot.clan_games_channel_id and bot.db is not None:
         await bot.add_cog(ClanGamesCog(bot))
     else:
