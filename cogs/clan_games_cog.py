@@ -19,7 +19,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         self.clan_tag: str = bot.clan_tag
         self.channel_id: int = bot.clan_games_channel_id
         
-        self.snapshot_collection = self.db.clan_games_snapshot if self.db else None
+        self.snapshot_collection = self.db.clan_games_snapshot if self.db is not None else None
         
         self.auto_manage_clan_games.start()
         self.periodic_status_update.start()
@@ -99,12 +99,10 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         """Verifica a cada hora se os Jogos do Clã devem começar ou terminar."""
         now_utc = datetime.datetime.now(pytz.utc)
         
-        # Lógica de Início: dia 22, a partir das 8h UTC
         if now_utc.day == 22 and now_utc.hour >= 8 and not await self._is_snapshot_active():
             logger.info("Data de início dos Jogos do Clã detectada. Iniciando monitoramento automático.")
             await self.take_snapshot(automated=True)
 
-        # Lógica de Fim: dia 28, a partir das 8h UTC
         if now_utc.day == 28 and now_utc.hour >= 8 and await self._is_snapshot_active():
             logger.info("Data de término dos Jogos do Clã detectada. Finalizando monitoramento.")
             await self.post_status_update(is_final_report=True)
@@ -204,8 +202,9 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             await ctx.message.add_reaction("✅")
 
 async def setup(bot: commands.Bot):
-    # Condição para só carregar o Cog se as configurações necessárias existirem
-    if bot.clan_games_channel_id and bot.db:
+    # CORREÇÃO: Usa 'is not None' para checar o objeto do banco de dados
+    if bot.clan_games_channel_id and bot.db is not None:
         await bot.add_cog(ClanGamesCog(bot))
     else:
         logger.warning("Cog 'ClanGamesCog' não carregado (ID do canal ou DB não configurado).")
+
