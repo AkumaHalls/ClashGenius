@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.85-CACHE-FIX
+# Versão 20.1.86-WEB-FIX
 
 import os
 import logging
@@ -47,7 +47,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.85-CACHE-FIX"
+BOT_VERSION = "20.1.86-WEB-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -379,13 +379,13 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         }
         return web.json_response(profile)
 
-    app.router.add_get("/api/clan", lambda r: get_cached_web_data('clan', fetch_clan_info_for_web))
-    app.router.add_get("/api/members", lambda r: get_cached_web_data('members', fetch_clan_members_for_web))
-    app.router.add_get("/api/current_war_details", lambda r: get_cached_web_data('war_details', fetch_current_war_details_for_web))
-    app.router.add_get("/api/missed_attacks_history", lambda r: get_cached_web_data('missed_attacks', fetch_missed_attacks_history_for_web))
-    app.router.add_get("/api/war_log", lambda r: get_cached_web_data('war_log', fetch_war_log_for_web))
-    app.router.add_get("/api/cwl_info", lambda r: get_cached_web_data('cwl', fetch_cwl_info_for_web))
-    app.router.add_get("/api/highlights", lambda r: get_cached_web_data('highlights', fetch_highlights_for_web))
+    app.router.add_get("/api/clan", lambda r: web.json_response(await get_cached_web_data('clan', fetch_clan_info_for_web)))
+    app.router.add_get("/api/members", lambda r: web.json_response(await get_cached_web_data('members', fetch_clan_members_for_web)))
+    app.router.add_get("/api/current_war_details", lambda r: web.json_response(await get_cached_web_data('war_details', fetch_current_war_details_for_web)))
+    app.router.add_get("/api/missed_attacks_history", lambda r: web.json_response(await get_cached_web_data('missed_attacks', fetch_missed_attacks_history_for_web)))
+    app.router.add_get("/api/war_log", lambda r: web.json_response(await get_cached_web_data('war_log', fetch_war_log_for_web)))
+    app.router.add_get("/api/cwl_info", lambda r: web.json_response(await get_cached_web_data('cwl', fetch_cwl_info_for_web)))
+    app.router.add_get("/api/highlights", lambda r: web.json_response(await get_cached_web_data('highlights', fetch_highlights_for_web)))
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
@@ -415,7 +415,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             bot_instance.maintenance_mode = not bot_instance.maintenance_mode
             status_str = "ATIVADO" if bot_instance.maintenance_mode else "DESATIVADO"
             embed = discord.Embed(title=f"🚨 Modo Manutenção {status_str} 🚨", color=discord.Color.orange() if bot_instance.maintenance_mode else discord.Color.green())
-            # Enviar embed para o canal de log
             channel = bot_instance.get_channel(bot_instance.channel_id)
             if channel: await channel.send(embed=embed)
             return web.json_response({"status": "success", "maintenance_mode": bot_instance.maintenance_mode})
@@ -463,4 +462,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
