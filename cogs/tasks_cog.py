@@ -39,7 +39,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         await self.bot.wait_until_ready()
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
-            # CORREÇÃO: Usa o timezone definido no bot para formatar a hora corretamente
             now_in_timezone = datetime.datetime.now(self.bot.timezone)
             embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {now_in_timezone.strftime('%d/%m/%Y %H:%M')}")
             embed_to_log.timestamp = now_in_timezone
@@ -58,10 +57,11 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                     logger.info("Nova guerra finalizada detectada.")
                     self.last_war_end_time = war.end_time.time
                     
-                    # Salva a guerra no histórico PRIMEIRO
                     war_details = await self.bot.fetch_current_war_details_for_web()
-                    if 'error' not in war_details: 
-                        await self.bot.save_war_to_history(war_details)
+                    
+                    db_cog = self.bot.get_cog("Banco de Dados")
+                    if db_cog and 'error' not in war_details: 
+                        await db_cog.save_war_to_history(war_details)
                     
                     war_doc_from_db = await self.db.war_history.find_one({"_id": war_details["war_data"]["end_time_iso"]})
                     
@@ -72,8 +72,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                             if analysis_embed:
                                 await self._send_log_embed(analysis_embed, target_channel_id=self.bot.post_war_analysis_channel_id)
                                 logger.info(f"Análise pós-guerra enviada para o canal {self.bot.post_war_analysis_channel_id}.")
-                            else:
-                                logger.error("Falha ao gerar o embed da análise pós-guerra.")
 
                     our_clan = war.clan if war.clan.tag == self.bot.clan_tag else war.opponent
                     missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
@@ -93,7 +91,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     async def daily_player_data_snapshot(self):
         await self.bot.wait_until_ready()
         if not self.api_client or self.db is None:
-            logger.info("Snapshot diário pulado (API ou DB não prontos).")
             return
         
         logger.info("Iniciando snapshot diário de dados dos jogadores.")
