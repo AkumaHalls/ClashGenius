@@ -53,15 +53,16 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     def _add_event_listeners(self):
         """Adiciona todos os decoradores de evento ao cliente."""
-        # CORREÇÃO: A biblioteca usa decoradores. Esta é a maneira de registrá-los programaticamente.
         self.events_client.add_clan_updates(self.bot.clan_tag)
-        self.events_client.event(coc.ClanEvents.member_join(self.bot.clan_tag))(self.on_clan_member_join)
-        self.events_client.event(coc.ClanEvents.member_leave(self.bot.clan_tag))(self.on_clan_member_leave)
-        self.events_client.event(coc.ClanEvents.member_role(self.bot.clan_tag))(self.on_clan_member_role_change)
-        self.events_client.event(coc.ClanEvents.member_trophies(self.bot.clan_tag))(self.on_clan_member_trophies_change)
-        self.events_client.event(coc.ClanEvents.member_league(self.bot.clan_tag))(self.on_clan_member_league_change)
-        self.events_client.event(coc.ClanEvents.member_donations(self.bot.clan_tag))(self.on_member_donations)
-        self.events_client.event(coc.ClanEvents.member_received(self.bot.clan_tag))(self.on_member_received)
+        
+        # CORREÇÃO DEFINITIVA: A função ClanEvents não recebe a tag do clã como argumento aqui.
+        self.events_client.event(coc.ClanEvents.member_join())(self.on_clan_member_join)
+        self.events_client.event(coc.ClanEvents.member_leave())(self.on_clan_member_leave)
+        self.events_client.event(coc.ClanEvents.member_role())(self.on_clan_member_role_change)
+        self.events_client.event(coc.ClanEvents.member_trophies())(self.on_clan_member_trophies_change)
+        self.events_client.event(coc.ClanEvents.member_league())(self.on_clan_member_league_change)
+        self.events_client.event(coc.ClanEvents.member_donations())(self.on_member_donations)
+        self.events_client.event(coc.ClanEvents.member_received())(self.on_member_received)
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
         """Função centralizada para enviar embeds para o canal de log."""
@@ -79,7 +80,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     # --- LISTENER DE EVENTOS ---
     async def on_clan_member_join(self, member, clan):
-        if self.bot.maintenance_mode: return
+        if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
         embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
         embed.add_field(name="CV", value=member.town_hall, inline=True)
         embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
@@ -87,7 +88,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self._send_log_embed(embed)
 
     async def on_clan_member_leave(self, member, clan):
-        if self.bot.maintenance_mode: return
+        if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
         embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** ({member.tag}) saiu do clã.", color=discord.Color.dark_grey())
         embed.add_field(name="CV", value=member.town_hall, inline=True)
         embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
