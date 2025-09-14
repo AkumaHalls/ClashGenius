@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands, tasks
 import coc
 import asyncio
-import datetime  # CORREÇÃO: Importa a biblioteca datetime
+import datetime
 
 logger = logging.getLogger("events_cog")
 
@@ -15,7 +15,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         self.bot = bot
         self.api_client: coc.Client = bot.api_client
         self.events_client: coc.EventsClient = None
-        
         self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
 
     async def cog_load(self):
@@ -31,10 +30,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
             self.events_client = coc.EventsClient()
             self._add_event_listeners()
-
-            # O login agora é uma task para não bloquear
             self.bot.loop.create_task(self.start_events_client(coc_email, coc_password))
-
             self.check_new_attack_task.start()
         except Exception as e:
             logger.error(f"Erro crítico ao carregar EventsCog: {e}", exc_info=True)
@@ -57,17 +53,15 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     def _add_event_listeners(self):
         """Adiciona todos os decoradores de evento ao cliente."""
-        # CORREÇÃO: Usa o método add_clan_updates para registrar os listeners
-        self.events_client.add_clan_updates(
-            self.bot.clan_tag,
-            member_join=self.on_clan_member_join,
-            member_leave=self.on_clan_member_leave,
-            member_role=self.on_clan_member_role_change,
-            member_trophies=self.on_clan_member_trophies_change,
-            member_league=self.on_clan_member_league_change,
-            member_donations=self.on_member_donations,
-            member_received=self.on_member_received
-        )
+        # CORREÇÃO: A biblioteca usa decoradores. Esta é a maneira de registrá-los programaticamente.
+        self.events_client.add_clan_updates(self.bot.clan_tag)
+        self.events_client.event(coc.ClanEvents.member_join(self.bot.clan_tag))(self.on_clan_member_join)
+        self.events_client.event(coc.ClanEvents.member_leave(self.bot.clan_tag))(self.on_clan_member_leave)
+        self.events_client.event(coc.ClanEvents.member_role(self.bot.clan_tag))(self.on_clan_member_role_change)
+        self.events_client.event(coc.ClanEvents.member_trophies(self.bot.clan_tag))(self.on_clan_member_trophies_change)
+        self.events_client.event(coc.ClanEvents.member_league(self.bot.clan_tag))(self.on_clan_member_league_change)
+        self.events_client.event(coc.ClanEvents.member_donations(self.bot.clan_tag))(self.on_member_donations)
+        self.events_client.event(coc.ClanEvents.member_received(self.bot.clan_tag))(self.on_member_received)
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
         """Função centralizada para enviar embeds para o canal de log."""
@@ -77,7 +71,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self.bot.wait_until_ready()
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
-            # CORREÇÃO: Usa datetime.datetime.now()
             embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {self.bot.timezone.localize(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')}")
             embed_to_log.timestamp = self.bot.timezone.localize(datetime.datetime.now())
             await channel.send(content=content, embed=embed_to_log)
@@ -86,7 +79,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     # --- LISTENER DE EVENTOS ---
     async def on_clan_member_join(self, member, clan):
-        if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
+        if self.bot.maintenance_mode: return
         embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
         embed.add_field(name="CV", value=member.town_hall, inline=True)
         embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
@@ -94,7 +87,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self._send_log_embed(embed)
 
     async def on_clan_member_leave(self, member, clan):
-        if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
+        if self.bot.maintenance_mode: return
         embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** ({member.tag}) saiu do clã.", color=discord.Color.dark_grey())
         embed.add_field(name="CV", value=member.town_hall, inline=True)
         embed.add_field(name="Cargo", value=member.role.name.capitalize() if member.role else "N/A", inline=True)
@@ -179,7 +172,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
         await self._send_log_embed(embed)
 
-    # --- TASKS ---
     @tasks.loop(seconds=30)
     async def check_new_attack_task(self):
         await self.bot.wait_until_ready()
