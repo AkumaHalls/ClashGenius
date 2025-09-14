@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.78-TASKS-COG
+# Versão 20.1.79-FIX
 
 import os
 import logging
@@ -25,6 +25,7 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
+from cogs.tasks_cog import load_player_notes_from_db, save_player_note_to_db # Importa do cog correto
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -54,7 +55,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.78-TASKS-COG"
+BOT_VERSION = "20.1.79-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -127,7 +128,6 @@ async def save_war_to_history(war_data: Dict[str, Any]):
         return
     try:
         war_collection = bot.db.war_history
-        # Sanitize for MongoDB
         sanitized_war_data = json.loads(json.dumps(war_data, default=str))
         if 'war_data' in sanitized_war_data and 'end_time_iso' in sanitized_war_data['war_data'] and sanitized_war_data['war_data']['end_time_iso']:
             sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
@@ -162,6 +162,24 @@ async def get_current_war_gracefully(clan_tag: str) -> Optional[coc.ClanWar]:
     try:
         return await api_client.get_current_war(clan_tag)
     except (coc.NotFound, coc.PrivateWarLog):
+        return None
+
+async def get_player_data(tag: str) -> Optional[coc.Player]:
+    if not api_client: return None
+    normalized_tag = coc.utils.correct_tag(tag)
+    if normalized_tag in player_short_term_cache:
+        return player_short_term_cache[normalized_tag]
+    try:
+        player = await api_client.get_player(normalized_tag)
+        player_short_term_cache[normalized_tag] = player
+        if hasattr(bot, 'db') and bot.db is not None:
+            await bot.db.trophy_history.insert_one({
+                "player_tag": normalized_tag,
+                "trophies": player.trophies,
+                "timestamp": datetime.datetime.now(pytz.utc)
+            })
+        return player
+    except Exception:
         return None
 
 async def calculate_war_prediction(war: coc.ClanWar) -> Dict[str, Any]:
@@ -270,8 +288,6 @@ async def fetch_current_war_details_for_web():
                 "clan_star_distribution": get_star_dist(our_attacks), "opponent_star_distribution": get_star_dist(opp_attacks),
                 "clan_avg_stars": f"{our_clan.stars / len(our_attacks):.2f}" if our_attacks else "0.00",
                 "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks):.2f}" if opp_attacks else "0.00",
-                "clan_avg_duration": f"{sum(a.duration for a in our_attacks) / len(our_attacks):.1f}s" if our_attacks else "0s",
-                "opponent_avg_duration": f"{sum(a.duration for a in opp_attacks) / len(opp_attacks):.1f}s" if opp_attacks else "0s",
             },
             "all_attacks": all_attacks_data,
             "our_clan_members_in_war": get_team_details(our_clan, war),
@@ -287,8 +303,7 @@ async def fetch_clan_members_for_web():
         clan = await get_clan_data_with_cache(CLAN_TAG)
         if not clan:
             return {"error": "Não foi possível carregar os dados do clã."}
-        
-        from cogs.tasks_cog import load_player_notes_from_db # Importa a função do cog de tasks
+
         player_notes = await load_player_notes_from_db(bot.db)
         
         members_list = []
@@ -462,7 +477,7 @@ async def api_save_player_note_handler(request):
     try:
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         data = await request.json()
-        await save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
+        await save_player_note_to_db(bot.db, player_tag, data.get('text', ''), data.get('priority', 'none'))
         web_api_cache.pop('members', None)
         return web.Response(status=204)
     except Exception as e:
@@ -571,51 +586,49 @@ async def setup_web_server():
 
 @bot.event
 async def on_ready():
-    global war_prediction_system
     logger.info(f'Bot {bot.user} está online e pronto!')
-    
-    try:
-        if MONGO_DB_URL:
-            db_name = parse_uri(MONGO_DB_URL).get('database', 'clash_data')
-            bot.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL)
-            bot.db = bot.mongo_client[db_name]
-            logger.info(f"Conectado ao MongoDB: {db_name}")
-            war_prediction_system = WarPredictionSystemV3(db_connection=bot.db)
-            await war_prediction_system.initialize_system()
-        else:
-            bot.db = None
-            logger.warning("URL do MongoDB não fornecida.")
-            war_prediction_system = WarPredictionSystemV3()
-            await war_prediction_system.initialize_system()
-    except Exception as e:
-        logger.error(f"Falha ao conectar com o MongoDB: {e}", exc_info=True)
-        bot.db = None
-        war_prediction_system = WarPredictionSystemV3()
-        await war_prediction_system.initialize_system()
-
-    bot.clan_tag = CLAN_TAG
-    bot.clan_games_channel_id = CLAN_GAMES_CHANNEL_ID
-    bot.channel_id = CHANNEL_ID
-    bot.role_id_1star_alert = ROLE_ID_1STAR_ALERT
-    bot.role_id_missed_attack = ROLE_ID_MISSED_ATTACK
-    bot.maintenance_mode = MAINTENANCE_MODE
-    bot.bot_version = BOT_VERSION
-    bot.timezone = TIMEZONE
-    bot.post_war_analysis_channel_id = POST_WAR_ANALYSIS_CHANNEL_ID
 
 async def main():
-    global api_client
+    global api_client, war_prediction_system
     async with bot:
         try:
+            # --- CONEXÃO COM BANCO DE DADOS ---
+            if MONGO_DB_URL:
+                db_name = parse_uri(MONGO_DB_URL).get('database', 'clash_data')
+                bot.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL)
+                bot.db = bot.mongo_client[db_name]
+                logger.info(f"Conectado ao MongoDB: {db_name}")
+                war_prediction_system = WarPredictionSystemV3(db_connection=bot.db)
+                await war_prediction_system.initialize_system()
+            else:
+                bot.db = None
+                logger.warning("URL do MongoDB não fornecida.")
+                war_prediction_system = WarPredictionSystemV3()
+                await war_prediction_system.initialize_system()
+
+            # --- LOGIN NA API DO COC ---
             api_client = coc.Client()
             await api_client.login(COC_EMAIL, COC_PASSWORD)
-            bot.api_client = api_client
             logger.info("Login no coc.Client (api_client) bem-sucedido.")
-
+            
+            # --- ANEXA OBJETOS E VARIÁVEIS AO BOT (ANTES DE CARREGAR COGS) ---
+            bot.api_client = api_client
+            bot.coc_email = COC_EMAIL
+            bot.coc_password = COC_PASSWORD
+            bot.clan_tag = CLAN_TAG
+            bot.clan_games_channel_id = CLAN_GAMES_CHANNEL_ID
+            bot.channel_id = CHANNEL_ID
+            bot.role_id_1star_alert = ROLE_ID_1STAR_ALERT
+            bot.role_id_missed_attack = ROLE_ID_MISSED_ATTACK
+            bot.maintenance_mode = MAINTENANCE_MODE
+            bot.bot_version = BOT_VERSION
+            bot.timezone = TIMEZONE
+            bot.post_war_analysis_channel_id = POST_WAR_ANALYSIS_CHANNEL_ID
             bot.save_war_to_history = save_war_to_history
             bot.fetch_current_war_details_for_web = fetch_current_war_details_for_web
             bot.get_clan_data_with_cache = get_clan_data_with_cache
 
+            # --- CARREGA OS COGS ---
             logger.info("Carregando cogs...")
             for filename in os.listdir('./cogs'):
                 if filename.endswith('_cog.py') and not filename.startswith('__'):
@@ -625,8 +638,10 @@ async def main():
                     except Exception as e:
                         logger.error(f"Falha ao carregar o cog '{filename[:-3]}'. Erro: {e}", exc_info=True)
             
+            # --- INICIA O SERVIDOR WEB E O BOT ---
             await setup_web_server()
             await bot.start(DISCORD_TOKEN)
+
         except Exception as e:
             logger.critical(f"Erro crítico na inicialização: {e}", exc_info=True)
         finally:
@@ -638,4 +653,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
-
