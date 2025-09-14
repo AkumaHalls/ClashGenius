@@ -234,13 +234,16 @@
                 <p id="noCwlMessage" class="message-box" style="display: none;">O clã não está em CWL ou informações não disponíveis.</p>
             
                 <!-- INÍCIO: Nova Seção do Planejador de CWL -->
-                <div id="cwlPlannerSection" class="cwl-planner-container" style="display: none;">
+                <div id="cwlPlannerSection" class="cwl-planner-container">
                     <h3>🔮 Planejador Estratégico de CWL (IA)</h3>
                     <p class="planner-description">
                         Deixe a IA analisar a força de todos os membros e criar um plano de rotação justo para os 7 dias de guerra, 
                         maximizando a participação e a performance do clã.
                     </p>
-                    <button id="generateCwlPlanBtn" class="control-btn">Gerar Plano de Rotação</button>
+                    <button id="generateCwlPlanBtn" class="control-btn">
+                        Gerar Plano de Rotação
+                        <span class="tooltip-text">Disponível apenas durante a CWL.</span>
+                    </button>
                     <div id="cwlPlanResult" class="cwl-plan-result" style="display: none;">
                         <div id="cwlPlanSpinner" class="loading-spinner" style="display: none;"></div>
                         <div id="cwlPlanContent"></div>
@@ -368,4 +371,3 @@
     <script src="/static/js/scripts.js"></script>
 </body>
 </html>
-
