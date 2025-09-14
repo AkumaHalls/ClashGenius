@@ -18,64 +18,62 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
 
     async def cog_load(self):
-        """Inicia o cliente de eventos e as tasks quando o cog é carregado."""
+        """Prepara o cliente de eventos para ser iniciado no setup_hook do bot."""
         try:
             logger.info("Iniciando cliente de eventos CoC...")
-            coc_email = self.bot.coc_email
-            coc_password = self.bot.coc_password
-            
-            if not coc_email or not coc_password:
-                logger.error("Email ou senha do CoC não encontrados no bot. Não é possível iniciar o EventsClient.")
-                return
-
             self.events_client = coc.EventsClient()
-            
-            @self.events_client.event
-            @coc.ClanEvents.member_join()
-            async def on_clan_member_join(member, clan):
-                await self.handle_clan_member_join(member, clan)
-
-            @self.events_client.event
-            @coc.ClanEvents.member_leave()
-            async def on_clan_member_leave(member, clan):
-                await self.handle_clan_member_leave(member, clan)
-
-            @self.events_client.event
-            @coc.ClanEvents.member_role()
-            async def on_clan_member_role_change(old_member, new_member):
-                await self.handle_clan_member_role_change(old_member, new_member)
-            
-            @self.events_client.event
-            @coc.ClanEvents.member_trophies()
-            async def on_clan_member_trophies_change(old_member, new_member):
-                await self.handle_clan_member_trophies_change(old_member, new_member)
-
-            @self.events_client.event
-            @coc.ClanEvents.member_league()
-            async def on_clan_member_league_change(old_member, new_member):
-                await self.handle_clan_member_league_change(old_member, new_member)
-
-            @self.events_client.event
-            @coc.ClanEvents.member_donations()
-            async def on_member_donations(old_member, new_member):
-                await self.handle_member_donations(old_member, new_member)
-            
-            @self.events_client.event
-            @coc.ClanEvents.member_received()
-            async def on_member_received(old_member, new_member):
-                await self.handle_member_received(old_member, new_member)
-
+            self._add_event_listeners()
             self.events_client.add_clan_updates(self.bot.clan_tag)
             
-            self.bot.loop.create_task(self.start_events_client(coc_email, coc_password))
+            # A tarefa de login agora é iniciada de forma segura
+            asyncio.create_task(self.start_events_client())
+            
             self.check_new_attack_task.start()
         except Exception as e:
             logger.error(f"Erro crítico ao carregar EventsCog: {e}", exc_info=True)
             self.events_client = None
+
+    def _add_event_listeners(self):
+        """Registra todos os listeners de eventos no cliente."""
+        @self.events_client.event
+        @coc.ClanEvents.member_join()
+        async def on_clan_member_join(member, clan):
+            await self.handle_clan_member_join(member, clan)
+
+        @self.events_client.event
+        @coc.ClanEvents.member_leave()
+        async def on_clan_member_leave(member, clan):
+            await self.handle_clan_member_leave(member, clan)
+
+        @self.events_client.event
+        @coc.ClanEvents.member_role()
+        async def on_clan_member_role_change(old_member, new_member):
+            await self.handle_clan_member_role_change(old_member, new_member)
+        
+        @self.events_client.event
+        @coc.ClanEvents.member_trophies()
+        async def on_clan_member_trophies_change(old_member, new_member):
+            await self.handle_clan_member_trophies_change(old_member, new_member)
+
+        @self.events_client.event
+        @coc.ClanEvents.member_league()
+        async def on_clan_member_league_change(old_member, new_member):
+            await self.handle_clan_member_league_change(old_member, new_member)
+
+        @self.events_client.event
+        @coc.ClanEvents.member_donations()
+        async def on_member_donations(old_member, new_member):
+            await self.handle_member_donations(old_member, new_member)
+        
+        @self.events_client.event
+        @coc.ClanEvents.member_received()
+        async def on_member_received(old_member, new_member):
+            await self.handle_member_received(old_member, new_member)
             
-    async def start_events_client(self, email, password):
+    async def start_events_client(self):
         try:
-            await self.events_client.login(email, password)
+            await self.bot.wait_until_ready() # Garante que o bot está pronto
+            await self.events_client.login(self.bot.coc_email, self.bot.coc_password)
             logger.info("Cliente de eventos CoC logado e escutando eventos.")
         except Exception as e:
             logger.error(f"Falha no login do EventsClient: {e}", exc_info=True)
@@ -96,7 +94,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self.bot.wait_until_ready()
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
-            # CORREÇÃO: Usa o timezone definido no bot para formatar a hora corretamente
             now_in_timezone = datetime.datetime.now(self.bot.timezone)
             embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {now_in_timezone.strftime('%d/%m/%Y %H:%M')}")
             embed_to_log.timestamp = now_in_timezone
@@ -202,8 +199,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
     # --- TASKS ---
     @tasks.loop(seconds=30)
     async def check_new_attack_task(self):
-        await self.bot.wait_until_ready()
-        if not self.api_client: return
         try:
             war = await self.api_client.get_current_war(self.bot.clan_tag)
             if not war or war.state != 'inWar':
@@ -222,6 +217,11 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         except (coc.PrivateWarLog, coc.NotFound): pass
         except Exception as e:
             logger.error(f"Erro na task de novos ataques: {e}", exc_info=True)
+            
+    @check_new_attack_task.before_loop
+    async def before_check_new_attack_task(self):
+        await self.bot.wait_until_ready()
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EventsCog(bot))
