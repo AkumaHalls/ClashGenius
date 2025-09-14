@@ -17,48 +17,8 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         self.events_client = coc.EventsClient()
         self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
 
-        # Registra os handlers de eventos usando a sintaxe de decorador correta
-        self._add_event_listeners()
-
-    def _add_event_listeners(self):
-        """Aplica os decoradores de evento aos métodos de handle."""
-        @self.events_client.event
-        @coc.ClanEvents.member_join()
-        async def on_clan_member_join(member, clan):
-            await self.handle_clan_member_join(member, clan)
-
-        @self.events_client.event
-        @coc.ClanEvents.member_leave()
-        async def on_clan_member_leave(member, clan):
-            await self.handle_clan_member_leave(member, clan)
-
-        @self.events_client.event
-        @coc.ClanEvents.member_role()
-        async def on_clan_member_role_change(old_member, new_member):
-            await self.handle_clan_member_role_change(old_member, new_member)
-        
-        @self.events_client.event
-        @coc.ClanEvents.member_trophies()
-        async def on_clan_member_trophies_change(old_member, new_member):
-            await self.handle_clan_member_trophies_change(old_member, new_member)
-
-        @self.events_client.event
-        @coc.ClanEvents.member_league()
-        async def on_clan_member_league_change(old_member, new_member):
-            await self.handle_clan_member_league_change(old_member, new_member)
-
-        @self.events_client.event
-        @coc.ClanEvents.member_donations()
-        async def on_member_donations(old_member, new_member):
-            await self.handle_member_donations(old_member, new_member)
-        
-        @self.events_client.event
-        @coc.ClanEvents.member_received()
-        async def on_member_received(old_member, new_member):
-            await self.handle_member_received(old_member, new_member)
-
     async def cog_load(self):
-        """Inicia o login do cliente de eventos e a task de ataques."""
+        """Inicia a task de login do cliente de eventos e a task de ataques."""
         self.bot.loop.create_task(self.start_events_client())
         self.check_new_attack_task.start()
         logger.info("Cog de Eventos carregado e task de login/ataques iniciada.")
@@ -67,7 +27,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         """Função segura para logar o cliente de eventos após o bot estar pronto."""
         await self.bot.wait_until_ready()
         try:
-            self.events_client.add_clan_updates(self.bot.clan_tag)
+            # Reutiliza o http client do bot principal para economizar recursos
             await self.events_client.login(self.bot.coc_email, self.bot.coc_password, client=self.bot.api_client)
             logger.info("Cliente de eventos (EventsClient) logado e escutando.")
         except Exception as e:
@@ -92,6 +52,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
     # --- FUNÇÕES QUE RESPONDEM AOS EVENTOS ---
+    # O registro destes eventos é feito no clash.py
     async def handle_clan_member_join(self, member, clan):
         if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
         embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
@@ -211,7 +172,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
     @check_new_attack_task.before_loop
     async def before_check_new_attack_task(self):
         await self.bot.wait_until_ready()
-
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EventsCog(bot))
