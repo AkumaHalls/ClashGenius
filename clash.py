@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.82-SETUP-HOOK-FIX
+# Versão 20.1.83-SINGLE-CLIENT-FIX
 
 import os
 import logging
@@ -54,7 +54,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.82-SETUP-HOOK-FIX"
+BOT_VERSION = "20.1.83-SINGLE-CLIENT-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -105,15 +105,8 @@ class ClashGeniusBot(commands.Bot):
         # Inicializa o sistema de IA
         self.war_prediction_system = WarPredictionSystemV3(db_connection=self.db)
         await self.war_prediction_system.initialize_system()
-
-        # Faz login no cliente principal da API do CoC
-        try:
-            await self.api_client.login(self.coc_email, self.coc_password)
-            logger.info("Login no coc.Client (api_client) bem-sucedido.")
-        except Exception as e:
-            logger.critical(f"Falha CRÍTICA no login do coc.Client: {e}", exc_info=True)
-
-        # Carrega todos os cogs
+        
+        # Carrega todos os cogs PRIMEIRO
         logger.info("Carregando cogs...")
         for filename in os.listdir('./cogs'):
             if filename.endswith('_cog.py'):
@@ -124,8 +117,66 @@ class ClashGeniusBot(commands.Bot):
                 except Exception as e:
                     logger.error(f"Falha ao carregar o cog '{cog_name}'. Erro: {e}", exc_info=True)
 
+        # Faz login no cliente principal da API do CoC
+        try:
+            await self.api_client.login(self.coc_email, self.coc_password)
+            logger.info("Login no coc.Client (api_client) bem-sucedido.")
+            
+            # **SOLUÇÃO DEFINITIVA**: Registra os eventos no cliente JÁ LOGADO
+            self.register_coc_events()
+
+        except Exception as e:
+            logger.critical(f"Falha CRÍTICA no login do coc.Client: {e}", exc_info=True)
+
         # Inicia o servidor web
         self.loop.create_task(setup_web_server(self))
+
+    def register_coc_events(self):
+        """Pega o cog de eventos e registra suas funções no cliente de API principal."""
+        events_cog = self.get_cog("Eventos do Clã")
+        if not events_cog:
+            logger.error("Cog 'Eventos do Clã' não encontrado. Não foi possível registrar os eventos.")
+            return
+
+        # Usa decoradores para registrar as funções do COG no cliente de API
+        @self.api_client.event
+        @coc.ClanEvents.member_join()
+        async def on_clan_member_join(member, clan):
+            await events_cog.handle_clan_member_join(member, clan)
+
+        @self.api_client.event
+        @coc.ClanEvents.member_leave()
+        async def on_clan_member_leave(member, clan):
+            await events_cog.handle_clan_member_leave(member, clan)
+
+        @self.api_client.event
+        @coc.ClanEvents.member_role()
+        async def on_clan_member_role_change(old_member, new_member):
+            await events_cog.handle_clan_member_role_change(old_member, new_member)
+        
+        @self.api_client.event
+        @coc.ClanEvents.member_trophies()
+        async def on_clan_member_trophies_change(old_member, new_member):
+            await events_cog.handle_clan_member_trophies_change(old_member, new_member)
+
+        @self.api_client.event
+        @coc.ClanEvents.member_league()
+        async def on_clan_member_league_change(old_member, new_member):
+            await events_cog.handle_clan_member_league_change(old_member, new_member)
+
+        @self.api_client.event
+        @coc.ClanEvents.member_donations()
+        async def on_member_donations(old_member, new_member):
+            await events_cog.handle_member_donations(old_member, new_member)
+        
+        @self.api_client.event
+        @coc.ClanEvents.member_received()
+        async def on_member_received(old_member, new_member):
+            await events_cog.handle_member_received(old_member, new_member)
+        
+        # Adiciona o clã ao monitoramento
+        self.api_client.add_clan_updates(self.clan_tag)
+        logger.info("Eventos do CoC registrados com sucesso no cliente de API principal.")
 
 
     async def on_ready(self):
