@@ -471,13 +471,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateCwlInfo(data) {
+        // MODIFICADO PARA TESTE: Força a exibição do planejador
         if (data.error || data.status === "NotInCwl") {
             if(noCwlMessageEl) noCwlMessageEl.style.display = 'block';
-            setText(noCwlMessageEl, data.message || data.error || "CWL indisponível.");
+            setText(noCwlMessageEl, data.message || data.error || "CWL indisponível (normal fora da semana da liga).");
             if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
-            if(cwlPlannerSectionEl) cwlPlannerSectionEl.style.display = 'none'; // Esconde o planejador se não estiver em CWL
+            if(cwlPlannerSectionEl) {
+                cwlPlannerSectionEl.style.display = 'block'; // FORÇADO PARA TESTE
+                console.warn("MODO DE TESTE: Planejador de CWL sendo exibido mesmo sem uma CWL ativa.");
+            }
             return;
         }
+
+        // Lógica normal
         if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
         if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
         if(cwlPlannerSectionEl) cwlPlannerSectionEl.style.display = 'block'; // Mostra o planejador
