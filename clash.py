@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.72-AI-V3-HEROES-FIX
+# Versão 20.1.72-COGS
 
 import os
 import logging
@@ -25,8 +25,8 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
-from modules.post_war_analysis import create_post_war_analysis_embed
-from modules.clan_games import ClanGamesManager
+# Corrigido: O módulo agora é importado da pasta 'cogs'
+from cogs.post_war_analysis import create_post_war_analysis_embed
 
 # --- Configuração do Logging ---
 logging.basicConfig(
@@ -56,7 +56,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.72-AI-V3-HEROES-FIX"
+BOT_VERSION = "20.1.72-COGS"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 MAINTENANCE_MODE = False
 
@@ -70,7 +70,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 api_client: Optional[coc.Client] = None
 events_client: Optional[coc.EventsClient] = None
 war_prediction_system: Optional[WarPredictionSystemV3] = None
-clan_games_manager: Optional[ClanGamesManager] = None
+# Removido: clan_games_manager não é mais necessário aqui, a lógica está no Cog.
 
 # --- Caches ---
 player_short_term_cache: Dict[str, Any] = {}
@@ -725,7 +725,7 @@ async def fetch_highlights_for_web():
         if hasattr(bot, 'db') and bot.db is not None:
             latest_war_doc = await bot.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             if latest_war_doc:
-                from modules.post_war_analysis import _calculate_post_war_stats
+                from cogs.post_war_analysis import _calculate_post_war_stats
                 analysis = _calculate_post_war_stats(latest_war_doc)
                 war_heroes = analysis.get("war_heroes", [])
                 
@@ -1014,52 +1014,53 @@ async def on_ready():
         war_prediction_system = WarPredictionSystemV3()
         await war_prediction_system.initialize_system()
 
+    # Anexa variáveis de configuração ao bot para que os Cogs possam acessá-las
+    bot.clan_tag = CLAN_TAG
+    bot.clan_games_channel_id = CLAN_GAMES_CHANNEL_ID
 
     if not check_war_end_task.is_running(): check_war_end_task.start()
     if not check_new_attack_task.is_running(): check_new_attack_task.start()
     if not send_online_status_task.is_running(): send_online_status_task.start()
     if not daily_player_data_snapshot.is_running(): daily_player_data_snapshot.start()
 
-@bot.command()
-async def ping(ctx): await ctx.send(f'Pong! Latência: {round(bot.latency * 1000)}ms')
-
-# --- COMANDOS DOS JOGOS DO CLÃ ---
-@bot.command(name='cgs')
-async def cgs(ctx):
-    """Mostra o status atual dos Jogos do Clã."""
-    if clan_games_manager:
-        await clan_games_manager.post_status_update(ctx)
-    else:
-        await ctx.send("O módulo de Jogos do Clã não está ativado.")
+# Comandos removidos daqui e movidos para Cogs
 
 async def main():
-    global api_client, clan_games_manager
-    try:
-        api_client = coc.Client()
-        await api_client.login(COC_EMAIL, COC_PASSWORD)
-        logger.info("Login no coc.Client (api_client) bem-sucedido.")
+    global api_client
+    async with bot:
+        try:
+            # Inicia o cliente da API e anexa ao bot para os Cogs usarem
+            api_client = coc.Client()
+            await api_client.login(COC_EMAIL, COC_PASSWORD)
+            bot.api_client = api_client
+            logger.info("Login no coc.Client (api_client) bem-sucedido.")
 
-        # --- INICIALIZAÇÃO DOS MÓDULOS DEPENDENTES DA API ---
-        if CLAN_GAMES_CHANNEL_ID and bot.db:
-            clan_games_manager = ClanGamesManager(bot, CLAN_GAMES_CHANNEL_ID, api_client, CLAN_TAG, bot.db)
-            logger.info("Módulo de Jogos do Clã ativado e configurado.")
-        else:
-            logger.warning("Módulo de Jogos do Clã desativado (ID do canal ou DB não configurado).")
-        
-        await setup_coc_events()
-        await setup_web_server()
-        await bot.start(DISCORD_TOKEN)
-    except Exception as e:
-        logger.critical(f"Erro crítico na inicialização: {e}", exc_info=True)
-    finally:
-        if events_client: await events_client.close()
-        if api_client: await api_client.close()
-        if hasattr(bot, 'mongo_client'): bot.mongo_client.close()
-        await bot.close()
+            # Carrega todas as extensões (Cogs)
+            logger.info("Carregando cogs...")
+            for filename in os.listdir('./cogs'):
+                # Carrega apenas arquivos que terminam com '_cog.py'
+                if filename.endswith('_cog.py'):
+                    try:
+                        await bot.load_extension(f'cogs.{filename[:-3]}')
+                        logger.info(f"Cog '{filename[:-3]}' carregado com sucesso.")
+                    except Exception as e:
+                        logger.error(f"Falha ao carregar o cog '{filename[:-3]}'. Erro: {e}", exc_info=True)
+            
+            # Configura os outros serviços
+            await setup_coc_events()
+            await setup_web_server()
+            
+            # Inicia o bot
+            await bot.start(DISCORD_TOKEN)
+        except Exception as e:
+            logger.critical(f"Erro crítico na inicialização: {e}", exc_info=True)
+        finally:
+            if events_client: await events_client.close()
+            if api_client: await api_client.close()
+            if hasattr(bot, 'mongo_client'): bot.mongo_client.close()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot desligado manualmente.")
-
