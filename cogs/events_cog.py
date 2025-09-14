@@ -13,56 +13,46 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # USA DIRETAMENTE O CLIENTE PRINCIPAL, JÁ LOGADO
         self.api_client: coc.Client = bot.api_client
-        self.events_client: coc.EventsClient = None
         self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
 
     async def cog_load(self):
-        """Inicia o cliente de eventos e as tasks quando o cog é carregado."""
+        """Adiciona os listeners de evento ao cliente principal quando o cog é carregado."""
         try:
-            logger.info("Iniciando cliente de eventos CoC...")
-            coc_email = self.bot.coc_email
-            coc_password = self.bot.coc_password
-            
-            if not coc_email or not coc_password:
-                logger.error("Email ou senha do CoC não encontrados no bot. Não é possível iniciar o EventsClient.")
-                return
-
-            self.events_client = coc.EventsClient()
+            logger.info("Registrando listeners de eventos do clã no cliente principal...")
             self._add_event_listeners()
-            self.bot.loop.create_task(self.start_events_client(coc_email, coc_password))
             self.check_new_attack_task.start()
+            logger.info("Listeners de eventos registrados com sucesso.")
         except Exception as e:
             logger.error(f"Erro crítico ao carregar EventsCog: {e}", exc_info=True)
-            self.events_client = None
             
-    async def start_events_client(self, email, password):
-        try:
-            await self.events_client.login(email, password)
-            logger.info("Cliente de eventos CoC logado e escutando eventos.")
-        except Exception as e:
-            logger.error(f"Falha no login do EventsClient: {e}", exc_info=True)
-            self.events_client = None
-
     async def cog_unload(self):
-        """Para as tasks e fecha o cliente de eventos ao descarregar o cog."""
+        """Remove os listeners de evento ao descarregar o cog."""
         self.check_new_attack_task.cancel()
-        if self.events_client:
-            await self.events_client.close()
-            logger.info("Cliente de eventos CoC fechado.")
+        self._remove_event_listeners()
+        logger.info("Listeners de eventos removidos.")
 
     def _add_event_listeners(self):
-        """Adiciona todos os decoradores de evento ao cliente."""
-        self.events_client.add_clan_updates(self.bot.clan_tag)
-        
-        # CORREÇÃO DEFINITIVA: A função ClanEvents não recebe a tag do clã como argumento aqui.
-        self.events_client.event(coc.ClanEvents.member_join())(self.on_clan_member_join)
-        self.events_client.event(coc.ClanEvents.member_leave())(self.on_clan_member_leave)
-        self.events_client.event(coc.ClanEvents.member_role())(self.on_clan_member_role_change)
-        self.events_client.event(coc.ClanEvents.member_trophies())(self.on_clan_member_trophies_change)
-        self.events_client.event(coc.ClanEvents.member_league())(self.on_clan_member_league_change)
-        self.events_client.event(coc.ClanEvents.member_donations())(self.on_member_donations)
-        self.events_client.event(coc.ClanEvents.member_received())(self.on_member_received)
+        """Adiciona as funções deste cog como listeners no cliente de API principal."""
+        # SOLUÇÃO DEFINITIVA: Registra os eventos no api_client principal
+        self.api_client.add_listener(self.on_clan_member_join, "on_clan_member_join")
+        self.api_client.add_listener(self.on_clan_member_leave, "on_clan_member_leave")
+        self.api_client.add_listener(self.on_clan_member_role_change, "on_clan_member_role_change")
+        self.api_client.add_listener(self.on_clan_member_trophies_change, "on_clan_member_trophies_change")
+        self.api_client.add_listener(self.on_clan_member_league_change, "on_clan_member_league_change")
+        self.api_client.add_listener(self.on_member_donations, "on_member_donations")
+        self.api_client.add_listener(self.on_member_received, "on_member_received")
+
+    def _remove_event_listeners(self):
+        """Remove os listeners para evitar duplicação ao recarregar o cog."""
+        self.api_client.remove_listener(self.on_clan_member_join, "on_clan_member_join")
+        self.api_client.remove_listener(self.on_clan_member_leave, "on_clan_member_leave")
+        self.api_client.remove_listener(self.on_clan_member_role_change, "on_clan_member_role_change")
+        self.api_client.remove_listener(self.on_clan_member_trophies_change, "on_clan_member_trophies_change")
+        self.api_client.remove_listener(self.on_clan_member_league_change, "on_clan_member_league_change")
+        self.api_client.remove_listener(self.on_member_donations, "on_member_donations")
+        self.api_client.remove_listener(self.on_member_received, "on_member_received")
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
         """Função centralizada para enviar embeds para o canal de log."""
@@ -78,7 +68,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         except (discord.NotFound, discord.Forbidden, Exception) as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
-    # --- LISTENER DE EVENTOS ---
+    # --- FUNÇÕES QUE RESPONDEM AOS EVENTOS ---
     async def on_clan_member_join(self, member, clan):
         if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
         embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
@@ -173,6 +163,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
         await self._send_log_embed(embed)
 
+    # --- TASKS ---
     @tasks.loop(seconds=30)
     async def check_new_attack_task(self):
         await self.bot.wait_until_ready()
