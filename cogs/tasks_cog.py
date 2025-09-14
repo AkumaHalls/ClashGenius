@@ -5,11 +5,40 @@ from discord.ext import commands, tasks
 import coc
 import datetime
 import pytz
+from typing import Dict
 
 # A análise pós-guerra é um módulo separado, então importamos diretamente
 from .post_war_analysis import create_post_war_analysis_embed
 
 logger = logging.getLogger("tasks_cog")
+
+# --- Funções de Banco de Dados Movidas para cá ---
+async def load_player_notes_from_db(db) -> Dict[str, Dict[str, str]]:
+    if db is None:
+        logger.warning("Banco de dados não disponível, não é possível carregar as notas.")
+        return {}
+    try:
+        notes_cursor = db.player_notes.find({})
+        notes_from_db = {note_doc["_id"]: {"text": note_doc.get("text", ""),"priority": note_doc.get("priority", "none")} async for note_doc in notes_cursor if "_id" in note_doc}
+        return notes_from_db
+    except Exception as e:
+        logger.error(f"Erro ao carregar notas do MongoDB: {e}", exc_info=True)
+        return {}
+
+async def save_player_note_to_db(db, player_tag: str, text: str, priority: str):
+    if db is None:
+        logger.error("Banco de dados não disponível, não é possível salvar a nota.")
+        raise ConnectionError("Banco de dados não conectado.")
+    try:
+        player_tag_decoded = coc.utils.correct_tag(player_tag)
+        await db.player_notes.update_one(
+            {"_id": player_tag_decoded},
+            {"$set": {"text": text, "priority": priority}},
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"Erro ao salvar nota no MongoDB para {player_tag}: {e}", exc_info=True)
+        raise
 
 class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     """Cog para gerenciar todas as tarefas que rodam em loop."""
@@ -48,7 +77,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                     logger.info("Nova guerra finalizada detectada.")
                     self.last_war_end_time = war.end_time.time
                     
-                    # Usa as funções anexadas ao bot
                     war_details = await self.bot.fetch_current_war_details_for_web()
                     if 'error' not in war_details: 
                         await self.bot.save_war_to_history(war_details)
@@ -80,7 +108,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     async def daily_player_data_snapshot(self):
         await self.bot.wait_until_ready()
         if not self.api_client or not hasattr(self.bot, 'db') or self.bot.db is None:
-            logger.info("Snapshot diário pulado (API ou DB não prontos).")
             return
         
         logger.info("Iniciando snapshot diário de dados dos jogadores.")
@@ -100,13 +127,13 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         except Exception as e:
             logger.error(f"Erro na task de snapshot diário: {e}", exc_info=True)
 
-    @tasks.loop(seconds=10, count=1)
+    @tasks.loop(seconds=15, count=1)
     async def send_online_status_task(self):
         await self.bot.wait_until_ready()
         
         events_cog = self.bot.get_cog("Eventos do Clã")
         if not events_cog:
-            await asyncio.sleep(5) # Espera o cog de eventos carregar
+            await asyncio.sleep(5)
             events_cog = self.bot.get_cog("Eventos do Clã")
             if not events_cog:
                 logger.error("Cog de eventos não encontrado para enviar status online.")
