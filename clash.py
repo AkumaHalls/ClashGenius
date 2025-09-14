@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.87-SYNTAX-FIX
+# Versão 20.1.88-CWL-PLANNER
 
 import os
 import logging
@@ -40,6 +40,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 AI_LOG_CHANNEL_ID = int(os.getenv("AI_LOG_CHANNEL_ID", 0))
 POST_WAR_ANALYSIS_CHANNEL_ID = int(os.getenv("POST_WAR_ANALYSIS_CHANNEL_ID", 0))
 CLAN_GAMES_CHANNEL_ID = int(os.getenv("CLAN_GAMES_CHANNEL_ID", 0))
+CWL_PLANNER_CHANNEL_ID = int(os.getenv("CWL_PLANNER_CHANNEL_ID", 0)) # <- NOVA VARIÁVEL
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
@@ -47,7 +48,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.87-SYNTAX-FIX"
+BOT_VERSION = "20.1.88-CWL-PLANNER"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -61,6 +62,7 @@ class ClashGeniusBot(commands.Bot):
         self.ai_log_channel_id = AI_LOG_CHANNEL_ID
         self.post_war_analysis_channel_id = POST_WAR_ANALYSIS_CHANNEL_ID
         self.clan_games_channel_id = CLAN_GAMES_CHANNEL_ID
+        self.cwl_planner_channel_id = CWL_PLANNER_CHANNEL_ID # <- NOVA VARIÁVEL
         self.role_id_1star_alert = ROLE_ID_1STAR_ALERT
         self.role_id_missed_attack = ROLE_ID_MISSED_ATTACK
         self.bot_version = BOT_VERSION
@@ -388,6 +390,19 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_info_handler(request): return web.json_response(await get_cached_web_data('cwl', fetch_cwl_info_for_web))
     async def api_highlights_handler(request): return web.json_response(await get_cached_web_data('highlights', fetch_highlights_for_web))
     
+    # --- NOVAS ROTAS DA API PARA O PLANEJADOR CWL ---
+    async def api_cwl_generate_plan_handler(request):
+        cwl_cog = bot_instance.get_cog("Planejador de CWL")
+        if not cwl_cog: return web.json_response({"error": "O módulo do planejador CWL não está ativo."}, status=500)
+        plan = await cwl_cog.generate_rotation_plan()
+        return web.json_response(plan)
+
+    async def api_cwl_inactivity_check_handler(request):
+        cwl_cog = bot_instance.get_cog("Planejador de CWL")
+        if not cwl_cog: return web.json_response({"error": "O módulo do planejador CWL não está ativo."}, status=500)
+        alert = await cwl_cog.get_inactivity_alert()
+        return web.json_response(alert)
+
     app.router.add_get("/api/clan", api_clan_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
@@ -399,6 +414,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
+    app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
+    app.router.add_get("/api/cwl/inactivity_check", api_cwl_inactivity_check_handler)
 
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     app.router.add_static('/static/', path=static_dir, name='static')
@@ -471,4 +488,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
