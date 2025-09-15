@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.90-STATIC-FIX
+# Versão 20.1.91-FINAL-STRUCTURE-FIX
 
 import os
 import logging
@@ -48,7 +48,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.90-STATIC-FIX"
+BOT_VERSION = "20.1.91-FINAL-STRUCTURE-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -139,7 +139,7 @@ class ClashGeniusBot(commands.Bot):
             self.mongo_client.close()
         await super().close()
 
-    # MÉTODOS DE BUSCA DE DADOS (AGORA PARTE DA CLASSE)
+    # --- MÉTODOS DE BUSCA DE DADOS (AGORA DENTRO DA CLASSE) ---
     async def fetch_clan_info_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
@@ -222,6 +222,113 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
             return {"error": "Erro interno ao processar dados da guerra."}
             
+    async def fetch_clan_members_for_web(self):
+        clan = await self.get_clan_data_with_cache(self.clan_tag)
+        if not clan: return {"error": "Não foi possível carregar os dados do clã."}
+        db_cog = self.get_cog("Banco de Dados")
+        player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
+        members_list = []
+        for member in clan.members:
+            note_data = player_notes.get(member.tag, {})
+            members_list.append({
+                "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
+                "league": member.league.name if member.league else "Sem Liga",
+                "trophies": member.trophies, "role": member.role.name.capitalize() if member.role else "Membro",
+                "donations": member.donations, "received": member.received,
+                "note": note_data.get("text", ""), "note_priority": note_data.get("priority", "none")
+            })
+        role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
+        sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
+        return {"clan_name": clan.name, "members": sorted_members, "version": BOT_VERSION}
+
+    async def fetch_missed_attacks_history_for_web(self):
+        if self.db is None: return {"error": "Histórico indisponível."}
+        clan = await self.get_clan_data_with_cache(self.clan_tag)
+        if not clan: return {"error": "Não foi possível carregar os dados do clã para o histórico."}
+        log_cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", DESCENDING)
+        wars_with_missed_attacks = []
+        is_first_war = True
+        async for war_doc in log_cursor:
+            war_data = war_doc.get("war_data", {})
+            our_members_in_war = war_doc.get("our_clan_members_in_war", [])
+            missed_attacks_members = []
+            attacks_per_member = war_data.get("attacks_per_member", 2)
+            for member in our_members_in_war:
+                attacks_made = len(member.get("attacks_made", []))
+                attacks_left = attacks_per_member - attacks_made
+                if attacks_left > 0:
+                    missed_attacks_members.append({
+                        "name": member.get("name", "Nome desconhecido"), "tag": member.get("tag", "#?"),
+                        "town_hall": member.get("townhall", "?"), "attacks_left": attacks_left,
+                    })
+            if missed_attacks_members and war_data.get("end_time_iso"):
+                end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
+                wars_with_missed_attacks.append({
+                    "opponent_name": war_data.get("opponent_name", "Oponente Desconhecido"),
+                    "end_date": end_time_dt.astimezone(self.timezone).strftime('%d/%m/%y'),
+                    "missed_attacks_members": missed_attacks_members, "is_latest": is_first_war
+                })
+                is_first_war = False
+        return {"clan_name": clan.name, "wars_with_missed_attacks": wars_with_missed_attacks}
+
+    async def fetch_war_log_for_web(self):
+        if self.db is None: return {"error": "Histórico indisponível."}
+        log_cursor = self.db.war_history.find({}, {"war_data": 1}).sort("war_data.end_time_iso", DESCENDING).limit(9)
+        entries = []
+        async for war_doc in log_cursor:
+            war_data = war_doc.get("war_data", {})
+            if war_data.get("end_time_iso"):
+                end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
+                result = "Vitória" if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else "Derrota" if war_data.get("clan_stars", 0) < war_data.get("opponent_stars", 0) else "Empate"
+                entries.append({
+                    "end_time_iso": war_data.get("end_time_iso"), "end_time_formatted": end_time_dt.astimezone(self.timezone).strftime('%d/%m/%y %H:%M'),
+                    "opponent_name": war_data.get("opponent_name"), "opponent_badge_url": war_data.get("opponent_badge_url"),
+                    "clan_stars": war_data.get("clan_stars"), "opponent_stars": war_data.get("opponent_stars"),
+                    "result": result, "team_size": war_data.get("team_size"), "is_cwl": "CWL" in war_data.get("status", "").lower()
+                })
+        return {"log": entries}
+
+    async def fetch_cwl_info_for_web(self):
+        if not self.api_client: return {"error": "API do CoC não iniciada."}
+        try:
+            cwl_war = await self.api_client.get_league_group(self.clan_tag)
+            if not cwl_war: return {"status": "NotInCwl"}
+            clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_war.clans]
+            rounds_info = []
+            for i, a_round in enumerate(cwl_war.rounds):
+                round_data = {"round_number": i + 1, "wars": []}
+                for war_tag in a_round:
+                    try:
+                        war = await self.api_client.get_league_war(war_tag)
+                        if war:
+                            round_data["wars"].append({
+                                "war_tag": war_tag, "clan_name": war.clan.name, "clan_badge_url": war.clan.badge.url, "clan_stars": war.clan.stars,
+                                "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url, "opponent_stars": war.opponent.stars,
+                                **format_war_time_details(war, datetime.datetime.now(pytz.utc))
+                            })
+                    except Exception as e: logger.warning(f"Não foi possível buscar a guerra da CWL {war_tag}: {e}")
+                rounds_info.append(round_data)
+            return {"status": "InCwl", "season": cwl_war.season, "state": str(cwl_war.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
+        except coc.NotFound: return {"status": "NotInCwl"}
+
+    async def fetch_highlights_for_web(self):
+        clan = await self.get_clan_data_with_cache(self.clan_tag)
+        if not clan: return {"error": "Não foi possível carregar destaques."}
+        top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]]
+        war_heroes, war_end_date_str = [], ""
+        if self.db is not None:
+            latest_war_doc = await self.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
+            if latest_war_doc:
+                from cogs.post_war_analysis import _calculate_post_war_stats
+                analysis = _calculate_post_war_stats(latest_war_doc)
+                war_heroes = analysis.get("war_heroes", [])
+                if latest_war_doc.get("war_data", {}).get("end_time_iso"):
+                    end_time = datetime.datetime.fromisoformat(latest_war_doc["war_data"]["end_time_iso"])
+                    war_end_date_str = end_time.astimezone(self.timezone).strftime('%d/%m')
+        active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
+        chart_data = {"labels": [m.name for m in active_members], "donations": [m.donations for m in active_members], "received": [m.received for m in active_members]}
+        return {"top_donors": top_donors_data, "war_heroes": war_heroes, "activity_chart_data": chart_data, "clan_name": clan.name, "war_date": war_end_date_str}
+
 # --- SERVIDOR WEB ---
 async def setup_web_server(bot_instance: ClashGeniusBot):
     app = web.Application()
@@ -236,14 +343,13 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
     # --- Handlers da API ---
     async def api_clan_handler(request): return web.json_response(await get_cached_web_data('clan', bot_instance.fetch_clan_info_for_web))
-    async def api_current_war_details_handler(request): return web.json_response(await get_cached_web_data('war_details', bot_instance.fetch_current_war_details_for_web))
-    # Adicione os outros handlers da API aqui, espelhando a estrutura acima
     async def api_members_handler(request): return web.json_response(await get_cached_web_data('members', bot_instance.fetch_clan_members_for_web))
+    async def api_current_war_details_handler(request): return web.json_response(await get_cached_web_data('war_details', bot_instance.fetch_current_war_details_for_web))
     async def api_missed_attacks_history_handler(request): return web.json_response(await get_cached_web_data('missed_attacks', bot_instance.fetch_missed_attacks_history_for_web))
     async def api_war_log_handler(request): return web.json_response(await get_cached_web_data('war_log', bot_instance.fetch_war_log_for_web))
     async def api_cwl_info_handler(request): return web.json_response(await get_cached_web_data('cwl', bot_instance.fetch_cwl_info_for_web))
     async def api_highlights_handler(request): return web.json_response(await get_cached_web_data('highlights', bot_instance.fetch_highlights_for_web))
-
+    
     async def api_save_player_note_handler(request):
         db_cog = bot_instance.get_cog("Banco de Dados")
         if not db_cog: return web.json_response({"error": "Cog de DB não encontrado."}, status=500)
