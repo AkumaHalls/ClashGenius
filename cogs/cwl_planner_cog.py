@@ -17,7 +17,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.api_client: coc.Client = bot.api_client
+        # A referência ao api_client será usada APÓS a confirmação de que ele está pronto.
+        self.api_client: coc.Client = self.bot.api_client 
         self.db = bot.db
         self.posted_daily_plans = set() # Para evitar posts duplicados
         self.posted_inactivity_alerts = set() # Para evitar alertas duplicados
@@ -42,7 +43,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     async def get_clan_members_for_planning(self) -> List[Dict[str, Any]]:
         """Busca e ordena todos os membros do clã por força (CV como critério principal)."""
         try:
-            clan = await self.api_client.get_clan(self.bot.clan_tag)
+            clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
             if not clan: return []
             
             sorted_members = sorted(clan.members, key=lambda m: m.town_hall, reverse=True)
@@ -96,10 +97,12 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     async def cwl_monitoring_task(self):
         """Tarefa principal que monitoriza a CWL e envia os alertas necessários."""
         await self.bot.wait_until_ready()
+        # ADICIONADO: Garante que o cliente da API está pronto antes de continuar
         await self.bot.coc_client_ready.wait()
         
         try:
-            cwl_group = await self.api_client.get_league_group(self.bot.clan_tag)
+            # Agora é seguro usar self.bot.api_client
+            cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
             if not cwl_group or cwl_group.state != "inWar":
                 # Se não está em CWL, reinicia os controlos para a próxima
                 self.posted_daily_plans.clear()
@@ -112,7 +115,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
             active_war = None
             for war_tag in cwl_group.get_wars_for_clan(self.bot.clan_tag):
-                war = await self.api_client.get_league_war(war_tag)
+                war = await self.bot.api_client.get_league_war(war_tag)
                 if war.state == "inWar":
                     active_war = war
                     break
@@ -220,6 +223,12 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         await self._send_planner_embed(embed)
         self.posted_inactivity_alerts.add(alert_id)
 
+    @cwl_monitoring_task.before_loop
+    async def before_cwl_monitoring_task(self):
+        # Correção: O construtor é o melhor sítio para definir self.api_client
+        # Mas vamos garantir que o bot está pronto de qualquer forma.
+        await self.bot.wait_until_ready()
+
 
 async def setup(bot: commands.Bot):
     # Só carrega o cog se o ID do canal estiver configurado
@@ -227,4 +236,3 @@ async def setup(bot: commands.Bot):
         await bot.add_cog(CwlPlannerCog(bot))
     else:
         logger.warning("Cog 'CwlPlannerCog' não carregado (ID do canal não configurado).")
-
