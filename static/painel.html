@@ -25,9 +25,9 @@
 
     <canvas id="particle-background"></canvas>
     <div id="loading-overlay">
-        <img id="loadingClanBadge" src="/static/images/default_badge.png" alt="Carregando..." class="loading-badge">
+        <img id="loadingClanBadge" src="/static/images/default_badge.png" alt="A carregar..." class="loading-badge">
         <div class="loading-spinner"></div>
-        <p>Carregando dados do clã...</p>
+        <p id="loading-text">A carregar dados do clã...</p>
     </div>
 
     <header class="site-header">
@@ -94,7 +94,7 @@
 
                 <h3>Distritos da Capital</h3>
                 <div id="clanCapitalDistricts" class="grid-container capital-districts-grid">
-                    <p>Carregando distritos...</p>
+                    <p>A carregar distritos...</p>
                 </div>
             </section>
 
@@ -105,13 +105,13 @@
                         <div class="highlight-card">
                             <h3>🏆 Top 3 Doadores</h3>
                             <div id="topDonorsList" class="podium-list">
-                                <p>Carregando...</p>
+                                <p>A carregar...</p>
                             </div>
                         </div>
                         <div class="highlight-card">
                             <h3><span id="warHeroTitle">⚔️ Heróis da Última Guerra</span> <span id="warDateHighlight" class="war-date-highlight"></span></h3>
                             <div id="bestAttacksList" class="attacks-list">
-                                <p>Carregando...</p>
+                                <p>A carregar...</p>
                             </div>
                         </div>
                     </div>
@@ -146,8 +146,8 @@
                 <nav class="war-tabs">
                     <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
                     <button class="war-tab-button" data-tab="war-events">Eventos</button>
-                    <button class="war-tab-button" data-tab="war-our-team">Minha Equipe</button>
-                    <button class="war-tab-button" data-tab="war-opponent-team">Equipe Inimiga</button>
+                    <button class="war-tab-button" data-tab="war-our-team">A minha Equipa</button>
+                    <button class="war-tab-button" data-tab="war-opponent-team">Equipa Inimiga</button>
                 </nav>
                 <div id="noWarDetailMessage" class="message-box" style="display: none;">Nenhuma guerra ativa ou recente para detalhar.</div>
                 <div id="war-stats" class="war-tab-content active">
@@ -167,7 +167,7 @@
                     </div>
                     <div class="war-averages-container grid-container">
                         <div>
-                            <h4>Médias (Nosso Clã)</h4>
+                            <h4>Médias (O nosso Clã)</h4>
                             <p><strong>Estrelas/Ataque:</strong> <span id="statsOurAvgStars">-</span></p>
                             <p><strong>Duração/Ataque:</strong> <span id="statsOurAvgDuration">-</span></p>
                         </div>
@@ -178,7 +178,7 @@
                         </div>
                     </div>
                     <div class="star-distribution-container">
-                        <h4>Distribuição de Estrelas (Nosso Clã)</h4>
+                        <h4>Distribuição de Estrelas (O nosso Clã)</h4>
                         <p>3⭐: <span id="statsOurStars3">-</span> | 2⭐: <span id="statsOurStars2">-</span> | 1⭐: <span id="statsOurStars1">-</span> | 0⭐: <span id="statsOurStars0">-</span></p>
                         <h4>Distribuição de Estrelas (Oponente)</h4>
                         <p>3⭐: <span id="statsOpponentStars3">-</span> | 2⭐: <span id="statsOpponentStars2">-</span> | 1⭐: <span id="statsOpponentStars1">-</span> | 0⭐: <span id="statsOpponentStars0">-</span></p>
@@ -202,11 +202,11 @@
                     </div>
                 </div>
                 <div id="war-our-team" class="war-tab-content">
-                    <h3>Minha Equipe: <span id="warOurTeamName">-</span></h3>
+                    <h3>A minha Equipa: <span id="warOurTeamName">-</span></h3>
                     <div id="warOurTeamMembers" class="team-members-container scrollable-box"></div>
                 </div>
                 <div id="war-opponent-team" class="war-tab-content">
-                    <h3>Equipe Inimiga: <span id="warOpponentTeamName">-</span></h3>
+                    <h3>Equipa Inimiga: <span id="warOpponentTeamName">-</span></h3>
                     <div id="warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
                 </div>
             </section>
@@ -214,7 +214,7 @@
             <section id="attacks-remaining-nav" class="card attacks-remaining-card content-section">
                 <h2 id="attacksRemainingTitle">Histórico de Ataques Pendentes (<span>-</span>)</h2>
                 <div id="missedAttacksContainer" class="missed-attacks-container">
-                    <p>Carregando...</p>
+                    <p>A carregar...</p>
                 </div>
                 <p id="noMissedAttacksMessage" class="message-box" style="display: none;">Nenhuma pendência encontrada.</p>
             </section>
@@ -222,20 +222,20 @@
             <section id="cwl-info-nav" class="card cwl-card content-section">
                 <h2>Status da Liga de Guerras de Clãs (CWL)</h2>
                 <div id="cwlDetails">
-                    <p><strong>Status:</strong> <span id="cwlStatusText">Carregando...</span></p>
+                    <p><strong>Status:</strong> <span id="cwlStatusText">A carregar...</span></p>
                     <div id="cwlActiveInfo" style="display:none;">
                         <p><strong>Temporada:</strong> <span id="cwlSeason">-</span> | <strong>Estado do Grupo:</strong> <span id="cwlGroupState">-</span></p>
                         <h3>Clãs no Grupo</h3>
                         <div id="cwlGroupClans" class="grid-container cwl-clans-grid"></div>
-                        <h3>Rodadas</h3>
+                        <h3>Rondas</h3>
                         <div id="cwlRoundsInfo" class="scrollable-box medium-table"></div>
                     </div>
                 </div>
-                <p id="noCwlMessage" class="message-box" style="display: none;">O clã não está em CWL ou informações não disponíveis.</p>
+                <p id="noCwlMessage" class="message-box" style="display: none;">O clã não está em CWL ou as informações não estão disponíveis.</p>
             
-                <!-- INÍCIO: Nova Seção do Planejador de CWL -->
+                <!-- INÍCIO: Nova Secção do Planejador de CWL -->
                 <div id="cwlPlannerSection" class="cwl-planner-container">
-                    <h3>🔮 Planejador Estratégico de CWL (IA)</h3>
+                    <h3>🔮 Planeador Estratégico de CWL (IA)</h3>
                     <p class="planner-description">
                         Deixe a IA analisar a força de todos os membros e criar um plano de rotação justo para os 7 dias de guerra, 
                         maximizando a participação e a performance do clã.
@@ -244,9 +244,24 @@
                         Gerar Plano de Rotação
                         <span class="tooltip-text">Disponível apenas durante a CWL.</span>
                     </button>
+                    
+                    <!-- NOVO: Estrutura Visual do Plano -->
                     <div id="cwlPlanResult" class="cwl-plan-result" style="display: none;">
                         <div id="cwlPlanSpinner" class="loading-spinner" style="display: none;"></div>
-                        <div id="cwlPlanContent"></div>
+                        <div id="cwlPlanContent">
+                            <h4 class="plan-summary" id="cwlPlanSummary"></h4>
+                            <nav id="cwlDayTabs" class="war-tabs"></nav>
+                            <div id="cwlPlanDetails" class="cwl-plan-details-grid">
+                                <div class="cwl-plan-column">
+                                    <h4>Escalação do Dia</h4>
+                                    <ul id="cwlActiveRoster" class="cwl-player-list"></ul>
+                                </div>
+                                <div class="cwl-plan-column">
+                                    <h4>Alterações para Hoje</h4>
+                                    <div id="cwlSubstitutions"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Alerta de Inatividade em Tempo Real -->
@@ -255,7 +270,7 @@
                         <p id="cwlInactivityText">-</p>
                     </div>
                 </div>
-                <!-- FIM: Nova Seção do Planejador de CWL -->
+                <!-- FIM: Nova Secção do Planejador de CWL -->
             </section>
 
             <section id="war-log-nav" class="card war-log-card content-section">
@@ -319,8 +334,8 @@
         <nav class="war-tabs">
             <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
             <button class="war-tab-button" data-tab="war-events">Eventos</button>
-            <button class="war-tab-button" data-tab="war-our-team">Minha Equipe</button>
-            <button class="war-tab-button" data-tab="war-opponent-team">Equipe Inimiga</button>
+            <button class="war-tab-button" data-tab="war-our-team">A minha Equipa</button>
+            <button class="war-tab-button" data-tab="war-opponent-team">Equipa Inimiga</button>
         </nav>
         <div id="historic-noWarDetailMessage" class="message-box" style="display: none;"></div>
         <div id="historic-war-stats" class="war-tab-content" style="display: block;">
@@ -349,11 +364,11 @@
             </div>
         </div>
         <div id="historic-war-our-team" class="war-tab-content">
-            <h3>Minha Equipe: <span id="historic-warOurTeamName">-</span></h3>
+            <h3>A minha Equipa: <span id="historic-warOurTeamName">-</span></h3>
             <div id="historic-warOurTeamMembers" class="team-members-container scrollable-box"></div>
         </div>
         <div id="historic-war-opponent-team" class="war-tab-content">
-            <h3>Equipe Inimiga: <span id="historic-warOpponentTeamName">-</span></h3>
+            <h3>Equipa Inimiga: <span id="historic-warOpponentTeamName">-</span></h3>
             <div id="historic-warOpponentTeamMembers" class="team-members-container scrollable-box"></div>
         </div>
     </template>
