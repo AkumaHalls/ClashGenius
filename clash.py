@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.91-FINAL-STRUCTURE-FIX
+# Versão 20.1.91-FINAL-STRUCTURE-FIX-
 
 import os
 import logging
