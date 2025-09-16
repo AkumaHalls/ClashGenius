@@ -216,6 +216,8 @@ main.container {
     font-family: var(--font-title); color: var(--color-text-main);
     margin-top: 25px; margin-bottom: 12px; font-size: 1.25em; font-weight: 500;
     border-bottom: 1px solid var(--color-divider); padding-bottom: 8px;
+    display: flex;
+    align-items: center;
 }
 .card h4 {
     font-family: var(--font-body); font-weight: 600; color: var(--color-text-main);
@@ -1582,4 +1584,33 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: #f56565;
 }
 /* --- FIM: NOVOS ESTILOS PARA O PLANEJADOR CWL --- */
+
+
+/* --- INÍCIO: NOVOS ESTILOS PARA O INDICADOR DE IA --- */
+.ai-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background-color: #48bb78; /* Verde */
+    border-radius: 50%;
+    margin-right: 8px;
+    box-shadow: 0 0 8px #48bb78, 0 0 12px #48bb78;
+    animation: pulse-animation 2s infinite;
+}
+
+@keyframes pulse-animation {
+    0% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 8px 10px rgba(72, 187, 120, 0);
+    }
+    100% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 rgba(72, 187, 120, 0);
+    }
+}
+/* --- FIM: NOVOS ESTILOS PARA O INDICADOR DE IA --- */
 
