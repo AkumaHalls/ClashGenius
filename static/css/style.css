@@ -1362,6 +1362,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     letter-spacing: 1px;
     border: none;
     padding: 0;
+    /* Correção de Centralização */
+    justify-content: center;
 }
 
 .prediction-summary {
