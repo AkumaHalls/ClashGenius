@@ -1468,6 +1468,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-text-main);
     margin-bottom: 10px;
     font-size: 1.4em;
+    /* Correção de Centralização */
+    justify-content: center;
 }
 
 .planner-description {
@@ -1582,6 +1584,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .inactivity-alert h4 {
     margin: 0 0 10px 0;
     color: #f56565;
+    /* Correção de Centralização */
+    justify-content: center;
 }
 /* --- FIM: NOVOS ESTILOS PARA O PLANEJADOR CWL --- */
 
