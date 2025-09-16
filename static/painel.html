@@ -137,7 +137,7 @@
                 <p><strong>Estado:</strong> <span id="warDetailState" class="war-state">-</span></p>
                 
                 <div id="warPredictionSection" class="war-prediction-container" style="display: none;">
-                    <h3>Previsão da IA</h3>
+                    <h3><span class="ai-indicator"></span>Previsão da IA</h3>
                     <p id="warPredictionText" class="prediction-summary">-</p>
                     <div id="warPredictionTags" class="prediction-tags-container">
                     </div>
@@ -235,7 +235,7 @@
             
                 <!-- INÍCIO: Nova Seção do Planejador de CWL -->
                 <div id="cwlPlannerSection" class="cwl-planner-container">
-                    <h3>🔮 Planejador Estratégico de CWL (IA)</h3>
+                    <h3><span class="ai-indicator"></span>🔮 Planejador Estratégico de CWL (IA)</h3>
                     <p class="planner-description">
                         Deixe a IA analisar a força de todos os membros e criar um plano de rotação justo para os 7 dias de guerra, 
                         maximizando a participação e a performance do clã.
@@ -245,13 +245,19 @@
                         <span class="tooltip-text">Disponível apenas durante a CWL.</span>
                     </button>
                     <div id="cwlPlanResult" class="cwl-plan-result" style="display: none;">
-                        <div id="cwlPlanSpinner" class="loading-spinner" style="display: none;"></div>
-                        <div id="cwlPlanContent"></div>
+                        <div class="cwl-plan-tabs-container">
+                            <nav class="cwl-plan-tabs" id="cwlPlanDaysTabs">
+                                <!-- As abas dos dias serão inseridas aqui -->
+                            </nav>
+                        </div>
+                        <div class="cwl-plan-content" id="cwlPlanContent">
+                            <!-- O conteúdo do dia selecionado será inserido aqui -->
+                        </div>
                     </div>
 
                     <!-- Alerta de Inatividade em Tempo Real -->
                     <div id="cwlInactivityAlert" class="inactivity-alert" style="display: none;">
-                        <h4>🚨 Alerta de Inatividade</h4>
+                        <h4><span class="ai-indicator"></span>🚨 Alerta de Inatividade</h4>
                         <p id="cwlInactivityText">-</p>
                     </div>
                 </div>
