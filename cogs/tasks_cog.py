@@ -16,7 +16,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.api_client: coc.Client = bot.api_client
         self.db = bot.db
         self.last_war_end_time: datetime.datetime = None
         self.last_prediction_sent_time = None
@@ -51,6 +50,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         """Função centralizada para processar uma guerra finalizada."""
         logger.info(f"A processar guerra ({'CWL' if war.is_cwl else 'Normal'}) contra {war.opponent.name}...")
         
+        # Usamos force_api_call=True para garantir que pegamos os dados mais recentes para o relatório
         war_details = await self.bot.fetch_current_war_details_for_web(force_api_call=True)
         if 'error' in war_details:
             logger.error(f"Falha ao obter detalhes da guerra: {war_details['error']}.")
@@ -88,11 +88,13 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @tasks.loop(seconds=60.0)
     async def check_war_end_task(self):
         await self.bot.wait_until_ready()
-        await self.bot.coc_client_ready.wait()
-        if not self.api_client: return
+        await self.bot.coc_client_ready.wait() # Garante que o cliente CoC está logado
+        
+        # CORREÇÃO: Usa self.bot.api_client que é a referência correta e atualizada
+        if not self.bot.api_client: return
         
         try:
-            war = await self.api_client.get_current_war(self.bot.clan_tag)
+            war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             
             if war and war.state == 'warEnded' and hasattr(war, 'end_time'):
                 if self.last_war_end_time is None or war.end_time.time > self.last_war_end_time:
@@ -109,9 +111,12 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     async def sync_war(self, ctx: commands.Context):
         """Força a sincronização e o relatório da última guerra terminada."""
         await ctx.message.add_reaction("🔄")
+        await self.bot.coc_client_ready.wait() # Garante que o cliente CoC está logado
+        
         logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
         try:
-            war = await self.api_client.get_current_war(self.bot.clan_tag)
+            # CORREÇÃO: Usa self.bot.api_client
+            war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             if war and war.state == 'warEnded':
                 if await self.process_ended_war(war):
                     self.last_war_end_time = war.end_time.time
@@ -133,7 +138,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         await self.bot.wait_until_ready()
         await self.bot.coc_client_ready.wait()
         
-        if not self.bot.ai_log_channel_id:
+        if not self.bot.ai_log_channel_id or not self.bot.api_client:
             return
             
         try:
@@ -200,12 +205,12 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     async def daily_player_data_snapshot(self):
         await self.bot.wait_until_ready()
         await self.bot.coc_client_ready.wait()
-        if not self.api_client or self.db is None:
+        if not self.bot.api_client or self.db is None:
             return
         
         logger.info("Iniciando snapshot diário de dados dos jogadores.")
         try:
-            clan = await self.api_client.get_clan(self.bot.clan_tag)
+            clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
             snapshot_time = datetime.datetime.now(self.bot.timezone)
             records = []
             for member in clan.members:
@@ -226,7 +231,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     async def send_online_status_task(self):
         await self.bot.wait_until_ready()
         await self.bot.coc_client_ready.wait()
-        if not self.api_client: await asyncio.sleep(5)
+        if not self.bot.api_client: await asyncio.sleep(5)
         try:
             clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
             embed = discord.Embed(title=f"✅ ClashGenius Online | {clan.name}", description=f"Monitoramento ativado para **{clan.name} ({clan.tag})**.", color=discord.Color.green())
