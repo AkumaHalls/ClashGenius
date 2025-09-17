@@ -46,7 +46,45 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             await channel.send(content=content, embed=embed_to_log)
         except (discord.NotFound, discord.Forbidden, Exception) as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
-    
+
+    async def process_ended_war(self, war: coc.War):
+        """Função centralizada para processar uma guerra finalizada."""
+        logger.info(f"A processar guerra ({'CWL' if war.is_cwl else 'Normal'}) contra {war.opponent.name}...")
+        
+        war_details = await self.bot.fetch_current_war_details_for_web(force_api_call=True)
+        if 'error' in war_details:
+            logger.error(f"Falha ao obter detalhes da guerra: {war_details['error']}.")
+            return False
+
+        db_cog = self.bot.get_cog("Banco de Dados")
+        if db_cog:
+            await db_cog.save_war_to_history(war_details)
+        else:
+            logger.warning("Cog de Banco de Dados não encontrado. A guerra não será salva no histórico.")
+
+        if self.bot.post_war_analysis_channel_id:
+            logger.info("A gerar a análise pós-guerra...")
+            analysis_embed = create_post_war_analysis_embed(war_details)
+            if analysis_embed:
+                await self._send_log_embed(analysis_embed, target_channel_id=self.bot.post_war_analysis_channel_id)
+                logger.info("Análise pós-guerra enviada com sucesso.")
+            else:
+                logger.warning("A análise pós-guerra resultou num embed nulo e não foi enviada.")
+        
+        our_clan = war.clan if war.clan.tag == self.bot.clan_tag else war.opponent
+        missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
+        if missed:
+            embed = discord.Embed(title="🚩 Relatório de Ataques Perdidos", color=discord.Color.dark_gold())
+            embed.add_field(name="Placar Final", value=f"**{war.clan.name}:** {war.clan.stars}⭐\n**{war.opponent.name}:** {war.opponent.stars}⭐", inline=False)
+            embed.add_field(name="Jogadores com Ataques Pendentes", value="\n".join(missed), inline=False)
+            if war.opponent.badge: embed.set_thumbnail(url=war.opponent.badge.url)
+            role_mention = f"<@&{self.bot.role_id_missed_attack}>" if self.bot.role_id_missed_attack else ""
+            await self._send_log_embed(embed, content=f"{role_mention} Atenção!")
+            logger.info("Relatório de ataques perdidos enviado.")
+        
+        logger.info(f"Processamento da guerra contra {war.opponent.name} concluído.")
+        return True
+
     @tasks.loop(seconds=60.0)
     async def check_war_end_task(self):
         await self.bot.wait_until_ready()
@@ -54,54 +92,41 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         if not self.api_client: return
         
         try:
-            # LÓGICA SIMPLIFICADA: get_current_war funciona para guerras normais e de CWL.
-            # Esta é a forma mais fiável de obter a guerra atual, seja qual for o tipo.
             war = await self.api_client.get_current_war(self.bot.clan_tag)
             
             if war and war.state == 'warEnded' and hasattr(war, 'end_time'):
                 if self.last_war_end_time is None or war.end_time.time > self.last_war_end_time:
-                    logger.info(f"Nova guerra ({'CWL' if war.is_cwl else 'Normal'}) finalizada detectada. A processar...")
-                    
-                    war_details = await self.bot.fetch_current_war_details_for_web()
-                    if 'error' in war_details:
-                        logger.error(f"Falha ao obter detalhes da guerra: {war_details['error']}. A tentar novamente no próximo ciclo.")
-                        return
-
-                    db_cog = self.bot.get_cog("Banco de Dados")
-                    if db_cog:
-                        await db_cog.save_war_to_history(war_details)
-                    else:
-                        logger.warning("Cog de Banco de Dados não encontrado. A guerra não será salva no histórico.")
-
-                    if self.bot.post_war_analysis_channel_id:
-                        logger.info("A gerar a análise pós-guerra...")
-                        analysis_embed = create_post_war_analysis_embed(war_details)
-                        if analysis_embed:
-                            await self._send_log_embed(analysis_embed, target_channel_id=self.bot.post_war_analysis_channel_id)
-                            logger.info("Análise pós-guerra enviada com sucesso.")
-                        else:
-                            logger.warning("A análise pós-guerra resultou num embed nulo e não foi enviada.")
-                    
-                    our_clan = war.clan if war.clan.tag == self.bot.clan_tag else war.opponent
-                    missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
-                    if missed:
-                        embed = discord.Embed(title="🚩 Relatório de Ataques Perdidos", color=discord.Color.dark_gold())
-                        embed.add_field(name="Placar Final", value=f"**{war.clan.name}:** {war.clan.stars}⭐\n**{war.opponent.name}:** {war.opponent.stars}⭐", inline=False)
-                        embed.add_field(name="Jogadores com Ataques Pendentes", value="\n".join(missed), inline=False)
-                        if war.opponent.badge: embed.set_thumbnail(url=war.opponent.badge.url)
-                        role_mention = f"<@&{self.bot.role_id_missed_attack}>" if self.bot.role_id_missed_attack else ""
-                        await self._send_log_embed(embed, content=f"{role_mention} Atenção!")
-                        logger.info("Relatório de ataques perdidos enviado.")
-                    
-                    # CORREÇÃO CRÍTICA: Atualizar o tempo da última guerra apenas APÓS
-                    # todo o processamento ter sido concluído com sucesso.
-                    self.last_war_end_time = war.end_time.time
-                    logger.info(f"Processamento da guerra contra {war.opponent.name} concluído.")
+                    if await self.process_ended_war(war):
+                        self.last_war_end_time = war.end_time.time
 
         except (coc.PrivateWarLog, coc.NotFound):
-            pass # Silencia erros esperados quando não há guerra.
+            pass
         except Exception as e:
             logger.error(f"Erro inesperado na task de fim de guerra: {e}", exc_info=True)
+
+    @commands.command(name='syncwar')
+    @commands.has_permissions(administrator=True)
+    async def sync_war(self, ctx: commands.Context):
+        """Força a sincronização e o relatório da última guerra terminada."""
+        await ctx.message.add_reaction("🔄")
+        logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
+        try:
+            war = await self.api_client.get_current_war(self.bot.clan_tag)
+            if war and war.state == 'warEnded':
+                if await self.process_ended_war(war):
+                    self.last_war_end_time = war.end_time.time
+                    await ctx.send("✅ Sincronização da guerra concluída com sucesso! Relatórios enviados.")
+                else:
+                    await ctx.send("⚠️ Ocorreu um erro ao processar a guerra. Verifique os logs.")
+            else:
+                await ctx.send("ℹ️ Nenhuma guerra terminada encontrada para sincronizar no momento.")
+        except coc.NotFound:
+            await ctx.send("ℹ️ Nenhuma guerra (normal ou CWL) encontrada.")
+        except Exception as e:
+            logger.error(f"Erro no comando !syncwar: {e}", exc_info=True)
+            await ctx.send(f"❌ Erro crítico: {e}")
+        finally:
+            await ctx.message.remove_reaction("🔄", self.bot.user)
 
     @tasks.loop(minutes=10)
     async def post_war_prediction_task(self):
