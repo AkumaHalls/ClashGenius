@@ -7,7 +7,6 @@ import asyncio
 import datetime
 from typing import Dict, Any
 
-# A importação deve ser feita no topo do ficheiro para boas práticas.
 from cogs.post_war_analysis import create_post_war_analysis_embed
 
 logger = logging.getLogger("tasks_cog")
@@ -20,28 +19,24 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.api_client: coc.Client = bot.api_client
         self.db = bot.db
         self.last_war_end_time: datetime.datetime = None
-        self.last_prediction_sent_time = None # Evita spam de previsões
+        self.last_prediction_sent_time = None
 
     async def cog_load(self):
-        """Inicia todas as tarefas quando o cog é carregado."""
         self.check_war_end_task.start()
         self.daily_player_data_snapshot.start()
         self.send_online_status_task.start()
-        self.post_war_prediction_task.start() # Inicia a nova tarefa
+        self.post_war_prediction_task.start()
         logger.info("Tarefas em segundo plano iniciadas.")
 
     async def cog_unload(self):
-        """Para todas as tarefas quando o cog é descarregado."""
         self.check_war_end_task.cancel()
         self.daily_player_data_snapshot.cancel()
         self.send_online_status_task.cancel()
-        self.post_war_prediction_task.cancel() # Para a nova tarefa
+        self.post_war_prediction_task.cancel()
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
-        """Função centralizada para enviar embeds para o canal de log."""
         channel_id_to_use = target_channel_id or self.bot.channel_id
         if not channel_id_to_use: return
-
         await self.bot.wait_until_ready()
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
@@ -57,45 +52,36 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         await self.bot.wait_until_ready()
         await self.bot.coc_client_ready.wait()
         if not self.api_client: return
+        
         try:
+            # LÓGICA SIMPLIFICADA: get_current_war funciona para guerras normais e de CWL.
+            # Esta é a forma mais fiável de obter a guerra atual, seja qual for o tipo.
             war = await self.api_client.get_current_war(self.bot.clan_tag)
+            
             if war and war.state == 'warEnded' and hasattr(war, 'end_time'):
                 if self.last_war_end_time is None or war.end_time.time > self.last_war_end_time:
-                    logger.info("Nova guerra finalizada detectada. A processar...")
-                    self.last_war_end_time = war.end_time.time
+                    logger.info(f"Nova guerra ({'CWL' if war.is_cwl else 'Normal'}) finalizada detectada. A processar...")
                     
-                    # 1. Obter detalhes completos da guerra
                     war_details = await self.bot.fetch_current_war_details_for_web()
                     if 'error' in war_details:
-                        logger.error(f"Não foi possível obter os detalhes da guerra: {war_details['error']}")
+                        logger.error(f"Falha ao obter detalhes da guerra: {war_details['error']}. A tentar novamente no próximo ciclo.")
                         return
 
-                    # 2. Salvar no banco de dados
                     db_cog = self.bot.get_cog("Banco de Dados")
                     if db_cog:
                         await db_cog.save_war_to_history(war_details)
                     else:
                         logger.warning("Cog de Banco de Dados não encontrado. A guerra não será salva no histórico.")
 
-                    # 3. Gerar e enviar a análise pós-guerra para o Discord
-                    # CORREÇÃO: Usar a variável 'war_details' que já está em memória, em vez de
-                    # ler do banco de dados imediatamente. Isso evita uma 'race condition'
-                    # onde a leitura acontece antes da escrita ser concluída.
                     if self.bot.post_war_analysis_channel_id:
                         logger.info("A gerar a análise pós-guerra...")
                         analysis_embed = create_post_war_analysis_embed(war_details)
-                        
                         if analysis_embed:
                             await self._send_log_embed(analysis_embed, target_channel_id=self.bot.post_war_analysis_channel_id)
-                            logger.info(f"Análise pós-guerra enviada com sucesso para o canal {self.bot.post_war_analysis_channel_id}.")
+                            logger.info("Análise pós-guerra enviada com sucesso.")
                         else:
-                            # Adicionado log para ajudar a depurar futuras falhas silenciosas.
-                            war_end_time_str = war_details.get('war_data', {}).get('end_time_iso', 'N/A')
-                            logger.warning(f"A análise para a guerra que terminou em {war_end_time_str} resultou num embed nulo e não foi enviada.")
-                    else:
-                        logger.info("Canal de análise pós-guerra não configurado. A saltar o envio do relatório.")
-
-                    # 4. Gerar e enviar o relatório de ataques perdidos
+                            logger.warning("A análise pós-guerra resultou num embed nulo e não foi enviada.")
+                    
                     our_clan = war.clan if war.clan.tag == self.bot.clan_tag else war.opponent
                     missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
                     if missed:
@@ -107,14 +93,18 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                         await self._send_log_embed(embed, content=f"{role_mention} Atenção!")
                         logger.info("Relatório de ataques perdidos enviado.")
                     
-        except (coc.PrivateWarLog, coc.NotFound): pass
+                    # CORREÇÃO CRÍTICA: Atualizar o tempo da última guerra apenas APÓS
+                    # todo o processamento ter sido concluído com sucesso.
+                    self.last_war_end_time = war.end_time.time
+                    logger.info(f"Processamento da guerra contra {war.opponent.name} concluído.")
+
+        except (coc.PrivateWarLog, coc.NotFound):
+            pass # Silencia erros esperados quando não há guerra.
         except Exception as e:
-            logger.error(f"Erro na task de fim de guerra: {e}", exc_info=True)
-            
-    # --- NOVA TAREFA PARA OS PENSAMENTOS DA IA ---
+            logger.error(f"Erro inesperado na task de fim de guerra: {e}", exc_info=True)
+
     @tasks.loop(minutes=10)
     async def post_war_prediction_task(self):
-        """Verifica a guerra atual e envia a análise da IA para o canal de logs."""
         await self.bot.wait_until_ready()
         await self.bot.coc_client_ready.wait()
         
@@ -224,3 +214,4 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
+
