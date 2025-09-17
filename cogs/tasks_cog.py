@@ -47,7 +47,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         except (discord.NotFound, discord.Forbidden, Exception) as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
-    async def process_ended_war(self, war: coc.War):
+    async def process_ended_war(self, war: coc.ClanWar):
         """Função centralizada para processar uma guerra finalizada."""
         logger.info(f"A processar guerra ({'CWL' if war.is_cwl else 'Normal'}) contra {war.opponent.name}...")
         
