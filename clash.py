@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.91-FINAL-STRUCTURE-FIX-3
+# Versão 20.1.93-FINAL-FIX
 
 import os
 import logging
@@ -48,7 +48,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.91-FINAL-STRUCTURE-FIX"
+BOT_VERSION = "20.1.93-FINAL-FIX"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -159,7 +159,13 @@ class ClashGeniusBot(commands.Bot):
             "version": BOT_VERSION
         }
 
-    async def fetch_current_war_details_for_web(self):
+    async def fetch_current_war_details_for_web(self, force_api_call=False):
+        key = 'war_details'
+        if not force_api_call:
+            now = datetime.datetime.now()
+            if key in self.web_api_cache and (now - self.web_api_cache[key]["timestamp"]).total_seconds() < self.WEB_API_CACHE_DURATION_SECONDS:
+                return self.web_api_cache[key]["data"]
+
         try:
             war = await self.api_client.get_current_war(self.clan_tag)
             if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
@@ -202,8 +208,8 @@ class ClashGeniusBot(commands.Bot):
                     "defender_townhall": getattr(defender, 'town_hall', '?'), "stars": attack.stars, "destruction": attack.destruction,
                     "duration": f"{attack.duration}s"
                 })
-
-            return {
+            
+            response_data = {
                 "war_data": {
                     "clan_tag": our_clan.tag, "status": str(war.state), "state_description": str(war.state).capitalize(),
                     "clan_name": our_clan.name, "clan_stars": our_clan.stars, "clan_destruction": f"{our_clan.destruction:.2f}%",
@@ -214,13 +220,18 @@ class ClashGeniusBot(commands.Bot):
                     "attacks_per_member": war.attacks_per_member, "team_size": war.team_size,
                     "clan_star_distribution": get_star_dist(our_attacks), "opponent_star_distribution": get_star_dist(opp_attacks),
                     "clan_avg_stars": f"{our_clan.stars / len(our_attacks):.2f}" if our_attacks else "0.00",
-                    "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks):.2f}" if opp_attacks else "0.00"
+                    "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks):.2f}" if opp_attacks else "0.00",
+                    "is_cwl": war.is_cwl
                 },
                 "all_attacks": all_attacks_data,
                 "our_clan_members_in_war": get_team_details(our_clan, war),
                 "opponent_clan_members_in_war": get_team_details(opp_clan, war),
                 "prediction": prediction_data
             }
+            if not force_api_call:
+                self.web_api_cache[key] = {"data": response_data, "timestamp": datetime.datetime.now()}
+            return response_data
+            
         except (coc.NotFound, coc.PrivateWarLog):
             return {"error": "Nenhuma guerra para detalhar."}
         except Exception as e:
@@ -289,7 +300,7 @@ class ClashGeniusBot(commands.Bot):
                     "end_time_iso": war_data.get("end_time_iso"), "end_time_formatted": end_time_dt.astimezone(self.timezone).strftime('%d/%m/%y %H:%M'),
                     "opponent_name": war_data.get("opponent_name"), "opponent_badge_url": war_data.get("opponent_badge_url"),
                     "clan_stars": war_data.get("clan_stars"), "opponent_stars": war_data.get("opponent_stars"),
-                    "result": result, "team_size": war_data.get("team_size"), "is_cwl": "CWL" in war_data.get("status", "").lower()
+                    "result": result, "team_size": war_data.get("team_size"), "is_cwl": war_data.get("is_cwl", False)
                 })
         return {"log": entries}
 
@@ -337,20 +348,21 @@ class ClashGeniusBot(commands.Bot):
 async def setup_web_server(bot_instance: ClashGeniusBot):
     app = web.Application()
 
-    async def get_cached_web_data(key: str, func, *args):
+    async def get_cached_web_data(key: str, func, *args, **kwargs):
         now = datetime.datetime.now()
-        if key in bot_instance.web_api_cache and (now - bot_instance.web_api_cache[key]["timestamp"]).total_seconds() < bot_instance.WEB_API_CACHE_DURATION_SECONDS:
+        if not kwargs.get('force_api_call', False) and key in bot_instance.web_api_cache and (now - bot_instance.web_api_cache[key]["timestamp"]).total_seconds() < bot_instance.WEB_API_CACHE_DURATION_SECONDS:
             return bot_instance.web_api_cache[key]["data"]
         
         if not bot_instance.coc_client_ready.is_set():
             return {"error": "O bot ainda está a iniciar... Por favor, aguarde.", "status_code": 503}
 
-        data = await func(*args)
-        bot_instance.web_api_cache[key] = {"data": data, "timestamp": now}
+        data = await func(*args, **kwargs)
+        if not kwargs.get('force_api_call', False):
+            bot_instance.web_api_cache[key] = {"data": data, "timestamp": now}
         return data
 
-    async def handle_web_response(request, key, func, *args):
-        data = await get_cached_web_data(key, func, *args)
+    async def handle_web_response(request, key, func, *args, **kwargs):
+        data = await get_cached_web_data(key, func, *args, **kwargs)
         status_code = data.pop("status_code", 200) if isinstance(data, dict) else 200
         return web.json_response(data, status=status_code)
 
@@ -398,7 +410,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         cwl_cog = bot_instance.get_cog("Planeador de CWL")
         if not cwl_cog:
             return web.json_response({"error": "O módulo do planeador CWL não está ativo."}, status=500)
-        # Limpa o cache antigo para garantir que os dados mais recentes são usados
         bot_instance.web_api_cache.pop('cwl_plan', None)
         plan = await cwl_cog.generate_rotation_plan()
         return web.json_response(plan)
@@ -406,7 +417,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_inactivity_check_handler(request):
         cwl_cog = bot_instance.get_cog("Planeador de CWL")
         if not cwl_cog: return web.json_response({"error": "O módulo do planeador CWL não está ativo."}, status=500)
-        alert = await cwl_cog.get_inactivity_alert() # Esta função precisa ser criada no cog
+        alert = await cwl_cog.get_inactivity_alert() 
         return web.json_response(alert)
 
     # --- Rotas da API ---
