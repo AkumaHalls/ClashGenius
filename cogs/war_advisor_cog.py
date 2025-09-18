@@ -130,12 +130,18 @@ class WarAdvisorSystem:
 
     def create_war_plan(self, war: Any, clan_tag: str, prediction_data: Dict) -> Dict[str, Any]:
         """Ponto de entrada principal para gerar o plano de guerra, agora recebendo a predição."""
-        if not war or war.state != 'inWar':
-            return {"error": "A guerra não está ativa."}
+        # CORREÇÃO: Permite a geração do plano durante a preparação
+        if not war or war.state not in ['inWar', 'preparation']:
+            return {"error": "A guerra não está ativa ou em preparação."}
 
         try:
             our_clan = war.clan if war.clan.tag == clan_tag else war.opponent
             opponent = war.opponent if war.clan.tag == clan_tag else war.clan
+
+            # Durante a preparação, a lógica de limpeza não se aplica, então geramos um plano inicial
+            if war.state == 'preparation':
+                 # Simplificamos a predição para o dia de preparação
+                 prediction_data = {"analysis_log": {}} 
 
             recommendations = self._generate_recommendations(war, our_clan, opponent, prediction_data)
             recommendations.sort(key=lambda x: x['member_pos'])
@@ -161,3 +167,4 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
         
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarAdvisorCog(bot))
+
