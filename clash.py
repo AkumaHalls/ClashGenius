@@ -25,7 +25,8 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
-from war_advisor import WarAdvisorSystem
+# CORREÇÃO: O caminho da importação foi ajustado para a pasta cogs
+from cogs.war_advisor_cog import WarAdvisorSystem
 
 # --- Configuração do Logging ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -104,6 +105,7 @@ class ClashGeniusBot(commands.Bot):
         
         logger.info("Carregando cogs...")
         for filename in os.listdir('./cogs'):
+            # Carrega todos os arquivos _cog.py, incluindo o novo war_advisor_cog.py
             if filename.endswith('_cog.py'):
                 cog_name = filename[:-3]
                 try:
