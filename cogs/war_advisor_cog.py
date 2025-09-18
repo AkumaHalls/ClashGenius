@@ -421,7 +421,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
     
     def __init__(self, bot):
         self.bot = bot
-        # A instância do sistema será criada no bot principal para ser compartilhada
+        self.war_advisor = WarAdvisorSystem()
         self.logger = logging.getLogger(f"{__name__}.WarAdvisorCog")
 
     async def cog_load(self):
