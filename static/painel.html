@@ -145,6 +145,9 @@
 
                 <nav class="war-tabs">
                     <button class="war-tab-button active" data-tab="war-stats">Estatísticas</button>
+                    <!-- INÍCIO: Botão da nova aba adicionado -->
+                    <button class="war-tab-button" data-tab="war-advisor">Plano de Ataque IA</button>
+                    <!-- FIM: Botão da nova aba adicionado -->
                     <button class="war-tab-button" data-tab="war-events">Eventos</button>
                     <button class="war-tab-button" data-tab="war-our-team">Minha Equipe</button>
                     <button class="war-tab-button" data-tab="war-opponent-team">Equipe Inimiga</button>
@@ -184,6 +187,15 @@
                         <p>3⭐: <span id="statsOpponentStars3">-</span> | 2⭐: <span id="statsOpponentStars2">-</span> | 1⭐: <span id="statsOpponentStars1">-</span> | 0⭐: <span id="statsOpponentStars0">-</span></p>
                     </div>
                 </div>
+                <!-- INÍCIO: Conteúdo da nova aba adicionado -->
+                <div id="war-advisor" class="war-tab-content">
+                    <h3><span class="ai-indicator"></span> Plano de Ataque da IA</h3>
+                    <div id="warAdvisorPlanContainer" class="advisor-plan-container">
+                        <!-- Cards de recomendação da IA serão inseridos aqui pelo JavaScript -->
+                    </div>
+                    <p id="noWarAdvisorMessage" class="message-box" style="display: none;">O plano de ataque será gerado quando a guerra começar.</p>
+                </div>
+                <!-- FIM: Conteúdo da nova aba adicionado -->
                 <div id="war-events" class="war-tab-content">
                     <h3>Todos os Ataques (<span id="warTotalAttacksCount">0</span>)</h3>
                     <div class="table-container scrollable-box medium-table">
