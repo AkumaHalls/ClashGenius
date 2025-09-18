@@ -434,12 +434,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function populateWarAdvisorPlan(data) {
         if (!warAdvisorContentEl) return;
-        if (data.error || !data.recommendations) {
+        
+        if (!data.success) {
             setHtml(warAdvisorContentEl, `<p class="message-box">${data.error || 'Nenhuma recomendação disponível.'}</p>`);
             return;
         }
 
-        // NOVO: Adiciona o título da fase e um resumo da predição
         let contentHtml = `
             <div class="advisor-header">
                 <h3>${data.phase_title}</h3>
@@ -449,6 +449,20 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         contentHtml += data.recommendations.map(rec => {
+            const confidencePercent = (rec.confidence_score * 100).toFixed(0);
+            let confidenceColor = 'low';
+            if (confidencePercent >= 75) {
+                confidenceColor = 'high';
+            } else if (confidencePercent >= 50) {
+                confidenceColor = 'medium';
+            }
+
+            const alternativesHtml = rec.alternative_targets.length > 0
+                ? `<div class="advisor-alternatives">
+                       <strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}
+                   </div>`
+                : '';
+
             return `
                 <div class="advisor-card type-${rec.type}">
                     <div class="advisor-member-info">
@@ -462,11 +476,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="advisor-justification">
                         <p><strong>IA:</strong> ${rec.justification}</p>
                     </div>
+                    ${alternativesHtml}
+                    <div class="advisor-confidence">
+                        <span>Confiança da IA</span>
+                        <div class="confidence-bar-container">
+                            <div class="confidence-bar ${confidenceColor}" style="width: ${confidencePercent}%;"></div>
+                        </div>
+                        <span>${confidencePercent}%</span>
+                    </div>
                 </div>
             `;
         }).join('');
 
-        contentHtml += '</div>'; // Fecha advisor-grid
+        contentHtml += '</div>';
         setHtml(warAdvisorContentEl, contentHtml);
     }
 
