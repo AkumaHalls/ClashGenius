@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.93-FINAL-FIX
+# Versão 20.1.95-AdvisorV4-FIX
 
 import os
 import logging
@@ -25,7 +25,8 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
-from cogs.war_advisor_cog import WarAdvisorSystem # <-- IMPORTAÇÃO CORRETA
+# A classe do sistema é importada diretamente do cog agora
+from cogs.war_advisor_cog import WarAdvisorSystem
 
 # --- Configuração do Logging ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -49,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.94-AdvisorV4" # Atualiza a versão
+BOT_VERSION = "20.1.95-AdvisorV4-FIX" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -71,7 +72,7 @@ class ClashGeniusBot(commands.Bot):
 
         self.api_client: Optional[coc.Client] = None
         self.war_prediction_system: Optional[WarPredictionSystemV3] = None
-        self.war_advisor_system: Optional[WarAdvisorSystem] = None # <-- NOVA INSTÂNCIA
+        # O war_advisor_system será instanciado dentro do seu respectivo cog.
         self.db = None
         self.mongo_client = None
 
@@ -101,11 +102,9 @@ class ClashGeniusBot(commands.Bot):
         self.war_prediction_system = WarPredictionSystemV3(db_connection=self.db)
         await self.war_prediction_system.initialize_system()
         
-        self.war_advisor_system = WarAdvisorSystem() # <-- INICIALIZA O SEU NOVO SISTEMA
-
         logger.info("Carregando cogs...")
         cog_files = ['events_cog.py', 'tasks_cog.py', 'database_cog.py', 'general_cog.py', 
-                     'cwl_planner_cog.py', 'clan_games_cog.py', 'war_advisor_cog.py'] # Adiciona o novo cog
+                     'cwl_planner_cog.py', 'clan_games_cog.py', 'war_advisor_cog.py']
         for filename in cog_files:
             if filename.endswith('.py'):
                 cog_name = filename[:-3]
@@ -152,7 +151,6 @@ class ClashGeniusBot(commands.Bot):
             
     # --- MÉTODOS DE BUSCA DE DADOS (sem alterações) ---
     async def fetch_clan_info_for_web(self):
-        # (código inalterado)
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
         return {
@@ -167,7 +165,6 @@ class ClashGeniusBot(commands.Bot):
         }
 
     async def fetch_current_war_details_for_web(self, force_api_call=False):
-        # (código inalterado)
         key = 'war_details'
         if not force_api_call:
             now = datetime.datetime.now()
@@ -247,7 +244,6 @@ class ClashGeniusBot(commands.Bot):
             return {"error": "Erro interno ao processar dados da guerra."}
             
     async def fetch_clan_members_for_web(self):
-        # (código inalterado)
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
         db_cog = self.get_cog("Banco de Dados")
@@ -267,7 +263,6 @@ class ClashGeniusBot(commands.Bot):
         return {"clan_name": clan.name, "members": sorted_members, "version": BOT_VERSION}
 
     async def fetch_missed_attacks_history_for_web(self):
-        # (código inalterado)
         if self.db is None: return {"error": "Histórico indisponível."}
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã para o histórico."}
@@ -298,7 +293,6 @@ class ClashGeniusBot(commands.Bot):
         return {"clan_name": clan.name, "wars_with_missed_attacks": wars_with_missed_attacks}
 
     async def fetch_war_log_for_web(self):
-        # (código inalterado)
         if self.db is None: return {"error": "Histórico indisponível."}
         log_cursor = self.db.war_history.find({}, {"war_data": 1}).sort("war_data.end_time_iso", DESCENDING).limit(9)
         entries = []
@@ -316,7 +310,6 @@ class ClashGeniusBot(commands.Bot):
         return {"log": entries}
 
     async def fetch_cwl_info_for_web(self):
-        # (código inalterado)
         if not self.api_client: return {"error": "API do CoC não iniciada."}
         try:
             cwl_war = await self.api_client.get_league_group(self.clan_tag)
@@ -340,7 +333,6 @@ class ClashGeniusBot(commands.Bot):
         except coc.NotFound: return {"status": "NotInCwl"}
 
     async def fetch_highlights_for_web(self):
-        # (código inalterado)
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar destaques."}
         top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]]
@@ -388,22 +380,25 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_info_handler(request): return await handle_web_response(request, 'cwl', bot_instance.fetch_cwl_info_for_web)
     async def api_highlights_handler(request): return await handle_web_response(request, 'highlights', bot_instance.fetch_highlights_for_web)
     
-    # <-- INÍCIO: NOVO HANDLER PARA O WAR ADVISOR -->
     async def api_war_advisor_plan_handler(request):
-        # Este não usa cache para ser sempre em tempo real
         if not bot_instance.coc_client_ready.is_set():
             return web.json_response({"success": False, "error": "Bot a iniciar."}, status=503)
         try:
+            # CORREÇÃO: Pega a instância do cog
+            advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
+            if not advisor_cog or not hasattr(advisor_cog, 'war_advisor'):
+                 return web.json_response({"success": False, "error": "Módulo do conselheiro não carregado."}, status=500)
+
             war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag)
             prediction_data = await bot_instance.war_prediction_system.predict_war_outcome(war, bot_instance.clan_tag)
-            plan = bot_instance.war_advisor_system.create_war_plan(war, bot_instance.clan_tag, prediction_data)
+            # CORREÇÃO: Chama o método na instância correta
+            plan = advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
             return web.json_response(plan)
         except (coc.NotFound, coc.PrivateWarLog):
             return web.json_response({"success": False, "error": "Nenhuma guerra ativa."})
         except Exception as e:
             logger.error(f"Erro no endpoint do war_advisor: {e}", exc_info=True)
             return web.json_response({"success": False, "error": "Erro interno."}, status=500)
-    # <-- FIM: NOVO HANDLER -->
 
     async def api_save_player_note_handler(request):
         db_cog = bot_instance.get_cog("Banco de Dados")
@@ -458,7 +453,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/war_log", api_war_log_handler)
     app.router.add_get("/api/cwl_info", api_cwl_info_handler)
     app.router.add_get("/api/highlights", api_highlights_handler)
-    app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler) # <-- NOVA ROTA
+    app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
