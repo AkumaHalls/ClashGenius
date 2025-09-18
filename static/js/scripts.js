@@ -69,11 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const warOurTeamMembersEl = document.getElementById('warOurTeamMembers');
     const warOpponentTeamNameEl = document.getElementById('warOpponentTeamName');
     const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
-
-    // INÍCIO: Elementos do Conselheiro de Guerra
-    const warAdvisorPlanContainerEl = document.getElementById('warAdvisorPlanContainer');
-    const noWarAdvisorMessageEl = document.getElementById('noWarAdvisorMessage');
-    // FIM: Elementos do Conselheiro de Guerra
+    const warAdvisorContentEl = document.getElementById('warAdvisorContent');
 
     const attacksRemainingTitleEl = document.getElementById('attacksRemainingTitle');
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
@@ -328,9 +324,6 @@ document.addEventListener('DOMContentLoaded', () => {
             container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none');
             const predictionSection = container.querySelector('#warPredictionSection');
             if (predictionSection) predictionSection.style.display = 'none';
-            // INÍCIO: Esconder o painel do conselheiro se não houver guerra
-            if (warAdvisorPlanContainerEl) warAdvisorPlanContainerEl.parentElement.style.display = 'none';
-            // FIM: Esconder o painel do conselheiro se não houver guerra
             return;
         }
         
@@ -439,38 +432,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // INÍCIO: Nova função para popular o Conselheiro de Guerra
     function populateWarAdvisorPlan(data) {
-        if (data.error || !data.recommendations || data.recommendations.length === 0) {
-            noWarAdvisorMessageEl.style.display = 'block';
-            setText(noWarAdvisorMessageEl, data.error || "Nenhuma recomendação disponível no momento.");
-            setHtml(warAdvisorPlanContainerEl, '');
+        if (!warAdvisorContentEl) return;
+        if (data.error || !data.recommendations) {
+            setHtml(warAdvisorContentEl, `<p class="message-box">${data.error || 'Nenhuma recomendação disponível.'}</p>`);
             return;
         }
 
-        noWarAdvisorMessageEl.style.display = 'none';
-        
-        const recommendationsHtml = data.recommendations.map(rec => {
+        // NOVO: Adiciona o título da fase e um resumo da predição
+        let contentHtml = `
+            <div class="advisor-header">
+                <h3>${data.phase_title}</h3>
+                <p>${data.prediction_summary}</p>
+            </div>
+            <div class="advisor-grid">
+        `;
+
+        contentHtml += data.recommendations.map(rec => {
             return `
                 <div class="advisor-card type-${rec.type}">
                     <div class="advisor-member-info">
                         <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
-                        <p>Ataque N° ${rec.attack_number}</p>
+                        <span>Ataque Nº ${rec.attack_number}</span>
                     </div>
                     <div class="advisor-target-info">
-                        <p class="target-label">Alvo Recomendado</p>
-                        <p class="target-details">#${rec.recommended_target_pos} (CV${rec.recommended_target_th})</p>
+                        <p>Alvo Recomendado</p>
+                        <span>#${rec.recommended_target_pos} (CV${rec.recommended_target_th})</span>
                     </div>
                     <div class="advisor-justification">
-                        <p><strong>IA:</strong> <em>${rec.justification}</em></p>
+                        <p><strong>IA:</strong> ${rec.justification}</p>
                     </div>
                 </div>
             `;
         }).join('');
 
-        setHtml(warAdvisorPlanContainerEl, recommendationsHtml);
+        contentHtml += '</div>'; // Fecha advisor-grid
+        setHtml(warAdvisorContentEl, contentHtml);
     }
-    // FIM: Nova função para popular o Conselheiro de Guerra
 
     function populateMissedAttacksHistory(data) {
         setText(attacksRemainingTitleEl.querySelector('span'), data.clan_name);
@@ -797,19 +795,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
-            const [membersData, currentWarDetailsData, warAdvisorData, missedAttacksData, warLogData, cwlInfoData, highlightsData] = await Promise.all([
+            const [
+                membersData, 
+                currentWarDetailsData, 
+                missedAttacksData, 
+                warLogData, 
+                cwlInfoData, 
+                highlightsData,
+                warAdvisorData // NOVO: Busca o plano de ataque
+            ] = await Promise.all([
                 fetchData('members'), 
                 fetchData('current_war_details'),
-                fetchData('war_advisor_plan'), // <-- ADICIONADO: Busca do plano de ataque
                 fetchData('missed_attacks_history'), 
                 fetchData('war_log'), 
                 fetchData('cwl_info'), 
-                fetchData('highlights')
+                fetchData('highlights'),
+                fetchData('war_advisor_plan') // NOVO
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
             populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
-            populateWarAdvisorPlan(warAdvisorData); // <-- ADICIONADO: Popula o painel do conselheiro
+            populateWarAdvisorPlan(warAdvisorData); // NOVO
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
@@ -842,3 +848,4 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 45000);
 });
+
