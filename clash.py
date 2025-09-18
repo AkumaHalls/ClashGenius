@@ -25,6 +25,7 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
+from war_advisor import WarAdvisorSystem # <-- ADICIONADO
 
 # --- Configuração do Logging ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -70,6 +71,7 @@ class ClashGeniusBot(commands.Bot):
 
         self.api_client: Optional[coc.Client] = None
         self.war_prediction_system: Optional[WarPredictionSystemV3] = None
+        self.war_advisor_system: Optional[WarAdvisorSystem] = None # <-- ADICIONADO
         self.db = None
         self.mongo_client = None
 
@@ -97,6 +99,7 @@ class ClashGeniusBot(commands.Bot):
             self.db_ready.set()
 
         self.war_prediction_system = WarPredictionSystemV3(db_connection=self.db)
+        self.war_advisor_system = WarAdvisorSystem() # <-- ADICIONADO
         await self.war_prediction_system.initialize_system()
         
         logger.info("Carregando cogs...")
@@ -237,7 +240,22 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
             return {"error": "Erro interno ao processar dados da guerra."}
+
+    # <-- ADICIONADO: NOVO MÉTODO PARA O CONSELHEIRO DE GUERRA -->
+    async def fetch_war_advisor_plan_for_web(self):
+        try:
+            war = await self.api_client.get_current_war(self.clan_tag)
+            if not war or self.war_advisor_system is None:
+                return {"error": "Conselheiro indisponível ou guerra inativa."}
             
+            plan = self.war_advisor_system.create_war_plan(war, self.clan_tag)
+            return plan
+        except (coc.NotFound, coc.PrivateWarLog):
+            return {"error": "Nenhuma guerra ativa para gerar o plano."}
+        except Exception as e:
+            logger.error(f"Erro em fetch_war_advisor_plan_for_web: {e}", exc_info=True)
+            return {"error": "Erro interno ao gerar plano de ataque."}
+
     async def fetch_clan_members_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
@@ -374,6 +392,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_war_log_handler(request): return await handle_web_response(request, 'war_log', bot_instance.fetch_war_log_for_web)
     async def api_cwl_info_handler(request): return await handle_web_response(request, 'cwl', bot_instance.fetch_cwl_info_for_web)
     async def api_highlights_handler(request): return await handle_web_response(request, 'highlights', bot_instance.fetch_highlights_for_web)
+    # <-- ADICIONADO: NOVO HANDLER PARA O CONSELHEIRO DE GUERRA -->
+    async def api_war_advisor_plan_handler(request): return await handle_web_response(request, 'war_advisor_plan', bot_instance.fetch_war_advisor_plan_for_web)
     
     async def api_save_player_note_handler(request):
         db_cog = bot_instance.get_cog("Banco de Dados")
@@ -428,6 +448,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/war_log", api_war_log_handler)
     app.router.add_get("/api/cwl_info", api_cwl_info_handler)
     app.router.add_get("/api/highlights", api_highlights_handler)
+    app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler) # <-- ADICIONADO
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
@@ -505,4 +526,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
