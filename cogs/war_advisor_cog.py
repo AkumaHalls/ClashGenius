@@ -6,7 +6,8 @@ recomendações de ataque dinâmicas e contextuais.
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
+from discord.ext import commands
 
 class WarAdvisorSystem:
     """
@@ -150,3 +151,13 @@ class WarAdvisorSystem:
             self.logger.error(f"Erro ao gerar plano de guerra: {e}", exc_info=True)
             return {"error": "Ocorreu um erro interno ao gerar o plano de ataque."}
 
+
+# Adicionado para que o bot possa carregar este arquivo como uma extensão (cog)
+class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
+    def __init__(self, bot):
+        self.bot = bot
+        # A lógica principal está na classe WarAdvisorSystem, que é instanciada no bot.
+        # Este cog serve principalmente para organização e carregamento.
+        
+async def setup(bot: commands.Bot):
+    await bot.add_cog(WarAdvisorCog(bot))
