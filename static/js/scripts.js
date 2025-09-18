@@ -70,6 +70,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const warOpponentTeamNameEl = document.getElementById('warOpponentTeamName');
     const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
 
+    // INÍCIO: Elementos do Conselheiro de Guerra
+    const warAdvisorPlanContainerEl = document.getElementById('warAdvisorPlanContainer');
+    const noWarAdvisorMessageEl = document.getElementById('noWarAdvisorMessage');
+    // FIM: Elementos do Conselheiro de Guerra
+
     const attacksRemainingTitleEl = document.getElementById('attacksRemainingTitle');
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
@@ -323,6 +328,9 @@ document.addEventListener('DOMContentLoaded', () => {
             container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none');
             const predictionSection = container.querySelector('#warPredictionSection');
             if (predictionSection) predictionSection.style.display = 'none';
+            // INÍCIO: Esconder o painel do conselheiro se não houver guerra
+            if (warAdvisorPlanContainerEl) warAdvisorPlanContainerEl.parentElement.style.display = 'none';
+            // FIM: Esconder o painel do conselheiro se não houver guerra
             return;
         }
         
@@ -430,6 +438,39 @@ document.addEventListener('DOMContentLoaded', () => {
             query(isModal ? '#historic-war-stats' : '#war-stats').style.display = 'block';
         }
     }
+    
+    // INÍCIO: Nova função para popular o Conselheiro de Guerra
+    function populateWarAdvisorPlan(data) {
+        if (data.error || !data.recommendations || data.recommendations.length === 0) {
+            noWarAdvisorMessageEl.style.display = 'block';
+            setText(noWarAdvisorMessageEl, data.error || "Nenhuma recomendação disponível no momento.");
+            setHtml(warAdvisorPlanContainerEl, '');
+            return;
+        }
+
+        noWarAdvisorMessageEl.style.display = 'none';
+        
+        const recommendationsHtml = data.recommendations.map(rec => {
+            return `
+                <div class="advisor-card type-${rec.type}">
+                    <div class="advisor-member-info">
+                        <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
+                        <p>Ataque N° ${rec.attack_number}</p>
+                    </div>
+                    <div class="advisor-target-info">
+                        <p class="target-label">Alvo Recomendado</p>
+                        <p class="target-details">#${rec.recommended_target_pos} (CV${rec.recommended_target_th})</p>
+                    </div>
+                    <div class="advisor-justification">
+                        <p><strong>IA:</strong> <em>${rec.justification}</em></p>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        setHtml(warAdvisorPlanContainerEl, recommendationsHtml);
+    }
+    // FIM: Nova função para popular o Conselheiro de Guerra
 
     function populateMissedAttacksHistory(data) {
         setText(attacksRemainingTitleEl.querySelector('span'), data.clan_name);
@@ -756,9 +797,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
-            const [membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData, highlightsData] = await Promise.all([
+            const [membersData, currentWarDetailsData, warAdvisorData, missedAttacksData, warLogData, cwlInfoData, highlightsData] = await Promise.all([
                 fetchData('members'), 
                 fetchData('current_war_details'),
+                fetchData('war_advisor_plan'), // <-- ADICIONADO: Busca do plano de ataque
                 fetchData('missed_attacks_history'), 
                 fetchData('war_log'), 
                 fetchData('cwl_info'), 
@@ -767,6 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
             populateClanInfo(clanData);
             populateMembersList(membersData);
             populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
+            populateWarAdvisorPlan(warAdvisorData); // <-- ADICIONADO: Popula o painel do conselheiro
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
@@ -799,4 +842,3 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 45000);
 });
-
