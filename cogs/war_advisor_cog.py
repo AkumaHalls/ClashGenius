@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Módulo do Conselheiro de Guerra IA - ClashGenius (v3 - Fases de Guerra e Alvos Únicos)
+Módulo do Conselheiro de Guerra IA - ClashGenius (v3.1 - Lógica de Fases Corrigida)
 Este módulo agora consome a análise do war_predictor.py, gerencia fases de guerra
-e garante que os alvos iniciais recomendados sejam únicos.
+e garante que os alvos iniciais recomendados sejam únicos e exibidos na preparação.
 """
 
 import logging
@@ -16,17 +16,19 @@ class WarAdvisorSystem:
     Sistema que analisa a guerra atual e a predição da IA para gerar um plano de ataque tático.
     """
     def __init__(self):
-        self.logger = logging.getLogger("war_advisor_v3")
+        self.logger = logging.getLogger("war_advisor_v3.1")
 
     def _get_player_strength(self, player: Any) -> int:
         """Calcula uma pontuação de força simples para um jogador."""
         if not player:
             return 0
-        # Aumenta o peso do CV para diferenciar melhor os níveis
         return player.town_hall * 100
 
     def _is_first_half_of_war(self, war: Any) -> bool:
         """Verifica se a guerra está na primeira metade (primeiras 12 horas)."""
+        if war.state != 'inWar' or not hasattr(war, 'start_time') or not war.start_time.time:
+            return True # Assume que é a primeira metade se não estiver em guerra ou não tiver tempo de início
+
         now = datetime.datetime.now(pytz.utc)
         war_start_time = war.start_time.time.replace(tzinfo=pytz.utc)
         twelve_hours_in = war_start_time + datetime.timedelta(hours=12)
@@ -36,10 +38,10 @@ class WarAdvisorSystem:
         """Gera recomendações para a primeira fase da guerra (ataques iniciais)."""
         recommendations = []
         opponent_map = {m.map_position: m for m in opponent.members}
-        assigned_targets = set() # NOVO: Para garantir alvos únicos
+        assigned_targets = set()
 
         for member in sorted(our_clan.members, key=lambda m: m.map_position):
-            if member.attacks: # Se o membro já atacou, não gera recomendação inicial
+            if member.attacks:
                 continue
 
             rec = {
@@ -51,15 +53,12 @@ class WarAdvisorSystem:
             if not mirror: continue
 
             our_strength = self._get_player_strength(member)
-            
-            # Tenta encontrar o alvo ideal
             target = None
-            
-            # 1. Lógica de "Dip" (atacar mais fraco)
+
+            # 1. Lógica de "Dip"
             if our_strength > self._get_player_strength(mirror) + 50:
-                # Procura o alvo mais forte que ainda não foi designado e que seja mais fraco que nós
                 possible_targets = [
-                    m for m in opponent.members 
+                    m for m in opponent.members
                     if m.map_position not in assigned_targets and self._get_player_strength(m) < our_strength
                 ]
                 if possible_targets:
@@ -69,9 +68,8 @@ class WarAdvisorSystem:
                         "justification": "Você tem vantagem. Ataque um alvo forte para aliviar para o time."
                     })
 
-            # 2. Lógica de "Safe" (atacar mais fraco que o espelho)
+            # 2. Lógica de "Safe"
             if not target and our_strength < self._get_player_strength(mirror) - 50:
-                # Procura o alvo mais fraco disponível
                 possible_targets = [m for m in opponent.members if m.map_position not in assigned_targets]
                 if possible_targets:
                     target = min(possible_targets, key=lambda m: self._get_player_strength(m))
@@ -80,22 +78,31 @@ class WarAdvisorSystem:
                         "justification": "Seu espelho é forte. Garanta 3 estrelas num alvo mais acessível."
                     })
 
-            # 3. Lógica do Espelho (se nenhuma outra se aplicar)
+            # 3. Lógica do Espelho
             if not target:
                 target = mirror
                 rec.update({
                     "type": "mirror",
                     "justification": "Ataque seu espelho. O objetivo é garantir no mínimo 2 estrelas."
                 })
-            
-            # Garante que, se o alvo ideal já estiver pego, pegue o mais próximo disponível
+
+            # Garante alvo único
+            original_target_pos = target.map_position if target else None
             while target and target.map_position in assigned_targets:
                 next_pos = target.map_position + 1
                 target = opponent_map.get(next_pos)
-                if not target: # Se chegar no fim da lista, para.
-                    break
+            
+            # Se não encontrar substituto, tenta para baixo
+            if not target or target.map_position in assigned_targets:
+                 current_pos = original_target_pos
+                 while current_pos and current_pos > 0:
+                     current_pos -= 1
+                     potential_target = opponent_map.get(current_pos)
+                     if potential_target and potential_target.map_position not in assigned_targets:
+                         target = potential_target
+                         break
 
-            if target:
+            if target and target.map_position not in assigned_targets:
                 assigned_targets.add(target.map_position)
                 rec.update({
                     "recommended_target_pos": target.map_position,
@@ -110,7 +117,6 @@ class WarAdvisorSystem:
         recommendations = []
         three_starred_tags = {a.defender_tag for a in war.attacks if a.stars == 3}
         
-        # Identifica alvos prioritários para limpeza
         cleanup_targets = []
         for member in opponent.members:
             if member.tag in three_starred_tags or not member.defenses:
@@ -125,9 +131,8 @@ class WarAdvisorSystem:
                     "tag": member.tag,
                     "th": member.town_hall
                 })
-        cleanup_targets.sort(key=lambda x: (x['stars'], -x['destruction'])) # Prioriza 1 estrela, depois maior destruição
+        cleanup_targets.sort(key=lambda x: (x['stars'], -x['destruction']))
 
-        # Designa os melhores jogadores para os alvos de limpeza
         available_attackers = [
             m for m in our_clan.members if len(m.attacks) < war.attacks_per_member
         ]
@@ -139,7 +144,7 @@ class WarAdvisorSystem:
                 "member_pos": member.map_position, "attack_number": len(member.attacks) + 1,
             }
             if cleanup_targets:
-                target = cleanup_targets.pop(0) # Pega o alvo de maior prioridade
+                target = cleanup_targets.pop(0)
                 rec.update({
                     "type": "cleanup",
                     "recommended_target_pos": target["position"],
@@ -147,18 +152,18 @@ class WarAdvisorSystem:
                     "justification": f"Limpeza no alvo #{target['position']} ({target['stars']}★ {target['destruction']}%). A 3ª estrela é crucial!"
                 })
             else:
-                # Se não houver alvos de limpeza, recomenda um ataque seguro
                 mirror = opponent.get_member(map_position=member.map_position)
+                safe_target_pos = member.map_position + 2
+                safe_target = opponent.get_member(map_position=safe_target_pos) or mirror
                 rec.update({
                     "type": "safe",
-                    "recommended_target_pos": member.map_position + 2,
-                    "recommended_target_th": opponent.get_member(map_position=member.map_position+2).town_hall if opponent.get_member(map_position=member.map_position+2) else mirror.town_hall,
+                    "recommended_target_pos": safe_target.map_position,
+                    "recommended_target_th": safe_target.town_hall,
                     "justification": "Não há alvos para limpeza. Faça um ataque seguro para garantir 3 estrelas."
                 })
             recommendations.append(rec)
             
         return recommendations
-
 
     def create_war_plan(self, war: Any, clan_tag: str, prediction_data: Dict) -> Dict[str, Any]:
         """Ponto de entrada principal para gerar o plano de guerra, agora com fases."""
@@ -169,17 +174,23 @@ class WarAdvisorSystem:
             our_clan = war.clan if war.clan.tag == clan_tag else war.opponent
             opponent = war.opponent if war.clan.tag == clan_tag else war.clan
             
-            is_first_half = self._is_first_half_of_war(war) if war.state == 'inWar' else True
-            
-            if war.state == 'preparation' or is_first_half:
+            # Lógica de Fases Refinada
+            if war.state == 'preparation':
                 phase = 1
-                phase_title = "Fase 1: Alvos para o Primeiro Ataque"
+                phase_title = "Fase 1: Alvos para o Primeiro Ataque (Preparação)"
                 recommendations = self._generate_recommendations_phase1(our_clan, opponent)
-            else:
-                phase = 2
-                phase_title = "Fase 2: Alvos para Limpeza e Ataques Estratégicos"
-                recommendations = self._generate_recommendations_phase2(war, our_clan, opponent)
-            
+            elif war.state == 'inWar':
+                if self._is_first_half_of_war(war):
+                    phase = 1
+                    phase_title = "Fase 1: Alvos para o Primeiro Ataque"
+                    recommendations = self._generate_recommendations_phase1(our_clan, opponent)
+                else:
+                    phase = 2
+                    phase_title = "Fase 2: Alvos para Limpeza e Ataques Estratégicos"
+                    recommendations = self._generate_recommendations_phase2(war, our_clan, opponent)
+            else: # Fallback, não deve acontecer
+                 return {"error": "Estado de guerra inválido para gerar plano."}
+
             recommendations.sort(key=lambda x: x['member_pos'])
 
             return {
