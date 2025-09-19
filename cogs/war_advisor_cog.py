@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Módulo do Conselheiro de Guerra IA - ClashGenius (v4.0 - Correção Finalíssima)
+Módulo do Conselheiro de Guerra IA - ClashGenius (v4.1 - Lógica de Alvos Corrigida)
 Sistema inteligente para análise e geração de planos táticos de guerra.
 """
 
@@ -50,7 +50,7 @@ class WarAdvisorSystem:
     MIN_CONFIDENCE_SCORE = 0.3
     
     def __init__(self):
-        self.logger = logging.getLogger("war_advisor_v4.0")
+        self.logger = logging.getLogger("war_advisor_v4.1")
         self._setup_logging()
 
     def _setup_logging(self):
@@ -105,11 +105,28 @@ class WarAdvisorSystem:
                 confidence_score=0.1
             ))
         return recommendations
+    
+    def _get_three_starred_opponent_tags(self, war: Any) -> set:
+        """Retorna um set com as tags dos oponentes que já levaram 3 estrelas."""
+        three_starred_tags = set()
+        if not war.opponent or not war.opponent.members:
+            return three_starred_tags
+            
+        for member in war.opponent.members:
+            if member.best_opponent_attack and member.best_opponent_attack.stars == 3:
+                three_starred_tags.add(member.tag)
+        return three_starred_tags
 
     def _find_optimal_target(self, attacker: Any, opponent_members: List[Any], 
-                           assigned_targets: set, attack_type: AttackType) -> Optional[Any]:
+                           assigned_targets: set, attack_type: AttackType, three_starred_tags: set) -> Optional[Any]:
         attacker_strength = self._calculate_player_strength(attacker)
-        available_targets = [m for m in opponent_members if m.map_position not in assigned_targets]
+        
+        # CORREÇÃO: Filtra alvos que já levaram 3 estrelas
+        available_targets = [
+            m for m in opponent_members 
+            if m.map_position not in assigned_targets and m.tag not in three_starred_tags
+        ]
+
         if not available_targets:
             return None
         if attack_type == AttackType.DIP:
@@ -136,40 +153,53 @@ class WarAdvisorSystem:
             diff = abs(strength_ratio - 1.0)
             return max(0.4, 0.8 - diff * 0.3)
 
-    def _generate_phase1_recommendations(self, our_clan: Any, opponent: Any) -> List[AttackRecommendation]:
+    def _generate_phase1_recommendations(self, war: Any, our_clan: Any, opponent: Any) -> List[AttackRecommendation]:
         recommendations = []
         
-        # Validação crucial: Verifica se temos os dados dos membros
         if not our_clan.members or not opponent.members:
              self.logger.error("Tentativa de gerar plano tático sem dados dos membros. Abortando.")
              return []
+
+        # CORREÇÃO: Obtém a lista de alvos já fechados
+        three_starred_tags = self._get_three_starred_opponent_tags(war)
 
         opponent_map = {m.map_position: m for m in opponent.members}
         assigned_targets = set()
         for member in sorted(our_clan.members, key=lambda m: m.map_position):
             if member.attacks:
                 continue
+            
             member_strength = self._calculate_player_strength(member)
             mirror = opponent_map.get(member.map_position)
             if not mirror:
                 self.logger.warning(f"Espelho não encontrado para {member.name} (pos: {member.map_position})")
                 continue
+                
             mirror_strength = self._calculate_player_strength(mirror)
             attack_type = AttackType.MIRROR
             target = None
             strength_diff = member_strength - mirror_strength
+            
+            # CORREÇÃO: Passa a lista de 3 estrelas para a função de busca
             if strength_diff > self.STRENGTH_DIFFERENCE_THRESHOLD:
                 attack_type = AttackType.DIP
-                target = self._find_optimal_target(member, opponent.members, assigned_targets, AttackType.DIP)
+                target = self._find_optimal_target(member, opponent.members, assigned_targets, AttackType.DIP, three_starred_tags)
             elif strength_diff < -self.STRENGTH_DIFFERENCE_THRESHOLD:
                 attack_type = AttackType.SAFE
-                target = self._find_optimal_target(member, opponent.members, assigned_targets, AttackType.SAFE)
+                target = self._find_optimal_target(member, opponent.members, assigned_targets, AttackType.SAFE, three_starred_tags)
+            
             if not target:
                 attack_type = AttackType.MIRROR
-                target = self._find_optimal_target(member, opponent.members, assigned_targets, AttackType.MIRROR)
+                target = self._find_optimal_target(member, opponent.members, assigned_targets, AttackType.MIRROR, three_starred_tags)
+
             if target and target.map_position not in assigned_targets:
                 confidence = self._calculate_confidence_score(member, target, attack_type)
-                alternative_targets = sorted([alt.map_position for alt in opponent.members if alt.map_position != target.map_position and alt.map_position not in assigned_targets])[:2]
+                # CORREÇÃO: Alternativas também devem ignorar alvos com 3 estrelas
+                alternative_targets = sorted([
+                    alt.map_position for alt in opponent.members 
+                    if alt.map_position != target.map_position and alt.map_position not in assigned_targets and alt.tag not in three_starred_tags
+                ])[:2]
+
                 justifications = {
                     AttackType.DIP: f"Você tem vantagem significativa (+{int(strength_diff)}). Ataque um alvo forte para aliviar o time.",
                     AttackType.SAFE: f"Seu espelho é mais forte (-{int(abs(strength_diff))}). Garanta 3 estrelas num alvo mais acessível.",
@@ -187,7 +217,7 @@ class WarAdvisorSystem:
         return recommendations
 
     def _get_cleanup_targets(self, war: Any, opponent: Any) -> List[Dict[str, Any]]:
-        three_starred_tags = {a.defender_tag for a in war.attacks if a.stars == 3}
+        three_starred_tags = self._get_three_starred_opponent_tags(war) # Reutiliza a função
         cleanup_targets = []
         for member in opponent.members:
             if member.tag in three_starred_tags or not member.defenses:
@@ -207,6 +237,10 @@ class WarAdvisorSystem:
         recommendations = []
         cleanup_targets = self._get_cleanup_targets(war, opponent)
         available_attackers = sorted([m for m in our_clan.members if len(m.attacks) < war.attacks_per_member], key=self._calculate_player_strength, reverse=True)
+        
+        # CORREÇÃO: Lista de alvos já fechados para evitar recomendar ataques seguros em bases 3 estrelas
+        three_starred_tags = self._get_three_starred_opponent_tags(war)
+
         for member in available_attackers:
             attack_num = len(member.attacks) + 1
             if cleanup_targets:
@@ -221,8 +255,10 @@ class WarAdvisorSystem:
                     confidence_score=confidence
                 )
             else:
-                safe_target_pos = min(member.map_position + 2, len(opponent.members))
-                safe_target = next((m for m in opponent.members if m.map_position == safe_target_pos), opponent.members[-1])
+                # CORREÇÃO: Encontra um alvo seguro que ainda não tenha 3 estrelas
+                safe_target = next((m for m in opponent.members if m.tag not in three_starred_tags), None)
+                if not safe_target: continue # Não há mais alvos disponíveis
+
                 rec = AttackRecommendation(
                     member_name=member.name, member_th=member.town_hall,
                     member_pos=member.map_position, attack_number=attack_num,
@@ -245,23 +281,20 @@ class WarAdvisorSystem:
             
             war_phase = self._determine_war_phase(war)
             
-            # LÓGICA CORRIGIDA E FINAL
             if war_phase == WarPhase.PREPARATION:
-                # Em guerras normais, os dados do oponente ESTÃO disponíveis.
                 if opponent.members and len(opponent.members) >= war.team_size:
                     self.logger.info("Dados do oponente disponíveis na preparação. Gerando plano tático completo.")
                     phase_title = "Plano Tático - Preparação"
-                    recommendations = self._generate_phase1_recommendations(our_clan, opponent)
+                    recommendations = self._generate_phase1_recommendations(war, our_clan, opponent)
                     status = "active_preparation"
                 else:
-                    # Se, por algum motivo da API, não vierem, usa placeholders.
                     self.logger.warning("Dados do oponente indisponíveis na preparação. Gerando plano de placeholders.")
                     phase_title = "Plano de Posições - Preparação"
                     recommendations = self._generate_placeholder_plan(war)
                     status = "provisional"
             elif war_phase == WarPhase.PHASE_1:
                 phase_title = "Fase 1 - Ataques Iniciais Táticos"
-                recommendations = self._generate_phase1_recommendations(our_clan, opponent)
+                recommendations = self._generate_phase1_recommendations(war, our_clan, opponent)
                 status = "active"
             else: # WarPhase.PHASE_2
                 phase_title = "Fase 2 - Limpeza e Finalização"
@@ -269,7 +302,7 @@ class WarAdvisorSystem:
                 status = "cleanup"
 
             if not recommendations:
-                 return {"success": True, "phase_title": "Aguardando dados...", "recommendations": []}
+                 return {"success": True, "phase_title": "Nenhuma recomendação necessária no momento.", "recommendations": []}
 
             recommendations.sort(key=lambda x: x.member_pos)
             
@@ -318,3 +351,4 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarAdvisorCog(bot))
+
