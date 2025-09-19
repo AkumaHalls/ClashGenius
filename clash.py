@@ -384,14 +384,14 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not bot_instance.coc_client_ready.is_set():
             return web.json_response({"success": False, "error": "Bot a iniciar."}, status=503)
         try:
-            # CORREÇÃO: Pega a instância do cog
             advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
             if not advisor_cog or not hasattr(advisor_cog, 'war_advisor'):
                  return web.json_response({"success": False, "error": "Módulo do conselheiro não carregado."}, status=500)
 
             war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag)
             prediction_data = await bot_instance.war_prediction_system.predict_war_outcome(war, bot_instance.clan_tag)
-            # CORREÇÃO: Chama o método na instância correta
+            
+            # CORREÇÃO: Remove o argumento 'main_clan_obj' que não é mais necessário
             plan = advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
             return web.json_response(plan)
         except (coc.NotFound, coc.PrivateWarLog):
@@ -532,4 +532,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
