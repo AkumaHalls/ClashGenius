@@ -234,7 +234,7 @@ class WarAdvisorSystem:
             recommendations.append(rec)
         return recommendations
 
-    def create_war_plan(self, war: Any, clan_tag: str, prediction_data: Dict, main_clan_obj: Any) -> Dict[str, Any]:
+    def create_war_plan(self, war: Any, clan_tag: str, prediction_data: Dict) -> Dict[str, Any]:
         if not war or war.state not in ['inWar', 'preparation']:
             return {"success": False, "error": "A guerra não está ativa ou em preparação."}
         try:
@@ -318,4 +318,3 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarAdvisorCog(bot))
-
