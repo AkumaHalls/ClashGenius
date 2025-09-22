@@ -94,15 +94,17 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             logger.info("Enviando atualização periódica dos Jogos do Clã...")
             await self.post_status_update()
     
-    @tasks.loop(hours=1)
+    @tasks.loop(minutes=15)
     async def auto_manage_clan_games(self):
-        """Verifica a cada hora se os Jogos do Clã devem começar ou terminar."""
+        """Verifica a cada 15 minutos se os Jogos do Clã devem começar ou terminar."""
         now_utc = datetime.datetime.now(pytz.utc)
         
+        # Lógica de Início
         if now_utc.day == 22 and now_utc.hour >= 8 and not await self._is_snapshot_active():
             logger.info("Data de início dos Jogos do Clã detectada. Iniciando monitoramento automático.")
             await self.take_snapshot(automated=True)
 
+        # Lógica de Término
         if now_utc.day == 28 and now_utc.hour >= 8 and await self._is_snapshot_active():
             logger.info("Data de término dos Jogos do Clã detectada. Finalizando monitoramento.")
             await self.post_status_update(is_final_report=True)
@@ -112,6 +114,9 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
     @auto_manage_clan_games.before_loop
     async def before_tasks(self):
         await self.bot.wait_until_ready()
+        # ADICIONADO: Garante que o cliente da API do Clash of Clans está logado antes de iniciar as tarefas.
+        # Isso previne erros caso a tarefa tente rodar antes do login ser concluído.
+        await self.bot.coc_client_ready.wait()
         
     @commands.group(name='cgs', invoke_without_command=True)
     async def cgs(self, ctx: commands.Context):
@@ -129,7 +134,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         await self.take_snapshot(automated=False)
         await ctx.message.remove_reaction("🔄", self.bot.user)
         await ctx.message.add_reaction("✅")
-        await ctx.send("Monitoramento dos Jogos do Clã iniciado manually.")
+        await ctx.send("Monitoramento dos Jogos do Clã iniciado manualmente.")
 
     @cgs.command(name='stop')
     @commands.has_permissions(administrator=True)
@@ -192,11 +197,15 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         for i, player in enumerate(player_scores[:10]):
             if player['score'] > 0:
                 top_contributors_str += f"`{i+1}.` **{player['name']}**: {player['score']:,} pontos\n"
-        if not top_contributors_str: top_contributors_str = "Ninguém pontuou."
+        if not top_contributors_str: top_contributors_str = "Ninguém pontou."
         
         embed.add_field(name="🏆 Maiores Contribuidores", value=top_contributors_str, inline=False)
         
-        await self._send_to_channel(embed=embed)
+        if is_manual_request:
+            await ctx.send(embed=embed)
+        else:
+            await self._send_to_channel(embed=embed)
+        
         if is_manual_request:
             await ctx.message.remove_reaction("🔄", self.bot.user)
             await ctx.message.add_reaction("✅")
