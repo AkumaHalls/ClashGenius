@@ -435,18 +435,23 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function populateWarAdvisorPlan(data) {
         if (!warAdvisorContentEl) return;
-        
-        const advisorPhaseTimerEl = document.getElementById('advisorPhaseTimer');
-        const advisorPhaseTimerTextEl = document.getElementById('advisorPhaseTimerText');
-        
+
         // Limpa o timer anterior para evitar múltiplos intervalos
         if (phaseTimerInterval) {
             clearInterval(phaseTimerInterval);
             phaseTimerInterval = null;
         }
 
-        if (data.phase_2_start_time_iso) {
-            const phase2StartTime = new Date(data.phase_2_start_time_iso);
+        const advisorPhaseTimerEl = document.getElementById('advisorPhaseTimer');
+        const advisorPhaseTimerTextEl = document.getElementById('advisorPhaseTimerText');
+        
+        // CORREÇÃO: A lógica do timer é movida para DENTRO da função que popula o plano
+        const startPhaseTimer = (isoTime) => {
+            if (!isoTime) {
+                advisorPhaseTimerEl.style.display = 'none';
+                return;
+            }
+            const phase2StartTime = new Date(isoTime);
             advisorPhaseTimerEl.style.display = 'block';
             
             phaseTimerInterval = setInterval(() => {
@@ -466,13 +471,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 setText(advisorPhaseTimerTextEl, `${hours}h ${minutes}m ${seconds}s`);
             }, 1000);
-        } else {
-            advisorPhaseTimerEl.style.display = 'none';
-        }
-
+        };
+        
+        // Inicia o timer com os dados recebidos
+        startPhaseTimer(data.phase_2_start_time_iso);
 
         if (!data.success) {
-            setHtml(warAdvisorContentEl, `<p class="message-box">${data.error || 'Nenhuma recomendação disponível.'}</p>`);
+            // Esconde o timer se houver um erro
+            advisorPhaseTimerEl.style.display = 'none';
+            // Remove o spinner e mostra a mensagem de erro
+            setHtml(warAdvisorContentEl.querySelector('.advisor-plan-container'), `<p class="message-box">${data.error || 'Nenhuma recomendação disponível.'}</p>`);
             return;
         }
 
@@ -526,9 +534,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         contentHtml += '</div>';
         
-        // Preenche o conteúdo, mas mantém o timer
-        const currentContent = advisorPhaseTimerEl.outerHTML + contentHtml;
-        setHtml(warAdvisorContentEl, currentContent);
+        // Adiciona o conteúdo do plano ao container, mantendo o timer visível
+        const planContainer = warAdvisorContentEl.querySelector('.advisor-plan-container');
+        if (planContainer) {
+            // Preserva o elemento do timer e substitui o resto
+            const timerHTML = advisorPhaseTimerEl.outerHTML;
+            planContainer.innerHTML = timerHTML + contentHtml;
+        } else {
+             setHtml(warAdvisorContentEl, contentHtml);
+        }
     }
 
     function populateMissedAttacksHistory(data) {
