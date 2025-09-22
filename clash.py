@@ -391,8 +391,15 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag)
             prediction_data = await bot_instance.war_prediction_system.predict_war_outcome(war, bot_instance.clan_tag)
             
-            # CORREÇÃO: Remove o argumento 'main_clan_obj' que não é mais necessário
             plan = advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
+            
+            # Lógica para adicionar o tempo de início da Fase 2
+            if war.state == 'inWar' and hasattr(war, 'start_time') and war.start_time.time:
+                start_time_utc = war.start_time.time.replace(tzinfo=pytz.utc)
+                phase_2_start_time = start_time_utc + datetime.timedelta(hours=12)
+                # Adiciona a informação ao dicionário do plano que será enviado como JSON
+                plan['phase_2_start_time_iso'] = phase_2_start_time.isoformat()
+
             return web.json_response(plan)
         except (coc.NotFound, coc.PrivateWarLog):
             return web.json_response({"success": False, "error": "Nenhuma guerra ativa."})
@@ -442,7 +449,10 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_inactivity_check_handler(request):
         cwl_cog = bot_instance.get_cog("Planeador de CWL")
         if not cwl_cog: return web.json_response({"error": "O módulo do planeador CWL não está ativo."}, status=500)
-        alert = await cwl_cog.get_inactivity_alert() 
+        # CORREÇÃO: A função no cog não existe, precisa ser implementada ou removida.
+        # Por enquanto, retornaremos um placeholder.
+        # alert = await cwl_cog.get_inactivity_alert() 
+        alert = {"alert": None} # Placeholder
         return web.json_response(alert)
 
     # --- Rotas da API ---
@@ -532,3 +542,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
