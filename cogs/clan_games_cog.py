@@ -14,7 +14,8 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.api_client: coc.Client = bot.api_client
+        # CORREÇÃO: Não armazenar uma cópia local do api_client.
+        # A referência será sempre self.bot.api_client para garantir que usamos a instância logada.
         self.db = bot.db
         self.clan_tag: str = bot.clan_tag
         self.channel_id: int = bot.clan_games_channel_id
@@ -54,13 +55,15 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             logger.warning("Tentativa de iniciar Jogos do Clã, mas um snapshot já está ativo.")
             return
 
-        clan = await self.api_client.get_clan(self.clan_tag)
+        # CORREÇÃO: Usa a referência direta e sempre atual do bot.
+        clan = await self.bot.api_client.get_clan(self.clan_tag)
         if not clan: return
 
         snapshot_data = []
         for member in clan.members:
             try:
-                player = await self.api_client.get_player(member.tag)
+                # CORREÇÃO: Usa a referência direta e sempre atual do bot.
+                player = await self.bot.api_client.get_player(member.tag)
                 games_achievement = player.get_achievement("Games Champion")
                 snapshot_data.append({
                     "_id": player.tag,
@@ -114,8 +117,6 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
     @auto_manage_clan_games.before_loop
     async def before_tasks(self):
         await self.bot.wait_until_ready()
-        # ADICIONADO: Garante que o cliente da API do Clash of Clans está logado antes de iniciar as tarefas.
-        # Isso previne erros caso a tarefa tente rodar antes do login ser concluído.
         await self.bot.coc_client_ready.wait()
         
     @commands.group(name='cgs', invoke_without_command=True)
@@ -159,7 +160,8 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
 
         initial_data_cursor = self.snapshot_collection.find({})
         initial_data = {doc["_id"]: doc for doc in await initial_data_cursor.to_list(length=50)}
-        clan = await self.api_client.get_clan(self.clan_tag)
+        # CORREÇÃO: Usa a referência direta e sempre atual do bot.
+        clan = await self.bot.api_client.get_clan(self.clan_tag)
         
         player_scores = []
         total_points = 0
@@ -167,7 +169,8 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         for member in clan.members:
             if member.tag in initial_data:
                 try:
-                    player = await self.api_client.get_player(member.tag)
+                    # CORREÇÃO: Usa a referência direta e sempre atual do bot.
+                    player = await self.bot.api_client.get_player(member.tag)
                     current_points = player.get_achievement("Games Champion").value
                     initial_points = initial_data[member.tag]["initial_points"]
                     score = current_points - initial_points
