@@ -185,15 +185,16 @@
                         <p>3⭐: <span id="statsOpponentStars3">-</span> | 2⭐: <span id="statsOpponentStars2">-</span> | 1⭐: <span id="statsOpponentStars1">-</span> | 0⭐: <span id="statsOpponentStars0">-</span></p>
                     </div>
                 </div>
-                <!-- INÍCIO: Conteúdo da aba Plano de Ataque IA corrigido -->
                 <div id="war-advisor" class="war-tab-content">
                     <div id="warAdvisorContent" class="advisor-plan-container">
-                        <!-- O JavaScript irá popular esta área. Adicionado um placeholder de carregamento. -->
+                        <div id="advisorPhaseTimer" class="advisor-phase-timer" style="display: none;">
+                            <h4>MUDANÇA DE FASE</h4>
+                            <p id="advisorPhaseTimerText">Calculando...</p>
+                        </div>
                         <div class="loading-spinner" style="margin: 20px auto;"></div>
                         <p style="text-align:center;">A carregar plano de ataque da IA...</p>
                     </div>
                 </div>
-                <!-- FIM: Conteúdo da aba Plano de Ataque IA corrigido -->
                 <div id="war-events" class="war-tab-content">
                     <h3>Todos os Ataques (<span id="warTotalAttacksCount">0</span>)</h3>
                     <div class="table-container scrollable-box medium-table">
@@ -243,7 +244,6 @@
                 </div>
                 <p id="noCwlMessage" class="message-box" style="display: none;">O clã não está em CWL ou informações não disponíveis.</p>
             
-                <!-- INÍCIO: Nova Seção do Planejador de CWL -->
                 <div id="cwlPlannerSection" class="cwl-planner-container">
                     <h3><span class="ai-indicator"></span>🔮 Planejador Estratégico de CWL (IA)</h3>
                     <p class="planner-description">
@@ -257,21 +257,17 @@
                     <div id="cwlPlanResult" class="cwl-plan-result" style="display: none;">
                         <div class="cwl-plan-tabs-container">
                             <nav class="cwl-plan-tabs" id="cwlPlanDaysTabs">
-                                <!-- As abas dos dias serão inseridas aqui -->
                             </nav>
                         </div>
                         <div class="cwl-plan-content" id="cwlPlanContent">
-                            <!-- O conteúdo do dia selecionado será inserido aqui -->
                         </div>
                     </div>
 
-                    <!-- Alerta de Inatividade em Tempo Real -->
                     <div id="cwlInactivityAlert" class="inactivity-alert" style="display: none;">
                         <h4><span class="ai-indicator"></span>🚨 Alerta de Inatividade</h4>
                         <p id="cwlInactivityText">-</p>
                     </div>
                 </div>
-                <!-- FIM: Nova Seção do Planejador de CWL -->
             </section>
 
             <section id="war-log-nav" class="card war-log-card content-section">
@@ -301,7 +297,6 @@
                     <input type="text" id="filterTH" placeholder="Filtrar por CV (ex: 12)...">
                 </div>
                 <div id="membersGrid" class="members-grid">
-                    <!-- Cards dos membros serão inseridos aqui -->
                 </div>
             </section>
         </div>
@@ -387,3 +382,4 @@
     <script src="/static/js/scripts.js"></script>
 </body>
 </html>
+
