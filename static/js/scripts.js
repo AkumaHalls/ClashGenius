@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
     const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
+    let phaseTimerInterval = null; // Variável para controlar o timer
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
@@ -435,6 +436,41 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateWarAdvisorPlan(data) {
         if (!warAdvisorContentEl) return;
         
+        const advisorPhaseTimerEl = document.getElementById('advisorPhaseTimer');
+        const advisorPhaseTimerTextEl = document.getElementById('advisorPhaseTimerText');
+        
+        // Limpa o timer anterior para evitar múltiplos intervalos
+        if (phaseTimerInterval) {
+            clearInterval(phaseTimerInterval);
+            phaseTimerInterval = null;
+        }
+
+        if (data.phase_2_start_time_iso) {
+            const phase2StartTime = new Date(data.phase_2_start_time_iso);
+            advisorPhaseTimerEl.style.display = 'block';
+            
+            phaseTimerInterval = setInterval(() => {
+                const now = new Date();
+                const diff = phase2StartTime - now;
+
+                if (diff <= 0) {
+                    setText(advisorPhaseTimerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
+                    clearInterval(phaseTimerInterval);
+                    phaseTimerInterval = null;
+                    return;
+                }
+
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                setText(advisorPhaseTimerTextEl, `${hours}h ${minutes}m ${seconds}s`);
+            }, 1000);
+        } else {
+            advisorPhaseTimerEl.style.display = 'none';
+        }
+
+
         if (!data.success) {
             setHtml(warAdvisorContentEl, `<p class="message-box">${data.error || 'Nenhuma recomendação disponível.'}</p>`);
             return;
@@ -489,7 +525,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
 
         contentHtml += '</div>';
-        setHtml(warAdvisorContentEl, contentHtml);
+        
+        // Preenche o conteúdo, mas mantém o timer
+        const currentContent = advisorPhaseTimerEl.outerHTML + contentHtml;
+        setHtml(warAdvisorContentEl, currentContent);
     }
 
     function populateMissedAttacksHistory(data) {
@@ -811,7 +850,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const clanData = await fetchData('clan');
             if (clanData.error) {
-                if (!isFirstLoad) { // Evita esconder o overlay se for o primeiro load e falhar
+                if (!isFirstLoad) { 
                     loadingOverlayEl.classList.add('hidden');
                 }
                 return; 
@@ -824,7 +863,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 warLogData, 
                 cwlInfoData, 
                 highlightsData,
-                warAdvisorData // NOVO: Busca o plano de ataque
+                warAdvisorData
             ] = await Promise.all([
                 fetchData('members'), 
                 fetchData('current_war_details'),
@@ -832,12 +871,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchData('war_log'), 
                 fetchData('cwl_info'), 
                 fetchData('highlights'),
-                fetchData('war_advisor_plan') // NOVO
+                fetchData('war_advisor_plan')
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
             populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
-            populateWarAdvisorPlan(warAdvisorData); // NOVO
+            populateWarAdvisorPlan(warAdvisorData);
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
@@ -870,3 +909,4 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 45000);
 });
+
