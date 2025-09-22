@@ -69,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const warOurTeamMembersEl = document.getElementById('warOurTeamMembers');
     const warOpponentTeamNameEl = document.getElementById('warOpponentTeamName');
     const warOpponentTeamMembersEl = document.getElementById('warOpponentTeamMembers');
+    const warAdvisorContentEl = document.getElementById('warAdvisorContent');
 
     const attacksRemainingTitleEl = document.getElementById('attacksRemainingTitle');
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
@@ -430,6 +431,66 @@ document.addEventListener('DOMContentLoaded', () => {
             query(isModal ? '#historic-war-stats' : '#war-stats').style.display = 'block';
         }
     }
+    
+    function populateWarAdvisorPlan(data) {
+        if (!warAdvisorContentEl) return;
+        
+        if (!data.success) {
+            setHtml(warAdvisorContentEl, `<p class="message-box">${data.error || 'Nenhuma recomendação disponível.'}</p>`);
+            return;
+        }
+
+        let contentHtml = `
+            <div class="advisor-header">
+                <h3>${data.phase_title}</h3>
+                <p>${data.prediction_summary}</p>
+            </div>
+            <div class="advisor-grid">
+        `;
+
+        contentHtml += data.recommendations.map(rec => {
+            const confidencePercent = (rec.confidence_score * 100).toFixed(0);
+            let confidenceColor = 'low';
+            if (confidencePercent >= 75) {
+                confidenceColor = 'high';
+            } else if (confidencePercent >= 50) {
+                confidenceColor = 'medium';
+            }
+
+            const alternativesHtml = rec.alternative_targets.length > 0
+                ? `<div class="advisor-alternatives">
+                       <strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}
+                   </div>`
+                : '';
+
+            return `
+                <div class="advisor-card type-${rec.type}">
+                    <div class="advisor-member-info">
+                        <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
+                        <span>Ataque Nº ${rec.attack_number}</span>
+                    </div>
+                    <div class="advisor-target-info">
+                        <p>Alvo Recomendado</p>
+                        <span>#${rec.recommended_target_pos} (CV${rec.recommended_target_th})</span>
+                    </div>
+                    <div class="advisor-justification">
+                        <p><strong>IA:</strong> ${rec.justification}</p>
+                    </div>
+                    ${alternativesHtml}
+                    <div class="advisor-confidence">
+                        <span>Confiança da IA</span>
+                        <div class="confidence-bar-container">
+                            <div class="confidence-bar ${confidenceColor}" style="width: ${confidencePercent}%;"></div>
+                        </div>
+                        <span>${confidencePercent}%</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        contentHtml += '</div>';
+        setHtml(warAdvisorContentEl, contentHtml);
+    }
 
     function populateMissedAttacksHistory(data) {
         setText(attacksRemainingTitleEl.querySelector('span'), data.clan_name);
@@ -756,17 +817,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
-            const [membersData, currentWarDetailsData, missedAttacksData, warLogData, cwlInfoData, highlightsData] = await Promise.all([
+            const [
+                membersData, 
+                currentWarDetailsData, 
+                missedAttacksData, 
+                warLogData, 
+                cwlInfoData, 
+                highlightsData,
+                warAdvisorData // NOVO: Busca o plano de ataque
+            ] = await Promise.all([
                 fetchData('members'), 
                 fetchData('current_war_details'),
                 fetchData('missed_attacks_history'), 
                 fetchData('war_log'), 
                 fetchData('cwl_info'), 
-                fetchData('highlights')
+                fetchData('highlights'),
+                fetchData('war_advisor_plan') // NOVO
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
             populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
+            populateWarAdvisorPlan(warAdvisorData); // NOVO
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
@@ -799,4 +870,3 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 45000);
 });
-

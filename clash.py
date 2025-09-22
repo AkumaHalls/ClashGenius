@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.93-FINAL-FIX
+# Versão 20.1.95-AdvisorV4-FIX
 
 import os
 import logging
@@ -25,6 +25,8 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
+# A classe do sistema é importada diretamente do cog agora
+from cogs.war_advisor_cog import WarAdvisorSystem
 
 # --- Configuração do Logging ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -48,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.93-FINAL-FIX"
+BOT_VERSION = "20.1.95-AdvisorV4-FIX" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -70,6 +72,7 @@ class ClashGeniusBot(commands.Bot):
 
         self.api_client: Optional[coc.Client] = None
         self.war_prediction_system: Optional[WarPredictionSystemV3] = None
+        # O war_advisor_system será instanciado dentro do seu respectivo cog.
         self.db = None
         self.mongo_client = None
 
@@ -100,8 +103,10 @@ class ClashGeniusBot(commands.Bot):
         await self.war_prediction_system.initialize_system()
         
         logger.info("Carregando cogs...")
-        for filename in os.listdir('./cogs'):
-            if filename.endswith('_cog.py'):
+        cog_files = ['events_cog.py', 'tasks_cog.py', 'database_cog.py', 'general_cog.py', 
+                     'cwl_planner_cog.py', 'clan_games_cog.py', 'war_advisor_cog.py']
+        for filename in cog_files:
+            if filename.endswith('.py'):
                 cog_name = filename[:-3]
                 try:
                     await self.load_extension(f'cogs.{cog_name}')
@@ -144,7 +149,7 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
             
-    # --- MÉTODOS DE BUSCA DE DADOS COMPLETOS ---
+    # --- MÉTODOS DE BUSCA DE DADOS (sem alterações) ---
     async def fetch_clan_info_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
@@ -375,6 +380,26 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_info_handler(request): return await handle_web_response(request, 'cwl', bot_instance.fetch_cwl_info_for_web)
     async def api_highlights_handler(request): return await handle_web_response(request, 'highlights', bot_instance.fetch_highlights_for_web)
     
+    async def api_war_advisor_plan_handler(request):
+        if not bot_instance.coc_client_ready.is_set():
+            return web.json_response({"success": False, "error": "Bot a iniciar."}, status=503)
+        try:
+            advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
+            if not advisor_cog or not hasattr(advisor_cog, 'war_advisor'):
+                 return web.json_response({"success": False, "error": "Módulo do conselheiro não carregado."}, status=500)
+
+            war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag)
+            prediction_data = await bot_instance.war_prediction_system.predict_war_outcome(war, bot_instance.clan_tag)
+            
+            # CORREÇÃO: Remove o argumento 'main_clan_obj' que não é mais necessário
+            plan = advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
+            return web.json_response(plan)
+        except (coc.NotFound, coc.PrivateWarLog):
+            return web.json_response({"success": False, "error": "Nenhuma guerra ativa."})
+        except Exception as e:
+            logger.error(f"Erro no endpoint do war_advisor: {e}", exc_info=True)
+            return web.json_response({"success": False, "error": "Erro interno."}, status=500)
+
     async def api_save_player_note_handler(request):
         db_cog = bot_instance.get_cog("Banco de Dados")
         if not db_cog: return web.json_response({"error": "Cog de DB não encontrado."}, status=500)
@@ -428,6 +453,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/war_log", api_war_log_handler)
     app.router.add_get("/api/cwl_info", api_cwl_info_handler)
     app.router.add_get("/api/highlights", api_highlights_handler)
+    app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
@@ -435,6 +461,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
     app.router.add_get("/api/cwl/inactivity_check", api_cwl_inactivity_check_handler)
 
+    # (Resto do código do servidor web inalterado)
     # --- Rotas Estáticas e Principais ---
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     app.router.add_static('/static/', path=static_dir, name='static')
@@ -505,4 +532,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
