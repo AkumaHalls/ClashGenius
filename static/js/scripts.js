@@ -435,114 +435,101 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function populateWarAdvisorPlan(data) {
         if (!warAdvisorContentEl) return;
-
+    
         // Limpa o timer anterior para evitar múltiplos intervalos
         if (phaseTimerInterval) {
             clearInterval(phaseTimerInterval);
             phaseTimerInterval = null;
         }
-
+    
         const advisorPhaseTimerEl = document.getElementById('advisorPhaseTimer');
         const advisorPhaseTimerTextEl = document.getElementById('advisorPhaseTimerText');
         
-        // CORREÇÃO: A lógica do timer é movida para DENTRO da função que popula o plano
-        const startPhaseTimer = (isoTime) => {
-            if (!isoTime) {
+        // CORREÇÃO: A lógica é encapsulada para ser chamada após a renderização
+        const setupAdvisorUI = (planData) => {
+            if (!planData.success) {
                 advisorPhaseTimerEl.style.display = 'none';
+                setHtml(warAdvisorContentEl, `<div class="advisor-plan-container"><p class="message-box">${planData.error || 'Nenhuma recomendação disponível.'}</p></div>`);
                 return;
             }
-            const phase2StartTime = new Date(isoTime);
-            advisorPhaseTimerEl.style.display = 'block';
+    
+            let contentHtml = `
+                <div class="advisor-header">
+                    <h3>${planData.phase_title}</h3>
+                    <p>${planData.prediction_summary}</p>
+                </div>
+                <div class="advisor-grid">
+            `;
+    
+            contentHtml += planData.recommendations.map(rec => {
+                const confidencePercent = (rec.confidence_score * 100).toFixed(0);
+                let confidenceColor = 'low';
+                if (confidencePercent >= 75) confidenceColor = 'high';
+                else if (confidencePercent >= 50) confidenceColor = 'medium';
+    
+                const alternativesHtml = rec.alternative_targets.length > 0
+                    ? `<div class="advisor-alternatives"><strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}</div>`
+                    : '';
+    
+                return `
+                    <div class="advisor-card type-${rec.type}">
+                        <div class="advisor-member-info">
+                            <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
+                            <span>Ataque Nº ${rec.attack_number}</span>
+                        </div>
+                        <div class="advisor-target-info">
+                            <p>Alvo Recomendado</p>
+                            <span>#${rec.recommended_target_pos} (CV${rec.recommended_target_th})</span>
+                        </div>
+                        <div class="advisor-justification">
+                            <p><strong>IA:</strong> ${rec.justification}</p>
+                        </div>
+                        ${alternativesHtml}
+                        <div class="advisor-confidence">
+                            <span>Confiança da IA</span>
+                            <div class="confidence-bar-container">
+                                <div class="confidence-bar ${confidenceColor}" style="width: ${confidencePercent}%;"></div>
+                            </div>
+                            <span>${confidencePercent}%</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+    
+            contentHtml += '</div>';
             
-            phaseTimerInterval = setInterval(() => {
-                const now = new Date();
-                const diff = phase2StartTime - now;
-
-                if (diff <= 0) {
-                    setText(advisorPhaseTimerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
-                    clearInterval(phaseTimerInterval);
-                    phaseTimerInterval = null;
-                    return;
-                }
-
-                const hours = Math.floor(diff / (1000 * 60 * 60));
-                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-                setText(advisorPhaseTimerTextEl, `${hours}h ${minutes}m ${seconds}s`);
-            }, 1000);
+            // Renderiza o plano de ataque primeiro
+            setHtml(warAdvisorContentEl, `<div id="advisorPhaseTimer" class="advisor-phase-timer" style="display: none;"><h4>MUDANÇA DE FASE</h4><p id="advisorPhaseTimerText">Calculando...</p></div>` + contentHtml);
+            
+            // Depois de renderizar, inicia o timer se houver dados
+            if (planData.phase_2_start_time_iso) {
+                const phase2StartTime = new Date(planData.phase_2_start_time_iso);
+                const timerEl = document.getElementById('advisorPhaseTimer'); // Re-seleciona o elemento
+                const timerTextEl = document.getElementById('advisorPhaseTimerText');
+                timerEl.style.display = 'block';
+                
+                phaseTimerInterval = setInterval(() => {
+                    const now = new Date();
+                    const diff = phase2StartTime - now;
+    
+                    if (diff <= 0) {
+                        setText(timerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
+                        clearInterval(phaseTimerInterval);
+                        phaseTimerInterval = null;
+                        return;
+                    }
+    
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+                    setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
+                }, 1000);
+            }
         };
         
-        // Inicia o timer com os dados recebidos
-        startPhaseTimer(data.phase_2_start_time_iso);
-
-        if (!data.success) {
-            // Esconde o timer se houver um erro
-            advisorPhaseTimerEl.style.display = 'none';
-            // Remove o spinner e mostra a mensagem de erro
-            setHtml(warAdvisorContentEl.querySelector('.advisor-plan-container'), `<p class="message-box">${data.error || 'Nenhuma recomendação disponível.'}</p>`);
-            return;
-        }
-
-        let contentHtml = `
-            <div class="advisor-header">
-                <h3>${data.phase_title}</h3>
-                <p>${data.prediction_summary}</p>
-            </div>
-            <div class="advisor-grid">
-        `;
-
-        contentHtml += data.recommendations.map(rec => {
-            const confidencePercent = (rec.confidence_score * 100).toFixed(0);
-            let confidenceColor = 'low';
-            if (confidencePercent >= 75) {
-                confidenceColor = 'high';
-            } else if (confidencePercent >= 50) {
-                confidenceColor = 'medium';
-            }
-
-            const alternativesHtml = rec.alternative_targets.length > 0
-                ? `<div class="advisor-alternatives">
-                       <strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}
-                   </div>`
-                : '';
-
-            return `
-                <div class="advisor-card type-${rec.type}">
-                    <div class="advisor-member-info">
-                        <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
-                        <span>Ataque Nº ${rec.attack_number}</span>
-                    </div>
-                    <div class="advisor-target-info">
-                        <p>Alvo Recomendado</p>
-                        <span>#${rec.recommended_target_pos} (CV${rec.recommended_target_th})</span>
-                    </div>
-                    <div class="advisor-justification">
-                        <p><strong>IA:</strong> ${rec.justification}</p>
-                    </div>
-                    ${alternativesHtml}
-                    <div class="advisor-confidence">
-                        <span>Confiança da IA</span>
-                        <div class="confidence-bar-container">
-                            <div class="confidence-bar ${confidenceColor}" style="width: ${confidencePercent}%;"></div>
-                        </div>
-                        <span>${confidencePercent}%</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        contentHtml += '</div>';
-        
-        // Adiciona o conteúdo do plano ao container, mantendo o timer visível
-        const planContainer = warAdvisorContentEl.querySelector('.advisor-plan-container');
-        if (planContainer) {
-            // Preserva o elemento do timer e substitui o resto
-            const timerHTML = advisorPhaseTimerEl.outerHTML;
-            planContainer.innerHTML = timerHTML + contentHtml;
-        } else {
-             setHtml(warAdvisorContentEl, contentHtml);
-        }
+        // Inicia o processo
+        setupAdvisorUI(data);
     }
 
     function populateMissedAttacksHistory(data) {
@@ -923,4 +910,3 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 45000);
 });
-
