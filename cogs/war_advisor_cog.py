@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Módulo do Conselheiro de Guerra IA - ClashGenius (v5.2 - Lógica Segura)
+Módulo do Conselheiro de Guerra IA - ClashGenius (v5.3 - Lógica Segura e Heróis)
 Sistema inteligente para análise e geração de planos táticos de guerra.
-CORREÇÕES: Adicionada trava de segurança para ataques a CV superior.
+CORREÇÕES: Lógica de DIP mais segura e análise de força considera heróis em melhoria.
 """
 
 import logging
@@ -55,7 +55,7 @@ class WarAdvisorSystem:
     MIN_CONFIDENCE_SCORE = 0.4
     
     def __init__(self):
-        self.logger = logging.getLogger("war_advisor_v5.2")
+        self.logger = logging.getLogger("war_advisor_v5.3")
         self._setup_logging()
 
     def _setup_logging(self):
@@ -79,7 +79,10 @@ class WarAdvisorSystem:
         hero_bonus = 0
         if hasattr(player, 'heroes') and player.heroes:
             for hero in player.heroes:
-                if hero.is_home_base:
+                # --- MELHORIA ---
+                # SÓ adiciona o bônus se o herói for da vila principal E NÃO estiver melhorando.
+                # Um herói em melhoria não pode ser usado na guerra.
+                if hero.is_home_base and not hero.is_upgrading:
                     hero_multiplier = max(1, player.town_hall // 3)
                     hero_bonus += hero.level * hero_multiplier
         
@@ -126,13 +129,33 @@ class WarAdvisorSystem:
     def _find_optimal_target(self, attacker: Any, viable_targets: List[Any], attack_type: AttackType) -> Optional[Any]:
         if not viable_targets: return None
         attacker_strength = self._calculate_player_strength(attacker)
+        
+        # --- CORREÇÃO ---
+        # A lógica de DIP foi refeita para ser mais inteligente e menos arriscada.
         if attack_type == AttackType.DIP:
-            candidates = [t for t in viable_targets if t.town_hall >= attacker.town_hall]
-            return max(candidates, key=self._calculate_player_strength) if candidates else max(viable_targets, key=self._calculate_player_strength)
+            # 1. Tenta encontrar o alvo MAIS FORTE no MESMO NÍVEL de CV do atacante.
+            #    Isso é um "DIP" em um jogador rushado ou com heróis mais fracos.
+            same_th_candidates = [t for t in viable_targets if t.town_hall == attacker.town_hall]
+            if same_th_candidates:
+                return max(same_th_candidates, key=self._calculate_player_strength)
+
+            # 2. Se não houver, procura o alvo MAIS FRACO no CV imediatamente superior.
+            #    Atacar um CV acima é arriscado, então pegamos o mais fraco para aumentar a chance de 3 estrelas.
+            higher_th_candidates = [t for t in viable_targets if t.town_hall == attacker.town_hall + 1]
+            if higher_th_candidates:
+                return min(higher_th_candidates, key=self._calculate_player_strength)
+            
+            # 3. Como fallback, se não houver alvos ideais (ex: só CVs muito mais fortes), 
+            #    pega o alvo viável mais próximo da força do atacante para evitar uma recomendação absurda.
+            return min(viable_targets, key=lambda t: abs(self._calculate_player_strength(t) - attacker_strength))
+
         elif attack_type == AttackType.SAFE:
+            # Para ataques seguros, prioriza alvos mais fracos para garantir 3 estrelas.
             candidates = [t for t in viable_targets if t.town_hall <= attacker.town_hall and self._calculate_player_strength(t) <= attacker_strength]
             return min(candidates, key=self._calculate_player_strength) if candidates else min(viable_targets, key=self._calculate_player_strength)
+        
         else: # MIRROR
+            # Procura o espelho exato. Se não for viável, pega o alvo mais próximo em força.
             mirror = next((t for t in viable_targets if t.map_position == attacker.map_position), None)
             return mirror if mirror else min(viable_targets, key=lambda t: abs(self._calculate_player_strength(t) - attacker_strength))
 
@@ -326,7 +349,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
     @commands.command(name='plano')
     @commands.has_permissions(administrator=True)
     async def force_plan_generation(self, ctx):
-        await ctx.send("🔄 **Gerando plano de guerra v5.2...**")
+        await ctx.send("🔄 **Gerando plano de guerra v5.3...**")
         try:
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             prediction = await self.bot.war_prediction_system.predict_war_outcome(war, self.bot.clan_tag)
@@ -336,7 +359,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
                 await ctx.send(f"❌ **Erro:** {plan.get('error')}")
                 return
             
-            embed = discord.Embed(title=f"🎯 {plan.get('phase_title')}", description=f"**IA v5.2** - Análise com trava de segurança de CV.", color=discord.Color.green())
+            embed = discord.Embed(title=f"🎯 {plan.get('phase_title')}", description=f"**IA v5.3** - Análise com lógica de DIP segura e verificação de heróis.", color=discord.Color.green())
             stats = plan.get("statistics", {})
             if stats:
                 types = stats.get('attack_types', {})
@@ -394,4 +417,3 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarAdvisorCog(bot))
-
