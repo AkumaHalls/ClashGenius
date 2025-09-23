@@ -593,8 +593,8 @@ class WarAdvisorSystem:
             return {"success": False, "error": f"Erro interno: {e}"}
 
 
-class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA v5.4"):
-    """Cog do Discord para o sistema de conselheiro de guerra corrigido."""
+class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
+    """Cog do Discord para o sistema de conselheiro de guerra corrigido (v5.4)."""
     
     def __init__(self, bot):
         self.bot = bot
