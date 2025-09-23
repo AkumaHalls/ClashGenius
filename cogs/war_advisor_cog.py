@@ -121,7 +121,6 @@ class WarAdvisorSystem:
                            assigned_targets: set, attack_type: AttackType, three_starred_tags: set) -> Optional[Any]:
         attacker_strength = self._calculate_player_strength(attacker)
         
-        # CORREÇÃO: Filtra alvos que já levaram 3 estrelas
         available_targets = [
             m for m in opponent_members 
             if m.map_position not in assigned_targets and m.tag not in three_starred_tags
@@ -129,17 +128,29 @@ class WarAdvisorSystem:
 
         if not available_targets:
             return None
+
         if attack_type == AttackType.DIP:
             suitable_targets = [t for t in available_targets if self._calculate_player_strength(t) < attacker_strength]
             return max(suitable_targets, key=self._calculate_player_strength) if suitable_targets else None
+        
         elif attack_type == AttackType.SAFE:
+            # Lógica Aprimorada: Busca o alvo mais forte que ainda seja mais fraco que o atacante.
+            weaker_targets = [t for t in available_targets if self._calculate_player_strength(t) < attacker_strength]
+            if weaker_targets:
+                # Retorna o alvo mais forte entre os mais fracos (o "dip" mais valioso)
+                return max(weaker_targets, key=self._calculate_player_strength)
+            # Fallback: Se todos os alvos disponíveis são mais fortes, ataca o menos forte deles.
             return min(available_targets, key=self._calculate_player_strength)
+
         else: # MIRROR
             mirror_pos = attacker.map_position
             mirror_target = next((t for t in available_targets if t.map_position == mirror_pos), None)
             if mirror_target:
                 return mirror_target
-            return min(available_targets, key=lambda t: abs(t.map_position - mirror_pos))
+            
+            # Fallback Aprimorado: Se o espelho não está disponível, busca o alvo com a força mais próxima.
+            self.logger.warning(f"Espelho para {attacker.name} (Pos {mirror_pos}) indisponível. Buscando alvo por força similar.")
+            return min(available_targets, key=lambda t: abs(self._calculate_player_strength(t) - attacker_strength))
 
     def _calculate_confidence_score(self, attacker: Any, target: Any, attack_type: AttackType) -> float:
         attacker_strength = self._calculate_player_strength(attacker)
@@ -160,7 +171,6 @@ class WarAdvisorSystem:
              self.logger.error("Tentativa de gerar plano tático sem dados dos membros. Abortando.")
              return []
 
-        # CORREÇÃO: Obtém a lista de alvos já fechados
         three_starred_tags = self._get_three_starred_opponent_tags(war)
 
         opponent_map = {m.map_position: m for m in opponent.members}
@@ -180,7 +190,6 @@ class WarAdvisorSystem:
             target = None
             strength_diff = member_strength - mirror_strength
             
-            # CORREÇÃO: Passa a lista de 3 estrelas para a função de busca
             if strength_diff > self.STRENGTH_DIFFERENCE_THRESHOLD:
                 attack_type = AttackType.DIP
                 target = self._find_optimal_target(member, opponent.members, assigned_targets, AttackType.DIP, three_starred_tags)
@@ -194,22 +203,27 @@ class WarAdvisorSystem:
 
             if target and target.map_position not in assigned_targets:
                 confidence = self._calculate_confidence_score(member, target, attack_type)
-                # CORREÇÃO: Alternativas também devem ignorar alvos com 3 estrelas
                 alternative_targets = sorted([
                     alt.map_position for alt in opponent.members 
                     if alt.map_position != target.map_position and alt.map_position not in assigned_targets and alt.tag not in three_starred_tags
                 ])[:2]
 
-                justifications = {
-                    AttackType.DIP: f"Você tem vantagem significativa (+{int(strength_diff)}). Ataque um alvo forte para aliviar o time.",
-                    AttackType.SAFE: f"Seu espelho é mais forte (-{int(abs(strength_diff))}). Garanta 3 estrelas num alvo mais acessível.",
-                    AttackType.MIRROR: "Ataque equilibrado no seu espelho. Objetivo: mínimo 2 estrelas, idealmente 3."
-                }
+                justification_text = ""
+                if attack_type == AttackType.DIP:
+                    justification_text = f"Você tem vantagem significativa (+{int(strength_diff)}). Ataque um alvo forte para aliviar o time."
+                elif attack_type == AttackType.SAFE:
+                    justification_text = f"Seu espelho é mais forte (-{int(abs(strength_diff))}). Garanta 3 estrelas num alvo mais acessível."
+                elif attack_type == AttackType.MIRROR:
+                    if target.map_position == member.map_position:
+                        justification_text = "Ataque equilibrado no seu espelho. Objetivo: mínimo 2 estrelas, idealmente 3."
+                    else:
+                        justification_text = f"Seu espelho (#{member.map_position}) não está disponível. Atacando o alvo de força mais próxima."
+
                 rec = AttackRecommendation(
                     member_name=member.name, member_th=member.town_hall,
                     member_pos=member.map_position, attack_number=1,
                     attack_type=attack_type, recommended_target_pos=target.map_position,
-                    recommended_target_th=target.town_hall, justification=justifications[attack_type],
+                    recommended_target_th=target.town_hall, justification=justification_text,
                     confidence_score=confidence, alternative_targets=alternative_targets
                 )
                 assigned_targets.add(target.map_position)
@@ -238,7 +252,6 @@ class WarAdvisorSystem:
         cleanup_targets = self._get_cleanup_targets(war, opponent)
         available_attackers = sorted([m for m in our_clan.members if len(m.attacks) < war.attacks_per_member], key=self._calculate_player_strength, reverse=True)
         
-        # CORREÇÃO: Lista de alvos já fechados para evitar recomendar ataques seguros em bases 3 estrelas
         three_starred_tags = self._get_three_starred_opponent_tags(war)
 
         for member in available_attackers:
@@ -255,9 +268,8 @@ class WarAdvisorSystem:
                     confidence_score=confidence
                 )
             else:
-                # CORREÇÃO: Encontra um alvo seguro que ainda não tenha 3 estrelas
                 safe_target = next((m for m in opponent.members if m.tag not in three_starred_tags), None)
-                if not safe_target: continue # Não há mais alvos disponíveis
+                if not safe_target: continue
 
                 rec = AttackRecommendation(
                     member_name=member.name, member_th=member.town_hall,
@@ -351,4 +363,3 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarAdvisorCog(bot))
-
