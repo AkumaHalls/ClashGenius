@@ -543,13 +543,20 @@ class WarAdvisorSystem:
             recommendations.sort(key=lambda x: x.member_pos)
             
             # Log de estatísticas
-            avg_confidence = sum(r.confidence_score for r in recommendations) / len(recommendations)
+            avg_confidence = sum(r.confidence_score for r in recommendations) / len(recommendations) if recommendations else 0
             self.logger.info(f"Plano gerado: {len(recommendations)} recomendações, confiança média: {avg_confidence:.1%}")
             
+            # CORREÇÃO: Converte o Enum para string antes de retornar
+            recommendations_dict = []
+            for r in recommendations:
+                rec_data = r.__dict__
+                rec_data['attack_type'] = r.attack_type.value
+                recommendations_dict.append(rec_data)
+
             return {
                 "success": True,
                 "phase_title": phase_title,
-                "recommendations": [rec.__dict__ for rec in recommendations],
+                "recommendations": recommendations_dict,
                 "prediction_summary": prediction_data.get("summary_panel", "Análise em andamento..."),
                 "generated_at": datetime.datetime.now(pytz.utc).isoformat(),
                 "statistics": {
@@ -742,3 +749,4 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarAdvisorCog(bot))
+
