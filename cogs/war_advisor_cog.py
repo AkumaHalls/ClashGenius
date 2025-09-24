@@ -312,8 +312,7 @@ class WarAdvisorSystem:
         elif attack_type == AttackType.SAFE:
             if mirror and self._calculate_player_strength(mirror) > attacker_strength:
                 return f"Estratégia segura: Seu espelho é muito forte. Garanta 3⭐ no #{target.map_position}."
-            return f"Ataque seguro: Força superior (+
-{strength_diff}) para garantir 3⭐ e manter o equilíbrio."
+            return f"Ataque seguro: Força superior (+{strength_diff}) para garantir 3⭐ e manter o equilíbrio."
         elif attack_type == AttackType.BONUS:
             return f"Ataque para bônus: Como um dos CVs mais baixos, seu objetivo é garantir estrelas no alvo mais fraco disponível (#{target.map_position})."
         elif attack_type == AttackType.DESPERATE:
@@ -734,3 +733,4 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
 async def setup(bot: commands.Bot):
     """Configura o cog no bot."""
     await bot.add_cog(WarAdvisorCog(bot))
+
