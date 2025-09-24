@@ -312,7 +312,8 @@ class WarAdvisorSystem:
         elif attack_type == AttackType.SAFE:
             if mirror and self._calculate_player_strength(mirror) > attacker_strength:
                 return f"Estratégia segura: Seu espelho é muito forte. Garanta 3⭐ no #{target.map_position}."
-            return f"Ataque seguro: Força superior (+{strength_diff}) para garantir 3⭐ e manter o equilíbrio."
+            return f"Ataque seguro: Força superior (+
+{strength_diff}) para garantir 3⭐ e manter o equilíbrio."
         elif attack_type == AttackType.BONUS:
             return f"Ataque para bônus: Como um dos CVs mais baixos, seu objetivo é garantir estrelas no alvo mais fraco disponível (#{target.map_position})."
         elif attack_type == AttackType.DESPERATE:
@@ -383,11 +384,11 @@ class WarAdvisorSystem:
                         rec = AttackRecommendation(
                             member_name=member.name, member_th=member.town_hall, member_pos=member.map_position,
                             attack_number=current_attack_number, attack_type=AttackType.CLEANUP,
-                            recommended_target_pos=target_info["position"], recommended_target_th=target_info["th"],
-                            justification=f"LIMPEZA! #{target_info['position']} com {'⭐' * target_info['stars']} ({target_info['destruction']}%)",
+                            recommended_target_pos=potential_target["position"], recommended_target_th=potential_target["th"],
+                            justification=f"LIMPEZA! #{potential_target['position']} com {'⭐' * potential_target['stars']} ({potential_target['destruction']}%)",
                             confidence_score=self._calculate_confidence_score(member, target_obj, AttackType.CLEANUP)
                         )
-                        assigned_targets.add(target_info['position'])
+                        assigned_targets.add(potential_target['position'])
                         recommendations.append(rec)
                         target_found = True
                         break
