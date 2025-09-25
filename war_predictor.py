@@ -511,7 +511,7 @@ class HybridNeuralArchitecture:
     
     async def train(self, historical_data: List[Dict]):
         """Treinamento avançado com otimização hiperparamétrica"""
-        if len(historical_data) < 15: # <--- MUDANÇA DE 20 PARA 15
+        if len(historical_data) < 15:
             self.logger.warning(f"Dados insuficientes para treinamento avançado ({len(historical_data)}/15)")
             return
         
@@ -651,7 +651,9 @@ class HybridNeuralArchitecture:
         importances = {}
         for name, model in self.models.items():
             if hasattr(model, 'feature_importances_'):
-                importances[name] = dict(zip(asdict(features).keys(), model.feature_importances_))
+                # CORREÇÃO: Garante que o atributo seja tratado como um array 1D
+                importances_array = np.ravel(model.feature_importances_)
+                importances[name] = dict(zip(asdict(features).keys(), importances_array))
         return importances
 
     def _combine_predictions(self, predictions: Dict, confidences: Dict) -> float:
