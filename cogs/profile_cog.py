@@ -214,11 +214,8 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 color=discord.Color.blue()
             )
 
-            # Thumbnail com ícone da liga
-            if profile_data['league_icon']:
-                embed.set_thumbnail(url=profile_data['league_icon'])
-            
-            # Imagem da liga (maior)
+            # Define a imagem da liga como a imagem principal do embed para maior destaque.
+            # A thumbnail foi removida para evitar duplicidade.
             if profile_data['league_icon']:
                 embed.set_image(url=profile_data['league_icon'])
 
