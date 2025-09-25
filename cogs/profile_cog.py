@@ -89,7 +89,7 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 "league": player_data.league.name if player_data.league else "N/A",
                 "league_icon": player_data.league.icon.medium if player_data.league and player_data.league.icon else None,
                 "league_icon_small": player_data.league.icon.small if player_data.league and player_data.league.icon else None,
-                "league_icon_large": player_data.league.icon.large if player_data.league and player_data.league.icon else None,
+                "league_icon_tiny": getattr(player_data.league.icon, 'tiny', None) if player_data.league and player_data.league.icon else None,
                 "trophy_history": trophy_history,
                 "attack_wins": attack_wins,
                 "defense_wins": defense_wins,
