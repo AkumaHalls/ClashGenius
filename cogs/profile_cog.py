@@ -88,6 +88,8 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 "best_trophies": player_data.best_trophies,
                 "league": player_data.league.name if player_data.league else "N/A",
                 "league_icon": player_data.league.icon.medium if player_data.league and player_data.league.icon else None,
+                "league_icon_small": player_data.league.icon.small if player_data.league and player_data.league.icon else None,
+                "league_icon_large": player_data.league.icon.large if player_data.league and player_data.league.icon else None,
                 "trophy_history": trophy_history,
                 "attack_wins": attack_wins,
                 "defense_wins": defense_wins,
@@ -215,6 +217,10 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
             # Thumbnail com ícone da liga
             if profile_data['league_icon']:
                 embed.set_thumbnail(url=profile_data['league_icon'])
+            
+            # Imagem da liga (maior)
+            if profile_data['league_icon']:
+                embed.set_image(url=profile_data['league_icon'])
 
             # Campo de troféus
             league_emoji = self.get_league_emoji(profile_data['league'])
