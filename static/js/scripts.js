@@ -771,20 +771,29 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
 
         const leagueImageHtml = profileData.league_icon 
-            ? `<div class="profile-league-image-container"><img src="${profileData.league_icon}" alt="${profileData.league}" class="profile-league-image"></div>` 
+            ? `<div class="profile-league-container">
+                   <img src="${profileData.league_icon}" alt="${profileData.league}" class="profile-league-image">
+               </div>` 
             : '';
+
+        const statsGridHtml = `
+            <div class="profile-details-container">
+                <div class="profile-stats-grid">
+                    <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league}</p></div>
+                    <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies}</p></div>
+                    <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations}</p></div>
+                    <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received}</p></div>
+                </div>
+            </div>`;
 
         setHtml(memberProfileContent, `
             <div class="profile-header">
                 <h2>${profileData.name} (CV${profileData.town_hall})</h2>
                 <p class="player-tag">${profileData.tag}</p>
             </div>
-            ${leagueImageHtml}
-            <div class="profile-stats-grid">
-                <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league}</p></div>
-                <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies}</p></div>
-                <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations}</p></div>
-                <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received}</p></div>
+            <div class="profile-main-content">
+                ${leagueImageHtml}
+                ${statsGridHtml}
             </div>
             <h3>Heróis</h3>
             <div class="heroes-list">${heroesHtml || '<p>Nenhum herói encontrado.</p>'}</div>
@@ -915,3 +924,4 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 45000);
 });
+
