@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.95-AdvisorV4-FIX
+# Versão 20.1.95-AdvisorV4-FIX3
 
 import os
 import logging
