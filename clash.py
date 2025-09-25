@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.95-AdvisorV4-FIX3
+# Versão 20.1.95-AdvisorV4-FIX
 
 import os
 import logging
@@ -50,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.95-AdvisorV4-FIX" # Atualiza a versão
+BOT_VERSION = "20.1.96-ProfileCog" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -104,7 +104,7 @@ class ClashGeniusBot(commands.Bot):
         
         logger.info("Carregando cogs...")
         cog_files = ['events_cog.py', 'tasks_cog.py', 'database_cog.py', 'general_cog.py', 
-                     'cwl_planner_cog.py', 'clan_games_cog.py', 'war_advisor_cog.py']
+                     'cwl_planner_cog.py', 'clan_games_cog.py', 'war_advisor_cog.py', 'profile_cog.py']
         for filename in cog_files:
             if filename.endswith('.py'):
                 cog_name = filename[:-3]
@@ -422,21 +422,21 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         return web.json_response(war_doc, dumps=lambda v: json.dumps(v, default=str)) if war_doc else web.json_response({"error": "Guerra não encontrada."}, status=404)
 
     async def api_member_profile_handler(request):
-        player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
-        player_data = await bot_instance.api_client.get_player(player_tag)
-        if not player_data: return web.json_response({"error": "Jogador não encontrado."}, status=404)
-        trophy_history = []
-        if bot_instance.db is not None:
-             cursor = bot_instance.db.trophy_history.find({"player_tag": player_tag}).sort("timestamp", DESCENDING).limit(30)
-             trophy_history = [{"trophies": doc["trophies"], "timestamp": doc["timestamp"].strftime("%d/%m")} async for doc in cursor]
-             trophy_history.reverse()
-        profile = {
-            "name": player_data.name, "tag": player_data.tag, "town_hall": player_data.town_hall,
-            "heroes": [{"name": h.name, "level": h.level, "max_level": h.max_level} for h in player_data.heroes if h.is_home_base],
-            "donations": player_data.donations, "received": player_data.received, "trophies": player_data.trophies,
-            "league": player_data.league.name if player_data.league else "N/A", "trophy_history": trophy_history
-        }
-        return web.json_response(profile)
+        profile_cog = bot_instance.get_cog("Perfis de Membros")
+        if not profile_cog:
+            return web.json_response({"error": "Módulo de perfis não carregado."}, status=500)
+        
+        try:
+            player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
+            profile_data = await profile_cog.fetch_player_profile_data(player_tag)
+            
+            if "error" in profile_data:
+                return web.json_response(profile_data, status=404)
+            
+            return web.json_response(profile_data)
+        except Exception as e:
+            logger.error(f"Erro na API de perfil de membro: {e}", exc_info=True)
+            return web.json_response({"error": "Erro interno do servidor."}, status=500)
 
     async def api_cwl_generate_plan_handler(request):
         cwl_cog = bot_instance.get_cog("Planeador de CWL")
@@ -542,4 +542,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

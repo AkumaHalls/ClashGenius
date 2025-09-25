@@ -1057,7 +1057,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: #fff;
 }
 
-/* --- NOVO: Estilos para o Modal de Perfil de Membro --- */
+/* --- ESTILOS DO MODAL DE PERFIL DE MEMBRO (REVISADO) --- */
 #memberProfileContent {
     padding: 10px;
 }
@@ -1080,29 +1080,62 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     padding: 0;
     color: var(--color-text-secondary);
 }
+
+/* Container principal para a seção de imagem e stats */
+.profile-main-content {
+    display: flex;
+    align-items: center;
+    gap: 25px; /* Espaçamento entre a imagem e os stats */
+    margin-bottom: 25px;
+    flex-wrap: wrap; /* Permite quebrar a linha em telas pequenas */
+}
+
+/* Container da imagem da liga */
+.profile-league-container {
+    flex: 0 0 150px; /* Não cresce, não encolhe, base de 150px */
+    text-align: center;
+}
+
+.profile-league-image {
+    max-width: 128px; /* Tamanho máximo da imagem */
+    height: auto;
+    margin: 0 auto; /* Centraliza se o container for maior */
+}
+
+/* Container para os cards de estatísticas */
+.profile-details-container {
+    flex: 1; /* Ocupa o espaço restante */
+}
+
 .profile-stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(2, 1fr); 
     gap: 15px;
-    margin-bottom: 25px;
 }
 .profile-stat-card {
     background-color: rgba(74, 85, 104, 0.2);
     border-radius: var(--border-radius-base);
     padding: 15px;
     text-align: center;
+    border-left: 3px solid var(--color-border-light); /* Borda lateral sutil */
+    transition: background-color 0.2s;
 }
+.profile-stat-card:hover {
+    background-color: rgba(90, 103, 122, 0.3);
+}
+
 .profile-stat-card h4 {
-    margin: 0 0 5px 0;
-    font-size: 0.85em;
+    margin: 0 0 8px 0;
+    font-size: 0.8em;
     text-transform: uppercase;
     color: var(--color-text-secondary);
 }
 .profile-stat-card p {
     margin: 0;
-    font-size: 1.4em;
+    font-size: 1.5em;
     font-weight: 700;
 }
+
 .heroes-list {
     display: flex;
     justify-content: center;
@@ -1122,6 +1155,20 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .profile-chart-container {
     height: 300px;
     margin-top: 20px;
+}
+
+/* Ajustes de responsividade para o novo layout do perfil */
+@media (max-width: 600px) {
+    .profile-main-content {
+        flex-direction: column; /* Empilha a imagem e os stats em telas pequenas */
+    }
+    .profile-league-container {
+        flex-basis: auto; /* Reseta a base flex */
+        margin-bottom: 20px;
+    }
+    .profile-stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
 }
 
 
