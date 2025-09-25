@@ -10,7 +10,7 @@ import math
 import json
 import hashlib
 from typing import Dict, List, Any, Tuple, Optional, Union, Set
-from dataclasses import dataclass, asdict, field, Field # <--- CORREÇÃO 1: Adicionado 'Field'
+from dataclasses import dataclass, asdict, field, Field 
 from collections import defaultdict, Counter, deque
 from datetime import datetime, timedelta
 from enum import Enum
@@ -345,7 +345,7 @@ class QuantumInspiredFeatureEngineer:
             for f in field_names(UltraAdvancedWarFeatures):
                 if f not in all_features:
                     default_val = getattr(UltraAdvancedWarFeatures, f, 0.0) # Fallback para 0.0
-                    if isinstance(default_val, Field): # <--- CORREÇÃO 2: Verificando contra o tipo 'Field'
+                    if isinstance(default_val, Field):
                         default_val = default_val.default
                     all_features[f] = default_val
 
@@ -597,7 +597,13 @@ class HybridNeuralArchitecture:
         """Faz predição com todos os modelos e retorna análise completa"""
         try:
             feature_vector = np.array(list(asdict(features).values())).reshape(1, -1)
-            X_scaled = self.scalers['standard'].transform(feature_vector)
+            
+            # CORREÇÃO: Verifica se o scaler foi treinado antes de usar
+            if 'standard' in self.scalers:
+                X_scaled = self.scalers['standard'].transform(feature_vector)
+            else:
+                # Se não foi treinado, usa os dados brutos, evitando o erro.
+                X_scaled = feature_vector
             
             predictions = {}
             confidence_scores = {}
@@ -706,11 +712,16 @@ class QuantumWarPredictionSystem:
             processed_wars = []
             async for doc in cursor:
                 # Simula a extração de features do passado
-                features = UltraAdvancedWarFeatures(
-                    star_difference=doc['war_data']['clan_stars'] - doc['war_data']['opponent_stars'],
-                    destruction_difference=float(doc['war_data']['clan_destruction'][:-1]) - float(doc['war_data']['opponent_destruction'][:-1]),
-                    # ... preencher outras features com valores padrão ou calculados do histórico
-                )
+                features_dict = {
+                    'star_difference': doc['war_data']['clan_stars'] - doc['war_data']['opponent_stars'],
+                    'destruction_difference': float(doc['war_data']['clan_destruction'][:-1]) - float(doc['war_data']['opponent_destruction'][:-1]),
+                }
+                # Preenche o resto com defaults
+                for f_name in field_names(UltraAdvancedWarFeatures):
+                    if f_name not in features_dict:
+                        features_dict[f_name] = getattr(UltraAdvancedWarFeatures, f_name).default
+
+                features = UltraAdvancedWarFeatures(**features_dict)
                 result = 100 if features.star_difference > 0 else 0
                 processed_wars.append({'features': features, 'result': result})
             return processed_wars
