@@ -24,7 +24,7 @@ import json
 
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
-from war_predictor import WarPredictionSystemV3
+from war_predictor import QuantumWarPredictionSystem  # CORRIGIDO: Importa o novo sistema Quantum v5.0
 # A classe do sistema é importada diretamente do cog agora
 from cogs.war_advisor_cog import WarAdvisorSystem
 
@@ -71,8 +71,7 @@ class ClashGeniusBot(commands.Bot):
         self.maintenance_mode = False
 
         self.api_client: Optional[coc.Client] = None
-        self.war_prediction_system: Optional[WarPredictionSystemV3] = None
-        # O war_advisor_system será instanciado dentro do seu respectivo cog.
+        self.war_prediction_system: Optional[QuantumWarPredictionSystem] = None # CORRIGIDO: Usa o novo sistema
         self.db = None
         self.mongo_client = None
 
@@ -99,7 +98,7 @@ class ClashGeniusBot(commands.Bot):
             logger.warning("URL do MongoDB não fornecida.")
             self.db_ready.set()
 
-        self.war_prediction_system = WarPredictionSystemV3(db_connection=self.db)
+        self.war_prediction_system = QuantumWarPredictionSystem(db_connection=self.db) # CORRIGIDO: Instancia o novo sistema
         await self.war_prediction_system.initialize_system()
         
         logger.info("Carregando cogs...")
