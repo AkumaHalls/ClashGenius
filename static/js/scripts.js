@@ -770,11 +770,16 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `).join('');
 
+        const leagueImageHtml = profileData.league_icon 
+            ? `<div class="profile-league-image-container"><img src="${profileData.league_icon}" alt="${profileData.league}" class="profile-league-image"></div>` 
+            : '';
+
         setHtml(memberProfileContent, `
             <div class="profile-header">
                 <h2>${profileData.name} (CV${profileData.town_hall})</h2>
                 <p class="player-tag">${profileData.tag}</p>
             </div>
+            ${leagueImageHtml}
             <div class="profile-stats-grid">
                 <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league}</p></div>
                 <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies}</p></div>
