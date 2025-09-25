@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
     const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
+    let phaseTimerInterval = null; // Variável para controlar o timer
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
@@ -434,62 +435,101 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function populateWarAdvisorPlan(data) {
         if (!warAdvisorContentEl) return;
-        
-        if (!data.success) {
-            setHtml(warAdvisorContentEl, `<p class="message-box">${data.error || 'Nenhuma recomendação disponível.'}</p>`);
-            return;
+    
+        // Limpa o timer anterior para evitar múltiplos intervalos
+        if (phaseTimerInterval) {
+            clearInterval(phaseTimerInterval);
+            phaseTimerInterval = null;
         }
-
-        let contentHtml = `
-            <div class="advisor-header">
-                <h3>${data.phase_title}</h3>
-                <p>${data.prediction_summary}</p>
-            </div>
-            <div class="advisor-grid">
-        `;
-
-        contentHtml += data.recommendations.map(rec => {
-            const confidencePercent = (rec.confidence_score * 100).toFixed(0);
-            let confidenceColor = 'low';
-            if (confidencePercent >= 75) {
-                confidenceColor = 'high';
-            } else if (confidencePercent >= 50) {
-                confidenceColor = 'medium';
+    
+        const advisorPhaseTimerEl = document.getElementById('advisorPhaseTimer');
+        const advisorPhaseTimerTextEl = document.getElementById('advisorPhaseTimerText');
+        
+        // CORREÇÃO: A lógica é encapsulada para ser chamada após a renderização
+        const setupAdvisorUI = (planData) => {
+            if (!planData.success) {
+                advisorPhaseTimerEl.style.display = 'none';
+                setHtml(warAdvisorContentEl, `<div class="advisor-plan-container"><p class="message-box">${planData.error || 'Nenhuma recomendação disponível.'}</p></div>`);
+                return;
             }
-
-            const alternativesHtml = rec.alternative_targets.length > 0
-                ? `<div class="advisor-alternatives">
-                       <strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}
-                   </div>`
-                : '';
-
-            return `
-                <div class="advisor-card type-${rec.type}">
-                    <div class="advisor-member-info">
-                        <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
-                        <span>Ataque Nº ${rec.attack_number}</span>
-                    </div>
-                    <div class="advisor-target-info">
-                        <p>Alvo Recomendado</p>
-                        <span>#${rec.recommended_target_pos} (CV${rec.recommended_target_th})</span>
-                    </div>
-                    <div class="advisor-justification">
-                        <p><strong>IA:</strong> ${rec.justification}</p>
-                    </div>
-                    ${alternativesHtml}
-                    <div class="advisor-confidence">
-                        <span>Confiança da IA</span>
-                        <div class="confidence-bar-container">
-                            <div class="confidence-bar ${confidenceColor}" style="width: ${confidencePercent}%;"></div>
-                        </div>
-                        <span>${confidencePercent}%</span>
-                    </div>
+    
+            let contentHtml = `
+                <div class="advisor-header">
+                    <h3>${planData.phase_title}</h3>
+                    <p>${planData.prediction_summary}</p>
                 </div>
+                <div class="advisor-grid">
             `;
-        }).join('');
-
-        contentHtml += '</div>';
-        setHtml(warAdvisorContentEl, contentHtml);
+    
+            contentHtml += planData.recommendations.map(rec => {
+                const confidencePercent = (rec.confidence_score * 100).toFixed(0);
+                let confidenceColor = 'low';
+                if (confidencePercent >= 75) confidenceColor = 'high';
+                else if (confidencePercent >= 50) confidenceColor = 'medium';
+    
+                const alternativesHtml = rec.alternative_targets.length > 0
+                    ? `<div class="advisor-alternatives"><strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}</div>`
+                    : '';
+    
+                return `
+                    <div class="advisor-card type-${rec.type}">
+                        <div class="advisor-member-info">
+                            <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
+                            <span>Ataque Nº ${rec.attack_number}</span>
+                        </div>
+                        <div class="advisor-target-info">
+                            <p>Alvo Recomendado</p>
+                            <span>#${rec.recommended_target_pos} (CV${rec.recommended_target_th})</span>
+                        </div>
+                        <div class="advisor-justification">
+                            <p><strong>IA:</strong> ${rec.justification}</p>
+                        </div>
+                        ${alternativesHtml}
+                        <div class="advisor-confidence">
+                            <span>Confiança da IA</span>
+                            <div class="confidence-bar-container">
+                                <div class="confidence-bar ${confidenceColor}" style="width: ${confidencePercent}%;"></div>
+                            </div>
+                            <span>${confidencePercent}%</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+    
+            contentHtml += '</div>';
+            
+            // Renderiza o plano de ataque primeiro
+            setHtml(warAdvisorContentEl, `<div id="advisorPhaseTimer" class="advisor-phase-timer" style="display: none;"><h4>MUDANÇA DE FASE</h4><p id="advisorPhaseTimerText">Calculando...</p></div>` + contentHtml);
+            
+            // Depois de renderizar, inicia o timer se houver dados
+            if (planData.phase_2_start_time_iso) {
+                const phase2StartTime = new Date(planData.phase_2_start_time_iso);
+                const timerEl = document.getElementById('advisorPhaseTimer'); // Re-seleciona o elemento
+                const timerTextEl = document.getElementById('advisorPhaseTimerText');
+                timerEl.style.display = 'block';
+                
+                phaseTimerInterval = setInterval(() => {
+                    const now = new Date();
+                    const diff = phase2StartTime - now;
+    
+                    if (diff <= 0) {
+                        setText(timerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
+                        clearInterval(phaseTimerInterval);
+                        phaseTimerInterval = null;
+                        return;
+                    }
+    
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+                    setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
+                }, 1000);
+            }
+        };
+        
+        // Inicia o processo
+        setupAdvisorUI(data);
     }
 
     function populateMissedAttacksHistory(data) {
@@ -811,7 +851,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const clanData = await fetchData('clan');
             if (clanData.error) {
-                if (!isFirstLoad) { // Evita esconder o overlay se for o primeiro load e falhar
+                if (!isFirstLoad) { 
                     loadingOverlayEl.classList.add('hidden');
                 }
                 return; 
@@ -824,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 warLogData, 
                 cwlInfoData, 
                 highlightsData,
-                warAdvisorData // NOVO: Busca o plano de ataque
+                warAdvisorData
             ] = await Promise.all([
                 fetchData('members'), 
                 fetchData('current_war_details'),
@@ -832,12 +872,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchData('war_log'), 
                 fetchData('cwl_info'), 
                 fetchData('highlights'),
-                fetchData('war_advisor_plan') // NOVO
+                fetchData('war_advisor_plan')
             ]);
             populateClanInfo(clanData);
             populateMembersList(membersData);
             populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
-            populateWarAdvisorPlan(warAdvisorData); // NOVO
+            populateWarAdvisorPlan(warAdvisorData);
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);

@@ -119,8 +119,9 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             war_type = "CWL" if war.is_cwl else "Guerra"
             stars_str = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
             
-            attacker_str = f"{attacker.map_position:02d} {attacker.name} (CV{attacker.town_hall})"
-            defender_str = f"{defender.map_position:02d} {defender.name} (CV{defender.town_hall})"
+            # ALTERAÇÃO: Formata a string com Markdown para destacar os números
+            attacker_str = f"`{attacker.map_position:02d}` **{attacker.name}** (CV{attacker.town_hall})"
+            defender_str = f"`{defender.map_position:02d}` **{defender.name}** (CV{defender.town_hall})"
             
             if is_our_attack:
                 embed = discord.Embed(title=f"⚔️ Ataque Realizado ({war_type})", description=f"{attacker.clan.name}", color=discord.Color.blue())
@@ -216,4 +217,3 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EventsCog(bot))
-
