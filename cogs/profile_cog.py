@@ -49,17 +49,25 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
             # Calcular estatísticas de ataques
             attack_wins = player_data.attack_wins or 0
             defense_wins = player_data.defense_wins or 0
-            total_attacks = attack_wins + (player_data.clan.get("attacks_won", 0) if player_data.clan else 0)
             
             # Informações do clã
             clan_info = None
             if player_data.clan:
-                clan_info = {
-                    "name": player_data.clan.name,
-                    "tag": player_data.clan.tag,
-                    "role": player_data.role,
-                    "level": player_data.clan.level if hasattr(player_data.clan, 'level') else 'N/A'
-                }
+                try:
+                    clan_info = {
+                        "name": player_data.clan.name,
+                        "tag": player_data.clan.tag,
+                        "role": player_data.role.in_game_name if hasattr(player_data.role, 'in_game_name') else str(player_data.role),
+                        "level": getattr(player_data.clan, 'level', 'N/A')
+                    }
+                except AttributeError as e:
+                    logger.warning(f"Erro ao acessar dados do clã para {player_tag}: {e}")
+                    clan_info = {
+                        "name": getattr(player_data.clan, 'name', 'N/A'),
+                        "tag": getattr(player_data.clan, 'tag', 'N/A'),
+                        "role": str(getattr(player_data, 'role', 'Membro')),
+                        "level": 'N/A'
+                    }
 
             # Calcular razão doação/recebimento
             donation_ratio = 0
@@ -84,9 +92,9 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 "attack_wins": attack_wins,
                 "defense_wins": defense_wins,
                 "clan_info": clan_info,
-                "war_stars": player_data.war_stars or 0,
-                "clan_capital_gold": player_data.clan_capital_contributions or 0,
-                "builder_hall": player_data.builder_hall_level if hasattr(player_data, 'builder_hall_level') else 0
+                "war_stars": getattr(player_data, 'war_stars', 0),
+                "clan_capital_gold": getattr(player_data, 'clan_capital_contributions', 0),
+                "builder_hall": getattr(player_data, 'builder_hall_level', 0)
             }
             return profile
         except coc.NotFound:
