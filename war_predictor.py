@@ -53,6 +53,12 @@ try:
 except ImportError:
     DEEP_LEARNING_AVAILABLE = False
 
+# ================== FUNÇÃO HELPER (CORREÇÃO) ==================
+# Esta função foi movida para o topo para estar disponível globalmente no módulo.
+def field_names(cls):
+    """Retorna os nomes dos campos de um dataclass."""
+    return [f.name for f in cls.__dataclass_fields__.values()]
+
 # ================== CONFIGURAÇÃO AVANÇADA ==================
 
 class ModelConfig:
@@ -635,7 +641,7 @@ class HybridNeuralArchitecture:
             proba = model.predict_proba(X_scaled)[0]
             return max(proba)
         elif hasattr(model, "score"):
-            return model.score(X_scaled, np.array([50])) # Placeholder
+            return 0.7 # Placeholder
         return 0.5
 
     def _get_feature_importance(self, features) -> Dict:
@@ -772,7 +778,7 @@ class QuantumWarPredictionSystem:
         return {"probability": 50.0, "confidence": 10.0, "summary_panel": "Análise indisponível"}
 
     def _generate_error_response(self, error: Exception) -> Dict:
-        return {"probability": 50.0, "confidence": 0.0, "error": str(error)}
+        return {"probability": 50.0, "confidence": 0.0, "error": str(error), "summary_panel": f"Erro na análise: {type(error).__name__}"}
     
     def _update_performance_metrics(self, analysis: Dict):
         # Lógica para registrar a performance e re-treinar o modelo se necessário
@@ -785,9 +791,18 @@ class QuantumWarPredictionSystem:
         probability = prediction_result['prediction']
         confidence = prediction_result['confidence']
         
+        # Gera o resumo para o painel
+        if probability >= 85: title = "🎯 Vitória Altamente Provável"
+        elif probability >= 65: title = "✅ Vantagem Clara"
+        elif probability >= 55: title = "📈 Ligeira Vantagem"
+        elif probability <= 15: title = "🚨 Situação Crítica"
+        elif probability <= 35: title = "⚠️ Desvantagem Clara"
+        else: title = "⚖️ Guerra em Equilíbrio"
+
         return {
             'probability': probability,
             'confidence': confidence,
+            'summary_panel': f"{title}",
             'quantum_analysis': self._generate_quantum_insights(features),
             'strategic_recommendations': self._generate_strategic_recommendations(
                 features, probability, our_clan, opponent
@@ -899,12 +914,15 @@ class AIExplanationSystem:
     def _generate_technical_explanation(self, data: Dict) -> str:
         """Explicação técnica dos fatores que influenciaram a predição"""
         features = data.get('feature_analysis', {})
-        top_features = sorted(features.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+        if not features:
+            return "Análise de features indisponível."
+            
+        top_features = sorted(features.items(), key=lambda x: abs(x[1] if isinstance(x[1], (int, float)) else 0), reverse=True)[:5]
         
         explanation = "A predição foi baseada em:\n"
         
         for feature, value in top_features:
-            impact = "positivo" if value > 0 else "negativo"
+            impact = "positivo" if (isinstance(value, (int, float)) and value > 0) else "negativo"
             explanation += f"- {feature}: impacto {impact} (valor: {value:.2f})\n"
         
         return explanation
@@ -941,10 +959,5 @@ async def main():
     logging.info("Recursos: IA Híbrida, Computação Quântica Inspirada, XAI, Otimização Contínua")
 
 if __name__ == "__main__":
-    # Esta função helper é necessária para inicializar os valores default do dataclass
-    # em uma das funções internas, já que o escopo pode ser um problema
-    def field_names(cls):
-        return [f.name for f in cls.__dataclass_fields__.values()]
-    
     asyncio.run(main())
 
