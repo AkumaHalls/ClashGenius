@@ -511,8 +511,8 @@ class HybridNeuralArchitecture:
     
     async def train(self, historical_data: List[Dict]):
         """Treinamento avançado com otimização hiperparamétrica"""
-        if len(historical_data) < 20:
-            self.logger.warning("Dados insuficientes para treinamento avançado")
+        if len(historical_data) < 15: # <--- MUDANÇA DE 20 PARA 15
+            self.logger.warning(f"Dados insuficientes para treinamento avançado ({len(historical_data)}/15)")
             return
         
         try:
@@ -598,27 +598,24 @@ class HybridNeuralArchitecture:
         try:
             feature_vector = np.array(list(asdict(features).values())).reshape(1, -1)
             
-            # CORREÇÃO: Verifica se o scaler foi treinado antes de usar
             if 'standard' in self.scalers:
                 X_scaled = self.scalers['standard'].transform(feature_vector)
             else:
-                # Se não foi treinado, usa os dados brutos, evitando o erro.
                 X_scaled = feature_vector
             
             predictions = {}
             confidence_scores = {}
             
-            # Predições do ensemble
             for name, model in self.models.items():
                 if name != 'deep_net':
                     try:
-                        pred = model.predict(X_scaled)[0]
+                        pred_result = model.predict(X_scaled)
+                        pred = np.ravel(pred_result)[0]
                         predictions[name] = float(np.clip(pred, 0, 100))
                         confidence_scores[name] = self._calculate_confidence(model, X_scaled)
                     except Exception:
                         continue
             
-            # Predição da rede neural
             if DEEP_LEARNING_AVAILABLE and 'deep_net' in self.models:
                 with torch.no_grad():
                     self.models['deep_net'].eval()
@@ -627,7 +624,6 @@ class HybridNeuralArchitecture:
                     predictions['deep_net'] = float(np.clip(neural_pred, 0, 100))
                     confidence_scores['deep_net'] = 0.8  # Placeholder
             
-            # Combinação inteligente das predições
             final_prediction = self._combine_predictions(predictions, confidence_scores)
             
             return {
@@ -639,13 +635,14 @@ class HybridNeuralArchitecture:
             }
             
         except Exception as e:
-            self.logger.error(f"Erro na predição: {e}")
+            self.logger.error(f"Erro na predição: {e}", exc_info=True)
             return {'prediction': 50.0, 'confidence': 0.0}
             
     def _calculate_confidence(self, model, X_scaled) -> float:
         if hasattr(model, "predict_proba"):
-            proba = model.predict_proba(X_scaled)[0]
-            return max(proba)
+            proba_result = model.predict_proba(X_scaled)
+            proba_flat = np.ravel(proba_result)
+            return max(proba_flat) if proba_flat.size > 0 else 0.5
         elif hasattr(model, "score"):
             return 0.7 # Placeholder
         return 0.5
@@ -659,6 +656,9 @@ class HybridNeuralArchitecture:
 
     def _combine_predictions(self, predictions: Dict, confidences: Dict) -> float:
         """Combina predições baseado em confiança e performance histórica"""
+        if not predictions:
+            return 50.0
+
         total_weight = 0
         weighted_sum = 0
         
@@ -719,7 +719,10 @@ class QuantumWarPredictionSystem:
                 # Preenche o resto com defaults
                 for f_name in field_names(UltraAdvancedWarFeatures):
                     if f_name not in features_dict:
-                        features_dict[f_name] = getattr(UltraAdvancedWarFeatures, f_name).default
+                        default_val = getattr(UltraAdvancedWarFeatures, f_name)
+                        if isinstance(default_val, Field):
+                           default_val = default_val.default
+                        features_dict[f_name] = default_val
 
                 features = UltraAdvancedWarFeatures(**features_dict)
                 result = 100 if features.star_difference > 0 else 0
