@@ -10,7 +10,7 @@ import math
 import json
 import hashlib
 from typing import Dict, List, Any, Tuple, Optional, Union, Set
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict, field, Field # <--- CORREÇÃO 1: Adicionado 'Field'
 from collections import defaultdict, Counter, deque
 from datetime import datetime, timedelta
 from enum import Enum
@@ -345,7 +345,7 @@ class QuantumInspiredFeatureEngineer:
             for f in field_names(UltraAdvancedWarFeatures):
                 if f not in all_features:
                     default_val = getattr(UltraAdvancedWarFeatures, f, 0.0) # Fallback para 0.0
-                    if isinstance(default_val, field):
+                    if isinstance(default_val, Field): # <--- CORREÇÃO 2: Verificando contra o tipo 'Field'
                         default_val = default_val.default
                     all_features[f] = default_val
 
