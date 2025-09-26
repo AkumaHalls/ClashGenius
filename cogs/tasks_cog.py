@@ -88,9 +88,8 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @tasks.loop(seconds=60.0)
     async def check_war_end_task(self):
         await self.bot.wait_until_ready()
-        await self.bot.coc_client_ready.wait() # Garante que o cliente CoC está logado
+        await self.bot.coc_client_ready.wait() 
         
-        # CORREÇÃO: Usa self.bot.api_client que é a referência correta e atualizada
         if not self.bot.api_client: return
         
         try:
@@ -111,11 +110,10 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     async def sync_war(self, ctx: commands.Context):
         """Força a sincronização e o relatório da última guerra terminada."""
         await ctx.message.add_reaction("🔄")
-        await self.bot.coc_client_ready.wait() # Garante que o cliente CoC está logado
+        await self.bot.coc_client_ready.wait() 
         
         logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
         try:
-            # CORREÇÃO: Usa self.bot.api_client
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             if war and war.state == 'warEnded':
                 if await self.process_ended_war(war):
@@ -133,8 +131,9 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         finally:
             await ctx.message.remove_reaction("🔄", self.bot.user)
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=30)
     async def post_war_prediction_task(self):
+        """Envia os pensamentos da IA para o Discord periodicamente durante uma guerra."""
         await self.bot.wait_until_ready()
         await self.bot.coc_client_ready.wait()
         
@@ -150,7 +149,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             if self.last_prediction_sent_time and (now - self.last_prediction_sent_time).total_seconds() < 25 * 60:
                 return
 
-            logger.info("A gerar 'pensamento' da IA sobre a guerra atual.")
+            logger.info("Gerando 'pensamento' da IA (Quantum v5.0) sobre a guerra atual.")
             prediction = await self.bot.war_prediction_system.predict_war_outcome(war, self.bot.clan_tag)
 
             if "error" in prediction:
@@ -160,35 +159,33 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == self.bot.clan_tag else (war.opponent, war.clan)
             
             embed = discord.Embed(
-                title="🧠 Relatório de Análise da IA de Guerra (v3.0)",
-                description=f"**{our_clan.name}** vs **{opp_clan.name}**",
+                title=f"🧠 Análise Quântica da Guerra ({prediction.get('system_version', 'v5.0')})",
+                description=f"Analisando o confronto: **{our_clan.name}** vs **{opp_clan.name}**",
                 color=discord.Color.purple()
             )
             
-            embed.add_field(name="🚨 Situação", value=prediction.get("summary_discord", "N/A"), inline=False)
-            embed.add_field(name="Probabilidade de Vitória", value=f"**{prediction.get('probability', 0.0):.1f}%**", inline=True)
-            embed.add_field(name="Confiança da IA", value=f"{prediction.get('confidence', 0.0):.1f}%", inline=True)
-            embed.add_field(name="Método de Análise", value=prediction.get("analysis_log", {}).get("method", "N/A"), inline=True)
-
+            embed.add_field(name="📊 Status da Previsão", 
+                            value=f"**{prediction.get('summary_panel', 'N/A')}**\n"
+                                  f"**Probabilidade de Vitória:** `{prediction.get('probability', 0.0):.1f}%`\n"
+                                  f"**Confiança da IA:** `{prediction.get('confidence', 0.0):.1f}%`", 
+                            inline=False)
+            
+            if prediction.get("strategic_recommendations"):
+                recommendations = "• " + "\n• ".join(prediction["strategic_recommendations"])
+                embed.add_field(name="💡 Recomendações Estratégicas", value=recommendations, inline=False)
+            
+            if prediction.get("risk_assessment"):
+                risks = "• " + "\n• ".join(prediction["risk_assessment"])
+                embed.add_field(name="⚠️ Análise de Risco", value=risks, inline=False)
+            
             if prediction.get("tactical_insights"):
                 insights = "• " + "\n• ".join(prediction["tactical_insights"])
-                embed.add_field(name="💡 Insights Táticos", value=insights, inline=False)
+                embed.add_field(name="🎯 Insights Táticos", value=insights, inline=False)
             
-            if prediction.get("risk_factors"):
-                risks = "• " + "\n• ".join(prediction["risk_factors"])
-                embed.add_field(name="⚠️ Fatores de Risco", value=risks, inline=False)
-            
-            features = prediction.get("analysis_log", {}).get("features", {})
-            metrics_str = (
-                f"**Star Diff:** `{features.get('star_difference', 0):.2f}`\n"
-                f"**Destr Diff:** `{features.get('destruction_difference', 0):.2f}%`\n"
-                f"**Atk Rem Diff:** `{features.get('attacks_remaining_difference', 0)}`\n"
-                f"**Momentum:** `{features.get('momentum_indicator', 0):.2f}`\n"
-                f"**Synergy:** `{features.get('clan_synergy_score', 0):.2f}`\n"
-                f"**Pressure:** `{features.get('pressure_index', 0):.2f}`"
-            )
-            embed.add_field(name="📊 Métricas Chave Analisadas", value=metrics_str, inline=False)
-            
+            if prediction.get("quantum_analysis"):
+                quantum_insights = "• " + "\n• ".join(prediction["quantum_analysis"])
+                embed.add_field(name="🌌 Análise Quântica Inspirada", value=quantum_insights, inline=False)
+
             if opp_clan.badge:
                 embed.set_thumbnail(url=opp_clan.badge.url)
 
@@ -244,4 +241,3 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
-
