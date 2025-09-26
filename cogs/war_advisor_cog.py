@@ -256,8 +256,7 @@ class WarAdvisorSystem:
         activity_factor = getattr(player, 'recent_activity', 1.0)
         
         # Cálculo ponderado com pesos otimizados
-        final_strength = int((base_strength * 1.2 + hero_bonus * 1.1 - hero_penalty * 0.9) * 
-                            troop_factor * activity_factor)
+        final_strength = int((base_strength * 1.2 + hero_bonus * 1.1 - hero_penalty * 0.9) * troop_factor * activity_factor)
         return final_strength
 
     def _is_viable_target(self, attacker: Any, target: Any, flexible_rules: bool = False, 
@@ -913,11 +912,9 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA Quântico"):
                 types = stats.get('attack_types', {})
                 stats_text = (f"**Total:** {stats.get('total_recommendations', 0)} | "
                               f"**Confiança Média:** {stats.get('average_confidence', 0):.0%} | "
-                              f"**Certeza Quântica:** {stats.get('average_quantum_certainty', 0):.0%}
-"
+                              f"**Certeza Quântica:** {stats.get('average_quantum_certainty', 0):.0%}\n"
                               f"**Expectativa Total:** {stats.get('total_expected_stars', 0):.1f}⭐ | "
-                              f"**Média por ataque:** {stats.get('average_expected_stars', 0):.1f}⭐
-"
+                              f"**Média por ataque:** {stats.get('average_expected_stars', 0):.1f}⭐\n"
                               f"**Tipos:** Mirror({types.get('mirror',0)}) DIP({types.get('dip',0)}) "
                               f"Safe({types.get('safe',0)}) Cleanup({types.get('cleanup',0)}) "
                               f"Optimal({types.get('optimal',0)}) Desperate({types.get('desperate',0)})")
@@ -937,8 +934,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA Quântico"):
                     if current_player and player_attacks:
                         embed.add_field(
                             name=f"👤 {current_player}",
-                            value="
-".join(player_attacks),
+                            value="\n".join(player_attacks),
                             inline=False
                         )
                     
@@ -965,8 +961,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA Quântico"):
             if current_player and player_attacks:
                 embed.add_field(
                     name=f"👤 {current_player}",
-                    value="
-".join(player_attacks),
+                    value="\n".join(player_attacks),
                     inline=False
                 )
             
@@ -1095,17 +1090,13 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA Quântico"):
             # Adiciona análise tradicional e quântica
             embed.add_field(
                 name="💪 Análise de Força Tradicional", 
-                value=f"**Nosso Clã:** {our_strength:,}
-**Oponente:** {opp_strength:,}
-**Diferença:** {advantage_percent:+.1f}%", 
+                value=f"**Nosso Clã:** {our_strength:,}\n**Oponente:** {opp_strength:,}\n**Diferença:** {advantage_percent:+.1f}%", 
                 inline=True
             )
             
             embed.add_field(
                 name="✨ Análise Quântica", 
-                value=f"**Nosso Potencial:** {our_potential:.1f}⭐
-**Oponente:** {opp_potential:.1f}⭐
-**Probabilidade Vitória:** {our_win_probability:.1%}", 
+                value=f"**Nosso Potencial:** {our_potential:.1f}⭐\n**Oponente:** {opp_potential:.1f}⭐\n**Probabilidade Vitória:** {our_win_probability:.1%}", 
                 inline=True
             )
             
@@ -1122,10 +1113,8 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA Quântico"):
                 
                 embed.add_field(
                     name="⚔️ Ataques Restantes", 
-                    value=f"**Jogadores com ataques:** {len(attackers_remaining)}
-"
-                          f"**Total de ataques:** {total_attacks_remaining}
-"
+                    value=f"**Jogadores com ataques:** {len(attackers_remaining)}\n"
+                          f"**Total de ataques:** {total_attacks_remaining}\n"
                           f"**Estrelas esperadas:** {expected_remaining_stars:.1f}⭐", 
                     inline=False
                 )
@@ -1268,8 +1257,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA Quântico"):
             # Status atual
             embed.add_field(
                 name="📊 Status Atual", 
-                value=f"**{our_clan.name}:** {our_stars}⭐ ({our_destruction:.2f}%)
-"
+                value=f"**{our_clan.name}:** {our_stars}⭐ ({our_destruction:.2f}%)\n"
                       f"**{opponent.name}:** {opp_stars}⭐ ({opp_destruction:.2f}%)",
                 inline=False
             )
@@ -1277,10 +1265,8 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA Quântico"):
             # Ataques restantes
             embed.add_field(
                 name="⚔️ Ataques Restantes", 
-                value=f"**Nossos ataques:** {total_attacks_remaining}
-"
-                      f"**Atacantes:** {len(attackers_remaining)} jogadores
-"
+                value=f"**Nossos ataques:** {total_attacks_remaining}\n"
+                      f"**Atacantes:** {len(attackers_remaining)} jogadores\n"
                       f"**Oponente:** {sum(war.attacks_per_member - len(getattr(m, 'attacks', [])) for m in opponent.members)} ataques",
                 inline=True
             )
@@ -1290,12 +1276,9 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA Quântico"):
             
             embed.add_field(
                 name="🔮 Projeção Quântica", 
-                value=f"**Probabilidade de Vitória:** {win_prob:.1%}
-"
-                      f"**Probabilidade de Empate:** {draw_prob:.1%}
-"
-                      f"**Probabilidade de Derrota:** {lose_prob:.1%}
-"
+                value=f"**Probabilidade de Vitória:** {win_prob:.1%}\n"
+                      f"**Probabilidade de Empate:** {draw_prob:.1%}\n"
+                      f"**Probabilidade de Derrota:** {lose_prob:.1%}\n"
                       f"**Status:** {result_status}",
                 inline=True
             )
