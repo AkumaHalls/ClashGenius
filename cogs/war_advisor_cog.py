@@ -1302,3 +1302,8 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA Quântico"):
         except Exception as e:
             self.logger.error(f"Erro no status quântico v6.0: {e}", exc_info=True)
             await ctx.send(f"❌ **Erro no status quântico:** {e}")
+
+async def setup(bot: commands.Bot):
+    """Função de entrada para carregar o cog."""
+    await bot.add_cog(WarAdvisorCog(bot))
+
