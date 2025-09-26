@@ -713,12 +713,30 @@ class QuantumWarPredictionSystem:
             cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(100)
             processed_wars = []
             async for doc in cursor:
-                # Simula a extração de features do passado
+                war_data = doc.get('war_data', {})
+                if not war_data:
+                    continue
+
+                # --- INÍCIO DA CORREÇÃO ---
+                # Calcula as features necessárias diretamente a partir dos dados brutos do documento
+                clan_stars = war_data.get('clan_stars', 0)
+                opponent_stars = war_data.get('opponent_stars', 0)
+                clan_destruction_str = war_data.get('clan_destruction', '0%').replace('%', '')
+                opponent_destruction_str = war_data.get('opponent_destruction', '0%').replace('%', '')
+
+                try:
+                    clan_destruction = float(clan_destruction_str)
+                    opponent_destruction = float(opponent_destruction_str)
+                except (ValueError, TypeError):
+                    continue # Pula esta guerra se os dados de destruição forem inválidos
+
                 features_dict = {
-                    'star_difference': doc['war_data']['clan_stars'] - doc['war_data']['opponent_stars'],
-                    'destruction_difference': float(doc['war_data']['clan_destruction'][:-1]) - float(doc['war_data']['opponent_destruction'][:-1]),
+                    'star_difference': float(clan_stars - opponent_stars),
+                    'destruction_difference': clan_destruction - opponent_destruction,
                 }
-                # Preenche o resto com defaults
+                # --- FIM DA CORREÇÃO ---
+                
+                # Preenche o resto com defaults para manter a estrutura do dataclass
                 for f_name in field_names(UltraAdvancedWarFeatures):
                     if f_name not in features_dict:
                         default_val = getattr(UltraAdvancedWarFeatures, f_name)
@@ -727,10 +745,13 @@ class QuantumWarPredictionSystem:
                         features_dict[f_name] = default_val
 
                 features = UltraAdvancedWarFeatures(**features_dict)
-                result = 100 if features.star_difference > 0 else 0
+                # Define o resultado (target) para o treinamento da IA
+                result = 100 if features.star_difference > 0 else 0 if features.star_difference < 0 else 50
                 processed_wars.append({'features': features, 'result': result})
+
             return processed_wars
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"Erro ao carregar dados históricos: {e}", exc_info=True)
             return []
 
     async def _warm_up_cache(self):
@@ -976,4 +997,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
