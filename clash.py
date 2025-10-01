@@ -161,7 +161,6 @@ class ClashGeniusBot(commands.Bot):
         districts = []
         if hasattr(clan, 'capital_districts'):
             for d in clan.capital_districts:
-                # CORREÇÃO: Usar 'district_hall_level' em vez de 'level'
                 districts.append({"name": d.name, "level": d.district_hall_level})
 
         return {
@@ -186,12 +185,7 @@ class ClashGeniusBot(commands.Bot):
 
         try:
             war = await self.api_client.get_current_war(self.clan_tag)
-            if not war:
-                 return {"error": "Nenhuma guerra para detalhar."}
-
-            if war.state == "notInWar":
-                return {"error": "Nenhuma guerra para detalhar."}
-
+            if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
             if not war.clan or not war.opponent: return {"error": "Dados da guerra incompletos."}
             
             prediction_data = await self.war_prediction_system.predict_war_outcome(war, self.clan_tag)
@@ -274,8 +268,7 @@ class ClashGeniusBot(commands.Bot):
                 "league": member.league.name if member.league else "Sem Liga",
                 "trophies": member.trophies, "role": member.role.name.capitalize() if member.role else "Membro",
                 "donations": member.donations, "received": member.received,
-                "note": note_data.get("text", ""), 
-                "note_priority": note_data.get("priority", "none"),
+                "note": note_data.get("text", ""), "note_priority": note_data.get("priority", "none"),
                 "cwl_status": note_data.get("cwl_status", "active")
             })
         role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
@@ -341,12 +334,9 @@ class ClashGeniusBot(commands.Bot):
             for i, a_round in enumerate(cwl_group.rounds):
                 round_data = {"round_number": i + 1, "wars": []}
                 
-                # CORREÇÃO: Usar 'war_tags' em vez de iterar diretamente sobre 'a_round'
                 for war_tag in a_round.war_tags:
-                    # Ignorar tags de guerra vazias, comuns no dia de preparação
                     if war_tag == '#0': continue
                     try:
-                        # Usamos get_league_war que é o método correto para CWL
                         war = await self.api_client.get_league_war(war_tag)
                         if war:
                             round_data["wars"].append({
@@ -364,7 +354,6 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.error(f"Erro inesperado ao buscar dados da CWL: {e}", exc_info=True)
             return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
-
 
     async def fetch_highlights_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
@@ -423,9 +412,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
                  return web.json_response({"success": False, "error": "Módulo do conselheiro não carregado."}, status=500)
 
             war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag)
-            if not war:
-                return web.json_response({"success": False, "error": "Nenhuma guerra ativa."})
-
             prediction_data = await bot_instance.war_prediction_system.predict_war_outcome(war, bot_instance.clan_tag)
             
             plan = advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
@@ -447,33 +433,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not db_cog: return web.json_response({"error": "Cog de DB não encontrado."}, status=500)
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         data = await request.json()
-        await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
+        await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'), data.get('cwl_status', 'active'))
         bot_instance.web_api_cache.pop('members', None)
         return web.Response(status=204)
-
-    async def api_save_cwl_player_status_handler(request):
-        db_cog = bot_instance.get_cog("Banco de Dados")
-        if not db_cog: return web.json_response({"error": "Cog de DB não encontrado."}, status=500)
-        
-        try:
-            player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
-            data = await request.json()
-            status = data.get('status')
-
-            if status not in ['active', 'backup']:
-                return web.json_response({"error": "Status inválido."}, status=400)
-
-            await db_cog.save_cwl_player_status_to_db(player_tag, status)
-            
-            # Limpa caches relevantes para forçar a atualização
-            bot_instance.web_api_cache.pop('members', None)
-            bot_instance.web_api_cache.pop('cwl_plan', None)
-            
-            return web.json_response({"success": True, "message": "Status salvo com sucesso."})
-        except Exception as e:
-            logger.error(f"Erro ao salvar status da CWL: {e}", exc_info=True)
-            return web.json_response({"error": "Erro interno do servidor."}, status=500)
-
 
     async def api_historic_war_handler(request):
         if bot_instance.db is None: return web.json_response({"error": "DB não conectado."}, status=503)
@@ -521,7 +483,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/highlights", api_highlights_handler)
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
-    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_save_cwl_player_status_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
@@ -535,11 +496,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         session = await get_session(request)
         is_admin = session.get('admin', False)
         
-        # Se o modo manutenção estiver ativo E o usuário NÃO for admin, mostra a página de manutenção
         if bot_instance.maintenance_mode and not is_admin:
             return web.FileResponse(os.path.join(static_dir, "maintenance.html"))
         
-        # Caso contrário, mostra o painel normal
         return web.FileResponse(os.path.join(static_dir, "painel.html"))
 
     app.router.add_static('/static/', path=static_dir, name='static')
@@ -610,3 +569,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
