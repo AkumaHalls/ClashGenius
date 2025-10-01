@@ -50,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.2.0-API-Fix" # Atualiza a versão
+BOT_VERSION = "20.3.0-Roster-Mgmt" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -152,7 +152,6 @@ class ClashGeniusBot(commands.Bot):
             if not cwl_group:
                 return None
 
-            # CORREÇÃO: Usa 'async for' para iterar sobre o objeto 'LeagueWarIterator'
             async for league_war in cwl_group.get_wars(self.clan_tag):
                 try:
                     if league_war and league_war.state in ('inWar', 'preparation'):
@@ -385,6 +384,28 @@ class ClashGeniusBot(commands.Bot):
         chart_data = {"labels": [m.name for m in active_members], "donations": [m.donations for m in active_members], "received": [m.received for m in active_members]}
         return {"top_donors": top_donors_data, "war_heroes": war_heroes, "activity_chart_data": chart_data, "clan_name": clan.name, "war_date": war_end_date_str}
 
+    async def fetch_cwl_roster_for_management(self):
+        """Busca o roster da CWL e as preferências do banco para o painel de gerenciamento."""
+        cwl_cog = self.get_cog("Planeador de CWL")
+        if not cwl_cog:
+            return {"error": "Módulo de CWL não carregado."}
+        
+        # Usamos a mesma função do cog para garantir consistência
+        all_cwl_members = await cwl_cog.get_cwl_members_for_planning(check_in_clan=False)
+        if not all_cwl_members:
+            return {"error": "Não foi possível buscar o roster da CWL. O clã está em uma liga?"}
+
+        db_cog = self.get_cog("Banco de Dados")
+        benched_tags = await db_cog.get_cwl_benched_players() if db_cog else set()
+
+        roster_with_status = []
+        for member in all_cwl_members:
+            member['status'] = 'benched' if member['tag'] in benched_tags else 'active'
+            roster_with_status.append(member)
+            
+        return {"roster": roster_with_status}
+
+
 async def setup_web_server(bot_instance: ClashGeniusBot):
     app = web.Application()
 
@@ -483,11 +504,20 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         plan = await cwl_cog.generate_rotation_plan()
         return web.json_response(plan)
 
-    async def api_cwl_inactivity_check_handler(request):
-        cwl_cog = bot_instance.get_cog("Planeador de CWL")
-        if not cwl_cog: return web.json_response({"error": "O módulo do planeador CWL não está ativo."}, status=500)
-        alert = {"alert": None} # Placeholder
-        return web.json_response(alert)
+    async def api_cwl_roster_management_handler(request):
+        return await handle_web_response(request, 'cwl_roster', bot_instance.fetch_cwl_roster_for_management)
+
+    async def api_cwl_player_status_handler(request):
+        db_cog = bot_instance.get_cog("Banco de Dados")
+        if not db_cog: return web.json_response({"error": "Cog de DB não encontrado."}, status=500)
+        data = await request.json()
+        player_tag = data.get('player_tag')
+        status = data.get('status')
+        if not player_tag or status not in ['active', 'benched']:
+            return web.json_response({"error": "Dados inválidos."}, status=400)
+        await db_cog.set_cwl_player_status(player_tag, status)
+        bot_instance.web_api_cache.pop('cwl_roster', None) # Invalida o cache
+        return web.json_response({"success": True})
 
     # --- Rotas da API ---
     app.router.add_get("/api/clan", api_clan_handler)
@@ -503,7 +533,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
-    app.router.add_get("/api/cwl/inactivity_check", api_cwl_inactivity_check_handler)
+    app.router.add_get("/api/cwl/roster_management", api_cwl_roster_management_handler)
+    app.router.add_post("/api/cwl/player_status", api_cwl_player_status_handler)
+
 
     # (Resto do código do servidor web inalterado)
     # --- Rotas Estáticas e Principais ---
