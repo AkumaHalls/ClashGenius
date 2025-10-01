@@ -50,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.99-CWL-Hotfix" # Atualiza a versão
+BOT_VERSION = "20.2.0-API-Fix" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -139,40 +139,35 @@ class ClashGeniusBot(commands.Bot):
         """Busca a guerra atual, tentando primeiro a busca normal e depois a busca por CWL."""
         await self.coc_client_ready.wait()
         try:
-            # Tenta o método normal primeiro, que funciona para guerras normais e dias de batalha CWL
             war = await self.api_client.get_current_war(self.clan_tag)
             if war and war.state in ('inWar', 'preparation'):
                 return war
         except (coc.NotFound, coc.PrivateWarLog):
-            pass # Continua para a verificação de CWL se a guerra normal não for encontrada
+            pass
         except Exception as e:
             logger.error(f"Erro inesperado ao buscar guerra normal: {e}")
 
         try:
-            # Se não encontrou, tenta buscar via grupo da CWL
             cwl_group = await self.api_client.get_league_group(self.clan_tag)
             if not cwl_group:
                 return None
 
-            # Itera sobre as guerras do clã na CWL
-            for war_tag in cwl_group.get_wars_for_clan(self.clan_tag):
+            # CORREÇÃO: Usa 'async for' para iterar sobre o objeto 'LeagueWarIterator'
+            async for league_war in cwl_group.get_wars(self.clan_tag):
                 try:
-                    league_war = await self.api_client.get_league_war(war_tag)
-                    # Retorna a primeira que estiver em preparação ou em andamento
                     if league_war and league_war.state in ('inWar', 'preparation'):
-                        # A API de guerra da liga não inclui alguns detalhes como ataques por membro,
-                        # então adicionamos manualmente se for o caso.
                         if not hasattr(league_war, 'attacks_per_member'):
-                            league_war.attacks_per_member = 1
+                            setattr(league_war, 'attacks_per_member', 1)
                         return league_war
-                except coc.NotFound:
-                    continue # Acontece se a guerra do round ainda não foi criada
+                except Exception as e:
+                    logger.error(f"Erro ao processar guerra da liga: {e}")
+                    continue
             
-            return None # Nenhuma guerra ativa na CWL encontrada
+            return None
         except coc.NotFound:
-            return None # Não está em CWL
+            return None
         except Exception as e:
-            logger.error(f"Erro inesperado ao buscar guerra da CWL: {e}")
+            logger.error(f"Erro inesperado ao buscar guerra da CWL: {e}", exc_info=True)
             return None
 
     async def get_clan_data_with_cache(self, tag: str) -> Optional[coc.Clan]:
