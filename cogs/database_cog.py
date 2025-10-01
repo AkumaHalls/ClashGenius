@@ -19,8 +19,15 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
             return {}
         try:
             notes_cursor = self.db.player_notes.find({})
-            notes_from_db = {note_doc["_id"]: {"text": note_doc.get("text", ""),"priority": note_doc.get("priority", "none")} async for note_doc in notes_cursor if "_id" in note_doc}
-            logger.info(f"Carregadas {len(notes_from_db)} notas do MongoDB.")
+            notes_from_db = {
+                note_doc["_id"]: {
+                    "text": note_doc.get("text", ""),
+                    "priority": note_doc.get("priority", "none"),
+                    "cwl_status": note_doc.get("cwl_status", "active") # Adiciona o status da CWL
+                } 
+                async for note_doc in notes_cursor if "_id" in note_doc
+            }
+            logger.info(f"Carregadas {len(notes_from_db)} notas/preferências do MongoDB.")
             return notes_from_db
         except Exception as e:
             logger.error(f"Erro ao carregar notas do MongoDB: {e}", exc_info=True)
@@ -40,6 +47,22 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
             logger.info(f"Nota salva no MongoDB para {player_tag_decoded}.")
         except Exception as e:
             logger.error(f"Erro ao salvar nota no MongoDB para {player_tag}: {e}", exc_info=True)
+            raise
+
+    async def update_player_cwl_status(self, player_tag: str, status: str):
+        """Atualiza o status de participação na CWL de um jogador."""
+        if self.db is None:
+            raise ConnectionError("Banco de dados não conectado.")
+        try:
+            player_tag_decoded = coc.utils.correct_tag(player_tag)
+            await self.db.player_notes.update_one(
+                {"_id": player_tag_decoded},
+                {"$set": {"cwl_status": status}},
+                upsert=True
+            )
+            logger.info(f"Status CWL de {player_tag_decoded} atualizado para '{status}'.")
+        except Exception as e:
+            logger.error(f"Erro ao atualizar status CWL para {player_tag}: {e}", exc_info=True)
             raise
 
     def _sanitize_keys_for_mongo(self, obj: Any) -> Any:
@@ -74,3 +97,4 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(DatabaseCog(bot))
+
