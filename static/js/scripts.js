@@ -87,6 +87,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
     const generateCwlPlanBtn = document.getElementById('generateCwlPlanBtn');
     const cwlPlanResultEl = document.getElementById('cwlPlanResult');
+    const cwlPlanDaysTabsEl = document.getElementById('cwlPlanDaysTabs');
+    const cwlPlanContentEl = document.getElementById('cwlPlanContent');
     const cwlInactivityAlertEl = document.getElementById('cwlInactivityAlert');
     const cwlInactivityTextEl = document.getElementById('cwlInactivityText');
 
@@ -434,7 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateWarAdvisorPlan(data) {
         if (!warAdvisorContentEl) return;
     
-        // Limpa o timer anterior para evitar múltiplos intervalos
         if (phaseTimerInterval) {
             clearInterval(phaseTimerInterval);
             phaseTimerInterval = null;
@@ -443,10 +444,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const advisorPhaseTimerEl = document.getElementById('advisorPhaseTimer');
         const advisorPhaseTimerTextEl = document.getElementById('advisorPhaseTimerText');
         
-        // CORREÇÃO: A lógica é encapsulada para ser chamada após a renderização
         const setupAdvisorUI = (planData) => {
             if (!planData.success) {
-                if(advisorPhaseTimerEl) advisorPhaseTimerEl.style.display = 'none';
+                if (advisorPhaseTimerEl) advisorPhaseTimerEl.style.display = 'none';
                 setHtml(warAdvisorContentEl, `<div class="advisor-plan-container"><p class="message-box">${planData.error || 'Nenhuma recomendação disponível.'}</p></div>`);
                 return;
             }
@@ -470,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     : '';
     
                 return `
-                    <div class="advisor-card type-${rec.attack_type}">
+                    <div class="advisor-card type-${rec.type}">
                         <div class="advisor-member-info">
                             <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
                             <span>Ataque Nº ${rec.attack_number}</span>
@@ -496,39 +496,34 @@ document.addEventListener('DOMContentLoaded', () => {
     
             contentHtml += '</div>';
             
-            // Renderiza o plano de ataque primeiro
             setHtml(warAdvisorContentEl, `<div id="advisorPhaseTimer" class="advisor-phase-timer" style="display: none;"><h4>MUDANÇA DE FASE</h4><p id="advisorPhaseTimerText">Calculando...</p></div>` + contentHtml);
             
-            // Depois de renderizar, inicia o timer se houver dados
             if (planData.phase_2_start_time_iso) {
                 const phase2StartTime = new Date(planData.phase_2_start_time_iso);
-                const timerEl = document.getElementById('advisorPhaseTimer'); // Re-seleciona o elemento
+                const timerEl = document.getElementById('advisorPhaseTimer');
                 const timerTextEl = document.getElementById('advisorPhaseTimerText');
-                if (timerEl && timerTextEl) {
-                    timerEl.style.display = 'block';
-                    
-                    phaseTimerInterval = setInterval(() => {
-                        const now = new Date();
-                        const diff = phase2StartTime - now;
-        
-                        if (diff <= 0) {
-                            setText(timerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
-                            clearInterval(phaseTimerInterval);
-                            phaseTimerInterval = null;
-                            return;
-                        }
-        
-                        const hours = Math.floor(diff / (1000 * 60 * 60));
-                        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        
-                        setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
-                    }, 1000);
-                }
+                if (timerEl) timerEl.style.display = 'block';
+                
+                phaseTimerInterval = setInterval(() => {
+                    const now = new Date();
+                    const diff = phase2StartTime - now;
+    
+                    if (diff <= 0) {
+                        setText(timerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
+                        clearInterval(phaseTimerInterval);
+                        phaseTimerInterval = null;
+                        return;
+                    }
+    
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+                    if (timerTextEl) setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
+                }, 1000);
             }
         };
         
-        // Inicia o processo
         setupAdvisorUI(data);
     }
 
@@ -592,66 +587,69 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // CORREÇÃO: Função para gerar o plano de rotação da CWL
+    let currentCwlPlanData = null;
+
+    function renderCwlPlan(dayIndex = 0) {
+        if (!currentCwlPlanData || !currentCwlPlanData.schedule) {
+            setHtml(cwlPlanContentEl, '<p class="message-box">Nenhum dado de plano para exibir.</p>');
+            return;
+        }
+
+        const dayData = currentCwlPlanData.schedule[dayIndex];
+        if (!dayData) {
+            setHtml(cwlPlanContentEl, '<p class="message-box">Dados para este dia não encontrados.</p>');
+            return;
+        }
+
+        let planHtml = `<div class="day-plan">`;
+        
+        planHtml += `<h4>Alterações na Equipa</h4>`;
+        planHtml += dayData.substitutions.length > 0 ? dayData.substitutions.map(sub => `
+            <div class="substitution-card">
+                <p>🔴 <strong>Sai:</strong> ${sub.out.name} (CV${sub.out.town_hall})</p>
+                <p>🟢 <strong>Entra:</strong> ${sub.in.name} (CV${sub.in.town_hall})</p>
+                <p class="reason"><em>IA: ${sub.reason}</em></p>
+            </div>`).join('') : `<p>Manter a escalação do dia anterior.</p>`;
+
+        planHtml += `<h4>⚔️ Escalação Ativa</h4>`;
+        planHtml += `<div class="roster-grid">` + dayData.active_roster.map((player, index) => `
+            <div class="roster-player"><span>${index + 1}.</span> ${player.name} (CV${player.town_hall})</div>
+        `).join('') + `</div>`;
+
+        planHtml += `</div>`;
+        setHtml(cwlPlanContentEl, planHtml);
+
+        // Atualiza as abas de dias
+        document.querySelectorAll('#cwlPlanDaysTabs .cwl-plan-day-tab').forEach((tab, index) => {
+            tab.classList.toggle('active', index === dayIndex);
+        });
+    }
+
     async function handleGenerateCwlPlan() {
         generateCwlPlanBtn.disabled = true;
-        generateCwlPlanBtn.innerHTML = '<div class="loading-spinner" style="width: 20px; height: 20px; border-width: 3px; margin: 0 auto;"></div>'; // Adiciona spinner
         cwlPlanResultEl.style.display = 'block';
-        setHtml(cwlPlanResultEl, ''); // Limpa resultados anteriores
-
+        setHtml(cwlPlanContentEl, '<div class="loading-spinner" style="margin: 20px auto;"></div>');
+        setHtml(cwlPlanDaysTabsEl, '');
+        
         const data = await fetchData('cwl/generate_plan', { method: 'POST' });
-
-        generateCwlPlanBtn.disabled = false;
-        generateCwlPlanBtn.textContent = 'Gerar Plano de Rotação'; // Restaura o texto do botão
-
+        
         if (data.error) {
-            setHtml(cwlPlanResultEl, `<p class="message-box">${data.error}</p>`);
-        } else if (data.schedule && Array.isArray(data.schedule)) {
-            // Cria abas para cada dia
-            const tabsHtml = data.schedule.map((dayPlan, index) => 
-                `<button class="cwl-plan-tab ${index === 0 ? 'active' : ''}" data-day="${dayPlan.day}">Dia ${dayPlan.day}</button>`
-            ).join('');
+            setHtml(cwlPlanContentEl, `<p class="message-box">${data.error}</p>`);
+            currentCwlPlanData = null;
+        } else {
+            currentCwlPlanData = data;
+            setHtml(cwlPlanDaysTabsEl, currentCwlPlanData.schedule.map((day, index) => `
+                <button class="cwl-plan-day-tab ${index === 0 ? 'active' : ''}" data-day-index="${index}">Dia ${day.day}</button>
+            `).join(''));
             
-            // Cria o conteúdo para cada dia
-            const contentHtml = data.schedule.map((dayPlan, index) => `
-                <div class="day-plan-content ${index === 0 ? 'active' : ''}" id="day-plan-${dayPlan.day}">
-                    <h6>🔄 Alterações na Equipa</h6>
-                    ${dayPlan.substitutions.length > 0 
-                        ? dayPlan.substitutions.map(sub => `
-                            <div class="substitution-card">
-                                <p><span style="color: var(--color-danger);">🔴 Sai:</span> ${sub.out.name} (CV${sub.out.town_hall})</p>
-                                <p><span style="color: var(--color-success);">🟢 Entra:</span> ${sub.in.name} (CV${sub.in.town_hall})</p>
-                            </div>`).join('') 
-                        : '<p>Nenhuma alteração na escalação para este dia.</p>'
-                    }
-                    <h6>⚔️ Escalação Ativa</h6>
-                    <div class="roster-list">
-                        ${dayPlan.active_roster.map((player, i) => `<span>${i + 1}. ${player.name} (CV${player.town_hall})</span>`).join('')}
-                    </div>
-                </div>
-            `).join('');
-
-            // Junta tudo para injeção no DOM
-            const fullHtml = `
-                <h4 class="plan-summary">${data.summary}</h4>
-                <nav class="cwl-plan-tabs">${tabsHtml}</nav>
-                <div class="cwl-plan-content-wrapper">${contentHtml}</div>
-            `;
-            setHtml(cwlPlanResultEl, fullHtml);
-
-            // Adiciona os event listeners para as abas recém-criadas
-            cwlPlanResultEl.querySelectorAll('.cwl-plan-tab').forEach(tab => {
+            document.querySelectorAll('#cwlPlanDaysTabs .cwl-plan-day-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
-                    cwlPlanResultEl.querySelectorAll('.cwl-plan-tab').forEach(t => t.classList.remove('active'));
-                    cwlPlanResultEl.querySelectorAll('.day-plan-content').forEach(c => c.classList.remove('active'));
-                    
-                    tab.classList.add('active');
-                    document.getElementById(`day-plan-${tab.dataset.day}`).classList.add('active');
+                    const dayIndex = parseInt(tab.dataset.dayIndex, 10);
+                    renderCwlPlan(dayIndex);
                 });
             });
 
-        } else {
-            setHtml(cwlPlanResultEl, `<p class="message-box">Não foi possível gerar o plano. Resposta da API inválida.</p>`);
+            renderCwlPlan(0); // Renderiza o primeiro dia por padrão
         }
     }
 
@@ -702,6 +700,15 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({ text, priority })
         });
     }
+
+    async function setPlayerCwlStatus(playerTag, status) {
+        const response = await fetchData(`cwl/player_status/${encodeURIComponent(playerTag)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        return !response.error;
+    }
     
     function populateMembersList(data) {
         setText(membersClanNameEl, data.clan_name);
@@ -723,6 +730,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span>🎁 Doadas: ${m.donations}</span>
                     <span>📥 Recebidas: ${m.received}</span>
                 </div>
+
+                <div class="member-cwl-status" data-player-tag="${m.tag}">
+                    <label>Status na CWL:</label>
+                    <div class="cwl-status-selector">
+                        <button class="cwl-status-btn ${m.cwl_status === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
+                        <button class="cwl-status-btn ${m.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
+                    </div>
+                </div>
+
                 <div class="member-card-note">
                     <div class="note-container note-priority-${m.note_priority || 'none'}">
                         <span class="note-text">${m.note || 'Clique para editar...'}</span>
@@ -776,6 +792,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 savePlayerNote(playerTag, text, newPriority);
+            });
+        });
+
+        document.querySelectorAll('.cwl-status-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                if (btn.classList.contains('active')) return;
+
+                const selector = e.target.closest('.cwl-status-selector');
+                const playerTag = e.target.closest('.member-cwl-status').dataset.playerTag;
+                const newStatus = e.target.dataset.status;
+
+                selector.querySelector('.active').classList.remove('active');
+                e.target.classList.add('active');
+
+                const success = await setPlayerCwlStatus(playerTag, newStatus);
+                if (!success) {
+                    alert('Erro ao salvar o status. Tente novamente.');
+                    e.target.classList.remove('active');
+                    selector.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`).classList.add('active');
+                }
             });
         });
     }
@@ -963,3 +999,4 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 45000);
 });
+
