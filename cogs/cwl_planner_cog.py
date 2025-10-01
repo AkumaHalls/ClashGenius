@@ -47,6 +47,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 logger.warning("Tentativa de buscar membros da CWL, mas o clã não está em uma.")
                 return []
             
+            # CORREÇÃO: Usa a forma correta de encontrar o clã dentro do grupo da CWL.
             our_clan_in_cwl = next((c for c in cwl_group.clans if c.tag == self.bot.clan_tag), None)
             
             if not our_clan_in_cwl or not our_clan_in_cwl.members:
@@ -64,7 +65,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     async def generate_rotation_plan(self) -> Dict[str, Any]:
         """Gera o plano de rotação completo para os 7 dias de CWL."""
-        await self.bot.coc_client_ready.wait()
+        await self.bot.coc_client_ready.wait()  # GARANTE QUE O CLIENTE COC ESTÁ PRONTO
         
         # 1. Busca todos os membros inscritos na CWL
         cwl_members_roster = await self.get_cwl_members_for_planning()
