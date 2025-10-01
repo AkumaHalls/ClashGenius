@@ -15,12 +15,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
-    <!-- INÍCIO: Adiciona a biblioteca de gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- FIM: Adiciona a biblioteca de gráficos -->
 </head>
 <body>
-    <!-- Elemento de áudio para a música de fundo -->
     <audio id="background-music" src="/static/audio/WARS.mp3" loop></audio>
 
     <canvas id="particle-background"></canvas>
@@ -254,9 +251,13 @@
                         Gerar Plano de Rotação
                         <span class="tooltip-text">Disponível apenas durante a CWL.</span>
                     </button>
-                    <!-- CORREÇÃO: Container simplificado para receber o HTML gerado pelo JS -->
                     <div id="cwlPlanResult" class="cwl-plan-result" style="display: none;">
-                        <!-- O conteúdo do plano será injetado aqui pelo JavaScript -->
+                        <div class="cwl-plan-tabs-container">
+                            <nav class="cwl-plan-tabs" id="cwlPlanDaysTabs">
+                            </nav>
+                        </div>
+                        <div class="cwl-plan-content" id="cwlPlanContent">
+                        </div>
                     </div>
 
                     <div id="cwlInactivityAlert" class="inactivity-alert" style="display: none;">
@@ -378,3 +379,4 @@
     <script src="/static/js/scripts.js"></script>
 </body>
 </html>
+
