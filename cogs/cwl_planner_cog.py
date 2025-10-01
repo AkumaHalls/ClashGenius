@@ -40,50 +40,67 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         except Exception as e:
             logger.error(f"Falha ao enviar embed para o canal do planeador CWL: {e}")
 
-    async def get_clan_members_for_planning(self) -> List[Dict[str, Any]]:
-        """Busca e ordena todos os membros do clã por força (CV como critério principal)."""
+    # CORREÇÃO CRÍTICA: A função agora busca os membros da CWL, não do clã inteiro.
+    async def get_cwl_members_for_planning(self) -> List[Dict[str, Any]]:
+        """Busca e ordena os membros que estão na CWL."""
         try:
-            clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
-            if not clan: return []
+            cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
+            if not cwl_group:
+                logger.warning("Tentativa de buscar membros da CWL, mas o clã não está em uma.")
+                return []
             
-            sorted_members = sorted(clan.members, key=lambda m: m.town_hall, reverse=True)
+            # Pega o nosso clã dentro do grupo da CWL para acessar os membros inscritos
+            our_clan_in_cwl = cwl_group.get_clan(self.bot.clan_tag)
+            if not our_clan_in_cwl or not our_clan_in_cwl.members:
+                logger.warning("Não foi possível encontrar os membros do nosso clã no grupo da CWL.")
+                return []
+
+            # Ordena os membros inscritos na CWL por CV
+            sorted_members = sorted(our_clan_in_cwl.members, key=lambda m: m.town_hall, reverse=True)
             return [{"name": m.name, "tag": m.tag, "town_hall": m.town_hall} for m in sorted_members]
+        except coc.NotFound:
+             logger.info("O clã não está atualmente em uma CWL.")
+             return []
         except Exception as e:
-            logger.error(f"Erro ao buscar membros para o planeamento: {e}")
+            logger.error(f"Erro ao buscar membros da CWL para o planeamento: {e}")
             return []
 
     async def generate_rotation_plan(self) -> Dict[str, Any]:
         """Gera o plano de rotação completo para os 7 dias de CWL."""
-        all_members = await self.get_clan_members_for_planning()
-        if len(all_members) < 15: # Mínimo para qualquer CWL
-            return {"error": "Não há membros suficientes para uma CWL."}
+        # CORREÇÃO: Usa a nova função para pegar apenas membros da CWL.
+        cwl_members = await self.get_cwl_members_for_planning()
+        
+        if not cwl_members:
+            return {"error": "Não foi possível buscar os membros inscritos na CWL. O clã está em uma liga de guerra?"}
+        
+        if len(cwl_members) < 15: # Mínimo para qualquer CWL
+            return {"error": "Não há membros suficientes (mínimo 15) inscritos na CWL para criar um plano."}
 
-        roster_size = 30 if len(all_members) >= 30 else 15
-        initial_roster = all_members[:roster_size]
-        bench = all_members[roster_size:]
+        # A lógica de rotação agora funciona com a lista correta de jogadores
+        roster_size = 30 if len(cwl_members) >= 30 else 15
+        initial_roster = cwl_members[:roster_size]
+        bench = cwl_members[roster_size:]
         
         schedule = []
         current_roster = initial_roster.copy()
         
-        # Lógica de rotação simplificada para garantir que todos joguem
         for day in range(1, 8):
             substitutions = []
             if bench and day > 1:
-                # CORREÇÃO: Ordena a lista ANTES de fazer as substituições do dia.
-                # Isso garante que `pop(-1)` sempre remova o jogador mais fraco da escalação atual,
-                # e não o jogador que acabou de ser adicionado no final da lista na iteração anterior.
-                current_roster = sorted(current_roster, key=lambda p: p['town_hall'], reverse=True)
+                current_roster.sort(key=lambda p: p['town_hall'], reverse=True)
+                num_subs = min(3, len(bench), len(current_roster))
+                players_out = current_roster[-num_subs:]
+                players_in = bench[:num_subs]
+                
+                current_roster = current_roster[:-num_subs]
+                current_roster.extend(players_in)
+                bench = bench[num_subs:]
+                bench.extend(players_out)
 
-                # Tenta trocar 3 jogadores por dia para maximizar a participação
-                for _ in range(3): 
-                    if not bench: break
-                    player_out = current_roster.pop(-1) # Tira um dos mais fracos da escalação
-                    player_in = bench.pop(0) # Pega o próximo do banco
-                    current_roster.append(player_in)
-                    bench.append(player_out) # Coloca quem saiu no fim da fila do banco
+                for i in range(num_subs):
                     substitutions.append({
-                        "out": player_out,
-                        "in": player_in,
+                        "out": players_out[i],
+                        "in": players_in[i],
                         "reason": f"Rotação para maximizar medalhas e participação."
                     })
 
@@ -94,7 +111,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             })
 
         return {
-            "summary": f"Plano de rotação para {len(all_members)} membros numa CWL {roster_size}x{roster_size}.",
+            "summary": f"Plano de rotação para {len(cwl_members)} membros numa CWL {roster_size}x{roster_size}.",
             "schedule": schedule
         }
 
@@ -102,19 +119,15 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     async def cwl_monitoring_task(self):
         """Tarefa principal que monitoriza a CWL e envia os alertas necessários."""
         await self.bot.wait_until_ready()
-        # ADICIONADO: Garante que o cliente da API está pronto antes de continuar
         await self.bot.coc_client_ready.wait()
         
         try:
-            # Agora é seguro usar self.bot.api_client
             cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
             if not cwl_group or cwl_group.state != "inWar":
-                # Se não está em CWL, reinicia os controlos para a próxima
                 self.posted_daily_plans.clear()
                 self.posted_inactivity_alerts.clear()
                 return
 
-            # Encontra a guerra ativa do dia
             our_clan_info = cwl_group.get_clan(self.bot.clan_tag)
             if not our_clan_info: return
 
@@ -127,10 +140,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             
             if not active_war: return
 
-            # 1. Postar o plano do dia
             await self.post_daily_plan_if_needed(active_war, cwl_group.season)
-            
-            # 2. Verificar inatividade
             await self.check_and_alert_inactivity(active_war)
 
         except coc.NotFound:
@@ -141,7 +151,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     async def post_daily_plan_if_needed(self, war: coc.ClanWar, season: str):
         """Verifica se o plano para a guerra atual já foi postado e, se não, posta."""
-        war_id = war.end_time.time.day # Usa o dia do fim da guerra como identificador único
+        war_id = war.end_time.time.day
         if war_id in self.posted_daily_plans:
             return
 
@@ -150,7 +160,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         plan_data = await self.generate_rotation_plan()
         if "error" in plan_data: return
 
-        # Encontra o plano para o dia atual (assumindo que as guerras são sequenciais)
         current_day_plan = next((p for p in plan_data["schedule"] if len(self.posted_daily_plans) < p["day"]), None)
         if not current_day_plan: return
         
@@ -163,11 +172,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             color=discord.Color.blue()
         )
         
-        # Lista da escalação ativa
         roster_str = "\n".join([f"`{i+1:02d}.` {p['name']} (CV{p['town_hall']})" for i, p in enumerate(current_day_plan["active_roster"])])
         embed.add_field(name="⚔️ Escalação Ativa para Hoje", value=roster_str or "N/A", inline=False)
 
-        # Lista de substituições
         if current_day_plan["substitutions"]:
             subs_str = ""
             for sub in current_day_plan["substitutions"]:
@@ -187,7 +194,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     async def check_and_alert_inactivity(self, war: coc.ClanWar):
         """Verifica jogadores inativos e envia um alerta se necessário."""
         time_left = war.end_time.seconds_until
-        # Alerta se faltarem menos de 4 horas e mais de 15 minutos
         if not (15 * 60 < time_left < 4 * 3600):
             return
 
@@ -197,7 +203,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         if not inactive_members:
             return
 
-        # Cria um ID único para este alerta (guerra + número de inativos)
         alert_id = f"{war.end_time.time.day}-{len(inactive_members)}"
         if alert_id in self.posted_inactivity_alerts:
             return
@@ -230,8 +235,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     @cwl_monitoring_task.before_loop
     async def before_cwl_monitoring_task(self):
-        # Correção: O construtor é o melhor sítio para definir self.api_client
-        # Mas vamos garantir que o bot está pronto de qualquer forma.
         await self.bot.wait_until_ready()
 
 
@@ -241,3 +244,4 @@ async def setup(bot: commands.Bot):
         await bot.add_cog(CwlPlannerCog(bot))
     else:
         logger.warning("Cog 'CwlPlannerCog' não carregado (ID do canal não configurado).")
+
