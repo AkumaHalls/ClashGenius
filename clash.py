@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 2.1.0-CWL-Management
+# Versão 2.1.1-Hotfix
 
 import os
 import logging
@@ -49,7 +49,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "2.1.0-CWL-Management" # Atualiza a versão
+BOT_VERSION = "2.1.1-Hotfix" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -180,6 +180,32 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
+    
+    # --- MÉTODOS DE BUSCA DE DADOS PARA A API WEB (RESTAURADOS) ---
+    async def fetch_clan_info_for_web(self):
+        clan = await self.get_clan_data_with_cache(self.clan_tag)
+        if not clan: return {"error": "Não foi possível carregar os dados do clã."}
+        
+        # Tenta buscar a liga da capital de forma segura
+        capital_league = "N/A"
+        try:
+            if clan.capital_league:
+                capital_league = clan.capital_league.name
+        except AttributeError:
+            logger.warning("Não foi possível acessar a liga da capital.")
+            
+        return {
+            "name": getattr(clan, 'name', 'N/A'), "tag": getattr(clan, 'tag', 'N/A'),
+            "level": getattr(clan, 'level', 0), "points": getattr(clan, 'points', 0),
+            "capital_points": getattr(clan, 'capital_points', 0), "member_count": getattr(clan, 'member_count', 0),
+            "description": getattr(clan, 'description', ''), "war_wins": getattr(clan, 'war_wins', 0),
+            "location": getattr(clan.location, 'name', 'N/A') if hasattr(clan, 'location') and clan.location else 'N/A',
+            "type": str(getattr(clan, 'type', 'N/A')).capitalize(),
+            "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
+            "version": BOT_VERSION,
+            "capital_league": capital_league,
+            "capital_districts": [{"name": d.name, "level": d.level} for d in getattr(clan, 'districts', [])]
+        }
             
     async def fetch_clan_members_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
@@ -196,7 +222,7 @@ class ClashGeniusBot(commands.Bot):
                 "donations": member.donations, "received": member.received,
                 "note": note_data.get("text", ""), 
                 "note_priority": note_data.get("priority", "none"),
-                "cwl_status": note_data.get("cwl_status", "active") # Adiciona o status da CWL
+                "cwl_status": note_data.get("cwl_status", "active")
             })
         role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
         sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
@@ -331,25 +357,43 @@ class ClashGeniusBot(commands.Bot):
     async def fetch_cwl_info_for_web(self):
         if not self.api_client: return {"error": "API do CoC não iniciada."}
         try:
-            cwl_war = await self.api_client.get_league_group(self.clan_tag)
-            if not cwl_war: return {"status": "NotInCwl"}
-            clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_war.clans]
+            cwl_group = await self.api_client.get_league_group(self.clan_tag)
+            if not cwl_group: return {"status": "NotInCwl"}
+
+            clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_group.clans]
+            
             rounds_info = []
-            for i, a_round in enumerate(cwl_war.rounds):
-                round_data = {"round_number": i + 1, "wars": []}
-                for war_tag in a_round:
-                    try:
-                        war = await self.api_client.get_league_war(war_tag)
-                        if war:
-                            round_data["wars"].append({
-                                "war_tag": war_tag, "clan_name": war.clan.name, "clan_badge_url": war.clan.badge.url, "clan_stars": war.clan.stars,
-                                "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url, "opponent_stars": war.opponent.stars,
-                                **format_war_time_details(war, datetime.datetime.now(pytz.utc))
-                            })
-                    except Exception as e: logger.warning(f"Não foi possível buscar a guerra da CWL {war_tag}: {e}")
-                rounds_info.append(round_data)
-            return {"status": "InCwl", "season": cwl_war.season, "state": str(cwl_war.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
-        except coc.NotFound: return {"status": "NotInCwl"}
+            
+            # CORREÇÃO: Itera corretamente sobre o objeto iterador
+            async for war in cwl_group.get_wars(self.clan_tag):
+                if not war: continue
+                # Encontra a rodada correspondente
+                round_number = -1
+                for i, round_data in enumerate(cwl_group.rounds):
+                    if war.war_tag in round_data:
+                        round_number = i + 1
+                        break
+
+                # Garante que temos um objeto para a rodada
+                round_obj = next((r for r in rounds_info if r["round_number"] == round_number), None)
+                if not round_obj:
+                    round_obj = {"round_number": round_number, "wars": []}
+                    rounds_info.append(round_obj)
+                
+                round_obj["wars"].append({
+                    "war_tag": war.war_tag, "clan_name": war.clan.name, "clan_badge_url": war.clan.badge.url, "clan_stars": war.clan.stars,
+                    "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url, "opponent_stars": war.opponent.stars,
+                    **format_war_time_details(war, datetime.datetime.now(pytz.utc))
+                })
+            
+            rounds_info.sort(key=lambda r: r['round_number']) # Garante a ordem
+
+            return {"status": "InCwl", "season": cwl_group.season, "state": str(cwl_group.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
+        except coc.NotFound: 
+            return {"status": "NotInCwl"}
+        except Exception as e:
+            logger.error(f"Erro inesperado ao buscar guerra da CWL: {e}", exc_info=True)
+            return {"error": f"Erro inesperado: {e}"}
 
     async def fetch_highlights_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
@@ -507,7 +551,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
     app.router.add_get("/api/cwl/inactivity_check", api_cwl_inactivity_check_handler)
-    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_set_cwl_player_status_handler) # NOVA ROTA
+    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_set_cwl_player_status_handler)
 
     # --- Rotas Estáticas e Principais ---
     static_dir = os.path.join(os.path.dirname(__file__), "static")
