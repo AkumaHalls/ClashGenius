@@ -40,7 +40,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         except Exception as e:
             logger.error(f"Falha ao enviar embed para o canal do planeador CWL: {e}")
 
-    # CORREÇÃO CRÍTICA: A função agora busca os membros da CWL, não do clã inteiro.
     async def get_cwl_members_for_planning(self) -> List[Dict[str, Any]]:
         """Busca e ordena os membros que estão na CWL."""
         try:
@@ -49,13 +48,11 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 logger.warning("Tentativa de buscar membros da CWL, mas o clã não está em uma.")
                 return []
             
-            # Pega o nosso clã dentro do grupo da CWL para acessar os membros inscritos
             our_clan_in_cwl = cwl_group.get_clan(self.bot.clan_tag)
             if not our_clan_in_cwl or not our_clan_in_cwl.members:
                 logger.warning("Não foi possível encontrar os membros do nosso clã no grupo da CWL.")
                 return []
 
-            # Ordena os membros inscritos na CWL por CV
             sorted_members = sorted(our_clan_in_cwl.members, key=lambda m: m.town_hall, reverse=True)
             return [{"name": m.name, "tag": m.tag, "town_hall": m.town_hall} for m in sorted_members]
         except coc.NotFound:
@@ -67,16 +64,16 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     async def generate_rotation_plan(self) -> Dict[str, Any]:
         """Gera o plano de rotação completo para os 7 dias de CWL."""
-        # CORREÇÃO: Usa a nova função para pegar apenas membros da CWL.
+        await self.bot.coc_client_ready.wait()  # GARANTE QUE O CLIENTE COC ESTÁ PRONTO
+        
         cwl_members = await self.get_cwl_members_for_planning()
         
         if not cwl_members:
             return {"error": "Não foi possível buscar os membros inscritos na CWL. O clã está em uma liga de guerra?"}
         
-        if len(cwl_members) < 15: # Mínimo para qualquer CWL
+        if len(cwl_members) < 15:
             return {"error": "Não há membros suficientes (mínimo 15) inscritos na CWL para criar um plano."}
 
-        # A lógica de rotação agora funciona com a lista correta de jogadores
         roster_size = 30 if len(cwl_members) >= 30 else 15
         initial_roster = cwl_members[:roster_size]
         bench = cwl_members[roster_size:]
