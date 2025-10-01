@@ -887,7 +887,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .cwl-round h4 { font-family: var(--font-title); margin-top: 0; font-size: 1.1em; color: var(--color-text-main); }
 .cwl-war-entry { padding: 8px; border-bottom: 1px dotted var(--color-divider); color: var(--color-text-secondary); }
 .cwl-war-entry:last-child { border-bottom: none; }
-.cwl-war-entry strong { color: var(--color-text-main); }
 .cwl-war-badge { vertical-align: middle; margin-right: 5px; height: 18px; }
 .cwl-clans-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .cwl-clans-grid p img { vertical-align: middle; margin-right: 8px; height: 22px; }
@@ -1638,6 +1637,76 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 /* --- FIM: NOVOS ESTILOS PARA O PLANEJADOR CWL --- */
 
+/* --- INÍCIO: MELHORIAS NO PLANEJADOR CWL (ABAS) --- */
+.cwl-plan-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--color-divider);
+    margin-bottom: 15px;
+}
+
+.cwl-plan-tab {
+    padding: 8px 15px;
+    cursor: pointer;
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--color-text-secondary);
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: color 0.2s, border-color 0.2s;
+}
+.cwl-plan-tab:hover {
+    color: var(--color-text-main);
+}
+.cwl-plan-tab.active {
+    color: var(--color-gold);
+    border-bottom-color: var(--color-gold);
+}
+
+.day-plan-content {
+    display: none;
+    animation: fadeIn 0.4s;
+}
+.day-plan-content.active {
+    display: block;
+}
+
+.day-plan-content h6 {
+    font-size: 1em;
+    color: var(--color-text-main);
+    margin-top: 15px;
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--color-divider);
+}
+
+.roster-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+    font-size: 0.85em;
+    color: var(--color-text-secondary);
+    margin-top: 10px;
+}
+
+.roster-list span {
+    background-color: rgba(0,0,0,0.2);
+    padding: 6px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Spinner inside button */
+#generateCwlPlanBtn .loading-spinner {
+    width: 20px;
+    height: 20px;
+    border-width: 3px;
+    margin: 0 auto;
+}
+/* --- FIM: MELHORIAS NO PLANEJADOR CWL --- */
+
 
 /* --- INÍCIO: NOVOS ESTILOS PARA O INDICADOR DE IA --- */
 .ai-indicator {
@@ -1782,4 +1851,3 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .confidence-bar.medium { background-color: var(--color-warning); }
 .confidence-bar.low { background-color: var(--color-danger); }
 /* FIM: NOVOS ESTILOS PARA O WAR ADVISOR V4 */
-
