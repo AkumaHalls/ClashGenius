@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.95-AdvisorV4-FIX#
+# Versão 20.1.95-AdvisorV4-FIX
 
 import os
 import logging
@@ -168,7 +168,7 @@ class ClashGeniusBot(commands.Bot):
             "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
             "version": BOT_VERSION,
             "capital_league": capital_league_name,
-            "capital_districts": [{"name": d.name, "level": d.level} for d in clan.capital_districts] if hasattr(clan, 'capital_districts') else []
+            "capital_districts": [{"name": d.name, "level": d.district_hall_level} for d in clan.capital_districts] if hasattr(clan, 'capital_districts') else []
         }
 
     async def fetch_current_war_details_for_web(self, force_api_call=False):
