@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.95-AdvisorV4-FIX
+# Versão 2.1.0-CWL-Management
 
 import os
 import logging
@@ -25,7 +25,6 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
-# A classe do sistema é importada diretamente do cog agora
 from cogs.war_advisor_cog import WarAdvisorSystem
 
 # --- Configuração do Logging ---
@@ -50,7 +49,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.3.0-Roster-Mgmt" # Atualiza a versão
+BOT_VERSION = "2.1.0-CWL-Management" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -72,7 +71,6 @@ class ClashGeniusBot(commands.Bot):
 
         self.api_client: Optional[coc.Client] = None
         self.war_prediction_system: Optional[WarPredictionSystemV3] = None
-        # O war_advisor_system será instanciado dentro do seu respectivo cog.
         self.db = None
         self.mongo_client = None
 
@@ -183,20 +181,26 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
             
-    # --- MÉTODOS DE BUSCA DE DADOS (sem alterações) ---
-    async def fetch_clan_info_for_web(self):
+    async def fetch_clan_members_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
-        return {
-            "name": getattr(clan, 'name', 'N/A'), "tag": getattr(clan, 'tag', 'N/A'),
-            "level": getattr(clan, 'level', 0), "points": getattr(clan, 'points', 0),
-            "capital_points": getattr(clan, 'capital_points', 0), "member_count": getattr(clan, 'member_count', 0),
-            "description": getattr(clan, 'description', ''), "war_wins": getattr(clan, 'war_wins', 0),
-            "location": getattr(clan.location, 'name', 'N/A') if hasattr(clan, 'location') and clan.location else 'N/A',
-            "type": str(getattr(clan, 'type', 'N/A')).capitalize(),
-            "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
-            "version": BOT_VERSION
-        }
+        db_cog = self.get_cog("Banco de Dados")
+        player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
+        members_list = []
+        for member in clan.members:
+            note_data = player_notes.get(member.tag, {})
+            members_list.append({
+                "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
+                "league": member.league.name if member.league else "Sem Liga",
+                "trophies": member.trophies, "role": member.role.name.capitalize() if member.role else "Membro",
+                "donations": member.donations, "received": member.received,
+                "note": note_data.get("text", ""), 
+                "note_priority": note_data.get("priority", "none"),
+                "cwl_status": note_data.get("cwl_status", "active") # Adiciona o status da CWL
+            })
+        role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
+        sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
+        return {"clan_name": clan.name, "members": sorted_members, "version": BOT_VERSION}
 
     async def fetch_current_war_details_for_web(self, force_api_call=False):
         key = 'war_details'
@@ -276,25 +280,6 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
             return {"error": "Erro interno ao processar dados da guerra."}
-            
-    async def fetch_clan_members_for_web(self):
-        clan = await self.get_clan_data_with_cache(self.clan_tag)
-        if not clan: return {"error": "Não foi possível carregar os dados do clã."}
-        db_cog = self.get_cog("Banco de Dados")
-        player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
-        members_list = []
-        for member in clan.members:
-            note_data = player_notes.get(member.tag, {})
-            members_list.append({
-                "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
-                "league": member.league.name if member.league else "Sem Liga",
-                "trophies": member.trophies, "role": member.role.name.capitalize() if member.role else "Membro",
-                "donations": member.donations, "received": member.received,
-                "note": note_data.get("text", ""), "note_priority": note_data.get("priority", "none")
-            })
-        role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
-        sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
-        return {"clan_name": clan.name, "members": sorted_members, "version": BOT_VERSION}
 
     async def fetch_missed_attacks_history_for_web(self):
         if self.db is None: return {"error": "Histórico indisponível."}
@@ -383,28 +368,6 @@ class ClashGeniusBot(commands.Bot):
         active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
         chart_data = {"labels": [m.name for m in active_members], "donations": [m.donations for m in active_members], "received": [m.received for m in active_members]}
         return {"top_donors": top_donors_data, "war_heroes": war_heroes, "activity_chart_data": chart_data, "clan_name": clan.name, "war_date": war_end_date_str}
-
-    async def fetch_cwl_roster_for_management(self):
-        """Busca o roster da CWL e as preferências do banco para o painel de gerenciamento."""
-        cwl_cog = self.get_cog("Planeador de CWL")
-        if not cwl_cog:
-            return {"error": "Módulo de CWL não carregado."}
-        
-        # Usamos a mesma função do cog para garantir consistência
-        all_cwl_members = await cwl_cog.get_cwl_members_for_planning(check_in_clan=False)
-        if not all_cwl_members:
-            return {"error": "Não foi possível buscar o roster da CWL. O clã está em uma liga?"}
-
-        db_cog = self.get_cog("Banco de Dados")
-        benched_tags = await db_cog.get_cwl_benched_players() if db_cog else set()
-
-        roster_with_status = []
-        for member in all_cwl_members:
-            member['status'] = 'benched' if member['tag'] in benched_tags else 'active'
-            roster_with_status.append(member)
-            
-        return {"roster": roster_with_status}
-
 
 async def setup_web_server(bot_instance: ClashGeniusBot):
     app = web.Application()
@@ -504,20 +467,30 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         plan = await cwl_cog.generate_rotation_plan()
         return web.json_response(plan)
 
-    async def api_cwl_roster_management_handler(request):
-        return await handle_web_response(request, 'cwl_roster', bot_instance.fetch_cwl_roster_for_management)
-
-    async def api_cwl_player_status_handler(request):
+    async def api_cwl_inactivity_check_handler(request):
+        cwl_cog = bot_instance.get_cog("Planeador de CWL")
+        if not cwl_cog: return web.json_response({"error": "O módulo do planeador CWL não está ativo."}, status=500)
+        alert = {"alert": None} # Placeholder
+        return web.json_response(alert)
+    
+    async def api_set_cwl_player_status_handler(request):
         db_cog = bot_instance.get_cog("Banco de Dados")
-        if not db_cog: return web.json_response({"error": "Cog de DB não encontrado."}, status=500)
+        if not db_cog: return web.json_response({"error": "Módulo de banco de dados não encontrado."}, status=500)
+        
+        player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         data = await request.json()
-        player_tag = data.get('player_tag')
-        status = data.get('status')
-        if not player_tag or status not in ['active', 'benched']:
-            return web.json_response({"error": "Dados inválidos."}, status=400)
-        await db_cog.set_cwl_player_status(player_tag, status)
-        bot_instance.web_api_cache.pop('cwl_roster', None) # Invalida o cache
-        return web.json_response({"success": True})
+        new_status = data.get('status')
+
+        if new_status not in ['active', 'backup']:
+            return web.json_response({"error": "Status inválido."}, status=400)
+
+        try:
+            await db_cog.update_player_cwl_status(player_tag, new_status)
+            bot_instance.web_api_cache.pop('members', None) # Invalida o cache de membros
+            return web.Response(status=204) # 204 No Content para sucesso sem corpo
+        except Exception as e:
+            logger.error(f"Erro ao atualizar status CWL para {player_tag}: {e}")
+            return web.json_response({"error": "Erro interno ao salvar o status."}, status=500)
 
     # --- Rotas da API ---
     app.router.add_get("/api/clan", api_clan_handler)
@@ -533,11 +506,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
-    app.router.add_get("/api/cwl/roster_management", api_cwl_roster_management_handler)
-    app.router.add_post("/api/cwl/player_status", api_cwl_player_status_handler)
+    app.router.add_get("/api/cwl/inactivity_check", api_cwl_inactivity_check_handler)
+    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_set_cwl_player_status_handler) # NOVA ROTA
 
-
-    # (Resto do código do servidor web inalterado)
     # --- Rotas Estáticas e Principais ---
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     app.router.add_static('/static/', path=static_dir, name='static')
