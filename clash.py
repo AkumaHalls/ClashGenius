@@ -50,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.96-ProfileCog" # Atualiza a versão
+BOT_VERSION = "20.1.99-CWL-Hotfix" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -135,6 +135,46 @@ class ClashGeniusBot(commands.Bot):
         if self.mongo_client: self.mongo_client.close()
         await super().close()
 
+    async def get_robust_current_war(self) -> Optional[coc.ClanWar]:
+        """Busca a guerra atual, tentando primeiro a busca normal e depois a busca por CWL."""
+        await self.coc_client_ready.wait()
+        try:
+            # Tenta o método normal primeiro, que funciona para guerras normais e dias de batalha CWL
+            war = await self.api_client.get_current_war(self.clan_tag)
+            if war and war.state in ('inWar', 'preparation'):
+                return war
+        except (coc.NotFound, coc.PrivateWarLog):
+            pass # Continua para a verificação de CWL se a guerra normal não for encontrada
+        except Exception as e:
+            logger.error(f"Erro inesperado ao buscar guerra normal: {e}")
+
+        try:
+            # Se não encontrou, tenta buscar via grupo da CWL
+            cwl_group = await self.api_client.get_league_group(self.clan_tag)
+            if not cwl_group:
+                return None
+
+            # Itera sobre as guerras do clã na CWL
+            for war_tag in cwl_group.get_wars_for_clan(self.clan_tag):
+                try:
+                    league_war = await self.api_client.get_league_war(war_tag)
+                    # Retorna a primeira que estiver em preparação ou em andamento
+                    if league_war and league_war.state in ('inWar', 'preparation'):
+                        # A API de guerra da liga não inclui alguns detalhes como ataques por membro,
+                        # então adicionamos manualmente se for o caso.
+                        if not hasattr(league_war, 'attacks_per_member'):
+                            league_war.attacks_per_member = 1
+                        return league_war
+                except coc.NotFound:
+                    continue # Acontece se a guerra do round ainda não foi criada
+            
+            return None # Nenhuma guerra ativa na CWL encontrada
+        except coc.NotFound:
+            return None # Não está em CWL
+        except Exception as e:
+            logger.error(f"Erro inesperado ao buscar guerra da CWL: {e}")
+            return None
+
     async def get_clan_data_with_cache(self, tag: str) -> Optional[coc.Clan]:
         await self.coc_client_ready.wait()
         normalized_tag = coc.utils.correct_tag(tag)
@@ -172,7 +212,7 @@ class ClashGeniusBot(commands.Bot):
                 return self.web_api_cache[key]["data"]
 
         try:
-            war = await self.api_client.get_current_war(self.clan_tag)
+            war = await self.get_robust_current_war()
             if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
             if not war.clan or not war.opponent: return {"error": "Dados da guerra incompletos."}
             
@@ -388,16 +428,18 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             if not advisor_cog or not hasattr(advisor_cog, 'war_advisor'):
                  return web.json_response({"success": False, "error": "Módulo do conselheiro não carregado."}, status=500)
 
-            war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag)
+            war = await bot_instance.get_robust_current_war()
+            
+            if not war:
+                return web.json_response({"success": False, "error": "Nenhuma guerra ativa encontrada para o plano de ataque."})
+
             prediction_data = await bot_instance.war_prediction_system.predict_war_outcome(war, bot_instance.clan_tag)
             
             plan = advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
             
-            # Lógica para adicionar o tempo de início da Fase 2
-            if war.state == 'inWar' and hasattr(war, 'start_time') and war.start_time.time:
+            if war and war.state == 'inWar' and hasattr(war, 'start_time') and war.start_time.time:
                 start_time_utc = war.start_time.time.replace(tzinfo=pytz.utc)
                 phase_2_start_time = start_time_utc + datetime.timedelta(hours=12)
-                # Adiciona a informação ao dicionário do plano que será enviado como JSON
                 plan['phase_2_start_time_iso'] = phase_2_start_time.isoformat()
 
             return web.json_response(plan)
@@ -449,9 +491,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_inactivity_check_handler(request):
         cwl_cog = bot_instance.get_cog("Planeador de CWL")
         if not cwl_cog: return web.json_response({"error": "O módulo do planeador CWL não está ativo."}, status=500)
-        # CORREÇÃO: A função no cog não existe, precisa ser implementada ou removida.
-        # Por enquanto, retornaremos um placeholder.
-        # alert = await cwl_cog.get_inactivity_alert() 
         alert = {"alert": None} # Placeholder
         return web.json_response(alert)
 
@@ -542,3 +581,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
