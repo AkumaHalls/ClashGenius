@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 2.1.1-Hotfix
+# Versão 20.1.95-AdvisorV4-FIX
 
 import os
 import logging
@@ -25,6 +25,7 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
+# A classe do sistema é importada diretamente do cog agora
 from cogs.war_advisor_cog import WarAdvisorSystem
 
 # --- Configuração do Logging ---
@@ -49,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "2.1.1-Hotfix" # Atualiza a versão
+BOT_VERSION = "20.1.96-ProfileCog" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -71,6 +72,7 @@ class ClashGeniusBot(commands.Bot):
 
         self.api_client: Optional[coc.Client] = None
         self.war_prediction_system: Optional[WarPredictionSystemV3] = None
+        # O war_advisor_system será instanciado dentro do seu respectivo cog.
         self.db = None
         self.mongo_client = None
 
@@ -133,40 +135,6 @@ class ClashGeniusBot(commands.Bot):
         if self.mongo_client: self.mongo_client.close()
         await super().close()
 
-    async def get_robust_current_war(self) -> Optional[coc.ClanWar]:
-        """Busca a guerra atual, tentando primeiro a busca normal e depois a busca por CWL."""
-        await self.coc_client_ready.wait()
-        try:
-            war = await self.api_client.get_current_war(self.clan_tag)
-            if war and war.state in ('inWar', 'preparation'):
-                return war
-        except (coc.NotFound, coc.PrivateWarLog):
-            pass
-        except Exception as e:
-            logger.error(f"Erro inesperado ao buscar guerra normal: {e}")
-
-        try:
-            cwl_group = await self.api_client.get_league_group(self.clan_tag)
-            if not cwl_group:
-                return None
-
-            async for league_war in cwl_group.get_wars(self.clan_tag):
-                try:
-                    if league_war and league_war.state in ('inWar', 'preparation'):
-                        if not hasattr(league_war, 'attacks_per_member'):
-                            setattr(league_war, 'attacks_per_member', 1)
-                        return league_war
-                except Exception as e:
-                    logger.error(f"Erro ao processar guerra da liga: {e}")
-                    continue
-            
-            return None
-        except coc.NotFound:
-            return None
-        except Exception as e:
-            logger.error(f"Erro inesperado ao buscar guerra da CWL: {e}", exc_info=True)
-            return None
-
     async def get_clan_data_with_cache(self, tag: str) -> Optional[coc.Clan]:
         await self.coc_client_ready.wait()
         normalized_tag = coc.utils.correct_tag(tag)
@@ -180,20 +148,16 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
-    
-    # --- MÉTODOS DE BUSCA DE DADOS PARA A API WEB (RESTAURADOS) ---
+            
+    # --- MÉTODOS DE BUSCA DE DADOS ---
     async def fetch_clan_info_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
         
-        # Tenta buscar a liga da capital de forma segura
-        capital_league = "N/A"
-        try:
-            if clan.capital_league:
-                capital_league = clan.capital_league.name
-        except AttributeError:
-            logger.warning("Não foi possível acessar a liga da capital.")
-            
+        capital_league_name = "N/A"
+        if hasattr(clan, 'capital_league') and clan.capital_league:
+            capital_league_name = clan.capital_league.name
+
         return {
             "name": getattr(clan, 'name', 'N/A'), "tag": getattr(clan, 'tag', 'N/A'),
             "level": getattr(clan, 'level', 0), "points": getattr(clan, 'points', 0),
@@ -203,30 +167,9 @@ class ClashGeniusBot(commands.Bot):
             "type": str(getattr(clan, 'type', 'N/A')).capitalize(),
             "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
             "version": BOT_VERSION,
-            "capital_league": capital_league,
-            "capital_districts": [{"name": d.name, "level": d.level} for d in getattr(clan, 'districts', [])]
+            "capital_league": capital_league_name,
+            "capital_districts": [{"name": d.name, "level": d.level} for d in clan.capital_districts] if hasattr(clan, 'capital_districts') else []
         }
-            
-    async def fetch_clan_members_for_web(self):
-        clan = await self.get_clan_data_with_cache(self.clan_tag)
-        if not clan: return {"error": "Não foi possível carregar os dados do clã."}
-        db_cog = self.get_cog("Banco de Dados")
-        player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
-        members_list = []
-        for member in clan.members:
-            note_data = player_notes.get(member.tag, {})
-            members_list.append({
-                "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
-                "league": member.league.name if member.league else "Sem Liga",
-                "trophies": member.trophies, "role": member.role.name.capitalize() if member.role else "Membro",
-                "donations": member.donations, "received": member.received,
-                "note": note_data.get("text", ""), 
-                "note_priority": note_data.get("priority", "none"),
-                "cwl_status": note_data.get("cwl_status", "active")
-            })
-        role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
-        sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
-        return {"clan_name": clan.name, "members": sorted_members, "version": BOT_VERSION}
 
     async def fetch_current_war_details_for_web(self, force_api_call=False):
         key = 'war_details'
@@ -236,8 +179,13 @@ class ClashGeniusBot(commands.Bot):
                 return self.web_api_cache[key]["data"]
 
         try:
-            war = await self.get_robust_current_war()
-            if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
+            war = await self.api_client.get_current_war(self.clan_tag)
+            if not war:
+                 return {"error": "Nenhuma guerra para detalhar."}
+
+            if war.state == "notInWar":
+                return {"error": "Nenhuma guerra para detalhar."}
+
             if not war.clan or not war.opponent: return {"error": "Dados da guerra incompletos."}
             
             prediction_data = await self.war_prediction_system.predict_war_outcome(war, self.clan_tag)
@@ -306,6 +254,27 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
             return {"error": "Erro interno ao processar dados da guerra."}
+            
+    async def fetch_clan_members_for_web(self):
+        clan = await self.get_clan_data_with_cache(self.clan_tag)
+        if not clan: return {"error": "Não foi possível carregar os dados do clã."}
+        db_cog = self.get_cog("Banco de Dados")
+        player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
+        members_list = []
+        for member in clan.members:
+            note_data = player_notes.get(member.tag, {})
+            members_list.append({
+                "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
+                "league": member.league.name if member.league else "Sem Liga",
+                "trophies": member.trophies, "role": member.role.name.capitalize() if member.role else "Membro",
+                "donations": member.donations, "received": member.received,
+                "note": note_data.get("text", ""), 
+                "note_priority": note_data.get("priority", "none"),
+                "cwl_status": note_data.get("cwl_status", "active")
+            })
+        role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
+        sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
+        return {"clan_name": clan.name, "members": sorted_members, "version": BOT_VERSION}
 
     async def fetch_missed_attacks_history_for_web(self):
         if self.db is None: return {"error": "Histórico indisponível."}
@@ -359,41 +328,37 @@ class ClashGeniusBot(commands.Bot):
         try:
             cwl_group = await self.api_client.get_league_group(self.clan_tag)
             if not cwl_group: return {"status": "NotInCwl"}
-
-            clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_group.clans]
             
+            clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_group.clans]
             rounds_info = []
             
-            # CORREÇÃO: Itera corretamente sobre o objeto iterador
-            async for war in cwl_group.get_wars(self.clan_tag):
-                if not war: continue
-                # Encontra a rodada correspondente
-                round_number = -1
-                for i, round_data in enumerate(cwl_group.rounds):
-                    if war.war_tag in round_data:
-                        round_number = i + 1
-                        break
-
-                # Garante que temos um objeto para a rodada
-                round_obj = next((r for r in rounds_info if r["round_number"] == round_number), None)
-                if not round_obj:
-                    round_obj = {"round_number": round_number, "wars": []}
-                    rounds_info.append(round_obj)
+            for i, a_round in enumerate(cwl_group.rounds):
+                round_data = {"round_number": i + 1, "wars": []}
                 
-                round_obj["wars"].append({
-                    "war_tag": war.war_tag, "clan_name": war.clan.name, "clan_badge_url": war.clan.badge.url, "clan_stars": war.clan.stars,
-                    "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url, "opponent_stars": war.opponent.stars,
-                    **format_war_time_details(war, datetime.datetime.now(pytz.utc))
-                })
-            
-            rounds_info.sort(key=lambda r: r['round_number']) # Garante a ordem
+                # CORREÇÃO: Usar 'war_tags' em vez de iterar diretamente sobre 'a_round'
+                for war_tag in a_round.war_tags:
+                    # Ignorar tags de guerra vazias, comuns no dia de preparação
+                    if war_tag == '#0': continue
+                    try:
+                        # Usamos get_league_war que é o método correto para CWL
+                        war = await self.api_client.get_league_war(war_tag)
+                        if war:
+                            round_data["wars"].append({
+                                "war_tag": war_tag, "clan_name": war.clan.name, "clan_badge_url": war.clan.badge.url, "clan_stars": war.clan.stars,
+                                "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url, "opponent_stars": war.opponent.stars,
+                                **format_war_time_details(war, datetime.datetime.now(pytz.utc))
+                            })
+                    except Exception as e: 
+                        logger.warning(f"Não foi possível buscar a guerra da CWL {war_tag}: {e}")
+                rounds_info.append(round_data)
 
             return {"status": "InCwl", "season": cwl_group.season, "state": str(cwl_group.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
         except coc.NotFound: 
             return {"status": "NotInCwl"}
         except Exception as e:
-            logger.error(f"Erro inesperado ao buscar guerra da CWL: {e}", exc_info=True)
-            return {"error": f"Erro inesperado: {e}"}
+            logger.error(f"Erro inesperado ao buscar dados da CWL: {e}", exc_info=True)
+            return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
+
 
     async def fetch_highlights_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
@@ -451,10 +416,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             if not advisor_cog or not hasattr(advisor_cog, 'war_advisor'):
                  return web.json_response({"success": False, "error": "Módulo do conselheiro não carregado."}, status=500)
 
-            war = await bot_instance.get_robust_current_war()
-            
+            war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag)
             if not war:
-                return web.json_response({"success": False, "error": "Nenhuma guerra ativa encontrada para o plano de ataque."})
+                return web.json_response({"success": False, "error": "Nenhuma guerra ativa."})
 
             prediction_data = await bot_instance.war_prediction_system.predict_war_outcome(war, bot_instance.clan_tag)
             
@@ -480,6 +444,30 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
         bot_instance.web_api_cache.pop('members', None)
         return web.Response(status=204)
+
+    async def api_save_cwl_player_status_handler(request):
+        db_cog = bot_instance.get_cog("Banco de Dados")
+        if not db_cog: return web.json_response({"error": "Cog de DB não encontrado."}, status=500)
+        
+        try:
+            player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
+            data = await request.json()
+            status = data.get('status')
+
+            if status not in ['active', 'backup']:
+                return web.json_response({"error": "Status inválido."}, status=400)
+
+            await db_cog.save_cwl_player_status_to_db(player_tag, status)
+            
+            # Limpa caches relevantes para forçar a atualização
+            bot_instance.web_api_cache.pop('members', None)
+            bot_instance.web_api_cache.pop('cwl_plan', None)
+            
+            return web.json_response({"success": True, "message": "Status salvo com sucesso."})
+        except Exception as e:
+            logger.error(f"Erro ao salvar status da CWL: {e}", exc_info=True)
+            return web.json_response({"error": "Erro interno do servidor."}, status=500)
+
 
     async def api_historic_war_handler(request):
         if bot_instance.db is None: return web.json_response({"error": "DB não conectado."}, status=503)
@@ -514,27 +502,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_inactivity_check_handler(request):
         cwl_cog = bot_instance.get_cog("Planeador de CWL")
         if not cwl_cog: return web.json_response({"error": "O módulo do planeador CWL não está ativo."}, status=500)
-        alert = {"alert": None} # Placeholder
+        alert = {"alert": None} 
         return web.json_response(alert)
-    
-    async def api_set_cwl_player_status_handler(request):
-        db_cog = bot_instance.get_cog("Banco de Dados")
-        if not db_cog: return web.json_response({"error": "Módulo de banco de dados não encontrado."}, status=500)
-        
-        player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
-        data = await request.json()
-        new_status = data.get('status')
-
-        if new_status not in ['active', 'backup']:
-            return web.json_response({"error": "Status inválido."}, status=400)
-
-        try:
-            await db_cog.update_player_cwl_status(player_tag, new_status)
-            bot_instance.web_api_cache.pop('members', None) # Invalida o cache de membros
-            return web.Response(status=204) # 204 No Content para sucesso sem corpo
-        except Exception as e:
-            logger.error(f"Erro ao atualizar status CWL para {player_tag}: {e}")
-            return web.json_response({"error": "Erro interno ao salvar o status."}, status=500)
 
     # --- Rotas da API ---
     app.router.add_get("/api/clan", api_clan_handler)
@@ -546,17 +515,29 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/highlights", api_highlights_handler)
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
+    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_save_cwl_player_status_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
     app.router.add_get("/api/cwl/inactivity_check", api_cwl_inactivity_check_handler)
-    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_set_cwl_player_status_handler)
-
+    
     # --- Rotas Estáticas e Principais ---
     static_dir = os.path.join(os.path.dirname(__file__), "static")
+    
+    async def painel_handler(request):
+        session = await get_session(request)
+        is_admin = session.get('admin', False)
+        
+        # Se o modo manutenção estiver ativo E o usuário NÃO for admin, mostra a página de manutenção
+        if bot_instance.maintenance_mode and not is_admin:
+            return web.FileResponse(os.path.join(static_dir, "maintenance.html"))
+        
+        # Caso contrário, mostra o painel normal
+        return web.FileResponse(os.path.join(static_dir, "painel.html"))
+
     app.router.add_static('/static/', path=static_dir, name='static')
-    app.router.add_get("/painel", lambda r: web.FileResponse(os.path.join(static_dir, "painel.html")))
+    app.router.add_get("/painel", painel_handler)
     app.router.add_get("/", lambda r: web.Response(text=f"Bot running! v{BOT_VERSION}"))
     
     # --- CÓDIGO DO ADMIN PANEL ---
