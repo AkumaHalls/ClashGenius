@@ -17,11 +17,10 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # A referência ao api_client será usada APÓS a confirmação de que ele está pronto.
         self.api_client: coc.Client = self.bot.api_client 
         self.db = bot.db
-        self.posted_daily_plans = set() # Para evitar posts duplicados
-        self.posted_inactivity_alerts = set() # Para evitar alertas duplicados
+        self.posted_daily_plans = set()
+        self.posted_inactivity_alerts = set()
 
     async def cog_load(self):
         """Inicia as tarefas em segundo plano quando o cog é carregado."""
@@ -48,7 +47,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 logger.warning("Tentativa de buscar membros da CWL, mas o clã não está em uma.")
                 return []
             
-            our_clan_in_cwl = cwl_group.get_clan(self.bot.clan_tag)
+            # CORREÇÃO: Usa a forma correta de encontrar o clã dentro do grupo da CWL.
+            our_clan_in_cwl = next((c for c in cwl_group.clans if c.tag == self.bot.clan_tag), None)
+            
             if not our_clan_in_cwl or not our_clan_in_cwl.members:
                 logger.warning("Não foi possível encontrar os membros do nosso clã no grupo da CWL.")
                 return []
@@ -59,12 +60,12 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
              logger.info("O clã não está atualmente em uma CWL.")
              return []
         except Exception as e:
-            logger.error(f"Erro ao buscar membros da CWL para o planeamento: {e}")
+            logger.error(f"Erro ao buscar membros da CWL para o planeamento: {e}", exc_info=True)
             return []
 
     async def generate_rotation_plan(self) -> Dict[str, Any]:
         """Gera o plano de rotação completo para os 7 dias de CWL."""
-        await self.bot.coc_client_ready.wait()  # GARANTE QUE O CLIENTE COC ESTÁ PRONTO
+        await self.bot.coc_client_ready.wait()
         
         cwl_members = await self.get_cwl_members_for_planning()
         
@@ -119,24 +120,15 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         await self.bot.coc_client_ready.wait()
         
         try:
-            cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
-            if not cwl_group or cwl_group.state != "inWar":
+            active_war = await self.bot.get_robust_current_war()
+            if not active_war or not active_war.is_cwl:
                 self.posted_daily_plans.clear()
                 self.posted_inactivity_alerts.clear()
                 return
 
-            our_clan_info = cwl_group.get_clan(self.bot.clan_tag)
-            if not our_clan_info: return
-
-            active_war = None
-            for war_tag in cwl_group.get_wars_for_clan(self.bot.clan_tag):
-                war = await self.bot.api_client.get_league_war(war_tag)
-                if war.state == "inWar":
-                    active_war = war
-                    break
+            cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
+            if not cwl_group: return
             
-            if not active_war: return
-
             await self.post_daily_plan_if_needed(active_war, cwl_group.season)
             await self.check_and_alert_inactivity(active_war)
 
