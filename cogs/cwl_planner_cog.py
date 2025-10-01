@@ -38,7 +38,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 logger.warning("get_cwl_members_for_planning: O clã não parece estar em uma CWL.")
                 return None
 
-            our_clan_from_cwl = cwl_group.get_clan(self.bot.clan_tag)
+            # CORREÇÃO: Itera sobre os clãs no grupo para encontrar o nosso
+            our_clan_from_cwl = next((c for c in cwl_group.clans if c.tag == self.bot.clan_tag), None)
+            
             if not our_clan_from_cwl:
                 logger.warning("get_cwl_members_for_planning: Não foi possível encontrar o clã no grupo da CWL.")
                 return None
@@ -85,9 +87,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         
         schedule = []
         
-        # Dia 1 - Usa os jogadores ativos mais fortes
         initial_roster = active_players[:roster_size]
-        # Se não houver ativos suficientes, completa com backups
         if len(initial_roster) < roster_size:
             needed = roster_size - len(initial_roster)
             initial_roster.extend(backup_players[:needed])
@@ -102,18 +102,14 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             "substitutions": []
         })
 
-        # Dias 2 a 7
         for day in range(2, 8):
             substitutions = []
             if bench:
-                # Ordena o roster atual pelos mais fracos primeiro para substituição
                 current_roster.sort(key=lambda p: p['town_hall'])
                 
-                # Tenta trocar até 3 jogadores
                 for _ in range(3):
                     if not bench: break
                     
-                    # Encontra o primeiro jogador no roster que não é backup para tirar
                     player_out = None
                     for p in current_roster:
                         status = player_statuses.get(p['tag'], {}).get('cwl_status', 'active')
@@ -121,7 +117,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                             player_out = p
                             break
                     
-                    # Se todos no roster já são backup, não faz mais trocas
                     if player_out is None:
                         break
 
