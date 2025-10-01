@@ -47,7 +47,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 logger.warning("Tentativa de buscar membros da CWL, mas o clã não está em uma.")
                 return []
             
-            # CORREÇÃO: Usa a forma correta de encontrar o clã dentro do grupo da CWL.
             our_clan_in_cwl = next((c for c in cwl_group.clans if c.tag == self.bot.clan_tag), None)
             
             if not our_clan_in_cwl or not our_clan_in_cwl.members:
@@ -67,17 +66,45 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         """Gera o plano de rotação completo para os 7 dias de CWL."""
         await self.bot.coc_client_ready.wait()
         
-        cwl_members = await self.get_cwl_members_for_planning()
-        
-        if not cwl_members:
+        # 1. Busca todos os membros inscritos na CWL
+        cwl_members_roster = await self.get_cwl_members_for_planning()
+        if not cwl_members_roster:
             return {"error": "Não foi possível buscar os membros inscritos na CWL. O clã está em uma liga de guerra?"}
-        
-        if len(cwl_members) < 15:
-            return {"error": "Não há membros suficientes (mínimo 15) inscritos na CWL para criar um plano."}
 
-        roster_size = 30 if len(cwl_members) >= 30 else 15
-        initial_roster = cwl_members[:roster_size]
-        bench = cwl_members[roster_size:]
+        # 2. Busca todos os membros que estão ATUALMENTE no clã
+        try:
+            current_clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
+            current_member_tags = {member.tag for member in current_clan.members}
+        except Exception as e:
+            logger.error(f"Erro ao buscar membros atuais do clã: {e}")
+            return {"error": "Falha ao verificar os membros atuais do clã."}
+            
+        # 3. Filtra a lista da CWL para incluir apenas quem ainda está no clã
+        valid_cwl_members = [m for m in cwl_members_roster if m['tag'] in current_member_tags]
+        logger.info(f"Membros da CWL válidos (ainda no clã): {len(valid_cwl_members)} de {len(cwl_members_roster)}")
+
+        # 4. Busca as preferências (Ativo/Backup) do banco de dados
+        db_cog = self.bot.get_cog("Banco de Dados")
+        player_preferences = await db_cog.load_player_notes_from_db() if db_cog else {}
+        
+        active_pool = []
+        backup_pool = []
+        for member in valid_cwl_members:
+            prefs = player_preferences.get(member['tag'], {})
+            if prefs.get('cwl_status', 'active') == 'backup':
+                backup_pool.append(member)
+            else:
+                active_pool.append(member)
+        
+        # A lista de rotação prioriza os ativos, depois os backups
+        rotation_pool = active_pool + backup_pool
+        
+        if len(rotation_pool) < 15:
+            return {"error": "Não há membros 'Ativos' suficientes (mínimo 15) para criar um plano."}
+
+        roster_size = 30 if len(rotation_pool) >= 30 else 15
+        initial_roster = rotation_pool[:roster_size]
+        bench = rotation_pool[roster_size:]
         
         schedule = []
         current_roster = initial_roster.copy()
@@ -87,20 +114,23 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             if bench and day > 1:
                 current_roster.sort(key=lambda p: p['town_hall'], reverse=True)
                 num_subs = min(3, len(bench), len(current_roster))
-                players_out = current_roster[-num_subs:]
-                players_in = bench[:num_subs]
                 
-                current_roster = current_roster[:-num_subs]
-                current_roster.extend(players_in)
-                bench = bench[num_subs:]
-                bench.extend(players_out)
+                # Garante que só tentará substituir se houver jogadores para tirar
+                if num_subs > 0:
+                    players_out = current_roster[-num_subs:]
+                    players_in = bench[:num_subs]
+                    
+                    current_roster = current_roster[:-num_subs]
+                    current_roster.extend(players_in)
+                    bench = bench[num_subs:]
+                    bench.extend(players_out)
 
-                for i in range(num_subs):
-                    substitutions.append({
-                        "out": players_out[i],
-                        "in": players_in[i],
-                        "reason": f"Rotação para maximizar medalhas e participação."
-                    })
+                    for i in range(num_subs):
+                        substitutions.append({
+                            "out": players_out[i],
+                            "in": players_in[i],
+                            "reason": f"Rotação para maximizar medalhas e participação."
+                        })
 
             schedule.append({
                 "day": day,
@@ -109,7 +139,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             })
 
         return {
-            "summary": f"Plano de rotação para {len(cwl_members)} membros numa CWL {roster_size}x{roster_size}.",
+            "summary": f"Plano de rotação para {len(rotation_pool)} membros numa CWL {roster_size}x{roster_size}.",
             "schedule": schedule
         }
 
@@ -228,7 +258,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
 
 async def setup(bot: commands.Bot):
-    # Só carrega o cog se o ID do canal estiver configurado
     if bot.cwl_planner_channel_id:
         await bot.add_cog(CwlPlannerCog(bot))
     else:
