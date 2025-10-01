@@ -158,6 +158,12 @@ class ClashGeniusBot(commands.Bot):
         if hasattr(clan, 'capital_league') and clan.capital_league:
             capital_league_name = clan.capital_league.name
 
+        districts = []
+        if hasattr(clan, 'capital_districts'):
+            for d in clan.capital_districts:
+                # CORREÇÃO: Usar 'district_hall_level' em vez de 'level'
+                districts.append({"name": d.name, "level": d.district_hall_level})
+
         return {
             "name": getattr(clan, 'name', 'N/A'), "tag": getattr(clan, 'tag', 'N/A'),
             "level": getattr(clan, 'level', 0), "points": getattr(clan, 'points', 0),
@@ -168,7 +174,7 @@ class ClashGeniusBot(commands.Bot):
             "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
             "version": BOT_VERSION,
             "capital_league": capital_league_name,
-            "capital_districts": [{"name": d.name, "level": d.district_hall_level} for d in clan.capital_districts] if hasattr(clan, 'capital_districts') else []
+            "capital_districts": districts
         }
 
     async def fetch_current_war_details_for_web(self, force_api_call=False):
