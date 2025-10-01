@@ -320,7 +320,7 @@ class ClashGeniusBot(commands.Bot):
         if not self.api_client: return {"error": "API do CoC não iniciada."}
         try:
             cwl_group = await self.api_client.get_league_group(self.clan_tag)
-            if not cwl_group: return {"status": "NotInCwl"}
+            if not cwl_group or not hasattr(cwl_group, 'clans'): return {"status": "NotInCwl", "message": "Não está em CWL ou dados indisponíveis."}
             
             clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_group.clans]
             rounds_info = []
@@ -344,7 +344,7 @@ class ClashGeniusBot(commands.Bot):
 
             return {"status": "InCwl", "season": cwl_group.season, "state": str(cwl_group.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
         except coc.NotFound: 
-            return {"status": "NotInCwl"}
+            return {"status": "NotInCwl", "message": "Nenhuma CWL encontrada para este clã."}
         except Exception as e:
             logger.error(f"Erro inesperado ao buscar dados da CWL: {e}", exc_info=True)
             return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
