@@ -69,6 +69,11 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         for day in range(1, 8):
             substitutions = []
             if bench and day > 1:
+                # CORREÇÃO: Ordena a lista ANTES de fazer as substituições do dia.
+                # Isso garante que `pop(-1)` sempre remova o jogador mais fraco da escalação atual,
+                # e não o jogador que acabou de ser adicionado no final da lista na iteração anterior.
+                current_roster = sorted(current_roster, key=lambda p: p['town_hall'], reverse=True)
+
                 # Tenta trocar 3 jogadores por dia para maximizar a participação
                 for _ in range(3): 
                     if not bench: break
