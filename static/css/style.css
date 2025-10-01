@@ -606,7 +606,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .attack-stars .star-filled { color: var(--color-star-gold); }
 .attack-stars .star-empty { color: var(--color-star-empty); }
 
-/* Abas Minha Equipe / Equipe Inimiga */
+/* Aba Minha Equipe / Equipe Inimiga */
 .team-members-container {
     max-height: 600px;
     overflow-y: auto;
@@ -689,7 +689,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     border-radius: 4px;
 }
 .member-card-note {
-    margin-top: auto; 
+    margin-top: auto; /* Empurra a nota para o final do card */
 }
 
 /* --- FIM: Estilos do Grid de Membros --- */
@@ -828,7 +828,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     background-color: rgba(0,0,0,0.15);
     border-top: 1px solid var(--color-border);
     padding-top: 10px;
-    margin-top: 0;
 }
 .note-text {
     cursor: pointer;
@@ -943,64 +942,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     transform: scale(1.1);
 }
 
-/* --- NOVOS ESTILOS PARA O SELETOR DE STATUS DA CWL --- */
-.member-cwl-status {
-    background-color: rgba(0, 0, 0, 0.15);
-    padding: 10px;
-    margin-bottom: 15px;
-    border-radius: var(--border-radius-base);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9em;
-}
-
-.member-cwl-status label {
-    color: var(--color-text-secondary);
-    font-weight: 500;
-}
-
-.cwl-status-selector {
-    display: flex;
-    background-color: rgba(0, 0, 0, 0.2);
-    border-radius: var(--border-radius-base);
-    padding: 3px;
-}
-
-.cwl-status-btn {
-    background-color: transparent;
-    border: none;
-    color: var(--color-text-secondary);
-    padding: 6px 12px;
-    font-size: 0.85em;
-    font-weight: 500;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.2s, color 0.2s;
-}
-
-.cwl-status-btn:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.cwl-status-btn.active {
-    background-color: var(--color-accent);
-    color: white;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-
-.cwl-status-btn[data-status="active"].active {
-    background-color: var(--color-success);
-}
-
-.cwl-status-btn[data-status="backup"].active {
-    background-color: var(--color-warning);
-    color: var(--color-priority-text-dark);
-}
-
-.member-card-note {
-    margin-top: 0;
-}
 
 /* Responsividade */
 @media (max-width: 992px) {
@@ -1670,7 +1611,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     padding: 12px;
     border-radius: var(--border-radius-base);
     font-size: 0.9em;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 
 .substitution-card p {
@@ -1681,23 +1622,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-text-secondary);
     margin-top: 8px;
 }
-
-.roster-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 8px;
-}
-.roster-player {
-    background-color: rgba(0,0,0,0.15);
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 0.9em;
-}
-.roster-player span {
-    color: var(--color-text-secondary);
-    margin-right: 8px;
-}
-
 
 .inactivity-alert {
     margin-top: 25px;
@@ -1710,7 +1634,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .inactivity-alert h4 {
     margin: 0 0 10px 0;
     color: #f56565;
-    /* Correção de Centralização */
     justify-content: center;
 }
 
@@ -1720,22 +1643,37 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 .cwl-plan-tabs {
     display: flex;
-    border-bottom: 1px solid var(--color-divider);
+    flex-wrap: nowrap;
+    border-bottom: 1px solid var(--color-border);
 }
 .cwl-plan-day-tab {
     padding: 10px 15px;
     cursor: pointer;
-    border: none;
     background: none;
-    color: var(--color-text-secondary);
+    border: none;
     border-bottom: 2px solid transparent;
-    font-size: 0.95em;
+    color: var(--color-text-secondary);
     font-weight: 500;
     white-space: nowrap;
 }
 .cwl-plan-day-tab.active {
-    color: var(--color-accent);
+    color: var(--color-text-main);
     border-bottom-color: var(--color-accent);
+}
+.roster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+    font-size: 0.9em;
+}
+.roster-player {
+    background-color: rgba(0,0,0,0.2);
+    padding: 6px 10px;
+    border-radius: 4px;
+}
+.roster-player span {
+    color: var(--color-text-secondary);
+    margin-right: 8px;
 }
 
 /* --- FIM: NOVOS ESTILOS PARA O PLANEJADOR CWL --- */
@@ -1809,6 +1747,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .advisor-card.type-dip { border-left-color: var(--color-success); }
 .advisor-card.type-safe { border-left-color: var(--color-warning); }
 .advisor-card.type-cleanup { border-left-color: var(--color-danger); }
+.advisor-card.type-bonus { border-left-color: var(--color-gold); }
+.advisor-card.type-desperate { border-left-color: var(--color-border-light); }
 
 .advisor-member-info {
     display: flex;
@@ -1883,5 +1823,79 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .confidence-bar.high { background-color: var(--color-success); }
 .confidence-bar.medium { background-color: var(--color-warning); }
 .confidence-bar.low { background-color: var(--color-danger); }
+
+.advisor-phase-timer {
+    text-align: center;
+    background: linear-gradient(45deg, var(--color-accent), var(--color-gold));
+    color: white;
+    padding: 10px;
+    border-radius: var(--border-radius-base);
+    margin-bottom: 20px;
+}
+.advisor-phase-timer h4 {
+    margin: 0;
+    font-size: 1em;
+    text-transform: uppercase;
+}
+.advisor-phase-timer p {
+    margin: 5px 0 0 0;
+    font-size: 1.2em;
+    font-weight: 700;
+}
 /* FIM: NOVOS ESTILOS PARA O WAR ADVISOR V4 */
+
+/* NOVOS ESTILOS PARA O SELETOR DE STATUS DA CWL DENTRO DO MODAL */
+.member-cwl-status {
+    background-color: rgba(0, 0, 0, 0.15);
+    padding: 10px;
+    margin-top: 15px;
+    border-radius: var(--border-radius-base);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.member-cwl-status label {
+    color: var(--color-text-secondary);
+    font-weight: 500;
+}
+
+.cwl-status-selector {
+    display: flex;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: var(--border-radius-base);
+    padding: 3px;
+}
+
+.cwl-status-btn {
+    background-color: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    padding: 6px 12px;
+    font-size: 0.85em;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.cwl-status-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.cwl-status-btn.active {
+    background-color: var(--color-accent);
+    color: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.cwl-status-btn[data-status="active"].active {
+    background-color: var(--color-success);
+}
+
+.cwl-status-btn[data-status="backup"].active {
+    background-color: var(--color-warning);
+    color: var(--color-priority-text-dark);
+}
 
