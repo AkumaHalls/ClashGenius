@@ -87,8 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
     const generateCwlPlanBtn = document.getElementById('generateCwlPlanBtn');
     const cwlPlanResultEl = document.getElementById('cwlPlanResult');
-    const cwlPlanSpinner = document.getElementById('cwlPlanSpinner');
-    const cwlPlanContentEl = document.getElementById('cwlPlanContent');
     const cwlInactivityAlertEl = document.getElementById('cwlInactivityAlert');
     const cwlInactivityTextEl = document.getElementById('cwlInactivityText');
 
@@ -448,7 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // CORREÇÃO: A lógica é encapsulada para ser chamada após a renderização
         const setupAdvisorUI = (planData) => {
             if (!planData.success) {
-                advisorPhaseTimerEl.style.display = 'none';
+                if(advisorPhaseTimerEl) advisorPhaseTimerEl.style.display = 'none';
                 setHtml(warAdvisorContentEl, `<div class="advisor-plan-container"><p class="message-box">${planData.error || 'Nenhuma recomendação disponível.'}</p></div>`);
                 return;
             }
@@ -472,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     : '';
     
                 return `
-                    <div class="advisor-card type-${rec.type}">
+                    <div class="advisor-card type-${rec.attack_type}">
                         <div class="advisor-member-info">
                             <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
                             <span>Ataque Nº ${rec.attack_number}</span>
@@ -506,25 +504,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 const phase2StartTime = new Date(planData.phase_2_start_time_iso);
                 const timerEl = document.getElementById('advisorPhaseTimer'); // Re-seleciona o elemento
                 const timerTextEl = document.getElementById('advisorPhaseTimerText');
-                timerEl.style.display = 'block';
-                
-                phaseTimerInterval = setInterval(() => {
-                    const now = new Date();
-                    const diff = phase2StartTime - now;
-    
-                    if (diff <= 0) {
-                        setText(timerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
-                        clearInterval(phaseTimerInterval);
-                        phaseTimerInterval = null;
-                        return;
-                    }
-    
-                    const hours = Math.floor(diff / (1000 * 60 * 60));
-                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
-                    setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
-                }, 1000);
+                if (timerEl && timerTextEl) {
+                    timerEl.style.display = 'block';
+                    
+                    phaseTimerInterval = setInterval(() => {
+                        const now = new Date();
+                        const diff = phase2StartTime - now;
+        
+                        if (diff <= 0) {
+                            setText(timerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
+                            clearInterval(phaseTimerInterval);
+                            phaseTimerInterval = null;
+                            return;
+                        }
+        
+                        const hours = Math.floor(diff / (1000 * 60 * 60));
+                        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+                        setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
+                    }, 1000);
+                }
             }
         };
         
@@ -592,27 +592,66 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // CORREÇÃO: Função para gerar o plano de rotação da CWL
     async function handleGenerateCwlPlan() {
         generateCwlPlanBtn.disabled = true;
+        generateCwlPlanBtn.innerHTML = '<div class="loading-spinner" style="width: 20px; height: 20px; border-width: 3px; margin: 0 auto;"></div>'; // Adiciona spinner
         cwlPlanResultEl.style.display = 'block';
-        cwlPlanSpinner.style.display = 'block';
-        setHtml(cwlPlanContentEl, '');
+        setHtml(cwlPlanResultEl, ''); // Limpa resultados anteriores
+
         const data = await fetchData('cwl/generate_plan', { method: 'POST' });
-        cwlPlanSpinner.style.display = 'none';
+
+        generateCwlPlanBtn.disabled = false;
+        generateCwlPlanBtn.textContent = 'Gerar Plano de Rotação'; // Restaura o texto do botão
+
         if (data.error) {
-            setHtml(cwlPlanContentEl, `<p class="message-box">${data.error}</p>`);
+            setHtml(cwlPlanResultEl, `<p class="message-box">${data.error}</p>`);
+        } else if (data.schedule && Array.isArray(data.schedule)) {
+            // Cria abas para cada dia
+            const tabsHtml = data.schedule.map((dayPlan, index) => 
+                `<button class="cwl-plan-tab ${index === 0 ? 'active' : ''}" data-day="${dayPlan.day}">Dia ${dayPlan.day}</button>`
+            ).join('');
+            
+            // Cria o conteúdo para cada dia
+            const contentHtml = data.schedule.map((dayPlan, index) => `
+                <div class="day-plan-content ${index === 0 ? 'active' : ''}" id="day-plan-${dayPlan.day}">
+                    <h6>🔄 Alterações na Equipa</h6>
+                    ${dayPlan.substitutions.length > 0 
+                        ? dayPlan.substitutions.map(sub => `
+                            <div class="substitution-card">
+                                <p><span style="color: var(--color-danger);">🔴 Sai:</span> ${sub.out.name} (CV${sub.out.town_hall})</p>
+                                <p><span style="color: var(--color-success);">🟢 Entra:</span> ${sub.in.name} (CV${sub.in.town_hall})</p>
+                            </div>`).join('') 
+                        : '<p>Nenhuma alteração na escalação para este dia.</p>'
+                    }
+                    <h6>⚔️ Escalação Ativa</h6>
+                    <div class="roster-list">
+                        ${dayPlan.active_roster.map((player, i) => `<span>${i + 1}. ${player.name} (CV${player.town_hall})</span>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            // Junta tudo para injeção no DOM
+            const fullHtml = `
+                <h4 class="plan-summary">${data.summary}</h4>
+                <nav class="cwl-plan-tabs">${tabsHtml}</nav>
+                <div class="cwl-plan-content-wrapper">${contentHtml}</div>
+            `;
+            setHtml(cwlPlanResultEl, fullHtml);
+
+            // Adiciona os event listeners para as abas recém-criadas
+            cwlPlanResultEl.querySelectorAll('.cwl-plan-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    cwlPlanResultEl.querySelectorAll('.cwl-plan-tab').forEach(t => t.classList.remove('active'));
+                    cwlPlanResultEl.querySelectorAll('.day-plan-content').forEach(c => c.classList.remove('active'));
+                    
+                    tab.classList.add('active');
+                    document.getElementById(`day-plan-${tab.dataset.day}`).classList.add('active');
+                });
+            });
+
         } else {
-            let planHtml = `<h4 class="plan-summary">${data.summary}</h4>`;
-            for (const day in data.plan) {
-                planHtml += `<div class="day-plan"><h5>${day.replace('_', ' ').toUpperCase()}</h5>`;
-                planHtml += data.plan[day].substitutions.length > 0 ? data.plan[day].substitutions.map(sub => `<div class="substitution-card">
-                                        <p><strong>Sai:</strong> ${sub.out.name} (CV${sub.out.town_hall})</p>
-                                        <p><strong>Entra:</strong> ${sub.in.name} (CV${sub.in.town_hall})</p>
-                                        <p class="reason"><em>IA: ${sub.reason}</em></p>
-                                    </div>`).join('') : `<p>Manter a escalação do dia anterior.</p>`;
-                planHtml += `</div>`;
-            }
-            setHtml(cwlPlanContentEl, planHtml);
+            setHtml(cwlPlanResultEl, `<p class="message-box">Não foi possível gerar o plano. Resposta da API inválida.</p>`);
         }
     }
 
@@ -924,4 +963,3 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 45000);
 });
-
