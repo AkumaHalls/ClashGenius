@@ -30,6 +30,14 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 trophy_history = [{"trophies": doc["trophies"], "timestamp": doc["timestamp"].strftime("%d/%m")} async for doc in cursor]
                 trophy_history.reverse()
 
+            # Pega o status da CWL do banco de dados
+            cwl_status = "active" # Padrão
+            if self.db is not None:
+                note_doc = await self.db.player_notes.find_one({"_id": player_tag})
+                if note_doc and "cwl_status" in note_doc:
+                    cwl_status = note_doc["cwl_status"]
+
+
             # Calcular progresso dos heróis
             heroes_data = []
             total_hero_levels = 0
@@ -96,7 +104,8 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 "clan_info": clan_info,
                 "war_stars": getattr(player_data, 'war_stars', 0),
                 "clan_capital_gold": getattr(player_data, 'clan_capital_contributions', 0),
-                "builder_hall": getattr(player_data, 'builder_hall_level', 0)
+                "builder_hall": getattr(player_data, 'builder_hall_level', 0),
+                "cwl_status": cwl_status # Adicionado ao payload do perfil
             }
             return profile
         except coc.NotFound:
@@ -105,6 +114,7 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
             logger.error(f"Erro ao buscar perfil para {player_tag}: {e}", exc_info=True)
             return {"error": "Ocorreu um erro interno ao buscar o perfil."}
 
+    # ... (demais métodos do ProfileCog inalterados)
     def create_trophy_graph(self, trophy_history: list) -> str:
         """Cria um gráfico simples de troféus usando caracteres."""
         if not trophy_history or len(trophy_history) < 2:
@@ -214,29 +224,23 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 color=discord.Color.blue()
             )
 
-            # Define a imagem da liga como a imagem principal do embed para maior destaque.
-            # A thumbnail foi removida para evitar duplicidade.
             if profile_data['league_icon']:
                 embed.set_image(url=profile_data['league_icon'])
 
-            # Campo de troféus
             league_emoji = self.get_league_emoji(profile_data['league'])
             trophy_text = f"🏆 **Atual:** {profile_data['trophies']}\n🥇 **Recorde:** {profile_data['best_trophies']}\n{league_emoji} **Liga:** {profile_data['league']}"
             embed.add_field(name="🏆 Troféus", value=trophy_text, inline=True)
 
-            # Campo de doações
             ratio_emoji = "🟢" if profile_data['donation_ratio'] >= 1.0 else "🟡" if profile_data['donation_ratio'] >= 0.5 else "🔴"
             donation_text = f"📤 **Doadas:** {profile_data['donations']:,}\n📥 **Recebidas:** {profile_data['received']:,}\n{ratio_emoji} **Razão:** {profile_data['donation_ratio']}"
             embed.add_field(name="🎁 Doações", value=donation_text, inline=True)
 
-            # Campo de batalhas
             if profile_data.get('attack_wins') or profile_data.get('defense_wins'):
                 battle_text = f"⚔️ **Ataques:** {profile_data['attack_wins']:,}\n🛡️ **Defesas:** {profile_data['defense_wins']:,}"
                 if profile_data.get('war_stars'):
                     battle_text += f"\n⭐ **Estrelas:** {profile_data['war_stars']:,}"
                 embed.add_field(name="⚔️ Batalhas", value=battle_text, inline=True)
 
-            # Campo de heróis
             if profile_data['heroes']:
                 heroes_text = ""
                 for hero in profile_data['heroes']:
@@ -249,12 +253,10 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 
                 embed.add_field(name="👑 Heróis", value=heroes_text, inline=False)
 
-            # Informações do clã
             if profile_data['clan_info']:
                 clan_text = f"🏴 **{profile_data['clan_info']['name']}**\n👤 **Cargo:** {profile_data['clan_info']['role']}\n📊 **Nível:** {profile_data['clan_info']['level']}"
                 embed.add_field(name="🏴 Clã", value=clan_text, inline=True)
 
-            # Capital do Clã e Base do Construtor
             extra_info = []
             if profile_data.get('clan_capital_gold'):
                 extra_info.append(f"🏛️ **Capital:** {profile_data['clan_capital_gold']:,} ouro")
@@ -264,12 +266,10 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
             if extra_info:
                 embed.add_field(name="📊 Extras", value="\n".join(extra_info), inline=True)
 
-            # Gráfico de troféus
             if profile_data['trophy_history']:
                 trophy_graph = self.create_trophy_graph(profile_data['trophy_history'])
                 embed.add_field(name="📈 Tendência de Troféus", value=trophy_graph, inline=False)
 
-            # Footer com timestamp
             embed.set_footer(text=f"Atualizado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}")
 
             await ctx.send(embed=embed)
@@ -284,7 +284,6 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
         await ctx.typing()
         
         try:
-            # Mesmo processo de busca do comando principal
             player_tag = None
             
             if not player_identifier:
@@ -314,7 +313,6 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 await ctx.send(f"❌ {profile_data['error']}")
                 return
 
-            # Embed 1: Informações principais
             main_embed = discord.Embed(
                 title=f"📋 Perfil Detalhado: {profile_data['name']}",
                 description=f"🏰 **CV{profile_data['town_hall']}** • 🎯 **Nível {profile_data['exp_level']}**",
@@ -324,22 +322,19 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
             main_embed.add_field(name="🏆 Troféus", value=f"{profile_data['trophies']}", inline=True)
             main_embed.add_field(name="🥇 Recorde", value=f"{profile_data['best_trophies']}", inline=True)
 
-            # Embed 2: Heróis detalhados
             heroes_embed = discord.Embed(title="👑 Heróis Detalhados", color=discord.Color.purple())
             for hero in profile_data['heroes']:
                 emoji = self.get_hero_emoji(hero['name'])
                 progress = f"{hero['level']}/{hero['max_level']} ({hero['progress']}%)"
                 heroes_embed.add_field(name=f"{emoji} {hero['name']}", value=progress, inline=True)
 
-            # Embed 3: Estatísticas de batalha
             battle_embed = discord.Embed(title="⚔️ Estatísticas de Batalha", color=discord.Color.red())
             battle_embed.add_field(name="🗡️ Vitórias em Ataques", value=f"{profile_data['attack_wins']:,}", inline=True)
             battle_embed.add_field(name="🛡️ Vitórias em Defesas", value=f"{profile_data['defense_wins']:,}", inline=True)
             battle_embed.add_field(name="⭐ Estrelas de Guerra", value=f"{profile_data['war_stars']:,}", inline=True)
 
-            # Enviar embeds
             await ctx.send(embed=main_embed)
-            await asyncio.sleep(1)  # Pequena pausa entre envios
+            await asyncio.sleep(1)
             await ctx.send(embed=heroes_embed)
             await asyncio.sleep(1)
             await ctx.send(embed=battle_embed)

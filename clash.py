@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.95-AdvisorV4-FIX
+# Versão 20.1.95-AdvisorV4-FIX#
 
 import os
 import logging
@@ -149,10 +149,15 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
             
-    # --- MÉTODOS DE BUSCA DE DADOS (sem alterações) ---
+    # --- MÉTODOS DE BUSCA DE DADOS ---
     async def fetch_clan_info_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
+        
+        capital_league_name = "N/A"
+        if hasattr(clan, 'capital_league') and clan.capital_league:
+            capital_league_name = clan.capital_league.name
+
         return {
             "name": getattr(clan, 'name', 'N/A'), "tag": getattr(clan, 'tag', 'N/A'),
             "level": getattr(clan, 'level', 0), "points": getattr(clan, 'points', 0),
@@ -161,7 +166,8 @@ class ClashGeniusBot(commands.Bot):
             "location": getattr(clan.location, 'name', 'N/A') if hasattr(clan, 'location') and clan.location else 'N/A',
             "type": str(getattr(clan, 'type', 'N/A')).capitalize(),
             "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
-            "version": BOT_VERSION
+            "version": BOT_VERSION,
+            "capital_league": capital_league_name,
         }
 
     async def fetch_current_war_details_for_web(self, force_api_call=False):
@@ -256,7 +262,8 @@ class ClashGeniusBot(commands.Bot):
                 "league": member.league.name if member.league else "Sem Liga",
                 "trophies": member.trophies, "role": member.role.name.capitalize() if member.role else "Membro",
                 "donations": member.donations, "received": member.received,
-                "note": note_data.get("text", ""), "note_priority": note_data.get("priority", "none")
+                "note": note_data.get("text", ""), "note_priority": note_data.get("priority", "none"),
+                "cwl_status": note_data.get("cwl_status", "active")
             })
         role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
         sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
@@ -312,13 +319,18 @@ class ClashGeniusBot(commands.Bot):
     async def fetch_cwl_info_for_web(self):
         if not self.api_client: return {"error": "API do CoC não iniciada."}
         try:
-            cwl_war = await self.api_client.get_league_group(self.clan_tag)
-            if not cwl_war: return {"status": "NotInCwl"}
-            clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_war.clans]
+            cwl_group = await self.api_client.get_league_group(self.clan_tag)
+            if not cwl_group: return {"status": "NotInCwl"}
+            
+            clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_group.clans]
             rounds_info = []
-            for i, a_round in enumerate(cwl_war.rounds):
+            
+            for i, a_round in enumerate(cwl_group.rounds):
                 round_data = {"round_number": i + 1, "wars": []}
+                
+                # CORREÇÃO: Iterar diretamente sobre 'a_round', que é a lista de tags de guerra.
                 for war_tag in a_round:
+                    if war_tag == '#0': continue
                     try:
                         war = await self.api_client.get_league_war(war_tag)
                         if war:
@@ -327,10 +339,16 @@ class ClashGeniusBot(commands.Bot):
                                 "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url, "opponent_stars": war.opponent.stars,
                                 **format_war_time_details(war, datetime.datetime.now(pytz.utc))
                             })
-                    except Exception as e: logger.warning(f"Não foi possível buscar a guerra da CWL {war_tag}: {e}")
+                    except Exception as e: 
+                        logger.warning(f"Não foi possível buscar a guerra da CWL {war_tag}: {e}")
                 rounds_info.append(round_data)
-            return {"status": "InCwl", "season": cwl_war.season, "state": str(cwl_war.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
-        except coc.NotFound: return {"status": "NotInCwl"}
+
+            return {"status": "InCwl", "season": cwl_group.season, "state": str(cwl_group.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
+        except coc.NotFound: 
+            return {"status": "NotInCwl"}
+        except Exception as e:
+            logger.error(f"Erro inesperado ao buscar dados da CWL: {e}", exc_info=True)
+            return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
 
     async def fetch_highlights_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
@@ -393,11 +411,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             
             plan = advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
             
-            # Lógica para adicionar o tempo de início da Fase 2
-            if war.state == 'inWar' and hasattr(war, 'start_time') and war.start_time.time:
+            if war and war.state == 'inWar' and hasattr(war, 'start_time') and war.start_time.time:
                 start_time_utc = war.start_time.time.replace(tzinfo=pytz.utc)
                 phase_2_start_time = start_time_utc + datetime.timedelta(hours=12)
-                # Adiciona a informação ao dicionário do plano que será enviado como JSON
                 plan['phase_2_start_time_iso'] = phase_2_start_time.isoformat()
 
             return web.json_response(plan)
@@ -412,7 +428,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not db_cog: return web.json_response({"error": "Cog de DB não encontrado."}, status=500)
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         data = await request.json()
-        await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
+        await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'), data.get('cwl_status', 'active'))
         bot_instance.web_api_cache.pop('members', None)
         return web.Response(status=204)
 
@@ -449,10 +465,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_inactivity_check_handler(request):
         cwl_cog = bot_instance.get_cog("Planeador de CWL")
         if not cwl_cog: return web.json_response({"error": "O módulo do planeador CWL não está ativo."}, status=500)
-        # CORREÇÃO: A função no cog não existe, precisa ser implementada ou removida.
-        # Por enquanto, retornaremos um placeholder.
-        # alert = await cwl_cog.get_inactivity_alert() 
-        alert = {"alert": None} # Placeholder
+        alert = {"alert": None} 
         return web.json_response(alert)
 
     # --- Rotas da API ---
@@ -470,12 +483,21 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
     app.router.add_get("/api/cwl/inactivity_check", api_cwl_inactivity_check_handler)
-
-    # (Resto do código do servidor web inalterado)
+    
     # --- Rotas Estáticas e Principais ---
     static_dir = os.path.join(os.path.dirname(__file__), "static")
+    
+    async def painel_handler(request):
+        session = await get_session(request)
+        is_admin = session.get('admin', False)
+        
+        if bot_instance.maintenance_mode and not is_admin:
+            return web.FileResponse(os.path.join(static_dir, "maintenance.html"))
+        
+        return web.FileResponse(os.path.join(static_dir, "painel.html"))
+
     app.router.add_static('/static/', path=static_dir, name='static')
-    app.router.add_get("/painel", lambda r: web.FileResponse(os.path.join(static_dir, "painel.html")))
+    app.router.add_get("/painel", painel_handler)
     app.router.add_get("/", lambda r: web.Response(text=f"Bot running! v{BOT_VERSION}"))
     
     # --- CÓDIGO DO ADMIN PANEL ---
@@ -542,3 +564,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

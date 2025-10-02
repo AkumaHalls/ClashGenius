@@ -294,12 +294,20 @@ class WarPredictionSystemV3:
         """Ponto de entrada principal para gerar uma análise completa da guerra."""
         if not self.is_initialized:
             await self.initialize_system()
+        
+        if not war or not hasattr(war, 'state') or war.state == 'notInWar':
+            return {"summary_panel": "Nenhuma guerra ativa para análise.", "probability": 50.0, "confidence": 0.0}
 
         try:
+            if not war.clan or not war.opponent:
+                return {"summary_panel": "Dados da guerra incompletos.", "probability": 50.0, "confidence": 10.0}
+
             our_clan = war.clan if war.clan.tag == clan_tag else war.opponent
             opponent = war.opponent if war.clan.tag == clan_tag else war.clan
             
-            # Cenários definitivos
+            if war.state == 'preparation':
+                 return {"summary_panel": "Análise disponível quando a batalha começar.", "probability": 50.0, "confidence": 20.0}
+            
             definitive = self._check_definitive_scenarios(war, our_clan, opponent)
             if definitive:
                 return definitive
@@ -335,8 +343,6 @@ class WarPredictionSystemV3:
             processed_wars = []
             async for doc in cursor:
                 try:
-                    # Simula a extração de features do passado. Em um sistema real, isso seria mais complexo.
-                    # Para simplificar, usamos apenas as features básicas que podemos derivar do histórico.
                     features = AdvancedWarFeatures(
                         star_difference=doc['war_data']['clan_stars'] - doc['war_data']['opponent_stars'],
                         destruction_difference=float(doc['war_data']['clan_destruction'][:-1]) - float(doc['war_data']['opponent_destruction'][:-1]),
@@ -345,16 +351,16 @@ class WarPredictionSystemV3:
                         efficiency_ratio=float(doc['war_data'].get('clan_avg_stars', 1.5)) / max(float(doc['war_data'].get('opponent_avg_stars', 1.5)), 0.1),
                         three_star_rate_difference=(doc['war_data']['clan_star_distribution']['3'] / max(doc['war_data']['clan_attacks_used'],1)) - (doc['war_data']['opponent_star_distribution']['3'] / max(doc['war_data']['opponent_attacks_used'],1)),
                         war_progress_percentage=100.0,
-                        historical_win_rate=50.0, # Dado não disponível no passado
+                        historical_win_rate=50.0,
                         unused_member_strength_diff=0.0,
-                        momentum_indicator=0.5, # Dado não disponível no passado
-                        clan_synergy_score=0.5, # Dado não disponível no passado
-                        pressure_index=0.0 # Dado não disponível no passado
+                        momentum_indicator=0.5,
+                        clan_synergy_score=0.5,
+                        pressure_index=0.0
                     )
                     result = 1 if features.star_difference > 0 or (features.star_difference == 0 and features.destruction_difference > 0) else 0
                     processed_wars.append({'features': features, 'result': result})
                 except (KeyError, TypeError, ValueError):
-                    continue # Pula guerras com dados históricos incompletos
+                    continue
             return processed_wars
         except Exception as e:
             self.logger.error(f"Erro ao carregar dados históricos: {e}")
@@ -365,11 +371,9 @@ class WarPredictionSystemV3:
         our_rem = (war.team_size * war.attacks_per_member) - our_clan.attacks_used
         opp_rem = (war.team_size * war.attacks_per_member) - opponent.attacks_used
 
-        # Vitória garantida para nós
         if our_clan.stars > (opponent.stars + opp_rem * 3):
             return {"summary_panel": "Vitória matematicamente garantida!", "summary_discord": "Vitória matematicamente garantida!", "probability": 100.0, "confidence": 100.0}
         
-        # Derrota inevitável
         if (our_clan.stars + our_rem * 3) < opponent.stars:
             return {"summary_panel": "Derrota matematicamente inevitável.", "summary_discord": "Derrota matematicamente inevitável.", "probability": 0.0, "confidence": 100.0}
         
@@ -377,20 +381,17 @@ class WarPredictionSystemV3:
 
     def _generate_qualitative_analysis(self, features: AdvancedWarFeatures, probability: float) -> Tuple[float, List[str], List[str]]:
         """Gera a confiança, insights e fatores de risco."""
-        # Cálculo de Confiança
         confidence = 50.0
-        confidence += min(features.war_progress_percentage, 80) * 0.4 # Progresso da guerra
-        confidence -= abs(probability - 50) * 0.2 # Menos confiança em previsões extremas no início
+        confidence += min(features.war_progress_percentage, 80) * 0.4
+        confidence -= abs(probability - 50) * 0.2
         confidence = np.clip(confidence, 10, 95)
         
-        # Geração de Insights Táticos
         insights = []
         if features.momentum_indicator > 0.6: insights.append("O momentum está a nosso favor nos ataques recentes.")
         if features.clan_synergy_score > 0.7: insights.append("A eficiência nos cleanups está alta, mostrando boa coordenação.")
         if probability > 75: insights.append("A prioridade agora é administrar a vantagem com ataques seguros.")
         if probability < 25: insights.append("É necessário arriscar em ataques de 3 estrelas para buscar a virada.")
 
-        # Identificação de Fatores de Risco
         risks = []
         if features.attacks_remaining_difference < -2: risks.append("Oponente possui mais ataques restantes.")
         if features.unused_member_strength_diff < -10: risks.append("Oponente tem jogadores mais fortes para atacar no final.")
@@ -400,7 +401,6 @@ class WarPredictionSystemV3:
 
     def _generate_summaries(self, features: AdvancedWarFeatures, probability: float, our_clan_name: str) -> Dict[str, str]:
         """Gera os textos de resumo para o painel e para o Discord."""
-        # Título da previsão
         if probability >= 85: title = "🎯 Vitória Altamente Provável"
         elif probability >= 65: title = "✅ Vantagem Clara"
         elif probability >= 55: title = "📈 Ligeira Vantagem"
@@ -408,7 +408,6 @@ class WarPredictionSystemV3:
         elif probability <= 35: title = "⚠️ Desvantagem Clara"
         else: title = "⚖️ Guerra em Equilíbrio"
         
-        # Detalhe tático
         star_diff = int(features.star_difference)
         if star_diff < 0:
             detail = f"Para virar, {our_clan_name} precisa de {abs(star_diff) + 1}★ a mais que o oponente."

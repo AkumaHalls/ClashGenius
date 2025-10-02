@@ -436,7 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateWarAdvisorPlan(data) {
         if (!warAdvisorContentEl) return;
     
-        // Limpa o timer anterior para evitar múltiplos intervalos
         if (phaseTimerInterval) {
             clearInterval(phaseTimerInterval);
             phaseTimerInterval = null;
@@ -445,10 +444,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const advisorPhaseTimerEl = document.getElementById('advisorPhaseTimer');
         const advisorPhaseTimerTextEl = document.getElementById('advisorPhaseTimerText');
         
-        // CORREÇÃO: A lógica é encapsulada para ser chamada após a renderização
         const setupAdvisorUI = (planData) => {
             if (!planData.success) {
-                advisorPhaseTimerEl.style.display = 'none';
+                if(advisorPhaseTimerEl) advisorPhaseTimerEl.style.display = 'none';
                 setHtml(warAdvisorContentEl, `<div class="advisor-plan-container"><p class="message-box">${planData.error || 'Nenhuma recomendação disponível.'}</p></div>`);
                 return;
             }
@@ -498,37 +496,36 @@ document.addEventListener('DOMContentLoaded', () => {
     
             contentHtml += '</div>';
             
-            // Renderiza o plano de ataque primeiro
             setHtml(warAdvisorContentEl, `<div id="advisorPhaseTimer" class="advisor-phase-timer" style="display: none;"><h4>MUDANÇA DE FASE</h4><p id="advisorPhaseTimerText">Calculando...</p></div>` + contentHtml);
             
-            // Depois de renderizar, inicia o timer se houver dados
             if (planData.phase_2_start_time_iso) {
                 const phase2StartTime = new Date(planData.phase_2_start_time_iso);
-                const timerEl = document.getElementById('advisorPhaseTimer'); // Re-seleciona o elemento
+                const timerEl = document.getElementById('advisorPhaseTimer');
                 const timerTextEl = document.getElementById('advisorPhaseTimerText');
-                timerEl.style.display = 'block';
-                
-                phaseTimerInterval = setInterval(() => {
-                    const now = new Date();
-                    const diff = phase2StartTime - now;
-    
-                    if (diff <= 0) {
-                        setText(timerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
-                        clearInterval(phaseTimerInterval);
-                        phaseTimerInterval = null;
-                        return;
-                    }
-    
-                    const hours = Math.floor(diff / (1000 * 60 * 60));
-                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
-                    setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
-                }, 1000);
+                if (timerEl && timerTextEl) {
+                    timerEl.style.display = 'block';
+                    
+                    phaseTimerInterval = setInterval(() => {
+                        const now = new Date();
+                        const diff = phase2StartTime - now;
+        
+                        if (diff <= 0) {
+                            setText(timerTextEl, 'Fase 2 Iniciada! Foco em ataques de limpeza.');
+                            clearInterval(phaseTimerInterval);
+                            phaseTimerInterval = null;
+                            return;
+                        }
+        
+                        const hours = Math.floor(diff / (1000 * 60 * 60));
+                        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+                        setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
+                    }, 1000);
+                }
             }
         };
         
-        // Inicia o processo
         setupAdvisorUI(data);
     }
 
@@ -594,25 +591,54 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function handleGenerateCwlPlan() {
         generateCwlPlanBtn.disabled = true;
+        generateCwlPlanBtn.textContent = 'A gerar...';
         cwlPlanResultEl.style.display = 'block';
-        cwlPlanSpinner.style.display = 'block';
-        setHtml(cwlPlanContentEl, '');
+        setHtml(cwlPlanContentEl, '<div class="loading-spinner" style="margin: 20px auto;"></div>');
+        
         const data = await fetchData('cwl/generate_plan', { method: 'POST' });
-        cwlPlanSpinner.style.display = 'none';
+        
+        generateCwlPlanBtn.disabled = false;
+        generateCwlPlanBtn.textContent = 'Gerar Plano de Rotação';
+        
         if (data.error) {
             setHtml(cwlPlanContentEl, `<p class="message-box">${data.error}</p>`);
+            document.getElementById('cwlPlanDaysTabs').innerHTML = '';
         } else {
-            let planHtml = `<h4 class="plan-summary">${data.summary}</h4>`;
-            for (const day in data.plan) {
-                planHtml += `<div class="day-plan"><h5>${day.replace('_', ' ').toUpperCase()}</h5>`;
-                planHtml += data.plan[day].substitutions.length > 0 ? data.plan[day].substitutions.map(sub => `<div class="substitution-card">
-                                        <p><strong>Sai:</strong> ${sub.out.name} (CV${sub.out.town_hall})</p>
-                                        <p><strong>Entra:</strong> ${sub.in.name} (CV${sub.in.town_hall})</p>
-                                        <p class="reason"><em>IA: ${sub.reason}</em></p>
-                                    </div>`).join('') : `<p>Manter a escalação do dia anterior.</p>`;
+            const tabsHtml = data.schedule.map((dayPlan, index) => 
+                `<button class="cwl-plan-day-tab ${index === 0 ? 'active' : ''}" data-day="${dayPlan.day}">Dia ${dayPlan.day}</button>`
+            ).join('');
+            document.getElementById('cwlPlanDaysTabs').innerHTML = tabsHtml;
+
+            const renderDayPlan = (day) => {
+                const dayData = data.schedule.find(d => d.day == day);
+                if (!dayData) {
+                    setHtml(cwlPlanContentEl, `<p class="message-box">Plano para o dia ${day} não encontrado.</p>`);
+                    return;
+                }
+                
+                let planHtml = `<h4>Alterações na Equipa</h4>`;
+                planHtml += dayData.substitutions.length > 0 ? dayData.substitutions.map(sub => `<div class="substitution-card">
+                                            <p>🔴 <strong>Sai:</strong> ${sub.out.name} (CV${sub.out.town_hall})</p>
+                                            <p>🟢 <strong>Entra:</strong> ${sub.in.name} (CV${sub.in.town_hall})</p>
+                                            <p class="reason"><em>IA: ${sub.reason}</em></p>
+                                        </div>`).join('') : `<p>Manter a escalação do dia anterior.</p>`;
+                
+                planHtml += `<h4>⚔️ Escalação Ativa</h4><div class="roster-grid">`;
+                planHtml += dayData.active_roster.map((p, i) => `<div class="roster-player"><span>${i+1}.</span>${p.name} (CV${p.town_hall})</div>`).join('');
                 planHtml += `</div>`;
-            }
-            setHtml(cwlPlanContentEl, planHtml);
+                
+                setHtml(cwlPlanContentEl, planHtml);
+            };
+
+            renderDayPlan(1);
+
+            document.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelector('.cwl-plan-day-tab.active').classList.remove('active');
+                    tab.classList.add('active');
+                    renderDayPlan(tab.dataset.day);
+                });
+            });
         }
     }
 
@@ -671,6 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // CORREÇÃO: Removido o seletor de status CWL da lista principal
         setHtml(membersGridEl, data.members.map(m => `
             <div class="member-card" data-th="${m.town_hall}" data-name="${m.name.toLowerCase()}">
                 <div class="member-card-header" data-player-tag="${m.tag}">
@@ -741,6 +768,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    async function setPlayerCwlStatus(playerTag, status) {
+        const response = await fetchData(`cwl/player_status/${encodeURIComponent(playerTag)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        return !response.error;
+    }
+
     function applyMemberFilters() {
         const nameFilter = filterNameInput.value.toLowerCase();
         const thFilter = filterTHInput.value;
@@ -776,6 +812,16 @@ document.addEventListener('DOMContentLoaded', () => {
                </div>` 
             : '';
 
+        const cwlStatusHtml = `
+            <div class="member-cwl-status" data-player-tag="${profileData.tag}">
+                <label>Status na CWL:</label>
+                <div class="cwl-status-selector">
+                    <button class="cwl-status-btn ${profileData.cwl_status === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
+                    <button class="cwl-status-btn ${profileData.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
+                </div>
+            </div>
+        `;
+
         const statsGridHtml = `
             <div class="profile-details-container">
                 <div class="profile-stats-grid">
@@ -784,6 +830,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations}</p></div>
                     <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received}</p></div>
                 </div>
+                ${cwlStatusHtml}
             </div>`;
 
         setHtml(memberProfileContent, `
@@ -802,6 +849,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 <canvas id="trophyChart"></canvas>
             </div>
         `);
+
+        document.querySelectorAll('#memberProfileContent .cwl-status-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                if (btn.classList.contains('active')) return;
+
+                const selector = e.target.closest('.cwl-status-selector');
+                const playerTag = e.target.closest('.member-cwl-status').dataset.playerTag;
+                const newStatus = e.target.dataset.status;
+
+                selector.querySelector('.active').classList.remove('active');
+                e.target.classList.add('active');
+
+                const success = await setPlayerCwlStatus(playerTag, newStatus);
+                if (!success) {
+                    alert('Erro ao salvar o status. Tente novamente.');
+                    e.target.classList.remove('active');
+                    selector.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`).classList.add('active');
+                }
+            });
+        });
 
         if (memberTrophyChart) memberTrophyChart.destroy();
         if (profileData.trophy_history?.length > 0) {
@@ -864,10 +931,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadAllData() {
         try {
             const clanData = await fetchData('clan');
-            if (clanData.error) {
-                if (!isFirstLoad) { 
-                    loadingOverlayEl.classList.add('hidden');
-                }
+            if (clanData.error && isFirstLoad) {
+                loadingOverlayEl.classList.add('hidden');
                 return; 
             }
             
@@ -909,11 +974,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- EVENT LISTENERS DOS MODAIS ---
     if (closeModalButton) closeModalButton.addEventListener('click', () => historicWarModal.style.display = 'none');
-    if (closeProfileModalButton) closeProfileModalButton.addEventListener('click', () => memberProfileModal.style.display = 'none');
+    
+    if (closeProfileModalButton) closeProfileModalButton.addEventListener('click', () => {
+        memberProfileModal.style.display = 'none';
+        fetchData('members').then(populateMembersList);
+    });
+
     window.addEventListener('click', (event) => {
         if (event.target == historicWarModal) historicWarModal.style.display = 'none';
-        if (event.target == memberProfileModal) memberProfileModal.style.display = 'none';
+        if (event.target == memberProfileModal) {
+            memberProfileModal.style.display = 'none';
+            fetchData('members').then(populateMembersList);
+        }
     });
+
     warLogTableBodyEl.addEventListener('click', (event) => {
         const row = event.target.closest('.historic-war-row');
         if (row && row.dataset.warId) {
