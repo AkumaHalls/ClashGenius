@@ -191,39 +191,41 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             logger.info("Verificando status da CWL...")
             cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
 
-            # Limpa o cache se a CWL terminou ou está em preparação para uma nova
-            if not cwl_group or cwl_group.state in ("warEnded", "preparation"):
+            if not cwl_group or cwl_group.state not in ("inWar",):
                 if self.posted_daily_plans:
-                    logger.info("CWL não está em guerra. Limpando cache de planos postados.")
+                    logger.info("CWL não está em guerra ativa. Limpando cache de planos postados.")
                     self.posted_daily_plans.clear()
                     self.posted_inactivity_alerts.clear()
                 return
             
-            # Se o estado é 'inWar', prossegue com a lógica
-            if cwl_group.state == "inWar":
-                active_war = None
-                async for war in cwl_group.get_wars(self.bot.clan_tag):
-                    if war.state == "inWar":
+            active_war = None
+            try:
+                wars = cwl_group.get_wars(self.bot.clan_tag)
+                async for war in wars:
+                    if war and war.state == "inWar":
                         active_war = war
                         break
-                
-                if not active_war:
-                    logger.warning("Estado do grupo é 'inWar', mas nenhuma guerra ativa foi encontrada.")
-                    return
+            except Exception as e:
+                logger.warning(f"Uma exceção ocorreu ao tentar buscar guerras ativas: {e}. O bot tentará novamente no próximo ciclo.")
+                return 
 
-                day_number = -1
-                for i, round_war_tags in enumerate(cwl_group.rounds):
-                    if active_war.tag in round_war_tags:
-                        day_number = i + 1
-                        break
-                
-                if day_number == -1:
-                    logger.error(f"Não foi possível determinar o dia da CWL para a guerra ativa {active_war.tag}.")
-                    return
-                
-                logger.info(f"Guerra ativa encontrada: Dia {day_number} vs {active_war.opponent.name}.")
-                await self.post_daily_plan_if_needed(active_war, cwl_group.season, day_number)
-                await self.check_and_alert_inactivity(active_war)
+            if not active_war:
+                logger.warning("Estado do grupo é 'inWar', mas nenhuma guerra ativa foi encontrada no momento. Tentando novamente no próximo ciclo.")
+                return
+
+            day_number = -1
+            for i, round_war_tags in enumerate(cwl_group.rounds):
+                if active_war.tag in round_war_tags:
+                    day_number = i + 1
+                    break
+            
+            if day_number == -1:
+                logger.error(f"Não foi possível determinar o dia da CWL para a guerra ativa {active_war.tag}.")
+                return
+            
+            logger.info(f"Guerra ativa encontrada: Dia {day_number} vs {active_war.opponent.name}.")
+            await self.post_daily_plan_if_needed(active_war, cwl_group.season, day_number)
+            await self.check_and_alert_inactivity(active_war)
 
         except coc.NotFound:
             if self.posted_daily_plans:
@@ -326,10 +328,12 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         await ctx.message.add_reaction("🔄")
         logger.info(f"Comando !forcarplano invocado por {ctx.author.name}.")
         
-        # Roda a mesma lógica da task, mas manualmente
         try:
-            self.posted_daily_plans.clear() # Limpa o cache para garantir que poste
-            await self.cwl_monitoring_task.func(self)
+            self.posted_daily_plans.clear() 
+            # --- CORREÇÃO APLICADA AQUI ---
+            # A forma correta de invocar a função da task é diretamente.
+            await self.cwl_monitoring_task.coro(self)
+            
             await ctx.message.add_reaction("✅")
             await ctx.message.remove_reaction("🔄", self.bot.user)
         except Exception as e:
