@@ -38,7 +38,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 logger.warning("get_cwl_members_for_planning: O clã não parece estar em uma CWL.")
                 return None
 
-            # CORREÇÃO: Itera sobre os clãs no grupo para encontrar o nosso
             our_clan_from_cwl = next((c for c in cwl_group.clans if c.tag == self.bot.clan_tag), None)
             
             if not our_clan_from_cwl:
@@ -61,24 +60,22 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         if len(cwl_members) < 15:
             return {"error": "Não há membros suficientes (mínimo 15) na lista da CWL para gerar um plano."}
         
-        clan_members_in_clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
-        current_member_tags = {m.tag for m in clan_members_in_clan.members}
+        clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
+        current_member_tags = {m.tag for m in clan.members}
         
         db_cog = self.bot.get_cog("Banco de Dados")
         player_statuses = await db_cog.load_player_notes_from_db() if db_cog else {}
         
         active_players = []
         backup_players = []
-
+        
         for member in cwl_members:
-            if member['tag'] not in current_member_tags:
-                continue
-
-            status = player_statuses.get(member['tag'], {}).get('cwl_status', 'active')
-            if status == 'active':
-                active_players.append(member)
-            else: # backup
-                backup_players.append(member)
+            if member['tag'] in current_member_tags:
+                status = player_statuses.get(member['tag'], {}).get('cwl_status', 'active')
+                if status == 'active':
+                    active_players.append(member)
+                else:
+                    backup_players.append(member)
 
         active_players.sort(key=lambda p: p['town_hall'], reverse=True)
         backup_players.sort(key=lambda p: p['town_hall'], reverse=True)
@@ -96,41 +93,90 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         
         current_roster = initial_roster.copy()
         
+        # O plano do Dia 1 é gerado sem substituições, a menos que alguém saia antes mesmo de começar
+        day_1_substitutions = []
+        initial_roster_tags = {p['tag'] for p in initial_roster}
+        left_tags_before_start = initial_roster_tags - current_member_tags
+        
+        for left_tag in left_tags_before_start:
+            player_out = next((p for p in cwl_members if p['tag'] == left_tag), None)
+            if player_out and bench:
+                player_in = bench.pop(0)
+                current_roster = [p for p in current_roster if p['tag'] != left_tag]
+                current_roster.append(player_in)
+                day_1_substitutions.append({
+                    "out": player_out, "in": player_in,
+                    "reason": "Membro saiu do clã antes do início e foi substituído."
+                })
+
         schedule.append({
             "day": 1,
             "active_roster": sorted(current_roster, key=lambda p: p['town_hall'], reverse=True),
-            "substitutions": []
+            "substitutions": day_1_substitutions
         })
 
+        # Lógica para os dias 2 a 7
         for day in range(2, 8):
             substitutions = []
+            
+            # --- LÓGICA DINÂMICA DE SUBSTITUIÇÃO ---
+            # Verifica se algum jogador da escalação do dia anterior saiu do clã
+            previous_roster_tags = {p['tag'] for p in schedule[-1]['active_roster']}
+            newly_left_tags = previous_roster_tags - current_member_tags
+            
+            if newly_left_tags:
+                for left_tag in newly_left_tags:
+                    player_out = next((p for p in cwl_members if p['tag'] == left_tag), None)
+                    if not player_out: continue
+
+                    player_to_remove = next((p for p in current_roster if p['tag'] == left_tag), None)
+                    if player_to_remove:
+                        if bench:
+                            player_in = bench.pop(0)
+                            current_roster.remove(player_to_remove)
+                            current_roster.append(player_in)
+                            substitutions.append({
+                                "out": player_out, "in": player_in,
+                                "reason": "Membro saiu do clã e foi substituído."
+                            })
+                            logger.info(f"Substituição dinâmica no Dia {day}: {player_out['name']} (saiu) -> {player_in['name']} (entrou)")
+                        else:
+                            current_roster.remove(player_to_remove)
+                            logger.warning(f"Jogador {player_out['name']} saiu, mas não há reservas. Escalação do Dia {day} ficará com um a menos.")
+            
+            # --- LÓGICA DE ROTAÇÃO NORMAL ---
             if bench:
-                current_roster.sort(key=lambda p: p['town_hall'])
+                temp_roster_for_rotation = sorted(current_roster, key=lambda p: p['town_hall'])
                 
                 for _ in range(3):
                     if not bench: break
                     
                     player_out = None
-                    for p in current_roster:
+                    for p in temp_roster_for_rotation:
                         status = player_statuses.get(p['tag'], {}).get('cwl_status', 'active')
                         if status == 'active':
                             player_out = p
                             break
                     
-                    if player_out is None:
-                        break
+                    if player_out is None and temp_roster_for_rotation:
+                        player_out = temp_roster_for_rotation[0]
+                    
+                    if player_out:
+                        player_in = bench.pop(0)
+                        
+                        # Remove e adiciona da lista principal 'current_roster'
+                        current_roster = [p for p in current_roster if p['tag'] != player_out['tag']]
+                        current_roster.append(player_in)
+                        
+                        # Atualiza a lista temporária para a próxima iteração da rotação
+                        temp_roster_for_rotation = [p for p in temp_roster_for_rotation if p['tag'] != player_out['tag']]
 
-                    player_in = bench.pop(0)
-                    
-                    current_roster.remove(player_out)
-                    current_roster.append(player_in)
-                    bench.append(player_out)
-                    
-                    substitutions.append({
-                        "out": player_out,
-                        "in": player_in,
-                        "reason": f"Rotação para maximizar medalhas e participação."
-                    })
+                        bench.append(player_out)
+                        
+                        substitutions.append({
+                            "out": player_out, "in": player_in,
+                            "reason": f"Rotação para maximizar medalhas e participação."
+                        })
 
             schedule.append({
                 "day": day,
@@ -205,7 +251,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 subs_str += f"_*Motivo: {sub['reason']}_*\n\n"
             embed.add_field(name="🔄 Alterações na Equipa", value=subs_str, inline=False)
         else:
-            embed.add_field(name="🔄 Alterações na Equipa", value="A mesma escalação do dia anterior. Vamos com tudo!", inline=False)
+            default_message = "Nenhuma alteração na equipa para hoje. Foco total!" if day_number > 1 else "Escalação inicial definida. Vamos com tudo!"
+            embed.add_field(name="🔄 Alterações na Equipa", value=default_message, inline=False)
+
         
         if opponent.badge:
             embed.set_thumbnail(url=opponent.badge.url)
