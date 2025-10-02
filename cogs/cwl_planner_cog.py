@@ -188,55 +188,64 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         await self.bot.coc_client_ready.wait()
         
         try:
+            logger.info("Verificando status da CWL...")
             cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
-            if not cwl_group or cwl_group.state != "inWar":
-                if cwl_group and cwl_group.state == "warEnded":
+
+            # Limpa o cache se a CWL terminou ou está em preparação para uma nova
+            if not cwl_group or cwl_group.state in ("warEnded", "preparation"):
+                if self.posted_daily_plans:
+                    logger.info("CWL não está em guerra. Limpando cache de planos postados.")
                     self.posted_daily_plans.clear()
                     self.posted_inactivity_alerts.clear()
                 return
-
-            active_war = None
-            async for war in cwl_group.get_wars(self.bot.clan_tag):
-                if war.state == "inWar":
-                    active_war = war
-                    break
             
-            if not active_war: return
+            # Se o estado é 'inWar', prossegue com a lógica
+            if cwl_group.state == "inWar":
+                active_war = None
+                async for war in cwl_group.get_wars(self.bot.clan_tag):
+                    if war.state == "inWar":
+                        active_war = war
+                        break
+                
+                if not active_war:
+                    logger.warning("Estado do grupo é 'inWar', mas nenhuma guerra ativa foi encontrada.")
+                    return
 
-            # --- LÓGICA DE DETECÇÃO DE DIA CORRIGIDA ---
-            day_number = -1
-            for i, round_war_tags in enumerate(cwl_group.rounds):
-                if active_war.tag in round_war_tags:
-                    day_number = i + 1
-                    break
-            
-            if day_number == -1:
-                logger.error(f"Não foi possível determinar o dia da CWL para a guerra ativa com a tag {active_war.tag}.")
-                return
-
-            await self.post_daily_plan_if_needed(active_war, cwl_group.season, day_number)
-            await self.check_and_alert_inactivity(active_war)
+                day_number = -1
+                for i, round_war_tags in enumerate(cwl_group.rounds):
+                    if active_war.tag in round_war_tags:
+                        day_number = i + 1
+                        break
+                
+                if day_number == -1:
+                    logger.error(f"Não foi possível determinar o dia da CWL para a guerra ativa {active_war.tag}.")
+                    return
+                
+                logger.info(f"Guerra ativa encontrada: Dia {day_number} vs {active_war.opponent.name}.")
+                await self.post_daily_plan_if_needed(active_war, cwl_group.season, day_number)
+                await self.check_and_alert_inactivity(active_war)
 
         except coc.NotFound:
-            self.posted_daily_plans.clear()
-            self.posted_inactivity_alerts.clear()
+            if self.posted_daily_plans:
+                logger.info("Clã não está em CWL (coc.NotFound). Limpando cache.")
+                self.posted_daily_plans.clear()
+                self.posted_inactivity_alerts.clear()
         except Exception as e:
             logger.error(f"Erro na tarefa de monitorização da CWL: {e}", exc_info=True)
 
     async def post_daily_plan_if_needed(self, war: coc.ClanWar, season: str, day_number: int):
-        # Usa a tag da guerra como identificador único para evitar re-postagens
         war_tag_id = war.tag
         if war_tag_id in self.posted_daily_plans:
+            logger.info(f"Plano para o Dia {day_number} (guerra {war_tag_id}) já foi postado. Ignorando.")
             return
 
-        logger.info(f"Nova guerra da CWL detetada (Dia {day_number}). A gerar e postar o plano diário.")
+        logger.info(f"Postando plano para o Dia {day_number} (guerra {war_tag_id})...")
         
         plan_data = await self.generate_rotation_plan()
         if "error" in plan_data: 
             logger.error(f"Erro ao gerar plano de rotação: {plan_data['error']}")
             return
 
-        # --- LÓGICA DE SELEÇÃO DE PLANO CORRIGIDA ---
         current_day_plan = next((p for p in plan_data["schedule"] if p["day"] == day_number), None)
         
         if not current_day_plan: 
@@ -262,32 +271,29 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 subs_str += f"_*Motivo: {sub['reason']}_*\n\n"
             embed.add_field(name="🔄 Alterações na Equipa", value=subs_str, inline=False)
         else:
-            default_message = "Nenhuma alteração na equipa para hoje. Foco total!" if day_number > 1 else "Escalação inicial definida. Vamos com tudo!"
+            default_message = "Manter a escalação do dia anterior." if day_number > 1 else "Escalação inicial definida. Vamos com tudo!"
             embed.add_field(name="🔄 Alterações na Equipa", value=default_message, inline=False)
         
         if opponent.badge:
             embed.set_thumbnail(url=opponent.badge.url)
 
         await self._send_planner_embed(embed)
-        self.posted_daily_plans.add(war_tag_id) # Salva a tag da guerra para não postar de novo
+        self.posted_daily_plans.add(war_tag_id)
+        logger.info(f"Plano para o Dia {day_number} enviado e tag {war_tag_id} adicionada ao cache.")
 
     async def check_and_alert_inactivity(self, war: coc.ClanWar):
         time_left = war.end_time.seconds_until
-        # Alerta será enviado quando faltarem entre 4 horas e 15 minutos para o fim da guerra
-        if not (15 * 60 < time_left < 4 * 3600):
-            return
+        if not (15 * 60 < time_left < 4 * 3600): return
 
         our_clan = war.clan if war.clan.tag == self.bot.clan_tag else war.opponent
         inactive_members = [m for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
 
-        if not inactive_members:
-            return
+        if not inactive_members: return
 
         alert_id = f"{war.tag}-inactivity"
-        if alert_id in self.posted_inactivity_alerts:
-            return
+        if alert_id in self.posted_inactivity_alerts: return
             
-        logger.warning(f"A detetar inatividade na guerra da CWL. {len(inactive_members)} membros ainda não atacaram.")
+        logger.warning(f"Detectando inatividade na CWL. {len(inactive_members)} membros ainda não atacaram.")
 
         hours, remainder = divmod(int(time_left), 3600)
         minutes, _ = divmod(remainder, 60)
@@ -298,13 +304,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             description=f"A guerra contra **{war.opponent.name}** termina em aproximadamente **{time_left_str}**!",
             color=discord.Color.red()
         )
-
         inactive_str = "\n".join([f"**{m.name}** (CV{m.town_hall})" for m in inactive_members])
-        embed.add_field(
-            name="Jogadores com Ataques Pendentes",
-            value=inactive_str,
-            inline=False
-        )
+        embed.add_field(name="Jogadores com Ataques Pendentes", value=inactive_str, inline=False)
         embed.set_footer(text="É crucial que todos os ataques sejam feitos para não comprometer o resultado!")
         
         if war.opponent.badge:
@@ -313,9 +314,30 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         await self._send_planner_embed(embed)
         self.posted_inactivity_alerts.add(alert_id)
 
-    @cwl_monitoring_task.before_loop
+    @tasks.loop(count=1)
     async def before_cwl_monitoring_task(self):
         await self.bot.wait_until_ready()
+
+    # NOVO COMANDO MANUAL PARA DEBUG
+    @commands.command(name='forcarplano', aliases=['forceplan'])
+    @commands.has_permissions(administrator=True)
+    async def force_plan_command(self, ctx: commands.Context):
+        """(Admin) Força a verificação e postagem do plano de CWL do dia atual."""
+        await ctx.message.add_reaction("🔄")
+        logger.info(f"Comando !forcarplano invocado por {ctx.author.name}.")
+        
+        # Roda a mesma lógica da task, mas manualmente
+        try:
+            self.posted_daily_plans.clear() # Limpa o cache para garantir que poste
+            await self.cwl_monitoring_task.func(self)
+            await ctx.message.add_reaction("✅")
+            await ctx.message.remove_reaction("🔄", self.bot.user)
+        except Exception as e:
+            await ctx.message.add_reaction("❌")
+            await ctx.message.remove_reaction("🔄", self.bot.user)
+            await ctx.send(f"Ocorreu um erro ao forçar o plano: `{e}`")
+            logger.error(f"Erro ao executar !forcarplano: {e}", exc_info=True)
+
 
 async def setup(bot: commands.Bot):
     if bot.cwl_planner_channel_id:
