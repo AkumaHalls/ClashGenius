@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-3
 import logging
 import discord
 from discord.ext import commands, tasks
@@ -343,4 +343,5 @@ async def setup(bot: commands.Bot):
         await bot.add_cog(CwlPlannerCog(bot))
     else:
         logger.warning("Cog 'CwlPlannerCog' não carregado (ID do canal não configurado).")
+
 
