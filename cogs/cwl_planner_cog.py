@@ -93,7 +93,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         
         current_roster = initial_roster.copy()
         
-        # O plano do Dia 1 é gerado sem substituições, a menos que alguém saia antes mesmo de começar
         day_1_substitutions = []
         initial_roster_tags = {p['tag'] for p in initial_roster}
         left_tags_before_start = initial_roster_tags - current_member_tags
@@ -115,12 +114,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             "substitutions": day_1_substitutions
         })
 
-        # Lógica para os dias 2 a 7
         for day in range(2, 8):
             substitutions = []
             
-            # --- LÓGICA DINÂMICA DE SUBSTITUIÇÃO ---
-            # Verifica se algum jogador da escalação do dia anterior saiu do clã
             previous_roster_tags = {p['tag'] for p in schedule[-1]['active_roster']}
             newly_left_tags = previous_roster_tags - current_member_tags
             
@@ -144,7 +140,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                             current_roster.remove(player_to_remove)
                             logger.warning(f"Jogador {player_out['name']} saiu, mas não há reservas. Escalação do Dia {day} ficará com um a menos.")
             
-            # --- LÓGICA DE ROTAÇÃO NORMAL ---
             if bench:
                 temp_roster_for_rotation = sorted(current_roster, key=lambda p: p['town_hall'])
                 
@@ -164,11 +159,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                     if player_out:
                         player_in = bench.pop(0)
                         
-                        # Remove e adiciona da lista principal 'current_roster'
                         current_roster = [p for p in current_roster if p['tag'] != player_out['tag']]
                         current_roster.append(player_in)
                         
-                        # Atualiza a lista temporária para a próxima iteração da rotação
                         temp_roster_for_rotation = [p for p in temp_roster_for_rotation if p['tag'] != player_out['tag']]
 
                         bench.append(player_out)
@@ -197,8 +190,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         try:
             cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
             if not cwl_group or cwl_group.state != "inWar":
-                self.posted_daily_plans.clear()
-                self.posted_inactivity_alerts.clear()
+                if cwl_group and cwl_group.state == "warEnded":
+                    self.posted_daily_plans.clear()
+                    self.posted_inactivity_alerts.clear()
                 return
 
             active_war = None
@@ -209,7 +203,18 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             
             if not active_war: return
 
-            await self.post_daily_plan_if_needed(active_war, cwl_group.season)
+            # --- LÓGICA DE DETECÇÃO DE DIA CORRIGIDA ---
+            day_number = -1
+            for i, round_war_tags in enumerate(cwl_group.rounds):
+                if active_war.tag in round_war_tags:
+                    day_number = i + 1
+                    break
+            
+            if day_number == -1:
+                logger.error(f"Não foi possível determinar o dia da CWL para a guerra ativa com a tag {active_war.tag}.")
+                return
+
+            await self.post_daily_plan_if_needed(active_war, cwl_group.season, day_number)
             await self.check_and_alert_inactivity(active_war)
 
         except coc.NotFound:
@@ -218,20 +223,26 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         except Exception as e:
             logger.error(f"Erro na tarefa de monitorização da CWL: {e}", exc_info=True)
 
-    async def post_daily_plan_if_needed(self, war: coc.ClanWar, season: str):
-        war_id = war.end_time.time.day
-        if war_id in self.posted_daily_plans:
+    async def post_daily_plan_if_needed(self, war: coc.ClanWar, season: str, day_number: int):
+        # Usa a tag da guerra como identificador único para evitar re-postagens
+        war_tag_id = war.tag
+        if war_tag_id in self.posted_daily_plans:
             return
 
-        logger.info(f"Nova guerra da CWL detetada (dia {war_id}). A gerar e postar o plano diário.")
+        logger.info(f"Nova guerra da CWL detetada (Dia {day_number}). A gerar e postar o plano diário.")
         
         plan_data = await self.generate_rotation_plan()
-        if "error" in plan_data: return
+        if "error" in plan_data: 
+            logger.error(f"Erro ao gerar plano de rotação: {plan_data['error']}")
+            return
 
-        current_day_plan = next((p for p in plan_data["schedule"] if len(self.posted_daily_plans) < p["day"]), None)
-        if not current_day_plan: return
+        # --- LÓGICA DE SELEÇÃO DE PLANO CORRIGIDA ---
+        current_day_plan = next((p for p in plan_data["schedule"] if p["day"] == day_number), None)
         
-        day_number = current_day_plan["day"]
+        if not current_day_plan: 
+            logger.warning(f"Nenhum plano encontrado no cronograma para o Dia {day_number}.")
+            return
+        
         opponent = war.opponent if war.clan.tag == self.bot.clan_tag else war.clan
 
         embed = discord.Embed(
@@ -253,16 +264,16 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         else:
             default_message = "Nenhuma alteração na equipa para hoje. Foco total!" if day_number > 1 else "Escalação inicial definida. Vamos com tudo!"
             embed.add_field(name="🔄 Alterações na Equipa", value=default_message, inline=False)
-
         
         if opponent.badge:
             embed.set_thumbnail(url=opponent.badge.url)
 
         await self._send_planner_embed(embed)
-        self.posted_daily_plans.add(war_id)
+        self.posted_daily_plans.add(war_tag_id) # Salva a tag da guerra para não postar de novo
 
     async def check_and_alert_inactivity(self, war: coc.ClanWar):
         time_left = war.end_time.seconds_until
+        # Alerta será enviado quando faltarem entre 4 horas e 15 minutos para o fim da guerra
         if not (15 * 60 < time_left < 4 * 3600):
             return
 
@@ -272,7 +283,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         if not inactive_members:
             return
 
-        alert_id = f"{war.end_time.time.day}-{len(inactive_members)}"
+        alert_id = f"{war.tag}-inactivity"
         if alert_id in self.posted_inactivity_alerts:
             return
             
