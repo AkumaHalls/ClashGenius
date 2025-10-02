@@ -188,41 +188,43 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         await self.bot.coc_client_ready.wait()
         
         try:
-            logger.info("Verificando status da CWL...")
+            logger.info("Verificando status da CWL (lógica robusta)...")
             cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
 
-            if not cwl_group or cwl_group.state not in ("inWar",):
+            if not cwl_group or cwl_group.state != "inWar":
                 if self.posted_daily_plans:
-                    logger.info("CWL não está em guerra ativa. Limpando cache de planos postados.")
+                    logger.info("CWL não está em guerra. Limpando cache de planos postados.")
                     self.posted_daily_plans.clear()
                     self.posted_inactivity_alerts.clear()
                 return
             
+            # --- NOVA LÓGICA DE DETECÇÃO ---
             active_war = None
-            try:
-                wars = cwl_group.get_wars(self.bot.clan_tag)
-                async for war in wars:
-                    if war and war.state == "inWar":
-                        active_war = war
-                        break
-            except Exception as e:
-                logger.warning(f"Uma exceção ocorreu ao tentar buscar guerras ativas: {e}. O bot tentará novamente no próximo ciclo.")
-                return 
+            day_number = -1
+            
+            for i, round_war_tags in enumerate(cwl_group.rounds):
+                # Otimização: só precisamos checar as guerras que envolvem nosso clã
+                our_war_in_round = False
+                for war_tag in round_war_tags:
+                    # A API pode retornar '#0' para guerras futuras
+                    if war_tag == '#0': continue
+                    try:
+                        war = await self.bot.api_client.get_league_war(war_tag)
+                        if war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag:
+                            our_war_in_round = True
+                            if war.state == 'inWar':
+                                active_war = war
+                                day_number = i + 1
+                                break # Encontramos a guerra ativa
+                    except coc.NotFound:
+                        continue # Guerra ainda não existe, normal
+                if active_war:
+                    break # Saímos do loop principal se já achamos a guerra
 
             if not active_war:
-                logger.warning("Estado do grupo é 'inWar', mas nenhuma guerra ativa foi encontrada no momento. Tentando novamente no próximo ciclo.")
+                logger.warning("Estado do grupo é 'inWar', mas nenhuma guerra com estado 'inWar' foi encontrada ao verificar todas as rodadas.")
                 return
 
-            day_number = -1
-            for i, round_war_tags in enumerate(cwl_group.rounds):
-                if active_war.tag in round_war_tags:
-                    day_number = i + 1
-                    break
-            
-            if day_number == -1:
-                logger.error(f"Não foi possível determinar o dia da CWL para a guerra ativa {active_war.tag}.")
-                return
-            
             logger.info(f"Guerra ativa encontrada: Dia {day_number} vs {active_war.opponent.name}.")
             await self.post_daily_plan_if_needed(active_war, cwl_group.season, day_number)
             await self.check_and_alert_inactivity(active_war)
@@ -320,7 +322,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     async def before_cwl_monitoring_task(self):
         await self.bot.wait_until_ready()
 
-    # NOVO COMANDO MANUAL PARA DEBUG
     @commands.command(name='forcarplano', aliases=['forceplan'])
     @commands.has_permissions(administrator=True)
     async def force_plan_command(self, ctx: commands.Context):
@@ -330,8 +331,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         
         try:
             self.posted_daily_plans.clear() 
-            # --- CORREÇÃO APLICADA AQUI ---
-            # A forma correta de invocar a função da task é diretamente.
             await self.cwl_monitoring_task.coro(self)
             
             await ctx.message.add_reaction("✅")
