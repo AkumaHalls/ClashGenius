@@ -198,35 +198,32 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                     self.posted_inactivity_alerts.clear()
                 return
             
-            # --- NOVA LÓGICA DE DETECÇÃO ---
             active_war = None
             day_number = -1
+            active_war_tag_str = None
             
             for i, round_war_tags in enumerate(cwl_group.rounds):
-                # Otimização: só precisamos checar as guerras que envolvem nosso clã
-                our_war_in_round = False
                 for war_tag in round_war_tags:
-                    # A API pode retornar '#0' para guerras futuras
                     if war_tag == '#0': continue
                     try:
                         war = await self.bot.api_client.get_league_war(war_tag)
                         if war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag:
-                            our_war_in_round = True
                             if war.state == 'inWar':
                                 active_war = war
                                 day_number = i + 1
-                                break # Encontramos a guerra ativa
+                                active_war_tag_str = war_tag
+                                break
                     except coc.NotFound:
-                        continue # Guerra ainda não existe, normal
+                        continue
                 if active_war:
-                    break # Saímos do loop principal se já achamos a guerra
+                    break
 
             if not active_war:
                 logger.warning("Estado do grupo é 'inWar', mas nenhuma guerra com estado 'inWar' foi encontrada ao verificar todas as rodadas.")
                 return
 
             logger.info(f"Guerra ativa encontrada: Dia {day_number} vs {active_war.opponent.name}.")
-            await self.post_daily_plan_if_needed(active_war, cwl_group.season, day_number)
+            await self.post_daily_plan_if_needed(active_war, active_war_tag_str, cwl_group.season, day_number)
             await self.check_and_alert_inactivity(active_war)
 
         except coc.NotFound:
@@ -237,8 +234,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         except Exception as e:
             logger.error(f"Erro na tarefa de monitorização da CWL: {e}", exc_info=True)
 
-    async def post_daily_plan_if_needed(self, war: coc.ClanWar, season: str, day_number: int):
-        war_tag_id = war.tag
+    async def post_daily_plan_if_needed(self, war: coc.ClanWar, war_tag_id: str, season: str, day_number: int):
         if war_tag_id in self.posted_daily_plans:
             logger.info(f"Plano para o Dia {day_number} (guerra {war_tag_id}) já foi postado. Ignorando.")
             return
