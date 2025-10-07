@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.95-AdvisorV4-FIX##
+# Versão 20.1.98-OctoberUpdateFix##
 
 import os
 import logging
@@ -50,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.96-ProfileCog" # Atualiza a versão
+BOT_VERSION = "20.1.98-OctoberUpdateFix" # ATUALIZADO: Versão reflete a correção da API
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -564,4 +564,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
