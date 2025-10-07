@@ -46,9 +46,23 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         except (discord.NotFound, discord.Forbidden, Exception) as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
+    def _get_war_id(self, war: coc.ClanWar) -> str:
+        """
+        Gera um ID único para uma guerra de forma defensiva.
+        - Se o objeto tiver .tag (CWL), usa-o diretamente
+        - Caso contrário (guerra normal), constrói um ID baseado em clan_tag + timestamp
+        """
+        if hasattr(war, 'tag') and war.tag:
+            return war.tag
+        else:
+            return f"{war.clan.tag}-{war.preparation_start_time.time.isoformat()}"
+
     async def process_ended_war(self, war: coc.ClanWar, war_id: str):
         """Função centralizada para processar uma guerra finalizada."""
-        logger.info(f"A processar guerra ({'CWL' if war.is_cwl else 'Normal'}) contra {war.opponent.name} (ID: {war_id})...")
+        war_type = "CWL" if hasattr(war, 'tag') else "Normal"
+        opponent_name = war.opponent.name if war.opponent else "Desconhecido"
+        
+        logger.info(f"A processar guerra ({war_type}) contra {opponent_name} (ID: {war_id})...")
         
         # A API de 'current_war' retorna um objeto completo, então podemos usar os dados dele.
         # Para CWL, onde buscamos por tag, o objeto war também é completo.
@@ -88,7 +102,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             await self._send_log_embed(embed, content=f"{role_mention} Atenção!")
             logger.info("Relatório de ataques perdidos enviado.")
         
-        logger.info(f"Processamento da guerra contra {war.opponent.name} concluído.")
+        logger.info(f"Processamento da guerra contra {opponent_name} concluído.")
         return True
 
     @tasks.loop(seconds=60.0)
@@ -99,12 +113,12 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         if not self.bot.api_client: return
         
         try:
-            # --- LÓGICA DEFINITIVA ---
+            # --- LÓGICA DEFINITIVA COM VERIFICAÇÕES DEFENSIVAS ---
 
             # 1. Checa a guerra normal primeiro, que é o cenário mais comum
             current_war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             if current_war and current_war.state == 'warEnded' and not current_war.is_cwl:
-                unique_war_id = f"{current_war.clan.tag}-{current_war.preparation_start_time.time.isoformat()}"
+                unique_war_id = self._get_war_id(current_war)
                 if unique_war_id not in self.last_processed_war_ids:
                     logger.info(f"Guerra normal terminada encontrada (ID: {unique_war_id}).")
                     if await self.process_ended_war(current_war, unique_war_id):
@@ -116,15 +130,24 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 if cwl_group and cwl_group.rounds:
                     for round_tags in cwl_group.rounds:
                         for war_tag in round_tags:
-                            if war_tag == '#0' or war_tag in self.last_processed_war_ids:
+                            if war_tag == '#0':
+                                continue
+                            
+                            # Verifica se já processamos esta tag
+                            if war_tag in self.last_processed_war_ids:
                                 continue
                             
                             try:
                                 cwl_war = await self.bot.api_client.get_league_war(war_tag)
                                 if cwl_war and cwl_war.state == 'warEnded':
-                                    logger.info(f"Guerra da CWL terminada encontrada (Tag: {cwl_war.tag}).")
-                                    if await self.process_ended_war(cwl_war, cwl_war.tag):
-                                        self.last_processed_war_ids.add(cwl_war.tag)
+                                    # Usa verificação defensiva para obter o ID
+                                    cwl_war_id = self._get_war_id(cwl_war)
+                                    
+                                    # Dupla verificação por segurança
+                                    if cwl_war_id not in self.last_processed_war_ids:
+                                        logger.info(f"Guerra da CWL terminada encontrada (ID: {cwl_war_id}).")
+                                        if await self.process_ended_war(cwl_war, cwl_war_id):
+                                            self.last_processed_war_ids.add(cwl_war_id)
                             except coc.NotFound:
                                 # Acontece se a tag da guerra for inválida ou ainda não disponível
                                 continue
@@ -151,7 +174,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             # Reutiliza a mesma lógica da task automática para consistência
             current_war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             if current_war and current_war.state == 'warEnded' and not current_war.is_cwl:
-                unique_war_id = f"{current_war.clan.tag}-{current_war.preparation_start_time.time.isoformat()}"
+                unique_war_id = self._get_war_id(current_war)
                 if unique_war_id not in self.last_processed_war_ids:
                     if await self.process_ended_war(current_war, unique_war_id):
                         self.last_processed_war_ids.add(unique_war_id)
@@ -162,15 +185,26 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 if cwl_group and cwl_group.rounds:
                     for round_tags in cwl_group.rounds:
                         for war_tag in round_tags:
-                            if war_tag == '#0' or war_tag in self.last_processed_war_ids: continue
+                            if war_tag == '#0':
+                                continue
+                            
+                            # Verifica se já processamos
+                            if war_tag in self.last_processed_war_ids:
+                                continue
+                            
                             try:
                                 cwl_war = await self.bot.api_client.get_league_war(war_tag)
                                 if cwl_war and cwl_war.state == 'warEnded':
-                                    if await self.process_ended_war(cwl_war, cwl_war.tag):
-                                        self.last_processed_war_ids.add(cwl_war.tag)
-                                        processed_count += 1
-                            except coc.NotFound: continue
-            except coc.NotFound: pass 
+                                    cwl_war_id = self._get_war_id(cwl_war)
+                                    
+                                    if cwl_war_id not in self.last_processed_war_ids:
+                                        if await self.process_ended_war(cwl_war, cwl_war_id):
+                                            self.last_processed_war_ids.add(cwl_war_id)
+                                            processed_count += 1
+                            except coc.NotFound:
+                                continue
+            except coc.NotFound:
+                pass 
             
             if processed_count > 0:
                 await ctx.send(f"✅ Sincronização concluída! {processed_count} nova(s) guerra(s) processada(s).")
@@ -296,4 +330,3 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
-
