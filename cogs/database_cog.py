@@ -73,28 +73,33 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
             return [self._sanitize_keys_for_mongo(elem) for elem in obj]
         return obj
 
-    async def save_war_to_history(self, war_data: Dict[str, Any]):
+    async def save_war_to_history(self, war_data: Dict[str, Any], war_object: coc.ClanWar):
         if self.bot.maintenance_mode or self.db is None:
             return
         try:
             war_collection = self.db.war_history
             sanitized_war_data = self._sanitize_keys_for_mongo(war_data)
-            if 'war_data' in sanitized_war_data and 'end_time_iso' in sanitized_war_data['war_data'] and sanitized_war_data['war_data']['end_time_iso']:
-                sanitized_war_data['_id'] = sanitized_war_data['war_data']['end_time_iso']
+            
+            # ATUALIZADO: Usa a tag da guerra como _id, que é sempre única.
+            if war_object and hasattr(war_object, 'tag'):
+                sanitized_war_data['_id'] = war_object.tag
                 
                 await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
-                logger.info(f"Guerra finalizada em {sanitized_war_data['_id']} salva no histórico.")
+                logger.info(f"Guerra (Tag: {war_object.tag}) salva/atualizada no histórico.")
 
+                # A lógica para limpar guerras antigas continua a mesma
                 count = await war_collection.count_documents({})
                 if count > 50: 
+                    # Ordena pelo tempo de término para remover a mais antiga
                     oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 50)
                     async for old_war in oldest_wars_cursor:
                         await war_collection.delete_one({"_id": old_war["_id"]})
-                        logger.info(f"Guerra mais antiga ({old_war['_id']}) removida do histórico para manter o limite de 50.")
+                        logger.info(f"Guerra mais antiga ({old_war.get('_id')}) removida do histórico para manter o limite de 50.")
             else:
-                logger.error("Tentativa de salvar guerra no histórico sem 'end_time_iso'. Dados incompletos.")
+                logger.error("Tentativa de salvar guerra no histórico sem um objeto de guerra válido com uma tag.")
         except Exception as e:
             logger.error(f"Erro ao salvar guerra no histórico do MongoDB: {e}", exc_info=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(DatabaseCog(bot))
+
