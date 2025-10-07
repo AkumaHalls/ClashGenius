@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.99-FloodFix-Final
+# Versão 20.2.01-MaintenanceCog
 
 import os
 import logging
@@ -49,7 +49,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.99-FloodFix-Final"
+BOT_VERSION = "20.2.01-MaintenanceCog"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -82,7 +82,6 @@ class ClashGeniusBot(commands.Bot):
         self.db_ready = asyncio.Event()
         self.coc_client_ready = asyncio.Event()
         
-        # Cache de guerras processadas agora será carregado do DB
         self.processed_war_ids = set()
 
 
@@ -95,7 +94,6 @@ class ClashGeniusBot(commands.Bot):
                 self.db = self.mongo_client[db_name]
                 logger.info(f"Conectado ao MongoDB: {db_name}")
 
-                # Carrega o modo manutenção e as guerras já processadas do DB
                 await self.load_initial_state_from_db()
 
                 self.db_ready.set()
@@ -103,14 +101,17 @@ class ClashGeniusBot(commands.Bot):
                 logger.error(f"Falha ao conectar com o MongoDB: {e}", exc_info=True)
         else:
             logger.warning("URL do MongoDB não fornecida. Recursos de persistência desativados.")
-            self.db_ready.set() # Libera mesmo sem DB para o bot continuar
+            self.db_ready.set()
 
         self.war_prediction_system = WarPredictionSystemV3(db_connection=self.db)
         await self.war_prediction_system.initialize_system()
         
         logger.info("Carregando cogs...")
-        cog_files = ['events_cog.py', 'tasks_cog.py', 'database_cog.py', 'general_cog.py', 
-                     'cwl_planner_cog.py', 'clan_games_cog.py', 'war_advisor_cog.py', 'profile_cog.py']
+        cog_files = [
+            'events_cog.py', 'tasks_cog.py', 'database_cog.py', 'general_cog.py', 
+            'cwl_planner_cog.py', 'clan_games_cog.py', 'war_advisor_cog.py', 'profile_cog.py',
+            'maintenance_cog.py' # Adiciona o novo cog à lista
+        ]
         for filename in cog_files:
             if filename.endswith('.py'):
                 cog_name = filename[:-3]
@@ -128,14 +129,12 @@ class ClashGeniusBot(commands.Bot):
         if self.db is None:
             return
 
-        # Carrega modo manutenção
         config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
         if config:
             self.maintenance_mode = config.get("enabled", False)
             status_str = "ATIVADO" if self.maintenance_mode else "DESATIVADO"
             logger.info(f"Modo manutenção carregado do DB. Estado inicial: {status_str}")
 
-        # Carrega IDs de guerras já processadas
         processed_wars_cursor = self.db.war_history.find({}, {"_id": 1})
         async for war_doc in processed_wars_cursor:
             self.processed_war_ids.add(war_doc["_id"])
@@ -174,7 +173,7 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
             
-    # --- MÉTODOS DE BUSCA DE DADOS ---
+    # --- MÉTODOS DE BUSCA DE DADOS --- (Restante do arquivo inalterado)
     async def fetch_clan_info_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
