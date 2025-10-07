@@ -39,6 +39,7 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
             raise ConnectionError("Banco de dados não conectado.")
         try:
             player_tag_decoded = coc.utils.correct_tag(player_tag)
+            # ATUALIZADO: Usamos $set para não sobrescrever o cwl_status ao salvar a nota.
             await self.db.player_notes.update_one(
                 {"_id": player_tag_decoded},
                 {"$set": {"text": text, "priority": priority}},
@@ -97,4 +98,3 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(DatabaseCog(bot))
-
