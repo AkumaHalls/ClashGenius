@@ -73,19 +73,19 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
             return [self._sanitize_keys_for_mongo(elem) for elem in obj]
         return obj
 
-    async def save_war_to_history(self, war_data: Dict[str, Any], war_object: coc.ClanWar):
+    async def save_war_to_history(self, war_data: Dict[str, Any], war_id: str):
         if self.bot.maintenance_mode or self.db is None:
             return
         try:
             war_collection = self.db.war_history
             sanitized_war_data = self._sanitize_keys_for_mongo(war_data)
             
-            # ATUALIZADO: Usa a tag da guerra como _id, que é sempre única.
-            if war_object and hasattr(war_object, 'tag'):
-                sanitized_war_data['_id'] = war_object.tag
+            # CORRIGIDO: Recebe o ID único diretamente e usa como _id
+            if war_id:
+                sanitized_war_data['_id'] = war_id
                 
                 await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
-                logger.info(f"Guerra (Tag: {war_object.tag}) salva/atualizada no histórico.")
+                logger.info(f"Guerra (ID: {war_id}) salva/atualizada no histórico.")
 
                 # A lógica para limpar guerras antigas continua a mesma
                 count = await war_collection.count_documents({})
@@ -96,7 +96,7 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
                         await war_collection.delete_one({"_id": old_war["_id"]})
                         logger.info(f"Guerra mais antiga ({old_war.get('_id')}) removida do histórico para manter o limite de 50.")
             else:
-                logger.error("Tentativa de salvar guerra no histórico sem um objeto de guerra válido com uma tag.")
+                logger.error("Tentativa de salvar guerra no histórico sem um ID de guerra válido.")
         except Exception as e:
             logger.error(f"Erro ao salvar guerra no histórico do MongoDB: {e}", exc_info=True)
 
