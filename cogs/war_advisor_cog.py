@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Módulo do Conselheiro de Guerra IA - ClashGenius (v5.7 - CORREÇÕES CRÍTICAS)
+Módulo do Conselheiro de Guerra IA - ClashGenius (v5.8 - API Update October 2025)
 Sistema inteligente para análise e geração de planos táticos de guerra.
-CORREÇÕES: Sistema agora garante recomendações para TODOS os ataques restantes,
-incluindo jogadores fracos com múltiplas opções de fallback.
+CORREÇÕES: Adicionado suporte ao CV17 e ao novo herói "Battle Copter".
 """
 
 import logging
@@ -58,10 +57,10 @@ class WarAdvisorSystem:
     STRENGTH_ADVANTAGE_THRESHOLD = 200
     STRENGTH_DISADVANTAGE_THRESHOLD = -50
     WAR_PHASE_SPLIT_HOURS = 12
-    MIN_CONFIDENCE_SCORE = 0.3  # REDUZIDO para incluir mais recomendações
+    MIN_CONFIDENCE_SCORE = 0.3
     
     def __init__(self):
-        self.logger = logging.getLogger("war_advisor_v5.7")
+        self.logger = logging.getLogger("war_advisor_v5.8")
         self._setup_logging()
 
     def _setup_logging(self):
@@ -77,6 +76,7 @@ class WarAdvisorSystem:
         if not player or not hasattr(player, 'town_hall'):
             return 0
         
+        # ATUALIZADO: Adicionado multiplicador para o CV17
         th_multipliers = {
             1: 10, 2: 20, 3: 40, 4: 80, 5: 120, 6: 180, 7: 250, 8: 350, 9: 500, 
             10: 700, 11: 950, 12: 1250, 13: 1600, 14: 2000, 15: 2500, 16: 3100, 17: 3800
@@ -89,8 +89,12 @@ class WarAdvisorSystem:
         if hasattr(player, 'heroes') and player.heroes:
             for hero in player.heroes:
                 if hero.is_home_base:
-                    hero_multiplier = max(1, player.town_hall // 3)
-                    
+                    # ATUALIZADO: Ajuste no multiplicador para o novo herói
+                    if hero.name == "Battle Copter":
+                        hero_multiplier = max(1, player.town_hall // 4) # Multiplicador ligeiramente menor
+                    else:
+                        hero_multiplier = max(1, player.town_hall // 3)
+
                     if hero.is_upgrading:
                         hero_penalty += hero.level * hero_multiplier * 0.8
                     else:
@@ -471,9 +475,9 @@ class WarAdvisorSystem:
             war_phase = self._determine_war_phase(war)
             
             phase_map = {
-                WarPhase.PREPARATION: (f"Fase 1 - Ataques Táticos (v5.7)", self._generate_phase1_recommendations),
-                WarPhase.PHASE_1: (f"Fase 1 - Ataques Táticos (v5.7)", self._generate_phase1_recommendations),
-                WarPhase.PHASE_2: (f"Fase 2 - Limpeza e Finalização (v5.7)", self._generate_phase2_recommendations)
+                WarPhase.PREPARATION: (f"Fase 1 - Ataques Táticos (v5.8)", self._generate_phase1_recommendations),
+                WarPhase.PHASE_1: (f"Fase 1 - Ataques Táticos (v5.8)", self._generate_phase1_recommendations),
+                WarPhase.PHASE_2: (f"Fase 2 - Limpeza e Finalização (v5.8)", self._generate_phase2_recommendations)
             }
             
             phase_title, rec_func = phase_map.get(war_phase)
@@ -500,16 +504,16 @@ class WarAdvisorSystem:
                     "average_confidence": avg_conf,
                     "attack_types": {t.value: sum(1 for r in rec_dict if r['attack_type'] == t.value) for t in AttackType}
                 },
-                "version": "5.7 - Correções Críticas"
+                "version": "5.8 - API Update October 2025"
             }
 
         except Exception as e:
-            self.logger.error(f"Erro crítico ao gerar plano de guerra v5.7: {e}", exc_info=True)
+            self.logger.error(f"Erro crítico ao gerar plano de guerra v5.8: {e}", exc_info=True)
             return {"success": False, "error": f"Erro interno: {e}"}
 
 
 class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
-    """Cog do Discord para o sistema de conselheiro de guerra (v5.7)."""
+    """Cog do Discord para o sistema de conselheiro de guerra (v5.8)."""
     
     def __init__(self, bot):
         self.bot = bot
@@ -519,8 +523,8 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
     @commands.command(name='plano')
     @commands.has_permissions(administrator=True)
     async def force_plan_generation(self, ctx):
-        """Gera plano de guerra com correções críticas."""
-        await ctx.send("🔄 **Gerando plano de guerra v5.7 (Correções Críticas)...**")
+        """Gera plano de guerra com correções para a nova atualização."""
+        await ctx.send("🔄 **Gerando plano de guerra v5.8 (API Update October 2025)...**")
         
         try:
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
@@ -532,7 +536,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
             
             embed = discord.Embed(
                 title=f"🎯 {plan.get('phase_title')}", 
-                description=f"**Sistema v5.7** - Correções críticas para garantir recomendações para TODOS os ataques restantes",
+                description=f"**Sistema v5.8** - Compatível com CV17 e o novo Herói.",
                 color=discord.Color.blue()
             )
             
@@ -593,18 +597,18 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
                     inline=False
                 )
             
-            embed.set_footer(text=f"ClashGenius - {plan.get('version', 'Sistema Corrigido')}")
+            embed.set_footer(text=f"ClashGenius - {plan.get('version', 'API Update October 2025')}")
             await ctx.send(embed=embed)
             
         except Exception as e:
-            self.logger.error(f"Erro no comando plano v5.7: {e}", exc_info=True)
+            self.logger.error(f"Erro no comando plano v5.8: {e}", exc_info=True)
             await ctx.send(f"❌ **Erro crítico:** {e}")
 
     @commands.command(name='analise')
     @commands.has_permissions(administrator=True)
     async def analyze_war_balance(self, ctx):
         """Analisa o equilíbrio da guerra com sistema aprimorado."""
-        await ctx.send("⚖️ **Analisando equilíbrio da guerra com IA v5.7...**")
+        await ctx.send("⚖️ **Analisando equilíbrio da guerra com IA v5.8...**")
         
         try:
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
@@ -645,7 +649,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
                     discord.Color.red()
                 )
 
-            embed = discord.Embed(title="⚖️ Análise Estratégica da Guerra v5.7", color=color)
+            embed = discord.Embed(title="⚖️ Análise Estratégica da Guerra v5.8", color=color)
             embed.add_field(
                 name="💪 Análise de Força", 
                 value=f"**Nosso Clã:** {our_strength:,}\n**Oponente:** {opp_strength:,}\n**Status:** {status_text}", 
@@ -664,12 +668,12 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
                     inline=False
                 )
             
-            embed.set_footer(text="Sistema v5.7 - Análise considera heróis em upgrade e garante recomendações para todos")
+            embed.set_footer(text="Sistema v5.8 - Análise considera heróis em upgrade e garante recomendações para todos")
             
             await ctx.send(embed=embed)
             
         except Exception as e:
-            self.logger.error(f"Erro na análise v5.7: {e}", exc_info=True)
+            self.logger.error(f"Erro na análise v5.8: {e}", exc_info=True)
             await ctx.send(f"❌ **Erro na análise:** {e}")
 
     @commands.command(name='debug_ataques')
@@ -733,4 +737,3 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
 async def setup(bot: commands.Bot):
     """Configura o cog no bot."""
     await bot.add_cog(WarAdvisorCog(bot))
-
