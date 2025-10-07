@@ -3,6 +3,7 @@ import logging
 import discord
 from discord.ext import commands
 from pymongo.errors import PyMongoError
+from bson.objectid import ObjectId
 
 logger = logging.getLogger("maintenance_cog")
 
@@ -18,22 +19,27 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
     @commands.group(name='dbcleanup', invoke_without_command=True)
     @commands.has_permissions(administrator=True)
     async def db_cleanup(self, ctx: commands.Context):
-        """Analisa o banco de dados em busca de duplicatas no histórico de guerras."""
+        """Analisa o banco de dados em busca de duplicatas de conteúdo no histórico de guerras."""
         if self.db is None:
             await ctx.send("❌ O bot não está conectado a um banco de dados.")
             return
 
         await ctx.message.add_reaction("🔎")
         
+        # Pipeline aprimorado para detectar duplicatas de CONTEÚDO (baseado no tempo de término)
         pipeline = [
-            {"$group": {
-                "_id": "$_id",  # Agrupa por nosso ID de guerra único
-                "uniqueIds": {"$addToSet": "$_id"},
-                "count": {"$sum": 1}
-            }},
-            {"$match": {
-                "count": {"$gt": 1}  # Filtra apenas os que têm mais de 1 entrada (duplicatas)
-            }}
+            {
+                "$group": {
+                    "_id": "$war_data.end_time_iso",  # Agrupa por tempo de término, que será igual para as duplicatas
+                    "doc_ids": {"$addToSet": "$_id"}, # Pega os IDs únicos de cada documento MongoDB
+                    "count": {"$sum": 1}
+                }
+            },
+            {
+                "$match": {
+                    "count": {"$gt": 1}  # Filtra apenas os grupos com mais de 1 entrada (duplicatas)
+                }
+            }
         ]
 
         try:
@@ -42,7 +48,7 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
             if not duplicates:
                 await ctx.message.remove_reaction("🔎", self.bot.user)
                 await ctx.message.add_reaction("✅")
-                await ctx.send("✅ Análise concluída. Nenhuma guerra duplicada encontrada no histórico.")
+                await ctx.send("✅ Análise concluída. Nenhuma guerra com conteúdo duplicado encontrada no histórico.")
                 return
 
             total_duplicates_to_remove = sum(d['count'] - 1 for d in duplicates)
@@ -51,17 +57,17 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
             self.cleanup_confirmation_data[ctx.author.id] = duplicates
 
             embed = discord.Embed(
-                title="⚠️ Análise de Duplicatas no Histórico de Guerras",
+                title="⚠️ Análise de Duplicatas de Conteúdo",
                 description=(
-                    "A análise encontrou registros de guerra duplicados no banco de dados, "
-                    "provavelmente causados por reinicializações anteriores do bot."
+                    "A análise encontrou múltiplos registros para a mesma guerra, "
+                    "causados por um bug de reprocessamento anterior."
                 ),
                 color=discord.Color.orange()
             )
             embed.add_field(
                 name="Resultados da Análise",
                 value=(
-                    f"**Grupos de duplicatas encontrados:** {len(duplicates)}\n"
+                    f"**Grupos de guerras duplicadas:** {len(duplicates)}\n"
                     f"**Total de registros a serem removidos:** {total_duplicates_to_remove}"
                 ),
                 inline=False
@@ -71,7 +77,7 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
                 value=(
                     "Para remover as entradas duplicadas e limpar o histórico, "
                     "use o comando `!dbcleanup confirmar`.\n\n"
-                    "**Atenção:** Esta ação é irreversível."
+                    "**Atenção:** Apenas uma cópia de cada guerra será mantida."
                 ),
                 inline=False
             )
@@ -104,22 +110,18 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
         deleted_count = 0
         try:
             for group in duplicates:
-                war_id = group['_id']
-                # Pega todos os IDs de documento para este war_id (embora o _id já seja o que precisamos)
-                # Na verdade, precisamos encontrar os documentos reais.
+                # Pega todos os IDs de documento MongoDB para este grupo de duplicatas
+                doc_ids = group['doc_ids']
                 
-                # Encontra todos os documentos com o mesmo `_id` de guerra
-                cursor = self.db.war_history.find({"_id": war_id})
-                docs_to_delete = await cursor.to_list(length=None)
+                # Ordena para garantir que estamos removendo os mais recentes, se houver diferença
+                # (ObjectId no MongoDB contém um timestamp, então a ordem é cronológica)
+                doc_ids.sort()
                 
-                # Mantém o primeiro e remove o resto
-                if docs_to_delete:
-                    docs_to_delete.pop(0) # Remove o primeiro da lista para mantê-lo
+                # Mantém o primeiro (o mais antigo) e remove o resto
+                ids_to_delete = doc_ids[1:]
                 
-                if docs_to_delete:
-                    # Coleta os IDs internos do MongoDB (`_id` do documento, não o nosso `_id` de guerra)
-                    mongo_ids_to_delete = [doc['_id'] for doc in docs_to_delete]
-                    result = await self.db.war_history.delete_many({"_id": {"$in": mongo_ids_to_delete}})
+                if ids_to_delete:
+                    result = await self.db.war_history.delete_many({"_id": {"$in": ids_to_delete}})
                     deleted_count += result.deleted_count
 
             await ctx.message.remove_reaction("🔄", self.bot.user)
@@ -136,3 +138,4 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MaintenanceCog(bot))
+
