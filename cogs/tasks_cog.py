@@ -17,7 +17,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
-        self.last_war_end_time: datetime.datetime = None
+        self.last_processed_war_tags = set() # ATUALIZADO: Rastreia guerras por tag
         self.last_prediction_sent_time = None
 
     async def cog_load(self):
@@ -48,7 +48,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
     async def process_ended_war(self, war: coc.ClanWar):
         """Função centralizada para processar uma guerra finalizada."""
-        logger.info(f"A processar guerra ({'CWL' if war.is_cwl else 'Normal'}) contra {war.opponent.name}...")
+        logger.info(f"A processar guerra ({'CWL' if war.is_cwl else 'Normal'}) contra {war.opponent.name} (Tag: {war.tag})...")
         
         # Usamos force_api_call=True para garantir que pegamos os dados mais recentes para o relatório
         war_details = await self.bot.fetch_current_war_details_for_web(force_api_call=True)
@@ -58,7 +58,8 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
         db_cog = self.bot.get_cog("Banco de Dados")
         if db_cog:
-            await db_cog.save_war_to_history(war_details)
+            # ATUALIZADO: Passa a war original para que o cog de DB possa usar a tag.
+            await db_cog.save_war_to_history(war_details, war)
         else:
             logger.warning("Cog de Banco de Dados não encontrado. A guerra não será salva no histórico.")
 
@@ -88,18 +89,36 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @tasks.loop(seconds=60.0)
     async def check_war_end_task(self):
         await self.bot.wait_until_ready()
-        await self.bot.coc_client_ready.wait() # Garante que o cliente CoC está logado
+        await self.bot.coc_client_ready.wait()
         
-        # CORREÇÃO: Usa self.bot.api_client que é a referência correta e atualizada
         if not self.bot.api_client: return
         
         try:
+            # Para CWL, precisamos buscar o grupo para encontrar todas as guerras.
+            try:
+                cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
+                if cwl_group:
+                    for war_tag in cwl_group.get_war_tags(replace_empty=False):
+                        if war_tag in self.last_processed_war_tags:
+                            continue
+                        
+                        try:
+                            war = await self.bot.api_client.get_league_war(war_tag)
+                            if war and war.state == 'warEnded':
+                                if await self.process_ended_war(war):
+                                    self.last_processed_war_tags.add(war.tag)
+                        except coc.NotFound:
+                            continue # A guerra pode não estar disponível ainda
+            except coc.NotFound:
+                # Se não está em CWL, busca a guerra normal.
+                pass
+
+            # Checa a guerra normal
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             
-            if war and war.state == 'warEnded' and hasattr(war, 'end_time'):
-                if self.last_war_end_time is None or war.end_time.time > self.last_war_end_time:
-                    if await self.process_ended_war(war):
-                        self.last_war_end_time = war.end_time.time
+            if war and war.state == 'warEnded' and war.tag not in self.last_processed_war_tags:
+                if await self.process_ended_war(war):
+                    self.last_processed_war_tags.add(war.tag)
 
         except (coc.PrivateWarLog, coc.NotFound):
             pass
@@ -111,20 +130,41 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     async def sync_war(self, ctx: commands.Context):
         """Força a sincronização e o relatório da última guerra terminada."""
         await ctx.message.add_reaction("🔄")
-        await self.bot.coc_client_ready.wait() # Garante que o cliente CoC está logado
+        await self.bot.coc_client_ready.wait()
         
         logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
+        processed_count = 0
         try:
-            # CORREÇÃO: Usa self.bot.api_client
+            # Força a checagem da CWL primeiro
+            try:
+                cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
+                if cwl_group:
+                    await ctx.send("Sincronizando guerras da CWL...")
+                    for war_tag in cwl_group.get_war_tags(replace_empty=False):
+                        try:
+                            war = await self.bot.api_client.get_league_war(war_tag)
+                            if war and war.state == 'warEnded' and war.tag not in self.last_processed_war_tags:
+                                if await self.process_ended_war(war):
+                                    self.last_processed_war_tags.add(war.tag)
+                                    processed_count += 1
+                        except coc.NotFound:
+                            continue
+            except coc.NotFound:
+                pass # Não está em CWL, ignora
+            
+            # Força a checagem da guerra normal
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
-            if war and war.state == 'warEnded':
+            if war and war.state == 'warEnded' and war.tag not in self.last_processed_war_tags:
+                await ctx.send("Sincronizando guerra normal...")
                 if await self.process_ended_war(war):
-                    self.last_war_end_time = war.end_time.time
-                    await ctx.send("✅ Sincronização da guerra concluída com sucesso! Relatórios enviados.")
-                else:
-                    await ctx.send("⚠️ Ocorreu um erro ao processar a guerra. Verifique os logs.")
+                    self.last_processed_war_tags.add(war.tag)
+                    processed_count += 1
+            
+            if processed_count > 0:
+                await ctx.send(f"✅ Sincronização concluída! {processed_count} nova(s) guerra(s) processada(s).")
             else:
-                await ctx.send("ℹ️ Nenhuma guerra terminada encontrada para sincronizar no momento.")
+                 await ctx.send("ℹ️ Nenhuma guerra nova terminada encontrada para sincronizar.")
+
         except coc.NotFound:
             await ctx.send("ℹ️ Nenhuma guerra (normal ou CWL) encontrada.")
         except Exception as e:
@@ -244,4 +284,3 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
-
