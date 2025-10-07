@@ -12,12 +12,12 @@ from cogs.post_war_analysis import create_post_war_analysis_embed
 logger = logging.getLogger("tasks_cog")
 
 class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
-    """Cog para gerenciar todas as tarefas que rodam em segundo plano."""
+    """Cog para gerir todas as tarefas que rodam em segundo plano."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
-        self.last_processed_war_ids = set() # ATUALIZADO: Armazena IDs únicos de qualquer tipo de guerra
+        self.last_processed_war_ids = set()
         self.last_prediction_sent_time = None
 
     async def cog_load(self):
@@ -50,10 +50,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         """Função centralizada para processar uma guerra finalizada."""
         logger.info(f"A processar guerra ({'CWL' if war.is_cwl else 'Normal'}) contra {war.opponent.name} (ID: {war_id})...")
         
-        # O método fetch_current_war_details_for_web pode precisar ser ajustado se ele depende da guerra atual
-        # Por enquanto, vamos assumir que ele busca a guerra correta ou que os dados são genéricos o suficiente.
-        # Para garantir, o ideal seria ter um método que aceite a war_tag para buscar detalhes específicos.
-        war_details = await self.bot.fetch_current_war_details_for_web(force_api_call=True) # Pode precisar de ajuste futuro
+        war_details = await self.bot.fetch_current_war_details_for_web(force_api_call=True)
         if 'error' in war_details:
             logger.error(f"Falha ao obter detalhes da guerra: {war_details['error']}.")
             return False
@@ -112,15 +109,15 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                             except coc.NotFound:
                                 continue
             except coc.NotFound:
-                pass # Não está em CWL, normal.
+                pass 
 
             # 2. Checa a guerra normal (current_war)
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             
-            # CORRIGIDO: Gera um ID único para a guerra normal e verifica se já foi processada
             if war and war.state == 'warEnded' and not war.is_cwl:
                 unique_war_id = f"{war.clan.tag}-{war.preparation_start_time.time.isoformat()}"
                 if unique_war_id not in self.last_processed_war_ids:
+                    # CORRIGIDO: Passa unique_war_id em vez de war.tag
                     if await self.process_ended_war(war, unique_war_id):
                         self.last_processed_war_ids.add(unique_war_id)
 
@@ -165,6 +162,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 unique_war_id = f"{war.clan.tag}-{war.preparation_start_time.time.isoformat()}"
                 if unique_war_id not in self.last_processed_war_ids:
                     await ctx.send("Sincronizando guerra normal...")
+                    # CORRIGIDO: Passa unique_war_id em vez de war.tag
                     if await self.process_ended_war(war, unique_war_id):
                         self.last_processed_war_ids.add(unique_war_id)
                         processed_count += 1
