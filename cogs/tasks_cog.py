@@ -17,7 +17,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
-        self.last_processed_war_tags = set() # ATUALIZADO: Rastreia guerras por tag
+        self.last_processed_war_tags = set()
         self.last_prediction_sent_time = None
 
     async def cog_load(self):
@@ -50,7 +50,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         """Função centralizada para processar uma guerra finalizada."""
         logger.info(f"A processar guerra ({'CWL' if war.is_cwl else 'Normal'}) contra {war.opponent.name} (Tag: {war.tag})...")
         
-        # Usamos force_api_call=True para garantir que pegamos os dados mais recentes para o relatório
         war_details = await self.bot.fetch_current_war_details_for_web(force_api_call=True)
         if 'error' in war_details:
             logger.error(f"Falha ao obter detalhes da guerra: {war_details['error']}.")
@@ -58,7 +57,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
         db_cog = self.bot.get_cog("Banco de Dados")
         if db_cog:
-            # ATUALIZADO: Passa a war original para que o cog de DB possa usar a tag.
             await db_cog.save_war_to_history(war_details, war)
         else:
             logger.warning("Cog de Banco de Dados não encontrado. A guerra não será salva no histórico.")
@@ -97,18 +95,20 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             # Para CWL, precisamos buscar o grupo para encontrar todas as guerras.
             try:
                 cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
-                if cwl_group:
-                    for war_tag in cwl_group.get_war_tags(replace_empty=False):
-                        if war_tag in self.last_processed_war_tags:
-                            continue
-                        
-                        try:
-                            war = await self.bot.api_client.get_league_war(war_tag)
-                            if war and war.state == 'warEnded':
-                                if await self.process_ended_war(war):
-                                    self.last_processed_war_tags.add(war.tag)
-                        except coc.NotFound:
-                            continue # A guerra pode não estar disponível ainda
+                if cwl_group and cwl_group.rounds:
+                    # CORRIGIDO: Iterar através de cwl_group.rounds
+                    for round_tags in cwl_group.rounds:
+                        for war_tag in round_tags:
+                            if war_tag == '#0' or war_tag in self.last_processed_war_tags:
+                                continue
+                            
+                            try:
+                                war = await self.bot.api_client.get_league_war(war_tag)
+                                if war and war.state == 'warEnded':
+                                    if await self.process_ended_war(war):
+                                        self.last_processed_war_tags.add(war.tag)
+                            except coc.NotFound:
+                                continue
             except coc.NotFound:
                 # Se não está em CWL, busca a guerra normal.
                 pass
@@ -138,17 +138,21 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             # Força a checagem da CWL primeiro
             try:
                 cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
-                if cwl_group:
+                if cwl_group and cwl_group.rounds:
                     await ctx.send("Sincronizando guerras da CWL...")
-                    for war_tag in cwl_group.get_war_tags(replace_empty=False):
-                        try:
-                            war = await self.bot.api_client.get_league_war(war_tag)
-                            if war and war.state == 'warEnded' and war.tag not in self.last_processed_war_tags:
-                                if await self.process_ended_war(war):
-                                    self.last_processed_war_tags.add(war.tag)
-                                    processed_count += 1
-                        except coc.NotFound:
-                            continue
+                    # CORRIGIDO: Iterar através de cwl_group.rounds
+                    for round_tags in cwl_group.rounds:
+                        for war_tag in round_tags:
+                            if war_tag == '#0':
+                                continue
+                            try:
+                                war = await self.bot.api_client.get_league_war(war_tag)
+                                if war and war.state == 'warEnded' and war.tag not in self.last_processed_war_tags:
+                                    if await self.process_ended_war(war):
+                                        self.last_processed_war_tags.add(war.tag)
+                                        processed_count += 1
+                            except coc.NotFound:
+                                continue
             except coc.NotFound:
                 pass # Não está em CWL, ignora
             
@@ -284,3 +288,4 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
+
