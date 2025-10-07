@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.99-MaintenanceDB-Fix##
+# Versão 20.2.0-DBFix##
 
 import os
 import logging
@@ -50,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.99-MaintenanceDB-Fix" # ATUALIZADO: Versão reflete a correção da API
+BOT_VERSION = "20.2.0-DBFix" # ATUALIZADO: Versão reflete a correção
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -439,7 +439,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         bot_instance.web_api_cache.pop('members', None)
         return web.Response(status=204)
         
-    # ATUALIZADO: Novo handler para o status da CWL
     async def api_update_cwl_status_handler(request):
         db_cog = bot_instance.get_cog("Banco de Dados")
         if not db_cog:
@@ -453,7 +452,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
             await db_cog.update_player_cwl_status(player_tag, new_status)
             
-            # Limpa o cache de membros para que a próxima requisição puxe o novo status
             bot_instance.web_api_cache.pop('members', None)
             bot_instance.web_api_cache.pop(f'player_profile_{player_tag}', None)
             
@@ -508,7 +506,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/highlights", api_highlights_handler)
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
-    # ATUALIZADO: Nova rota para o status da CWL
     app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_update_cwl_status_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
@@ -546,19 +543,21 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         return web.HTTPFound('/admin')
     
     async def admin_api_handler(request, action):
-        if not (await get_session(request)).get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        session = await get_session(request)
+        if not session.get('admin'):
+            return web.json_response({"status": "unauthorized"}, status=403)
+
         if action == 'toggle_maintenance':
             bot_instance.maintenance_mode = not bot_instance.maintenance_mode
             
             # ATUALIZADO: Salva o estado no DB
-            if bot_instance.db:
+            if bot_instance.db is not None: # CORRIGIDO: Verificação explícita contra None
                 await bot_instance.db.system_config.update_one(
                     {"_id": "maintenance_mode"},
                     {"$set": {"is_active": bot_instance.maintenance_mode}},
                     upsert=True
                 )
 
-            # ATUALIZADO: Embed melhorado
             status_str = "ATIVADO" if bot_instance.maintenance_mode else "DESATIVADO"
             color = discord.Color.orange() if bot_instance.maintenance_mode else discord.Color.green()
             title = f"🛠️ Modo Manutenção {status_str}"
@@ -571,7 +570,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             embed.set_footer(text="A alteração já está em vigor.")
 
             channel = bot_instance.get_channel(bot_instance.channel_id)
-            if channel: await channel.send(embed=embed)
+            if channel:
+                await channel.send(embed=embed)
             return web.json_response({"status": "success", "maintenance_mode": bot_instance.maintenance_mode})
 
         elif action == 'send_test_embed':
