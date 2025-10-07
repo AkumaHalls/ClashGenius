@@ -114,10 +114,18 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             # 2. Checa a guerra normal (current_war)
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             
-            if war and war.state == 'warEnded' and not war.is_cwl:
-                unique_war_id = f"{war.clan.tag}-{war.preparation_start_time.time.isoformat()}"
+            # CORRIGIDO E FINALIZADO: A lógica agora está separada e passa o ID correto.
+            if war and war.state == 'warEnded':
+                # Primeiro, determina o ID correto
+                if war.is_cwl:
+                    # Se por alguma razão a guerra atual for de CWL, usa a tag (pouco provável de acontecer aqui)
+                    unique_war_id = war.tag
+                else:
+                    # Se for guerra normal, cria o ID único
+                    unique_war_id = f"{war.clan.tag}-{war.preparation_start_time.time.isoformat()}"
+
+                # Agora, checa se esse ID já foi processado e age de acordo
                 if unique_war_id not in self.last_processed_war_ids:
-                    # CORRIGIDO: Passa unique_war_id em vez de war.tag
                     if await self.process_ended_war(war, unique_war_id):
                         self.last_processed_war_ids.add(unique_war_id)
 
@@ -162,7 +170,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 unique_war_id = f"{war.clan.tag}-{war.preparation_start_time.time.isoformat()}"
                 if unique_war_id not in self.last_processed_war_ids:
                     await ctx.send("Sincronizando guerra normal...")
-                    # CORRIGIDO: Passa unique_war_id em vez de war.tag
                     if await self.process_ended_war(war, unique_war_id):
                         self.last_processed_war_ids.add(unique_war_id)
                         processed_count += 1
