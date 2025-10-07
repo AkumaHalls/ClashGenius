@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.1.98-OctoberUpdateFix##
+# Versão 20.1.99-MaintenanceDB-Fix##
 
 import os
 import logging
@@ -50,7 +50,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.1.98-OctoberUpdateFix" # ATUALIZADO: Versão reflete a correção da API
+BOT_VERSION = "20.1.99-MaintenanceDB-Fix" # ATUALIZADO: Versão reflete a correção da API
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -92,6 +92,13 @@ class ClashGeniusBot(commands.Bot):
                 self.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL)
                 self.db = self.mongo_client[db_name]
                 logger.info(f"Conectado ao MongoDB: {db_name}")
+
+                # ATUALIZADO: Carrega o estado de manutenção do DB
+                config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
+                if config and config.get("is_active", False):
+                    self.maintenance_mode = True
+                    logger.info("Modo Manutenção carregado como ATIVO a partir do banco de dados.")
+
                 self.db_ready.set()
             except Exception as e:
                 logger.error(f"Falha ao conectar com o MongoDB: {e}", exc_info=True)
@@ -428,9 +435,32 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not db_cog: return web.json_response({"error": "Cog de DB não encontrado."}, status=500)
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         data = await request.json()
-        await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'), data.get('cwl_status', 'active'))
+        await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
         bot_instance.web_api_cache.pop('members', None)
         return web.Response(status=204)
+        
+    # ATUALIZADO: Novo handler para o status da CWL
+    async def api_update_cwl_status_handler(request):
+        db_cog = bot_instance.get_cog("Banco de Dados")
+        if not db_cog:
+            return web.json_response({"error": "Módulo do banco de dados não está disponível."}, status=500)
+        try:
+            player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
+            data = await request.json()
+            new_status = data.get('status')
+            if new_status not in ['active', 'backup']:
+                return web.json_response({"error": "Status inválido."}, status=400)
+
+            await db_cog.update_player_cwl_status(player_tag, new_status)
+            
+            # Limpa o cache de membros para que a próxima requisição puxe o novo status
+            bot_instance.web_api_cache.pop('members', None)
+            bot_instance.web_api_cache.pop(f'player_profile_{player_tag}', None)
+            
+            return web.json_response({"status": "success"})
+        except Exception as e:
+            logger.error(f"Erro ao atualizar status da CWL via API: {e}", exc_info=True)
+            return web.json_response({"error": "Erro interno ao salvar o status."}, status=500)
 
     async def api_historic_war_handler(request):
         if bot_instance.db is None: return web.json_response({"error": "DB não conectado."}, status=503)
@@ -478,6 +508,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/highlights", api_highlights_handler)
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
+    # ATUALIZADO: Nova rota para o status da CWL
+    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_update_cwl_status_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
@@ -517,11 +549,31 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not (await get_session(request)).get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
         if action == 'toggle_maintenance':
             bot_instance.maintenance_mode = not bot_instance.maintenance_mode
+            
+            # ATUALIZADO: Salva o estado no DB
+            if bot_instance.db:
+                await bot_instance.db.system_config.update_one(
+                    {"_id": "maintenance_mode"},
+                    {"$set": {"is_active": bot_instance.maintenance_mode}},
+                    upsert=True
+                )
+
+            # ATUALIZADO: Embed melhorado
             status_str = "ATIVADO" if bot_instance.maintenance_mode else "DESATIVADO"
-            embed = discord.Embed(title=f"🚨 Modo Manutenção {status_str} 🚨", color=discord.Color.orange() if bot_instance.maintenance_mode else discord.Color.green())
+            color = discord.Color.orange() if bot_instance.maintenance_mode else discord.Color.green()
+            title = f"🛠️ Modo Manutenção {status_str}"
+            description = (
+                "O painel web está agora inacessível para membros comuns e os alertas automáticos estão pausados."
+                if bot_instance.maintenance_mode
+                else "O painel web e todos os alertas automáticos voltaram a funcionar normalmente."
+            )
+            embed = discord.Embed(title=title, description=description, color=color)
+            embed.set_footer(text="A alteração já está em vigor.")
+
             channel = bot_instance.get_channel(bot_instance.channel_id)
             if channel: await channel.send(embed=embed)
             return web.json_response({"status": "success", "maintenance_mode": bot_instance.maintenance_mode})
+
         elif action == 'send_test_embed':
             embed = discord.Embed(title="✅ Mensagem de Teste", description="Comunicação OK!", color=discord.Color.blue())
             channel = bot_instance.get_channel(bot_instance.channel_id)
@@ -564,3 +616,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
