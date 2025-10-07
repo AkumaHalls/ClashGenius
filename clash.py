@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.0-DBFix##
+# Versão 20.1.99-FloodFix-Final
 
 import os
 import logging
@@ -25,7 +25,6 @@ import json
 # --- Importações dos Módulos Locais ---
 from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
-# A classe do sistema é importada diretamente do cog agora
 from cogs.war_advisor_cog import WarAdvisorSystem
 
 # --- Configuração do Logging ---
@@ -50,7 +49,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
 # --- Constantes e Configurações Globais ---
-BOT_VERSION = "20.2.0-DBFix" # ATUALIZADO: Versão reflete a correção
+BOT_VERSION = "20.1.99-FloodFix-Final"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -72,7 +71,6 @@ class ClashGeniusBot(commands.Bot):
 
         self.api_client: Optional[coc.Client] = None
         self.war_prediction_system: Optional[WarPredictionSystemV3] = None
-        # O war_advisor_system será instanciado dentro do seu respectivo cog.
         self.db = None
         self.mongo_client = None
 
@@ -83,6 +81,10 @@ class ClashGeniusBot(commands.Bot):
 
         self.db_ready = asyncio.Event()
         self.coc_client_ready = asyncio.Event()
+        
+        # Cache de guerras processadas agora será carregado do DB
+        self.processed_war_ids = set()
+
 
     async def setup_hook(self) -> None:
         logger.info("Executando setup_hook...")
@@ -93,18 +95,15 @@ class ClashGeniusBot(commands.Bot):
                 self.db = self.mongo_client[db_name]
                 logger.info(f"Conectado ao MongoDB: {db_name}")
 
-                # ATUALIZADO: Carrega o estado de manutenção do DB
-                config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
-                if config and config.get("is_active", False):
-                    self.maintenance_mode = True
-                    logger.info("Modo Manutenção carregado como ATIVO a partir do banco de dados.")
+                # Carrega o modo manutenção e as guerras já processadas do DB
+                await self.load_initial_state_from_db()
 
                 self.db_ready.set()
             except Exception as e:
                 logger.error(f"Falha ao conectar com o MongoDB: {e}", exc_info=True)
         else:
-            logger.warning("URL do MongoDB não fornecida.")
-            self.db_ready.set()
+            logger.warning("URL do MongoDB não fornecida. Recursos de persistência desativados.")
+            self.db_ready.set() # Libera mesmo sem DB para o bot continuar
 
         self.war_prediction_system = WarPredictionSystemV3(db_connection=self.db)
         await self.war_prediction_system.initialize_system()
@@ -123,6 +122,25 @@ class ClashGeniusBot(commands.Bot):
 
         self.loop.create_task(self.coc_login_task())
         self.loop.create_task(setup_web_server(self))
+        
+    async def load_initial_state_from_db(self):
+        """Carrega o estado inicial (manutenção, guerras processadas) do DB."""
+        if self.db is None:
+            return
+
+        # Carrega modo manutenção
+        config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
+        if config:
+            self.maintenance_mode = config.get("enabled", False)
+            status_str = "ATIVADO" if self.maintenance_mode else "DESATIVADO"
+            logger.info(f"Modo manutenção carregado do DB. Estado inicial: {status_str}")
+
+        # Carrega IDs de guerras já processadas
+        processed_wars_cursor = self.db.war_history.find({}, {"_id": 1})
+        async for war_doc in processed_wars_cursor:
+            self.processed_war_ids.add(war_doc["_id"])
+        logger.info(f"Carregados {len(self.processed_war_ids)} IDs de guerras já processadas do histórico.")
+
 
     async def coc_login_task(self):
         try:
@@ -334,8 +352,6 @@ class ClashGeniusBot(commands.Bot):
             
             for i, a_round in enumerate(cwl_group.rounds):
                 round_data = {"round_number": i + 1, "wars": []}
-                
-                # CORREÇÃO: Iterar diretamente sobre 'a_round', que é a lista de tags de guerra.
                 for war_tag in a_round:
                     if war_tag == '#0': continue
                     try:
@@ -438,27 +454,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
         bot_instance.web_api_cache.pop('members', None)
         return web.Response(status=204)
-        
-    async def api_update_cwl_status_handler(request):
-        db_cog = bot_instance.get_cog("Banco de Dados")
-        if not db_cog:
-            return web.json_response({"error": "Módulo do banco de dados não está disponível."}, status=500)
-        try:
-            player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
-            data = await request.json()
-            new_status = data.get('status')
-            if new_status not in ['active', 'backup']:
-                return web.json_response({"error": "Status inválido."}, status=400)
-
-            await db_cog.update_player_cwl_status(player_tag, new_status)
-            
-            bot_instance.web_api_cache.pop('members', None)
-            bot_instance.web_api_cache.pop(f'player_profile_{player_tag}', None)
-            
-            return web.json_response({"status": "success"})
-        except Exception as e:
-            logger.error(f"Erro ao atualizar status da CWL via API: {e}", exc_info=True)
-            return web.json_response({"error": "Erro interno ao salvar o status."}, status=500)
 
     async def api_historic_war_handler(request):
         if bot_instance.db is None: return web.json_response({"error": "DB não conectado."}, status=503)
@@ -495,6 +490,24 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not cwl_cog: return web.json_response({"error": "O módulo do planeador CWL não está ativo."}, status=500)
         alert = {"alert": None} 
         return web.json_response(alert)
+        
+    async def api_update_cwl_player_status_handler(request):
+        db_cog = bot_instance.get_cog("Banco de Dados")
+        if not db_cog: 
+            return web.json_response({"error": "Módulo de base de dados não encontrado."}, status=500)
+        try:
+            player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
+            data = await request.json()
+            status = data.get('status')
+            if status not in ['active', 'backup']:
+                return web.json_response({"error": "Status inválido. Use 'active' ou 'backup'."}, status=400)
+            
+            await db_cog.update_player_cwl_status(player_tag, status)
+            bot_instance.web_api_cache.pop('members', None) # Invalida o cache de membros
+            return web.json_response({"success": True, "message": f"Status de {player_tag} atualizado para {status}."})
+        except Exception as e:
+            logger.error(f"Erro ao atualizar status CWL via API: {e}", exc_info=True)
+            return web.json_response({"error": "Erro interno ao salvar o status."}, status=500)
 
     # --- Rotas da API ---
     app.router.add_get("/api/clan", api_clan_handler)
@@ -506,7 +519,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/highlights", api_highlights_handler)
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
-    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_update_cwl_status_handler)
+    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_update_cwl_player_status_handler)
     app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
@@ -543,35 +556,34 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         return web.HTTPFound('/admin')
     
     async def admin_api_handler(request, action):
-        session = await get_session(request)
-        if not session.get('admin'):
-            return web.json_response({"status": "unauthorized"}, status=403)
-
+        if not (await get_session(request)).get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
         if action == 'toggle_maintenance':
             bot_instance.maintenance_mode = not bot_instance.maintenance_mode
             
-            # ATUALIZADO: Salva o estado no DB
-            if bot_instance.db is not None: # CORRIGIDO: Verificação explícita contra None
+            # Salva o estado no DB
+            if bot_instance.db is not None:
                 await bot_instance.db.system_config.update_one(
                     {"_id": "maintenance_mode"},
-                    {"$set": {"is_active": bot_instance.maintenance_mode}},
+                    {"$set": {"enabled": bot_instance.maintenance_mode}},
                     upsert=True
                 )
-
+            
             status_str = "ATIVADO" if bot_instance.maintenance_mode else "DESATIVADO"
-            color = discord.Color.orange() if bot_instance.maintenance_mode else discord.Color.green()
-            title = f"🛠️ Modo Manutenção {status_str}"
-            description = (
-                "O painel web está agora inacessível para membros comuns e os alertas automáticos estão pausados."
-                if bot_instance.maintenance_mode
-                else "O painel web e todos os alertas automáticos voltaram a funcionar normalmente."
+            embed_color = discord.Color.orange() if bot_instance.maintenance_mode else discord.Color.green()
+            embed = discord.Embed(
+                title=f"🚨 Modo Manutenção {status_str} 🚨",
+                description="O painel web está agora " + ("indisponível para membros." if bot_instance.maintenance_mode else "totalmente operacional."),
+                color=embed_color
             )
-            embed = discord.Embed(title=title, description=description, color=color)
-            embed.set_footer(text="A alteração já está em vigor.")
-
+            embed.add_field(
+                name="Impacto", 
+                value="**Alertas no Discord:** " + ("PAUSADOS" if bot_instance.maintenance_mode else "ATIVOS") +
+                      "\n**Acesso ao Painel:** " + ("Apenas Admins" if bot_instance.maintenance_mode else "Público"),
+                inline=False
+            )
             channel = bot_instance.get_channel(bot_instance.channel_id)
-            if channel:
-                await channel.send(embed=embed)
+            if channel: await channel.send(embed=embed)
+            
             return web.json_response({"status": "success", "maintenance_mode": bot_instance.maintenance_mode})
 
         elif action == 'send_test_embed':
@@ -579,6 +591,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             channel = bot_instance.get_channel(bot_instance.channel_id)
             if channel: await channel.send(embed=embed)
             return web.json_response({"status": "success"})
+
         elif action == 'get_status':
             return web.json_response({"status": "ok", "maintenance_mode": bot_instance.maintenance_mode, "version": BOT_VERSION})
 
@@ -586,8 +599,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_post("/admin/login", admin_login_handler)
     app.router.add_get("/admin/logout", admin_logout_handler)
     app.router.add_get("/admin/panel", admin_panel_page)
-    app.router.add_post("/admin/toggle_maintenance", lambda r: admin_api_handler(r, 'toggle_maintenance'))
-    app.router.add_post("/admin/send_test_embed", lambda r: admin_api_handler(r, 'send_test_embed'))
+    app.router.add_post("/admin/api/toggle_maintenance", lambda r: admin_api_handler(r, 'toggle_maintenance'))
+    app.router.add_post("/admin/api/send_test_embed", lambda r: admin_api_handler(r, 'send_test_embed'))
     app.router.add_get("/api/admin/status", lambda r: admin_api_handler(r, 'get_status'))
 
     secret_key = base64.urlsafe_b64decode(Fernet.generate_key() if not FERNET_KEY else FERNET_KEY.encode())
