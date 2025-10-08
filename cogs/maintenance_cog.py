@@ -115,9 +115,11 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
                 
                 # Ordena para garantir que estamos removendo os mais recentes, se houver diferença
                 # (ObjectId no MongoDB contém um timestamp, então a ordem é cronológica)
+                # Neste caso, como o ID pode ser qualquer string, apenas ordenamos alfabeticamente
+                # e mantemos o primeiro.
                 doc_ids.sort()
                 
-                # Mantém o primeiro (o mais antigo) e remove o resto
+                # Mantém o primeiro e remove o resto
                 ids_to_delete = doc_ids[1:]
                 
                 if ids_to_delete:
@@ -138,4 +140,3 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MaintenanceCog(bot))
-
