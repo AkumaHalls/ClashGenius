@@ -325,7 +325,7 @@ class ClashGeniusBot(commands.Bot):
 
     async def fetch_war_log_for_web(self):
         if self.db is None: return {"error": "Histórico indisponível."}
-        log_cursor = self.db.war_history.find({}, {"war_data": 1}).sort("war_data.end_time_iso", DESCENDING).limit(9)
+        log_cursor = self.db.war_history.find({}, {"war_data": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(9)
         entries = []
         async for war_doc in log_cursor:
             war_data = war_doc.get("war_data", {})
@@ -333,7 +333,9 @@ class ClashGeniusBot(commands.Bot):
                 end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
                 result = "Vitória" if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else "Derrota" if war_data.get("clan_stars", 0) < war_data.get("opponent_stars", 0) else "Empate"
                 entries.append({
-                    "end_time_iso": war_data.get("end_time_iso"), "end_time_formatted": end_time_dt.astimezone(self.timezone).strftime('%d/%m/%y %H:%M'),
+                    "war_id": war_doc.get("_id"),
+                    "end_time_iso": war_data.get("end_time_iso"), 
+                    "end_time_formatted": end_time_dt.astimezone(self.timezone).strftime('%d/%m/%y %H:%M'),
                     "opponent_name": war_data.get("opponent_name"), "opponent_badge_url": war_data.get("opponent_badge_url"),
                     "clan_stars": war_data.get("clan_stars"), "opponent_stars": war_data.get("opponent_stars"),
                     "result": result, "team_size": war_data.get("team_size"), "is_cwl": war_data.get("is_cwl", False)
@@ -519,7 +521,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler)
     app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_update_cwl_player_status_handler)
-    app.router.add_get("/api/war_history/{war_id}", api_historic_war_handler)
+    app.router.add_get("/api/war_history/{war_id:.*}", api_historic_war_handler)
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
     app.router.add_get("/api/status", lambda r: web.json_response({"status": "online", "version": BOT_VERSION}))
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
@@ -628,4 +630,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
