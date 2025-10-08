@@ -110,7 +110,7 @@ class ClashGeniusBot(commands.Bot):
         cog_files = [
             'events_cog.py', 'tasks_cog.py', 'database_cog.py', 'general_cog.py', 
             'cwl_planner_cog.py', 'clan_games_cog.py', 'war_advisor_cog.py', 'profile_cog.py',
-            'maintenance_cog.py' # Adiciona o novo cog à lista
+            'maintenance_cog.py'
         ]
         for filename in cog_files:
             if filename.endswith('.py'):
@@ -172,40 +172,13 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
-            
-    # --- MÉTODOS DE BUSCA DE DADOS --- (Restante do arquivo inalterado)
-    async def fetch_clan_info_for_web(self):
-        clan = await self.get_clan_data_with_cache(self.clan_tag)
-        if not clan: return {"error": "Não foi possível carregar os dados do clã."}
-        
-        capital_league_name = "N/A"
-        if hasattr(clan, 'capital_league') and clan.capital_league:
-            capital_league_name = clan.capital_league.name
 
-        return {
-            "name": getattr(clan, 'name', 'N/A'), "tag": getattr(clan, 'tag', 'N/A'),
-            "level": getattr(clan, 'level', 0), "points": getattr(clan, 'points', 0),
-            "capital_points": getattr(clan, 'capital_points', 0), "member_count": getattr(clan, 'member_count', 0),
-            "description": getattr(clan, 'description', ''), "war_wins": getattr(clan, 'war_wins', 0),
-            "location": getattr(clan.location, 'name', 'N/A') if hasattr(clan, 'location') and clan.location else 'N/A',
-            "type": str(getattr(clan, 'type', 'N/A')).capitalize(),
-            "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
-            "version": BOT_VERSION,
-            "capital_league": capital_league_name,
-        }
-
-    async def fetch_current_war_details_for_web(self, force_api_call=False):
-        key = 'war_details'
-        if not force_api_call:
-            now = datetime.datetime.now()
-            if key in self.web_api_cache and (now - self.web_api_cache[key]["timestamp"]).total_seconds() < self.WEB_API_CACHE_DURATION_SECONDS:
-                return self.web_api_cache[key]["data"]
-
+    async def format_war_details_for_web(self, war: coc.ClanWar) -> Dict[str, Any]:
+        """Formata os detalhes de uma guerra específica para o formato da API web."""
         try:
-            war = await self.api_client.get_current_war(self.clan_tag)
-            if not war or war.state == "notInWar": return {"error": "Nenhuma guerra para detalhar."}
-            if not war.clan or not war.opponent: return {"error": "Dados da guerra incompletos."}
-            
+            if not war or not war.clan or not war.opponent:
+                return {"error": "Dados da guerra incompletos."}
+
             prediction_data = await self.war_prediction_system.predict_war_outcome(war, self.clan_tag)
             our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == self.clan_tag else (war.opponent, war.clan)
 
@@ -228,8 +201,8 @@ class ClashGeniusBot(commands.Bot):
                     if a: dist[a.stars] += 1
                 return dist
 
-            our_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == our_clan.tag]
-            opp_attacks = [a for a in war.attacks if a and getattr(getattr(a, 'attacker', None), 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
+            our_attacks = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == our_clan.tag]
+            opp_attacks = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
             
             all_attacks_data = []
             for attack in war.attacks:
@@ -243,8 +216,8 @@ class ClashGeniusBot(commands.Bot):
                     "defender_townhall": getattr(defender, 'town_hall', '?'), "stars": attack.stars, "destruction": attack.destruction,
                     "duration": f"{attack.duration}s"
                 })
-            
-            response_data = {
+
+            return {
                 "war_data": {
                     "clan_tag": our_clan.tag, "status": str(war.state), "state_description": str(war.state).capitalize(),
                     "clan_name": our_clan.name, "clan_stars": our_clan.stars, "clan_destruction": f"{our_clan.destruction:.2f}%",
@@ -263,6 +236,21 @@ class ClashGeniusBot(commands.Bot):
                 "opponent_clan_members_in_war": get_team_details(opp_clan, war),
                 "prediction": prediction_data
             }
+        except Exception as e:
+            logger.error(f"Erro ao formatar detalhes da guerra: {e}", exc_info=True)
+            return {"error": "Erro interno ao formatar dados da guerra."}
+            
+    async def fetch_current_war_details_for_web(self, force_api_call=False):
+        key = 'war_details'
+        if not force_api_call:
+            now = datetime.datetime.now()
+            if key in self.web_api_cache and (now - self.web_api_cache[key]["timestamp"]).total_seconds() < self.WEB_API_CACHE_DURATION_SECONDS:
+                return self.web_api_cache[key]["data"]
+
+        try:
+            war = await self.api_client.get_current_war(self.clan_tag)
+            response_data = await self.format_war_details_for_web(war)
+            
             if not force_api_call:
                 self.web_api_cache[key] = {"data": response_data, "timestamp": datetime.datetime.now()}
             return response_data
@@ -272,7 +260,7 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
             return {"error": "Erro interno ao processar dados da guerra."}
-            
+
     async def fetch_clan_members_for_web(self):
         clan = await self.get_clan_data_with_cache(self.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
@@ -325,7 +313,7 @@ class ClashGeniusBot(commands.Bot):
 
     async def fetch_war_log_for_web(self):
         if self.db is None: return {"error": "Histórico indisponível."}
-        log_cursor = self.db.war_history.find({}, {"war_data": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(9)
+        log_cursor = self.db.war_history.find({}, {"war_data": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(50)
         entries = []
         async for war_doc in log_cursor:
             war_data = war_doc.get("war_data", {})
@@ -458,7 +446,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
     async def api_historic_war_handler(request):
         if bot_instance.db is None: return web.json_response({"error": "DB não conectado."}, status=503)
-        war_doc = await bot_instance.db.war_history.find_one({"_id": request.match_info['war_id']})
+        war_id = request.match_info['war_id']
+        # CORREÇÃO: A tag da guerra pode conter '#' que precisa ser tratado no URL.
+        # A forma mais segura é garantir que o ID não tenha caracteres problemáticos ou usar query params.
+        # Por agora, assumimos que o JS está a fazer o encodeURIComponent.
+        war_doc = await bot_instance.db.war_history.find_one({"_id": war_id})
         return web.json_response(war_doc, dumps=lambda v: json.dumps(v, default=str)) if war_doc else web.json_response({"error": "Guerra não encontrada."}, status=404)
 
     async def api_member_profile_handler(request):
