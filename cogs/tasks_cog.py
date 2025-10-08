@@ -17,8 +17,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
-        # O 'last_processed_war_ids' agora é uma propriedade do bot,
-        # carregada do DB no início.
         self.last_prediction_sent_time = None
 
     async def cog_load(self):
@@ -35,7 +33,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.post_war_prediction_task.cancel()
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
-        if self.bot.maintenance_mode: return # Não envia embeds em modo manutenção
+        if self.bot.maintenance_mode: return
         channel_id_to_use = target_channel_id or self.bot.channel_id
         if not channel_id_to_use: return
         await self.bot.wait_until_ready()
@@ -49,31 +47,31 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
     def _get_war_id(self, war: coc.ClanWar) -> str:
-        """
-        Gera um ID único e consistente para uma guerra.
-        A prioridade é a tag da guerra (para CWL), depois o tempo de início da preparação.
-        """
-        # Guerras de CWL têm uma tag única, que é o identificador mais robusto.
+        """Gera um ID único e consistente para uma guerra."""
         if hasattr(war, 'tag') and war.tag and war.tag != '#0':
             return war.tag
-        
-        # Para guerras normais, o tempo de início da preparação é um ponto fixo e confiável.
         if hasattr(war, 'preparation_start_time') and war.preparation_start_time and hasattr(war.preparation_start_time, 'time'):
             return war.preparation_start_time.time.isoformat()
-        
-        # Fallback de emergência (menos confiável) para o tempo de término.
         return war.end_time.time.isoformat()
 
     async def process_ended_war(self, war: coc.ClanWar, war_id: str):
         """Função centralizada para processar uma guerra finalizada."""
         war_type = "CWL" if war.is_cwl else "Normal"
-        opponent_name = war.opponent.name if war.opponent else "Desconhecido"
+        
+        # A API retorna o objeto do nosso clã em 'clan' ou 'opponent'. Precisamos identificá-lo.
+        our_clan_in_war = war.clan if war.clan.tag == self.bot.clan_tag else war.opponent
+        opponent_clan_in_war = war.opponent if war.clan.tag == self.bot.clan_tag else war.clan
+        
+        opponent_name = opponent_clan_in_war.name if opponent_clan_in_war else "Desconhecido"
         
         logger.info(f"A processar guerra ({war_type}) contra {opponent_name} (ID: {war_id})...")
         
         db_cog = self.bot.get_cog("Banco de Dados")
         if db_cog:
-            war_details_for_db = await self.bot.fetch_current_war_details_for_web(force_api_call=True) 
+            # CORREÇÃO: Para garantir que os dados salvos são da guerra correta,
+            # passamos a guerra específica para a função de formatação.
+            war_details_for_db = await self.bot.format_war_details_for_web(war)
+            
             if 'error' not in war_details_for_db:
                 await db_cog.save_war_to_history(war_details_for_db, war_id)
                 
@@ -85,17 +83,15 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                         logger.info("Análise pós-guerra enviada com sucesso.")
             else:
                  logger.error(f"Falha ao obter detalhes da guerra para salvar no DB: {war_details_for_db['error']}.")
-
         else:
             logger.warning("Cog de Banco de Dados não encontrado. A guerra não será salva no histórico.")
 
-        our_clan = war.clan if war.clan.tag == self.bot.clan_tag else war.opponent
-        missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan.members if len(m.attacks) < war.attacks_per_member]
+        missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan_in_war.members if len(m.attacks) < war.attacks_per_member]
         if missed:
             embed = discord.Embed(title="🚩 Relatório de Ataques Perdidos", color=discord.Color.dark_gold())
-            embed.add_field(name="Placar Final", value=f"**{war.clan.name}:** {war.clan.stars}⭐\n**{war.opponent.name}:** {war.opponent.stars}⭐", inline=False)
+            embed.add_field(name="Placar Final", value=f"**{our_clan_in_war.name}:** {our_clan_in_war.stars}⭐\n**{opponent_clan_in_war.name}:** {opponent_clan_in_war.stars}⭐", inline=False)
             embed.add_field(name="Jogadores com Ataques Pendentes", value="\n".join(missed), inline=False)
-            if war.opponent.badge: embed.set_thumbnail(url=war.opponent.badge.url)
+            if opponent_clan_in_war.badge: embed.set_thumbnail(url=opponent_clan_in_war.badge.url)
             role_mention = f"<@&{self.bot.role_id_missed_attack}>" if self.bot.role_id_missed_attack else ""
             await self._send_log_embed(embed, content=f"{role_mention} Atenção!")
             logger.info("Relatório de ataques perdidos enviado.")
@@ -111,34 +107,45 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         if not self.bot.api_client: return
         
         try:
-            all_ended_wars_to_process = []
+            wars_to_check = []
 
+            # 1. Coleta a guerra normal se existir
             try:
                 current_war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
-                if current_war and current_war.state == 'warEnded':
-                    all_ended_wars_to_process.append(current_war)
+                if current_war:
+                    wars_to_check.append(current_war)
             except (coc.PrivateWarLog, coc.NotFound):
                 pass
 
+            # 2. Coleta as guerras da CWL se o clã estiver em uma
             try:
                 cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
-                if cwl_group and cwl_group.rounds:
-                    for round_tags in cwl_group.rounds:
-                        for war_tag in round_tags:
-                            if war_tag == '#0': continue
-                            try:
-                                cwl_war = await self.bot.api_client.get_league_war(war_tag)
-                                if cwl_war and cwl_war.state == 'warEnded':
-                                    all_ended_wars_to_process.append(cwl_war)
-                            except coc.NotFound:
-                                continue
+                if cwl_group:
+                    for war_tag in cwl_group.get_war_tags(self.bot.clan_tag):
+                        if war_tag == '#0': continue
+                        try:
+                            cwl_war = await self.bot.api_client.get_league_war(war_tag)
+                            wars_to_check.append(cwl_war)
+                        except coc.NotFound:
+                            logger.warning(f"Não foi possível encontrar a guerra da CWL com a tag: {war_tag}")
+                            continue
             except coc.NotFound:
                 pass
             
-            if not all_ended_wars_to_process:
+            if not wars_to_check:
                 return
 
-            for war in all_ended_wars_to_process:
+            # 3. Itera sobre a lista consolidada de guerras
+            for war in wars_to_check:
+                # VALIDAÇÃO CRÍTICA: Verifica se nosso clã está na guerra e se a guerra terminou
+                is_our_war = war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag
+                if not is_our_war:
+                    logger.debug(f"Guerra {war.clan.name} vs {war.opponent.name} ignorada, não é do nosso clã.")
+                    continue
+
+                if war.state != 'warEnded':
+                    continue
+
                 unique_war_id = self._get_war_id(war)
                 
                 if unique_war_id not in self.bot.processed_war_ids:
@@ -280,4 +287,3 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
-
