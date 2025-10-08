@@ -48,6 +48,22 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         except (discord.NotFound, discord.Forbidden, Exception) as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
+    def _get_war_id(self, war: coc.ClanWar) -> str:
+        """
+        Gera um ID único e consistente para uma guerra.
+        A prioridade é a tag da guerra (para CWL), depois o tempo de início da preparação.
+        """
+        # Guerras de CWL têm uma tag única, que é o identificador mais robusto.
+        if hasattr(war, 'tag') and war.tag and war.tag != '#0':
+            return war.tag
+        
+        # Para guerras normais, o tempo de início da preparação é um ponto fixo e confiável.
+        if hasattr(war, 'preparation_start_time') and war.preparation_start_time and hasattr(war.preparation_start_time, 'time'):
+            return war.preparation_start_time.time.isoformat()
+        
+        # Fallback de emergência (menos confiável) para o tempo de término.
+        return war.end_time.time.isoformat()
+
     async def process_ended_war(self, war: coc.ClanWar, war_id: str):
         """Função centralizada para processar uma guerra finalizada."""
         war_type = "CWL" if war.is_cwl else "Normal"
@@ -55,23 +71,12 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         
         logger.info(f"A processar guerra ({war_type}) contra {opponent_name} (ID: {war_id})...")
         
-        # A API de 'current_war' é volátil. É mais seguro construir os detalhes
-        # a partir do objeto 'war' que já temos, garantindo que processamos a guerra correta.
-        # Esta é uma refatoração importante para a estabilidade.
-        
-        # A função fetch_current_war_details_for_web será usada apenas para o painel.
-        # Aqui, vamos gerar os dados para os relatórios diretamente.
-        
         db_cog = self.bot.get_cog("Banco de Dados")
         if db_cog:
-            # O save_war_to_history precisa dos dados formatados.
-            # No futuro, podemos refatorar para que ele aceite o objeto 'war' diretamente.
-            # Por agora, a chamada à função web ainda é necessária para o salvamento.
             war_details_for_db = await self.bot.fetch_current_war_details_for_web(force_api_call=True) 
             if 'error' not in war_details_for_db:
                 await db_cog.save_war_to_history(war_details_for_db, war_id)
                 
-                # Gera análise pós-guerra a partir dos dados salvos, garantindo consistência
                 if self.bot.post_war_analysis_channel_id:
                     logger.info("A gerar a análise pós-guerra...")
                     analysis_embed = create_post_war_analysis_embed(war_details_for_db)
@@ -106,10 +111,8 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         if not self.bot.api_client: return
         
         try:
-            # --- LÓGICA ANTI-FLOOD COM PERSISTÊNCIA NO DB ---
             all_ended_wars_to_process = []
 
-            # 1. Checa a guerra normal (endpoint /currentwar)
             try:
                 current_war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
                 if current_war and current_war.state == 'warEnded':
@@ -117,7 +120,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             except (coc.PrivateWarLog, coc.NotFound):
                 pass
 
-            # 2. Checa as guerras da CWL (endpoint /leaguegroup)
             try:
                 cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
                 if cwl_group and cwl_group.rounds:
@@ -125,8 +127,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                         for war_tag in round_tags:
                             if war_tag == '#0': continue
                             try:
-                                # Não precisamos verificar se já processamos aqui,
-                                # pois a busca por tag é mais "pesada".
                                 cwl_war = await self.bot.api_client.get_league_war(war_tag)
                                 if cwl_war and cwl_war.state == 'warEnded':
                                     all_ended_wars_to_process.append(cwl_war)
@@ -135,27 +135,18 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             except coc.NotFound:
                 pass
             
-            # 3. Processa a lista de guerras terminadas, verificando o cache persistente
             if not all_ended_wars_to_process:
                 return
 
             for war in all_ended_wars_to_process:
-                # CORREÇÃO CRÍTICA: O ID único e consistente da guerra passa a ser o seu tempo de término em ISO format.
-                # Isso garante que a mesma guerra SEMPRE tenha o mesmo ID, e alinha com o que o painel web usa.
-                if not hasattr(war, 'end_time') or not hasattr(war.end_time, 'time'):
-                    logger.warning(f"Guerra contra {war.opponent.name} terminada mas sem end_time. Ignorando.")
-                    continue
+                unique_war_id = self._get_war_id(war)
                 
-                unique_war_id = war.end_time.time.isoformat()
-                
-                # A VERIFICAÇÃO CRÍTICA: só processa se o ID não estiver no cache
                 if unique_war_id not in self.bot.processed_war_ids:
                     logger.info(f"Nova guerra terminada encontrada para processar (ID: {unique_war_id}).")
                     if await self.process_ended_war(war, unique_war_id):
-                        self.bot.processed_war_ids.add(unique_war_id) # Adiciona ao cache em memória
+                        self.bot.processed_war_ids.add(unique_war_id)
                 else:
                     logger.debug(f"Guerra {unique_war_id} já processada, ignorando.")
-
 
         except Exception as e:
             logger.error(f"Erro inesperado na task de fim de guerra: {e}", exc_info=True)
@@ -169,16 +160,9 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         await self.bot.coc_client_ready.wait()
         
         logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
-        processed_count = 0
         try:
-            # A task já está robusta, então podemos apenas chamá-la uma vez
             await self.check_war_end_task.coro(self)
-            
-            # Conta quantas guerras foram processadas nesta execução
-            # (Esta parte é um pouco mais complexa de medir, então simplificamos a resposta)
-            
             await ctx.send("✅ Sincronização forçada concluída. Verifique os canais de relatório.")
-
         except Exception as e:
             logger.error(f"Erro no comando !syncwar: {e}", exc_info=True)
             await ctx.send(f"❌ Erro crítico: {e}")
@@ -296,3 +280,4 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
+
