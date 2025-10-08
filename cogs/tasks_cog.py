@@ -48,16 +48,9 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         except (discord.NotFound, discord.Forbidden, Exception) as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
-    def _get_war_id(self, war: coc.ClanWar) -> str:
-        """Gera um ID único para uma guerra de forma defensiva."""
-        if hasattr(war, 'tag') and war.tag:
-            return war.tag
-        else:
-            return f"{war.clan.tag}-{war.preparation_start_time.time.isoformat()}"
-
     async def process_ended_war(self, war: coc.ClanWar, war_id: str):
         """Função centralizada para processar uma guerra finalizada."""
-        war_type = "CWL" if hasattr(war, 'tag') else "Normal"
+        war_type = "CWL" if war.is_cwl else "Normal"
         opponent_name = war.opponent.name if war.opponent else "Desconhecido"
         
         logger.info(f"A processar guerra ({war_type}) contra {opponent_name} (ID: {war_id})...")
@@ -147,7 +140,13 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 return
 
             for war in all_ended_wars_to_process:
-                unique_war_id = self._get_war_id(war)
+                # CORREÇÃO CRÍTICA: O ID único e consistente da guerra passa a ser o seu tempo de término em ISO format.
+                # Isso garante que a mesma guerra SEMPRE tenha o mesmo ID, e alinha com o que o painel web usa.
+                if not hasattr(war, 'end_time') or not hasattr(war.end_time, 'time'):
+                    logger.warning(f"Guerra contra {war.opponent.name} terminada mas sem end_time. Ignorando.")
+                    continue
+                
+                unique_war_id = war.end_time.time.isoformat()
                 
                 # A VERIFICAÇÃO CRÍTICA: só processa se o ID não estiver no cache
                 if unique_war_id not in self.bot.processed_war_ids:
@@ -297,4 +296,3 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
-
