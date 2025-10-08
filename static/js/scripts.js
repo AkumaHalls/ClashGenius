@@ -671,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none';
         setHtml(warLogTableBodyEl, data.log.map(e => `
-            <tr class="historic-war-row" data-war-id="${e.end_time_iso}">
+            <tr class="historic-war-row" data-war-id="${e.war_id}">
                 <td>${e.end_time_formatted}</td>
                 <td><img src="${e.opponent_badge_url || DEFAULT_BADGE_URL}" alt="Emblema" class="log-opponent-badge">${e.opponent_name || 'N/A'}</td>
                 <td>${e.clan_stars}⭐ vs ${e.opponent_stars}⭐</td>
@@ -893,7 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function openHistoricWarModal(warId) {
         setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar detalhes da guerra...</p>');
         historicWarModal.style.display = 'block';
-        const historicWarData = await fetchData(`war_history/${warId}`);
+        const historicWarData = await fetchData(`war_history/${encodeURIComponent(warId)}`);
         const template = document.getElementById('historic-war-template');
         if (!template) {
             setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro: Template do modal não encontrado.</p>');
@@ -998,4 +998,3 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
     setInterval(loadAllData, 45000);
 });
-
