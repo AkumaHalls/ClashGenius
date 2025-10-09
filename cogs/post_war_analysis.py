@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-3
 import datetime
 import discord
 import pytz
@@ -149,3 +149,4 @@ def create_post_war_analysis_embed(war_doc: Dict) -> Optional[discord.Embed]:
     except Exception as e:
         logger.error(f"Erro ao criar embed de análise pós-guerra: {e}", exc_info=True)
         return None
+
