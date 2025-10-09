@@ -19,6 +19,73 @@ class WebApiCog(commands.Cog, name="Web API"):
         self.bot = bot
         self.db = bot.db
 
+    # CORREÇÃO: A função de formatação de detalhes da guerra agora reside aqui.
+    async def format_war_details_for_web(self, war: coc.ClanWar) -> Dict[str, Any]:
+        try:
+            if not war or not war.clan or not war.opponent:
+                return {"error": "Dados da guerra incompletos."}
+
+            prediction_data = await self.bot.war_prediction_system.predict_war_outcome(war, self.bot.clan_tag)
+            our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == self.bot.clan_tag else (war.opponent, war.clan)
+
+            def get_team_details(team, war_obj):
+                if not team or not hasattr(team, 'members'): return []
+                details = []
+                for m in team.members:
+                    if not m: continue
+                    details.append({
+                        "name": m.name, "tag": m.tag, "townhall": m.town_hall, "map_position": m.map_position,
+                        "attacks_used": len(m.attacks),
+                        "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war_obj.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war_obj.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
+                        "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war_obj.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war_obj.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
+                    })
+                return sorted(details, key=lambda x: x['map_position'])
+
+            def get_star_dist(attacks):
+                dist = {i: 0 for i in range(4)}
+                for a in attacks:
+                    if a: dist[a.stars] += 1
+                return dist
+
+            our_attacks = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == our_clan.tag]
+            opp_attacks = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
+            
+            all_attacks_data = []
+            for attack in war.attacks:
+                if not attack: continue
+                attacker = war.get_member(attack.attacker_tag)
+                defender = war.get_member(attack.defender_tag)
+                all_attacks_data.append({
+                    "order": attack.order, "attacker_clan_tag": getattr(getattr(attacker, 'clan', None), 'tag', None),
+                    "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag), "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
+                    "attacker_townhall": getattr(attacker, 'town_hall', '?'), "defender_name": getattr(defender, 'name', attack.defender_tag),
+                    "defender_townhall": getattr(defender, 'town_hall', '?'), "stars": attack.stars, "destruction": attack.destruction,
+                    "duration": f"{attack.duration}s"
+                })
+
+            return {
+                "war_data": {
+                    "clan_tag": our_clan.tag, "status": str(war.state), "state_description": str(war.state).capitalize(),
+                    "clan_name": our_clan.name, "clan_stars": our_clan.stars, "clan_destruction": f"{our_clan.destruction:.2f}%",
+                    "clan_badge_url": our_clan.badge.url if our_clan.badge else None, "clan_attacks_used": our_clan.attacks_used,
+                    "opponent_name": opp_clan.name, "opponent_stars": opp_clan.stars, "opponent_destruction": f"{opp_clan.destruction:.2f}%",
+                    "opponent_badge_url": opp_clan.badge.url if opp_clan.badge else None, "opponent_attacks_used": opp_clan.attacks_used,
+                    **format_war_time_details(war, datetime.datetime.now(pytz.utc)),
+                    "attacks_per_member": war.attacks_per_member, "team_size": war.team_size,
+                    "clan_star_distribution": get_star_dist(our_attacks), "opponent_star_distribution": get_star_dist(opp_attacks),
+                    "clan_avg_stars": f"{our_clan.stars / len(our_attacks):.2f}" if our_attacks else "0.00",
+                    "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks):.2f}" if opp_attacks else "0.00",
+                    "is_cwl": war.is_cwl
+                },
+                "all_attacks": all_attacks_data,
+                "our_clan_members_in_war": get_team_details(our_clan, war),
+                "opponent_clan_members_in_war": get_team_details(opp_clan, war),
+                "prediction": prediction_data
+            }
+        except Exception as e:
+            logger.error(f"Erro ao formatar detalhes da guerra: {e}", exc_info=True)
+            return {"error": "Erro interno ao formatar dados da guerra."}
+
     async def fetch_clan_info_for_web(self):
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
@@ -37,14 +104,12 @@ class WebApiCog(commands.Cog, name="Web API"):
             "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
             "version": self.bot.bot_version,
             "capital_league": capital_league_name,
-            # A chave 'capital_districts' foi removida para corrigir o erro e atender ao pedido.
         }
 
     async def fetch_current_war_details_for_web(self, force_api_call=False):
         try:
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
-            # A função format_war_details_for_web está no bot principal
-            response_data = await self.bot.format_war_details_for_web(war)
+            response_data = await self.format_war_details_for_web(war) # Chama a função interna
             return response_data
         except (coc.NotFound, coc.PrivateWarLog):
             return {"error": "Nenhuma guerra para detalhar."}
@@ -173,3 +238,4 @@ class WebApiCog(commands.Cog, name="Web API"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WebApiCog(bot))
+
