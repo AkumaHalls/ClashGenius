@@ -2,7 +2,7 @@
 import logging
 import datetime
 import pytz
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 import coc
 from discord.ext import commands
@@ -19,7 +19,6 @@ class WebApiCog(commands.Cog, name="Web API"):
         self.bot = bot
         self.db = bot.db
 
-    # CORREÇÃO: A função de formatação de detalhes da guerra agora reside aqui.
     async def format_war_details_for_web(self, war: coc.ClanWar) -> Dict[str, Any]:
         try:
             if not war or not war.clan or not war.opponent:
@@ -47,8 +46,8 @@ class WebApiCog(commands.Cog, name="Web API"):
                     if a: dist[a.stars] += 1
                 return dist
 
-            our_attacks = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == our_clan.tag]
-            opp_attacks = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
+            our_attacks_raw = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == our_clan.tag]
+            opp_attacks_raw = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
             
             all_attacks_data = []
             for attack in war.attacks:
@@ -57,7 +56,9 @@ class WebApiCog(commands.Cog, name="Web API"):
                 defender = war.get_member(attack.defender_tag)
                 all_attacks_data.append({
                     "order": attack.order, "attacker_clan_tag": getattr(getattr(attacker, 'clan', None), 'tag', None),
-                    "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag), "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
+                    # CORREÇÃO: Adicionando a tag do atacante que estava faltando
+                    "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag), 
+                    "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
                     "attacker_townhall": getattr(attacker, 'town_hall', '?'), "defender_name": getattr(defender, 'name', attack.defender_tag),
                     "defender_townhall": getattr(defender, 'town_hall', '?'), "stars": attack.stars, "destruction": attack.destruction,
                     "duration": f"{attack.duration}s"
@@ -72,9 +73,9 @@ class WebApiCog(commands.Cog, name="Web API"):
                     "opponent_badge_url": opp_clan.badge.url if opp_clan.badge else None, "opponent_attacks_used": opp_clan.attacks_used,
                     **format_war_time_details(war, datetime.datetime.now(pytz.utc)),
                     "attacks_per_member": war.attacks_per_member, "team_size": war.team_size,
-                    "clan_star_distribution": get_star_dist(our_attacks), "opponent_star_distribution": get_star_dist(opp_attacks),
-                    "clan_avg_stars": f"{our_clan.stars / len(our_attacks):.2f}" if our_attacks else "0.00",
-                    "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks):.2f}" if opp_attacks else "0.00",
+                    "clan_star_distribution": get_star_dist(our_attacks_raw), "opponent_star_distribution": get_star_dist(opp_attacks_raw),
+                    "clan_avg_stars": f"{our_clan.stars / len(our_attacks_raw):.2f}" if our_attacks_raw else "0.00",
+                    "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks_raw):.2f}" if opp_attacks_raw else "0.00",
                     "is_cwl": war.is_cwl
                 },
                 "all_attacks": all_attacks_data,
@@ -109,7 +110,9 @@ class WebApiCog(commands.Cog, name="Web API"):
     async def fetch_current_war_details_for_web(self, force_api_call=False):
         try:
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
-            response_data = await self.format_war_details_for_web(war) # Chama a função interna
+            if not war or war.state == "notInWar":
+                 return {"error": "Nenhuma guerra para detalhar."}
+            response_data = await self.format_war_details_for_web(war)
             return response_data
         except (coc.NotFound, coc.PrivateWarLog):
             return {"error": "Nenhuma guerra para detalhar."}
