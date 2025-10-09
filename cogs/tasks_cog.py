@@ -62,9 +62,9 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         logger.info(f"A processar guerra ({war_type}) contra {opponent_name} (ID: {war_id})...")
         
         db_cog = self.bot.get_cog("Banco de Dados")
-        web_api_cog = self.bot.get_cog("Web API")
-
-        if db_cog and web_api_cog:
+        
+        if db_cog:
+            # CORREÇÃO: Chamar a função a partir do objeto 'self.bot' onde ela agora reside.
             war_details_for_db = await self.bot.format_war_details_for_web(war)
             
             if 'error' not in war_details_for_db:
@@ -127,7 +127,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 if not is_our_war:
                     continue
                 
-                # CORREÇÃO DEFINITIVA: Apenas processa se a guerra tiver TERMINADO.
                 if war.state != 'warEnded':
                     continue
 
@@ -143,7 +142,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @commands.command(name='syncwar')
     @commands.has_permissions(administrator=True)
     async def sync_war(self, ctx: commands.Context):
-        # ... (código inalterado)
         await ctx.message.add_reaction("🔄")
         await self.bot.coc_client_ready.wait()
         logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
@@ -156,20 +154,16 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         finally:
             await ctx.message.remove_reaction("🔄", self.bot.user)
 
-
     @tasks.loop(minutes=10)
     async def post_war_prediction_task(self):
-        # ... (código inalterado)
         pass
 
     @tasks.loop(hours=24)
     async def daily_player_data_snapshot(self):
-        # ... (código inalterado)
         pass
 
     @tasks.loop(seconds=10, count=1)
     async def send_online_status_task(self):
-        # ... (código inalterado)
         pass
 
 async def setup(bot: commands.Bot):
