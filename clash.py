@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.06-AdminPanel-Expansion
+# Versão 20.2.07-AdminPanel-Fix
 
 import os
 import logging
@@ -65,7 +65,7 @@ ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
-BOT_VERSION = "20.2.06-AdminPanel-Expansion"
+BOT_VERSION = "20.2.07-AdminPanel-Fix"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -305,16 +305,22 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             return web.json_response({"status": "success", "message": "Sincronização de guerra forçada."})
         return web.json_response({"status": "error", "message": "Ação desconhecida."}, status=400)
 
-    # Adiciona as rotas com middleware de autenticação
-    admin_api_routes = web.UrlDispatcher()
-    admin_api_routes.add_get("/diagnostics", api_admin_diagnostics)
-    admin_api_routes.add_get("/settings", api_admin_get_settings)
-    admin_api_routes.add_post("/settings", api_admin_update_settings)
-    admin_api_routes.add_get("/db_viewer", api_admin_db_viewer)
-    admin_api_routes.add_post("/actions", api_admin_actions)
-    app.add_subapp("/api/admin/", admin_api_routes, middleware=admin_auth_middleware)
-    # --- FIM DAS NOVAS ROTAS ---
+    # *** CORREÇÃO AQUI ***
+    # Cria uma "sub-aplicação" para as rotas de admin
+    admin_api_app = web.Application()
+    admin_api_app.router.add_get("/diagnostics", api_admin_diagnostics)
+    admin_api_app.router.add_get("/settings", api_admin_get_settings)
+    admin_api_app.router.add_post("/settings", api_admin_update_settings)
+    admin_api_app.router.add_get("/db_viewer", api_admin_db_viewer)
+    admin_api_app.router.add_post("/actions", api_admin_actions)
+    
+    # Adiciona o middleware de autenticação à sub-aplicação
+    admin_api_app.middlewares.append(admin_auth_middleware)
 
+    # Adiciona a sub-aplicação à aplicação principal
+    app.add_subapp("/api/admin/", admin_api_app)
+    # *** FIM DA CORREÇÃO ***
+    
     static_dir = os.path.join(os.path.dirname(__file__), "static")
 
     # ADMIN PANEL ROUTES
@@ -408,3 +414,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
