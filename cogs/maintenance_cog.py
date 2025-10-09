@@ -3,7 +3,7 @@ import logging
 import discord
 from discord.ext import commands
 from pymongo.errors import PyMongoError
-from bson.objectid import ObjectId
+from aiohttp import web
 
 logger = logging.getLogger("maintenance_cog")
 
@@ -13,8 +13,45 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
-        # Armazena temporariamente os dados para a confirmação do cleanup
         self.cleanup_confirmation_data = {}
+
+    async def toggle_maintenance_mode_web(self):
+        """Ativa/desativa o modo de manutenção a partir de um pedido web."""
+        self.bot.maintenance_mode = not self.bot.maintenance_mode
+        
+        if self.db is not None:
+            await self.db.system_config.update_one(
+                {"_id": "maintenance_mode"},
+                {"$set": {"enabled": self.bot.maintenance_mode}},
+                upsert=True
+            )
+        
+        status_str = "ATIVADO" if self.bot.maintenance_mode else "DESATIVADO"
+        embed_color = discord.Color.orange() if self.bot.maintenance_mode else discord.Color.green()
+        embed = discord.Embed(
+            title=f"🚨 Modo Manutenção {status_str} 🚨",
+            description="O painel web está agora " + ("indisponível para membros." if self.bot.maintenance_mode else "totalmente operacional."),
+            color=embed_color
+        )
+        embed.add_field(
+            name="Impacto", 
+            value="**Alertas no Discord:** " + ("PAUSADOS" if self.bot.maintenance_mode else "ATIVOS") +
+                  "\n**Acesso ao Painel:** " + ("Apenas Admins" if self.bot.maintenance_mode else "Público"),
+            inline=False
+        )
+        channel = self.bot.get_channel(self.bot.channel_id)
+        if channel: await channel.send(embed=embed)
+        
+        return web.json_response({"status": "success", "maintenance_mode": self.bot.maintenance_mode})
+
+    async def send_test_embed_web(self):
+        """Envia um embed de teste a partir de um pedido web."""
+        embed = discord.Embed(title="✅ Mensagem de Teste (Web)", description="Comunicação OK!", color=discord.Color.blue())
+        channel = self.bot.get_channel(self.bot.channel_id)
+        if channel:
+            await channel.send(embed=embed)
+            return web.json_response({"status": "success"})
+        return web.json_response({"status": "error", "message": "Channel not found"}, status=500)
 
     @commands.group(name='dbcleanup', invoke_without_command=True)
     @commands.has_permissions(administrator=True)
@@ -26,72 +63,52 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
 
         await ctx.message.add_reaction("🔎")
         
-        # Pipeline aprimorado para detectar duplicatas de CONTEÚDO (baseado no tempo de término)
         pipeline = [
-            {
-                "$group": {
-                    "_id": "$war_data.end_time_iso",  # Agrupa por tempo de término, que será igual para as duplicatas
-                    "doc_ids": {"$addToSet": "$_id"}, # Pega os IDs únicos de cada documento MongoDB
-                    "count": {"$sum": 1}
-                }
-            },
-            {
-                "$match": {
-                    "count": {"$gt": 1}  # Filtra apenas os grupos com mais de 1 entrada (duplicatas)
-                }
-            }
+            {"$group": {"_id": "$_id", "doc_ids": {"$addToSet": "$_id"}, "count": {"$sum": 1}}},
+            {"$match": {"count": {"$gt": 1}}}
         ]
 
         try:
+            # Correção para usar a chave correta no pipeline. 
+            # O ID único agora é a tag da guerra ou o tempo de preparação.
+            # No entanto, o cleanup deve procurar por IDs de documento (_id) duplicados se o bug anterior os criou.
+            # O pipeline mais seguro é agrupar por um campo que DEVERIA ser único.
+             pipeline = [
+                {
+                    "$group": {
+                        "_id": "$_id",  # Agrupa pelo ID que deveria ser único
+                        "unique_doc_ids": {"$addToSet": "$_id"},
+                        "count": {"$sum": 1}
+                    }
+                },
+                {
+                    "$match": {
+                        "count": {"$gt": 1}
+                    }
+                }
+            ]
             duplicates = await self.db.war_history.aggregate(pipeline).to_list(length=None)
             
             if not duplicates:
-                await ctx.message.remove_reaction("🔎", self.bot.user)
-                await ctx.message.add_reaction("✅")
-                await ctx.send("✅ Análise concluída. Nenhuma guerra com conteúdo duplicado encontrada no histórico.")
+                await ctx.send("✅ Análise concluída. Nenhuma guerra com conteúdo duplicado encontrada.")
                 return
 
             total_duplicates_to_remove = sum(d['count'] - 1 for d in duplicates)
-            
-            # Salva os dados para o comando de confirmação
             self.cleanup_confirmation_data[ctx.author.id] = duplicates
-
+            
             embed = discord.Embed(
-                title="⚠️ Análise de Duplicatas de Conteúdo",
-                description=(
-                    "A análise encontrou múltiplos registros para a mesma guerra, "
-                    "causados por um bug de reprocessamento anterior."
-                ),
+                title="⚠️ Análise de Duplicatas",
+                description="Foram encontrados múltiplos registros para a mesma guerra.",
                 color=discord.Color.orange()
             )
-            embed.add_field(
-                name="Resultados da Análise",
-                value=(
-                    f"**Grupos de guerras duplicadas:** {len(duplicates)}\n"
-                    f"**Total de registros a serem removidos:** {total_duplicates_to_remove}"
-                ),
-                inline=False
-            )
-            embed.add_field(
-                name="Ação Necessária",
-                value=(
-                    "Para remover as entradas duplicadas e limpar o histórico, "
-                    "use o comando `!dbcleanup confirmar`.\n\n"
-                    "**Atenção:** Apenas uma cópia de cada guerra será mantida."
-                ),
-                inline=False
-            )
-            embed.set_footer(text="Esta é apenas uma análise. Nenhum dado foi alterado ainda.")
-            
-            await ctx.message.remove_reaction("🔎", self.bot.user)
+            embed.add_field(name="Registros a remover", value=total_duplicates_to_remove)
+            embed.add_field(name="Ação", value="Use `!dbcleanup confirmar` para remover as duplicatas.")
             await ctx.send(embed=embed)
 
         except PyMongoError as e:
-            logger.error(f"Erro de banco de dados ao analisar duplicatas: {e}", exc_info=True)
-            await ctx.send(f"❌ Ocorreu um erro ao consultar o banco de dados: `{e}`")
-        except Exception as e:
-            logger.error(f"Erro inesperado ao analisar duplicatas: {e}", exc_info=True)
-            await ctx.send(f"❌ Um erro inesperado ocorreu: `{e}`")
+            await ctx.send(f"❌ Erro de banco de dados: `{e}`")
+        finally:
+            await ctx.message.remove_reaction("🔎", self.bot.user)
 
 
     @db_cleanup.command(name='confirmar')
@@ -99,44 +116,24 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
     async def db_cleanup_confirm(self, ctx: commands.Context):
         """Confirma e executa a limpeza das guerras duplicadas."""
         if ctx.author.id not in self.cleanup_confirmation_data:
-            await ctx.send("⚠️ Nenhuma análise de limpeza pendente. Execute `!dbcleanup` primeiro para analisar os dados.")
+            await ctx.send("⚠️ Nenhuma análise pendente. Execute `!dbcleanup` primeiro.")
             return
 
         duplicates = self.cleanup_confirmation_data.pop(ctx.author.id)
+        await ctx.send(f"⏳ Iniciando limpeza de {sum(d['count'] - 1 for d in duplicates)} registros...")
         
-        await ctx.send(f"⏳ **Iniciando limpeza...** Removendo {sum(d['count'] - 1 for d in duplicates)} registros duplicados. Isso pode levar um momento.")
-        await ctx.message.add_reaction("🔄")
-
         deleted_count = 0
         try:
             for group in duplicates:
-                # Pega todos os IDs de documento MongoDB para este grupo de duplicatas
-                doc_ids = group['doc_ids']
-                
-                # Ordena para garantir que estamos removendo os mais recentes, se houver diferença
-                # (ObjectId no MongoDB contém um timestamp, então a ordem é cronológica)
-                # Neste caso, como o ID pode ser qualquer string, apenas ordenamos alfabeticamente
-                # e mantemos o primeiro.
-                doc_ids.sort()
-                
                 # Mantém o primeiro e remove o resto
-                ids_to_delete = doc_ids[1:]
-                
+                ids_to_delete = group['unique_doc_ids'][1:]
                 if ids_to_delete:
                     result = await self.db.war_history.delete_many({"_id": {"$in": ids_to_delete}})
                     deleted_count += result.deleted_count
-
-            await ctx.message.remove_reaction("🔄", self.bot.user)
-            await ctx.message.add_reaction("✅")
-            await ctx.send(f"✅ **Limpeza Concluída!**\nForam removidos **{deleted_count}** registros de guerra duplicados do histórico.")
-
+            await ctx.send(f"✅ Limpeza Concluída! Removidos **{deleted_count}** registros duplicados.")
         except PyMongoError as e:
-            logger.error(f"Erro de banco de dados durante a limpeza de duplicatas: {e}", exc_info=True)
-            await ctx.send(f"❌ Ocorreu um erro durante a limpeza: `{e}`")
-        except Exception as e:
-            logger.error(f"Erro inesperado durante a limpeza: {e}", exc_info=True)
-            await ctx.send(f"❌ Um erro inesperado ocorreu: `{e}`")
-
+            await ctx.send(f"❌ Erro durante a limpeza: `{e}`")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MaintenanceCog(bot))
+
