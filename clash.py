@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.07-AdminPanel-Fix
+# Versão 20.2.08-Middleware-Hotfix
 
 import os
 import logging
@@ -65,7 +65,7 @@ ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
-BOT_VERSION = "20.2.07-AdminPanel-Fix"
+BOT_VERSION = "20.2.08-Middleware-Hotfix"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -278,13 +278,18 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     
     # --- NOVAS ROTAS DE ADMIN ---
-    async def admin_auth_middleware(app, handler):
-        async def middleware_handler(request):
-            session = await get_session(request)
-            if not session.get('admin'):
-                return web.json_response({"status": "unauthorized"}, status=403)
-            return await handler(request)
-        return middleware_handler
+
+    # *** CORREÇÃO AQUI ***
+    @web.middleware
+    async def admin_auth_middleware(request, handler):
+        session = await get_session(request)
+        if not session.get('admin'):
+            return web.json_response({"status": "unauthorized"}, status=403)
+        
+        # A correção principal está aqui: chamamos o handler e retornamos sua resposta
+        response = await handler(request)
+        return response
+    # *** FIM DA CORREÇÃO ***
 
     async def api_admin_diagnostics(r): return web.json_response(await admin_cog.get_diagnostics())
     async def api_admin_get_settings(r): return web.json_response(await admin_cog.get_settings())
@@ -305,21 +310,17 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             return web.json_response({"status": "success", "message": "Sincronização de guerra forçada."})
         return web.json_response({"status": "error", "message": "Ação desconhecida."}, status=400)
 
-    # *** CORREÇÃO AQUI ***
     # Cria uma "sub-aplicação" para as rotas de admin
-    admin_api_app = web.Application()
+    admin_api_app = web.Application(middlewares=[admin_auth_middleware]) # O middleware é aplicado na criação
     admin_api_app.router.add_get("/diagnostics", api_admin_diagnostics)
     admin_api_app.router.add_get("/settings", api_admin_get_settings)
     admin_api_app.router.add_post("/settings", api_admin_update_settings)
     admin_api_app.router.add_get("/db_viewer", api_admin_db_viewer)
     admin_api_app.router.add_post("/actions", api_admin_actions)
     
-    # Adiciona o middleware de autenticação à sub-aplicação
-    admin_api_app.middlewares.append(admin_auth_middleware)
-
     # Adiciona a sub-aplicação à aplicação principal
     app.add_subapp("/api/admin/", admin_api_app)
-    # *** FIM DA CORREÇÃO ***
+    # --- FIM DAS NOVAS ROTAS ---
     
     static_dir = os.path.join(os.path.dirname(__file__), "static")
 
