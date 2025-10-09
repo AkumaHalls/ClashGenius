@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-3
 import datetime
 import discord
 import pytz
@@ -8,11 +8,17 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
     """Calcula estatísticas detalhadas de uma guerra finalizada a partir do documento do DB."""
     our_member_tags = {m['tag'] for m in war_doc.get('our_clan_members_in_war', []) if 'tag' in m}
     all_attacks = war_doc.get('all_attacks', [])
+    
+    # CORREÇÃO: Utiliza a 'attacker_tag' para filtrar corretamente os ataques do nosso clã
     our_attacks = [a for a in all_attacks if a.get("attacker_tag") in our_member_tags]
 
     player_scores = {}
     if our_attacks:
         for attack in our_attacks:
+            # Pula ataques inválidos ou sem dados
+            if not all(k in attack for k in ['stars', 'destruction', 'defender_townhall', 'attacker_townhall', 'attacker_tag']):
+                continue
+
             score = attack.get('stars', 0) * 1000 + attack.get('destruction', 0)
             
             th_diff = attack.get('defender_townhall', 0) - attack.get('attacker_townhall', 0)
@@ -31,8 +37,13 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
     war_heroes = []
     for i, (player_tag, data) in enumerate(sorted_players[:3]):
         member_info = next((m for m in war_doc.get('our_clan_members_in_war', []) if m.get('tag') == player_tag), {})
+        
+        # Garante que temos ataques para calcular
+        if not data["attacks"]:
+            continue
+            
         total_stars = sum(a.get('stars', 0) for a in data["attacks"])
-        avg_destruction = sum(a.get('destruction', 0) for a in data["attacks"]) / len(data["attacks"]) if data["attacks"] else 0
+        avg_destruction = sum(a.get('destruction', 0) for a in data["attacks"]) / len(data["attacks"])
         
         reason = f"{total_stars} estrelas e {avg_destruction:.1f}% de destruição média em {len(data['attacks'])} ataque(s)."
         if any(a.get('defender_townhall', 0) > a.get('attacker_townhall', 0) for a in data["attacks"]):
@@ -55,7 +66,7 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
             if avg_stars < 2.3:
                 points_to_improve.append(f"Baixa média de estrelas ({avg_stars:.2f}⭐) contra CV{th_level}.")
     
-    if not points_to_improve:
+    if not points_to_improve and our_attacks: # Adicionado para evitar mensagem padrão se não houver ataques
         points_to_improve.append("Bom desempenho geral, manter o foco!")
 
     return {
@@ -110,15 +121,18 @@ def create_post_war_analysis_embed(war_doc: Dict) -> Optional[discord.Embed]:
             
             jogadas_str = ""
             for hero in war_heroes:
+                # Garante que há ataques antes de tentar encontrar o melhor
+                if not hero['attacks']: continue
                 ataque_destaque = max(hero['attacks'], key=lambda a: a.get('stars', 0) * 1000 + a.get('destruction', 0))
                 stars_str = "⭐" * ataque_destaque.get('stars', 0)
                 jogadas_str += f"`{hero['rank']}.` **{hero.get('name')}** vs {ataque_destaque.get('defender_name')} - {stars_str} {ataque_destaque.get('destruction')}% \n"
             
-            embed.add_field(
-                name="⚔️ Heróis da Guerra",
-                value=jogadas_str,
-                inline=False
-            )
+            if jogadas_str:
+                embed.add_field(
+                    name="⚔️ Heróis da Guerra",
+                    value=jogadas_str,
+                    inline=False
+                )
         
         if points_to_improve:
             embed.add_field(
@@ -132,5 +146,7 @@ def create_post_war_analysis_embed(war_doc: Dict) -> Optional[discord.Embed]:
 
         return embed
 
-    except Exception:
+    except Exception as e:
+        logger.error(f"Erro ao criar embed de análise pós-guerra: {e}", exc_info=True)
         return None
+

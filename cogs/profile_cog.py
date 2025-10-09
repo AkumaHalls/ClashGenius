@@ -147,14 +147,16 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
 
     def get_hero_emoji(self, hero_name: str) -> str:
         """Retorna emoji para o herói."""
+        # ATUALIZADO: Adicionado o novo herói
         hero_emojis = {
             "Barbarian King": "👑",
             "Archer Queen": "🏹",
             "Grand Warden": "🔮",
             "Royal Champion": "⚡",
-            "Battle Machine": "🤖"
+            "Battle Machine": "🤖",
+            "Battle Copter": "🚁" 
         }
-        return hero_emojis.get(hero_name, "👑")
+        return hero_emojis.get(hero_name, "🦸") # Emoji padrão para heróis futuros
 
     def get_league_emoji(self, league_name: str) -> str:
         """Retorna emoji para a liga."""
