@@ -5,6 +5,7 @@ from discord.ext import commands
 from pymongo import DESCENDING
 import coc
 from typing import Dict, Any
+import datetime  # <--- CORREÇÃO AQUI
 
 logger = logging.getLogger("admin_cog")
 
@@ -119,7 +120,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                 color=discord.Color.orange(),
                 timestamp=datetime.datetime.now(self.bot.timezone)
             )
-            embed.set_footer(text=f"Enviado via Painel Clash Genius v{self.bot.bot_version}")
+            embed.set_footer(text=f"Enviado via Painel Clash Genius v{self.bot.version}")
 
             await channel.send(embed=embed)
             logger.info(f"Anúncio enviado para o canal {channel_id} via painel.")
@@ -142,3 +143,4 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))
+
