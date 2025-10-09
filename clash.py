@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.05-Cog-Integrity
+# Versão 20.2.06-AdminPanel-Expansion
 
 import os
 import logging
 import asyncio
 import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 import discord
 from discord.ext import commands
@@ -23,8 +23,31 @@ import json
 
 from war_predictor import WarPredictionSystemV3
 
+# --- NOVO: Handler de log em memória ---
+class MemoryLogHandler(logging.Handler):
+    def __init__(self, capacity=50):
+        super().__init__()
+        self.capacity = capacity
+        self.buffer = []
+
+    def emit(self, record):
+        self.buffer.append(record)
+        if len(self.buffer) > self.capacity:
+            self.buffer.pop(0)
+
+# Configuração do logging
+log_handler = MemoryLogHandler()
+log_handler.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+log_handler.setFormatter(formatter)
+
+# Adiciona o handler customizado ao logger principal
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.getLogger().addHandler(log_handler)
+
 logger = logging.getLogger("clash_genius_bot")
+# --- FIM: Handler de log ---
+
 
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -42,7 +65,7 @@ ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
-BOT_VERSION = "20.2.05-Cog-Integrity"
+BOT_VERSION = "20.2.06-AdminPanel-Expansion"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -61,6 +84,7 @@ class ClashGeniusBot(commands.Bot):
         self.bot_version = BOT_VERSION
         self.timezone = TIMEZONE
         self.maintenance_mode = False
+        self.maintenance_message = "O painel está em manutenção. Voltaremos em breve!" # Default message
         self.api_client: Optional[coc.Client] = None
         self.war_prediction_system: Optional[WarPredictionSystemV3] = None
         self.db = None
@@ -72,6 +96,7 @@ class ClashGeniusBot(commands.Bot):
         self.db_ready = asyncio.Event()
         self.coc_client_ready = asyncio.Event()
         self.processed_war_ids = set()
+        self.log_handler = log_handler
 
     async def setup_hook(self) -> None:
         logger.info("Executando setup_hook...")
@@ -96,7 +121,7 @@ class ClashGeniusBot(commands.Bot):
         cog_files = [
             'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 
             'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog',
-            'maintenance_cog', 'web_api_cog'
+            'maintenance_cog', 'web_api_cog', 'admin_cog' # Adiciona o novo cog
         ]
         for cog_name in cog_files:
             try:
@@ -110,11 +135,26 @@ class ClashGeniusBot(commands.Bot):
         
     async def load_initial_state_from_db(self):
         if self.db is None: return
-        config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
-        if config:
-            self.maintenance_mode = config.get("enabled", False)
+        
+        # Carrega modo manutenção
+        maint_config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
+        if maint_config:
+            self.maintenance_mode = maint_config.get("enabled", False)
             logger.info(f"Modo manutenção carregado do DB. Estado: {'ATIVADO' if self.maintenance_mode else 'DESATIVADO'}")
         
+        # NOVO: Carrega outras configurações
+        bot_settings = await self.db.system_config.find_one({"_id": "bot_settings"})
+        if bot_settings:
+            self.channel_id = bot_settings.get("channel_id", self.channel_id)
+            self.post_war_analysis_channel_id = bot_settings.get("post_war_analysis_channel_id", self.post_war_analysis_channel_id)
+            self.clan_games_channel_id = bot_settings.get("clan_games_channel_id", self.clan_games_channel_id)
+            self.cwl_planner_channel_id = bot_settings.get("cwl_planner_channel_id", self.cwl_planner_channel_id)
+            self.role_id_1star_alert = bot_settings.get("role_id_1star_alert", self.role_id_1star_alert)
+            self.role_id_missed_attack = bot_settings.get("role_id_missed_attack", self.role_id_missed_attack)
+            self.maintenance_message = bot_settings.get("maintenance_message", self.maintenance_message)
+            logger.info("Configurações de IDs e mensagens carregadas do banco de dados.")
+
+        # Carrega guerras processadas
         processed_wars_cursor = self.db.war_history.find({}, {"_id": 1})
         self.processed_war_ids = {doc["_id"] async for doc in processed_wars_cursor}
         logger.info(f"Carregados {len(self.processed_war_ids)} IDs de guerras já processadas do histórico.")
@@ -161,8 +201,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     cwl_cog = bot_instance.get_cog("Planeador de CWL")
     maintenance_cog = bot_instance.get_cog("Manutenção do Sistema")
     war_advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
+    admin_cog = bot_instance.get_cog("Painel de Administração Avançado") # NOVO
 
-    if not all([web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog, war_advisor_cog]):
+    if not all([web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog, war_advisor_cog, admin_cog]):
         logger.critical("Um ou mais cogs essenciais para o servidor web não foram carregados. O servidor não pode iniciar.")
         return
 
@@ -179,7 +220,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
              bot_instance.web_api_cache[key] = {"data": data, "timestamp": now}
         return web.json_response(data)
 
-    # API Handlers
+    # API Handlers (existentes)
     async def api_clan_handler(r): return await handle_web_response(r, 'clan', web_api_cog.fetch_clan_info_for_web)
     async def api_members_handler(r): return await handle_web_response(r, 'members', web_api_cog.fetch_clan_members_for_web)
     async def api_current_war_details_handler(r): return await handle_web_response(r, 'war_details', web_api_cog.fetch_current_war_details_for_web)
@@ -222,7 +263,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             logger.error(f"Erro no endpoint do war_advisor: {e}", exc_info=True)
             return web.json_response({"success": False, "error": "Erro interno."}, status=500)
 
-    # API Routes
+    # API Routes (existentes)
     app.router.add_get("/api/clan", api_clan_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
@@ -236,6 +277,44 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     
+    # --- NOVAS ROTAS DE ADMIN ---
+    async def admin_auth_middleware(app, handler):
+        async def middleware_handler(request):
+            session = await get_session(request)
+            if not session.get('admin'):
+                return web.json_response({"status": "unauthorized"}, status=403)
+            return await handler(request)
+        return middleware_handler
+
+    async def api_admin_diagnostics(r): return web.json_response(await admin_cog.get_diagnostics())
+    async def api_admin_get_settings(r): return web.json_response(await admin_cog.get_settings())
+    async def api_admin_update_settings(r): return web.json_response(await admin_cog.update_settings(await r.json()))
+    async def api_admin_db_viewer(r): return web.json_response(await admin_cog.get_db_viewer_data(), dumps=lambda v: json.dumps(v, default=str))
+    
+    async def api_admin_actions(r):
+        data = await r.json()
+        action = data.get("action")
+        payload = data.get("payload", {})
+        if action == "send_announcement":
+            return web.json_response(await admin_cog.send_announcement(payload.get("channel_id"), payload.get("message")))
+        elif action == "clear_cache":
+            return web.json_response(await admin_cog.clear_web_cache(payload.get("cache_key")))
+        elif action == "force_sync_war":
+            tasks_cog = bot_instance.get_cog("Tarefas em Segundo Plano")
+            asyncio.create_task(tasks_cog.check_war_end_task.coro(tasks_cog)) # Roda em segundo plano
+            return web.json_response({"status": "success", "message": "Sincronização de guerra forçada."})
+        return web.json_response({"status": "error", "message": "Ação desconhecida."}, status=400)
+
+    # Adiciona as rotas com middleware de autenticação
+    admin_api_routes = web.UrlDispatcher()
+    admin_api_routes.add_get("/diagnostics", api_admin_diagnostics)
+    admin_api_routes.add_get("/settings", api_admin_get_settings)
+    admin_api_routes.add_post("/settings", api_admin_update_settings)
+    admin_api_routes.add_get("/db_viewer", api_admin_db_viewer)
+    admin_api_routes.add_post("/actions", api_admin_actions)
+    app.add_subapp("/api/admin/", admin_api_routes, middleware=admin_auth_middleware)
+    # --- FIM DAS NOVAS ROTAS ---
+
     static_dir = os.path.join(os.path.dirname(__file__), "static")
 
     # ADMIN PANEL ROUTES
@@ -271,20 +350,26 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
     async def admin_get_status_handler(request):
         session = await get_session(request)
-        # CORREÇÃO: Não exige mais admin para buscar o status, pois o admin.js precisa disso
+        is_admin = session.get('admin', False)
         return web.json_response({
             "status": "ok", 
             "maintenance_mode": bot_instance.maintenance_mode, 
-            "version": BOT_VERSION
+            "version": BOT_VERSION,
+            "is_admin": is_admin
         })
+    
+    # Rota para a mensagem de manutenção
+    async def api_maintenance_message(r):
+        return web.json_response({"message": bot_instance.maintenance_message})
 
+    app.router.add_get("/api/maintenance_message", api_maintenance_message)
     app.router.add_get("/admin", admin_login_page)
     app.router.add_post("/admin/login", admin_login_handler)
     app.router.add_get("/admin/logout", admin_logout_handler)
     app.router.add_get("/admin/panel", admin_panel_page)
     app.router.add_post("/admin/toggle_maintenance", admin_toggle_maintenance_handler)
     app.router.add_post("/admin/send_test_embed", admin_send_test_embed_handler)
-    app.router.add_get("/api/admin/status", admin_get_status_handler)
+    app.router.add_get("/api/status", admin_get_status_handler) # Renomeado para não conflitar
     
     async def painel_handler(request):
         session = await get_session(request)
@@ -323,4 +408,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
