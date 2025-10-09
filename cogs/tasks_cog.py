@@ -65,7 +65,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         web_api_cog = self.bot.get_cog("Web API")
 
         if db_cog and web_api_cog:
-            war_details_for_db = await web_api_cog.bot.format_war_details_for_web(war)
+            war_details_for_db = await self.bot.format_war_details_for_web(war)
             
             if 'error' not in war_details_for_db:
                 await db_cog.save_war_to_history(war_details_for_db, war_id)
@@ -98,7 +98,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         
         try:
             wars_to_check = []
-
             try:
                 current_war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
                 if current_war:
@@ -109,8 +108,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             try:
                 cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
                 if cwl_group:
-                    # CORREÇÃO DEFINITIVA: Iterar sobre as rodadas e buscar cada guerra.
-                    # O método 'get_war_tags' não existe e causava o erro.
                     for round_tags in cwl_group.rounds:
                         for war_tag in round_tags:
                             if war_tag == '#0': continue
@@ -118,7 +115,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                                 cwl_war = await self.bot.api_client.get_league_war(war_tag)
                                 wars_to_check.append(cwl_war)
                             except coc.NotFound:
-                                logger.warning(f"Não foi possível encontrar a guerra da CWL com a tag: {war_tag}")
                                 continue
             except coc.NotFound:
                 pass
@@ -130,39 +126,36 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 is_our_war = war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag
                 if not is_our_war:
                     continue
-
+                
+                # CORREÇÃO DEFINITIVA: Apenas processa se a guerra tiver TERMINADO.
                 if war.state != 'warEnded':
                     continue
 
                 unique_war_id = self._get_war_id(war)
-                
                 if unique_war_id not in self.bot.processed_war_ids:
-                    logger.info(f"Nova guerra terminada encontrada para processar (ID: {unique_war_id}).")
+                    logger.info(f"Nova guerra terminada ({war.state}) encontrada para processar (ID: {unique_war_id}).")
                     if await self.process_ended_war(war, unique_war_id):
                         self.bot.processed_war_ids.add(unique_war_id)
-                else:
-                    logger.debug(f"Guerra {unique_war_id} já processada, ignorando.")
 
         except Exception as e:
             logger.error(f"Erro inesperado na task de fim de guerra: {e}", exc_info=True)
 
-    # O restante do arquivo (syncwar, post_war_prediction_task, etc.) permanece o mesmo.
     @commands.command(name='syncwar')
     @commands.has_permissions(administrator=True)
     async def sync_war(self, ctx: commands.Context):
-        """Força a sincronização e o relatório da última guerra terminada."""
+        # ... (código inalterado)
         await ctx.message.add_reaction("🔄")
         await self.bot.coc_client_ready.wait()
-        
         logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
         try:
             await self.check_war_end_task.coro(self)
-            await ctx.send("✅ Sincronização forçada concluída. Verifique os canais de relatório.")
+            await ctx.send("✅ Sincronização forçada concluída.")
         except Exception as e:
             logger.error(f"Erro no comando !syncwar: {e}", exc_info=True)
             await ctx.send(f"❌ Erro crítico: {e}")
         finally:
             await ctx.message.remove_reaction("🔄", self.bot.user)
+
 
     @tasks.loop(minutes=10)
     async def post_war_prediction_task(self):
