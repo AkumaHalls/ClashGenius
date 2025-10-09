@@ -64,29 +64,21 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
         await ctx.message.add_reaction("🔎")
         
         pipeline = [
-            {"$group": {"_id": "$_id", "doc_ids": {"$addToSet": "$_id"}, "count": {"$sum": 1}}},
-            {"$match": {"count": {"$gt": 1}}}
+            {
+                "$group": {
+                    "_id": "$_id",
+                    "unique_doc_ids": {"$addToSet": "$_id"},
+                    "count": {"$sum": 1}
+                }
+            },
+            {
+                "$match": {
+                    "count": {"$gt": 1}
+                }
+            }
         ]
 
         try:
-            # Correção para usar a chave correta no pipeline. 
-            # O ID único agora é a tag da guerra ou o tempo de preparação.
-            # No entanto, o cleanup deve procurar por IDs de documento (_id) duplicados se o bug anterior os criou.
-            # O pipeline mais seguro é agrupar por um campo que DEVERIA ser único.
-             pipeline = [
-                {
-                    "$group": {
-                        "_id": "$_id",  # Agrupa pelo ID que deveria ser único
-                        "unique_doc_ids": {"$addToSet": "$_id"},
-                        "count": {"$sum": 1}
-                    }
-                },
-                {
-                    "$match": {
-                        "count": {"$gt": 1}
-                    }
-                }
-            ]
             duplicates = await self.db.war_history.aggregate(pipeline).to_list(length=None)
             
             if not duplicates:
@@ -125,7 +117,6 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
         deleted_count = 0
         try:
             for group in duplicates:
-                # Mantém o primeiro e remove o resto
                 ids_to_delete = group['unique_doc_ids'][1:]
                 if ids_to_delete:
                     result = await self.db.war_history.delete_many({"_id": {"$in": ids_to_delete}})
@@ -136,4 +127,3 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MaintenanceCog(bot))
-
