@@ -62,10 +62,11 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         logger.info(f"A processar guerra ({war_type}) contra {opponent_name} (ID: {war_id})...")
         
         db_cog = self.bot.get_cog("Banco de Dados")
+        web_api_cog = self.bot.get_cog("Web API") # Pega o Cog da API Web
         
-        if db_cog:
-            # CORREÇÃO: Chamar a função a partir do objeto 'self.bot' onde ela agora reside.
-            war_details_for_db = await self.bot.format_war_details_for_web(war)
+        if db_cog and web_api_cog:
+            # CORREÇÃO: Chama a função a partir do Cog correto.
+            war_details_for_db = await web_api_cog.format_war_details_for_web(war)
             
             if 'error' not in war_details_for_db:
                 await db_cog.save_war_to_history(war_details_for_db, war_id)
@@ -123,6 +124,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 return
 
             for war in wars_to_check:
+                if not war or not hasattr(war, 'clan') or not war.clan: continue
                 is_our_war = war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag
                 if not is_our_war:
                     continue
