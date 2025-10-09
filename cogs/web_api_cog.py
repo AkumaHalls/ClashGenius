@@ -37,12 +37,13 @@ class WebApiCog(commands.Cog, name="Web API"):
             "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
             "version": self.bot.bot_version,
             "capital_league": capital_league_name,
-            "capital_districts": [{"name": d.name, "level": d.level} for d in getattr(clan, 'capital_districts', []) if d.hall_level > 0]
+            # A chave 'capital_districts' foi removida para corrigir o erro e atender ao pedido.
         }
 
     async def fetch_current_war_details_for_web(self, force_api_call=False):
         try:
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
+            # A função format_war_details_for_web está no bot principal
             response_data = await self.bot.format_war_details_for_web(war)
             return response_data
         except (coc.NotFound, coc.PrivateWarLog):
