@@ -32,6 +32,21 @@
 
 ## 🔄 CHANGELOG
 
+#### v20.2.05 (09/10/2025)
+- 🚀 **REESTRUTURAÇÃO E CORREÇÃO DE INTEGRIDADE (HOTFIX GERAL):**
+    - ✨ **Arquitetura de Cogs Reforçada:** Mantida a separação de responsabilidades, mas a função crítica `format_war_details_for_web` foi movida de volta para a classe principal do bot (`clash.py`). Isso resolveu um `AttributeError` complexo e garantiu que tanto as tarefas em segundo plano (`tasks_cog`) quanto a API web (`web_api_cog`) pudessem acessá-la de forma consistente, mantendo a estabilidade.
+    - ✅ **Correção - Painel de Administrador:** Restaurada a funcionalidade do painel de administrador (`/admin`), que estava inacessível (erro 404) devido a um problema de roteamento na API web após a refatoração.
+    - ✅ **Correção - API da CWL:** Corrigido o erro 404 na funcionalidade "Gerar Plano de Rotação" da CWL, que ocorria porque a rota da API não estava sendo registrada corretamente.
+    - ✅ **Correção - Processamento de Guerras:** Implementada uma verificação `if war.state == 'warEnded':` na tarefa de fim de guerra (`tasks_cog.py`). Isso impede que guerras ainda em andamento sejam salvas no histórico, corrigindo o bug que exibia "Ataques Pendentes" para a guerra atual.
+    - ✅ **Correção - Heróis da Guerra:** Adicionada a `attacker_tag` aos dados de cada ataque salvo no banco de dados. Isso permite que a análise pós-guerra identifique corretamente os atacantes do nosso clã e exiba os "Heróis da Última Guerra" na aba Destaques (para guerras futuras).
+    - ✅ **Correção - Distritos da Capital:** Removida a exibição dos distritos da capital do painel, que estava causando um `AttributeError` e quebrando a API da aba "Clã".
+
+#### v20.2.01 (08/10/2025)
+- 🐞 **CORREÇÃO CRÍTICA DE LÓGICA (HOTFIX):**
+    - ✅ **Correção - Duplicação de Guerras e Flood:** Implementada uma lógica robusta para criar um ID único e consistente para cada guerra (`war.tag` para CWL, `preparation_start_time` para guerras normais) e para verificar se a guerra pertence ao clã antes de processar. Isso resolveu o problema central de reprocessamento e o processamento de guerras de outros clãs, acabando com o "flood" de mensagens no Discord e a duplicação de registros no banco de dados.
+    - ✅ **Correção - Histórico de Guerra "Não Encontrado":** O painel web foi ajustado para usar o novo ID único da guerra ao buscar detalhes no histórico, corrigindo o erro "Guerra não encontrada" que ocorria ao clicar em uma guerra na lista.
+    - ✨ **Ferramenta de Manutenção:** Adicionado o comando `!dbcleanup` para administradores, permitindo analisar e remover com segurança as entradas de guerra duplicadas que foram criadas incorretamente no banco de dados.
+
 #### v20.1.87 (14/09/2025)
 - 🚀 **REARQUITETURA COMPLETA PARA COGS:** Todo o código do bot foi refatorado para o sistema de Cogs do `discord.py`, resultando em um projeto mais limpo, modular e fácil de manter.
     - ✨ **`clash.py` Simplificado:** O arquivo principal agora é responsável apenas pela inicialização, configuração e carregamento dos módulos, sem lógica de comandos ou eventos.
