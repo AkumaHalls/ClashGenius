@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.04-Hotfix-Integrity
+# Versão 20.2.05-Cog-Integrity
 
 import os
 import logging
@@ -21,7 +21,6 @@ import base64
 from cryptography.fernet import Fernet
 import json
 
-from formatting import format_war_time_details
 from war_predictor import WarPredictionSystemV3
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -43,7 +42,7 @@ ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
-BOT_VERSION = "20.2.04-Hotfix-Integrity"
+BOT_VERSION = "20.2.05-Cog-Integrity"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -152,74 +151,6 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
 
-    # CORREÇÃO: Função movida de volta para a classe principal do bot para ser acessível a todos os cogs.
-    async def format_war_details_for_web(self, war: coc.ClanWar) -> Dict[str, Any]:
-        try:
-            if not war or not war.clan or not war.opponent:
-                return {"error": "Dados da guerra incompletos."}
-
-            prediction_data = await self.war_prediction_system.predict_war_outcome(war, self.clan_tag)
-            our_clan, opp_clan = (war.clan, war.opponent) if war.clan.tag == self.clan_tag else (war.opponent, war.clan)
-
-            def get_team_details(team, war_obj):
-                if not team or not hasattr(team, 'members'): return []
-                details = []
-                for m in team.members:
-                    if not m: continue
-                    details.append({
-                        "name": m.name, "tag": m.tag, "townhall": m.town_hall, "map_position": m.map_position,
-                        "attacks_used": len(m.attacks),
-                        "attacks_made": [{"stars": a.stars, "destruction": a.destruction, "defender_name": getattr(war_obj.get_member(a.defender_tag), 'name', a.defender_tag), "defender_townhall": getattr(war_obj.get_member(a.defender_tag), 'town_hall', '?')} for a in m.attacks],
-                        "defenses_received": [{"stars": d.stars, "destruction": d.destruction, "attacker_name": getattr(war_obj.get_member(d.attacker_tag), 'name', d.attacker_tag), "attacker_townhall": getattr(war_obj.get_member(d.attacker_tag), 'town_hall', '?')} for d in m.defenses]
-                    })
-                return sorted(details, key=lambda x: x['map_position'])
-
-            def get_star_dist(attacks):
-                dist = {i: 0 for i in range(4)}
-                for a in attacks:
-                    if a: dist[a.stars] += 1
-                return dist
-
-            our_attacks = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == our_clan.tag]
-            opp_attacks = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
-            
-            all_attacks_data = []
-            for attack in war.attacks:
-                if not attack: continue
-                attacker = war.get_member(attack.attacker_tag)
-                defender = war.get_member(attack.defender_tag)
-                all_attacks_data.append({
-                    "order": attack.order, "attacker_clan_tag": getattr(getattr(attacker, 'clan', None), 'tag', None),
-                    "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag), "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
-                    "attacker_townhall": getattr(attacker, 'town_hall', '?'), "defender_name": getattr(defender, 'name', attack.defender_tag),
-                    "defender_townhall": getattr(defender, 'town_hall', '?'), "stars": attack.stars, "destruction": attack.destruction,
-                    "duration": f"{attack.duration}s"
-                })
-
-            return {
-                "war_data": {
-                    "clan_tag": our_clan.tag, "status": str(war.state), "state_description": str(war.state).capitalize(),
-                    "clan_name": our_clan.name, "clan_stars": our_clan.stars, "clan_destruction": f"{our_clan.destruction:.2f}%",
-                    "clan_badge_url": our_clan.badge.url if our_clan.badge else None, "clan_attacks_used": our_clan.attacks_used,
-                    "opponent_name": opp_clan.name, "opponent_stars": opp_clan.stars, "opponent_destruction": f"{opp_clan.destruction:.2f}%",
-                    "opponent_badge_url": opp_clan.badge.url if opp_clan.badge else None, "opponent_attacks_used": opp_clan.attacks_used,
-                    **format_war_time_details(war, datetime.datetime.now(pytz.utc)),
-                    "attacks_per_member": war.attacks_per_member, "team_size": war.team_size,
-                    "clan_star_distribution": get_star_dist(our_attacks), "opponent_star_distribution": get_star_dist(opp_attacks),
-                    "clan_avg_stars": f"{our_clan.stars / len(our_attacks):.2f}" if our_attacks else "0.00",
-                    "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks):.2f}" if opp_attacks else "0.00",
-                    "is_cwl": war.is_cwl
-                },
-                "all_attacks": all_attacks_data,
-                "our_clan_members_in_war": get_team_details(our_clan, war),
-                "opponent_clan_members_in_war": get_team_details(opp_clan, war),
-                "prediction": prediction_data
-            }
-        except Exception as e:
-            logger.error(f"Erro ao formatar detalhes da guerra: {e}", exc_info=True)
-            return {"error": "Erro interno ao formatar dados da guerra."}
-
-
 async def setup_web_server(bot_instance: ClashGeniusBot):
     app = web.Application()
     
@@ -248,7 +179,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
              bot_instance.web_api_cache[key] = {"data": data, "timestamp": now}
         return web.json_response(data)
 
-    # Handlers da API
+    # API Handlers
     async def api_clan_handler(r): return await handle_web_response(r, 'clan', web_api_cog.fetch_clan_info_for_web)
     async def api_members_handler(r): return await handle_web_response(r, 'members', web_api_cog.fetch_clan_members_for_web)
     async def api_current_war_details_handler(r): return await handle_web_response(r, 'war_details', web_api_cog.fetch_current_war_details_for_web)
@@ -274,13 +205,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         profile_data = await profile_cog.fetch_player_profile_data(player_tag)
         return web.json_response(profile_data, status=404 if "error" in profile_data else 200)
 
-    # CORREÇÃO: Adicionando a rota do planejador de CWL que estava faltando
     async def api_cwl_generate_plan_handler(request):
         bot_instance.web_api_cache.pop('cwl_plan', None)
         plan = await cwl_cog.generate_rotation_plan()
         return web.json_response(plan)
 
-    # CORREÇÃO: Adicionando a rota do conselheiro de guerra que estava faltando
     async def api_war_advisor_plan_handler(request):
         try:
             war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag)
@@ -288,12 +217,12 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             plan = war_advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
             return web.json_response(plan)
         except (coc.NotFound, coc.PrivateWarLog):
-            return web.json_response({"success": False, "error": "Nenhuma guerra ativa."}, status=404) # HTTP 404
+            return web.json_response({"success": False, "error": "Nenhuma guerra ativa."}, status=404)
         except Exception as e:
             logger.error(f"Erro no endpoint do war_advisor: {e}", exc_info=True)
             return web.json_response({"success": False, "error": "Erro interno."}, status=500)
 
-
+    # API Routes
     app.router.add_get("/api/clan", api_clan_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
@@ -309,7 +238,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     
     static_dir = os.path.join(os.path.dirname(__file__), "static")
 
-    # --- ADMIN PANEL ROUTES ---
+    # ADMIN PANEL ROUTES
     async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
     async def admin_panel_page(r):
         session = await get_session(r)
@@ -330,34 +259,32 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         session.pop('admin', None)
         return web.HTTPFound('/admin')
     
-    async def admin_api_handler(request):
+    async def admin_toggle_maintenance_handler(request):
         session = await get_session(request)
-        if not session.get('admin'):
-            return web.json_response({"status": "unauthorized"}, status=403)
-        
-        action = request.match_info.get('action')
-        if not maintenance_cog:
-            return web.json_response({"status": "error", "message": "Maintenance cog not found"}, status=500)
+        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        return await maintenance_cog.toggle_maintenance_mode_web()
 
-        if action == 'toggle_maintenance':
-            return await maintenance_cog.toggle_maintenance_mode_web()
-        elif action == 'send_test_embed':
-            return await maintenance_cog.send_test_embed_web()
-        elif action == 'get_status':
-            return web.json_response({
-                "status": "ok", 
-                "maintenance_mode": bot_instance.maintenance_mode, 
-                "version": BOT_VERSION
-            })
-        return web.json_response({"status": "error", "message": "Invalid action"}, status=400)
+    async def admin_send_test_embed_handler(request):
+        session = await get_session(request)
+        if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
+        return await maintenance_cog.send_test_embed_web()
 
+    async def admin_get_status_handler(request):
+        session = await get_session(request)
+        # CORREÇÃO: Não exige mais admin para buscar o status, pois o admin.js precisa disso
+        return web.json_response({
+            "status": "ok", 
+            "maintenance_mode": bot_instance.maintenance_mode, 
+            "version": BOT_VERSION
+        })
 
     app.router.add_get("/admin", admin_login_page)
     app.router.add_post("/admin/login", admin_login_handler)
     app.router.add_get("/admin/logout", admin_logout_handler)
     app.router.add_get("/admin/panel", admin_panel_page)
-    app.router.add_post("/admin/api/{action}", admin_api_handler)
-    app.router.add_get("/api/admin/status", lambda r: admin_api_handler(r, 'get_status')) # Ajuste para GET
+    app.router.add_post("/admin/toggle_maintenance", admin_toggle_maintenance_handler)
+    app.router.add_post("/admin/send_test_embed", admin_send_test_embed_handler)
+    app.router.add_get("/api/admin/status", admin_get_status_handler)
     
     async def painel_handler(request):
         session = await get_session(request)
@@ -379,7 +306,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
     logger.info(f"Servidor web iniciado em http://0.0.0.0:{port}")
-
 
 async def main():
     intents = discord.Intents.default()
