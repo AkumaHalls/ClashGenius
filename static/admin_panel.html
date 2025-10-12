@@ -16,22 +16,111 @@
             </div>
             <p>Use os controles abaixo para gerenciar o bot e o painel.</p>
 
+            <!-- Seção de Controles Existente -->
             <div class="control-section">
-                <h3>Modo Manutenção</h3>
+                <h3>Controles Gerais</h3>
                 <div class="maintenance-status">
-                    Status Atual: <span id="maintenance-status-text" class="status-badge">Carregando...</span>
+                    Status Manutenção: <span id="maintenance-status-text" class="status-badge">Carregando...</span>
                 </div>
                 <button id="toggle-maintenance-btn" class="control-btn">Ativar/Desativar</button>
-                <p class="control-description">Pausa todos os alertas e redireciona os usuários para uma página de manutenção.</p>
-            </div>
-
-            <div class="control-section">
-                <h3>Comunicação com Discord</h3>
+                <p class="control-description">Pausa alertas e redireciona usuários para a página de manutenção.</p>
+                <br>
                 <button id="send-test-embed-btn" class="control-btn">Enviar Mensagem de Teste</button>
-                <p class="control-description">Envia um embed de teste para o canal de logs para verificar a conexão.</p>
+                <p class="control-description">Verifica a comunicação com o canal de logs do Discord.</p>
             </div>
             
-             <div class="control-section">
+            <!-- NOVA SEÇÃO: Diagnóstico do Sistema -->
+            <div class="control-section">
+                <h3>Diagnóstico do Sistema</h3>
+                <div class="status-line">
+                    <strong>Status da API (Supercell):</strong>
+                    <span id="api-status-badge" class="status-badge">Verificando...</span>
+                    <span id="api-status-message" class="status-message"></span>
+                </div>
+                <div class="logs-container">
+                    <h4>Logs Recentes do Bot</h4>
+                    <pre id="recent-logs-box">Carregando logs...</pre>
+                </div>
+            </div>
+
+            <!-- NOVA SEÇÃO: Configurações -->
+            <div class="control-section">
+                <h3>Gerenciamento de Configurações</h3>
+                <form id="settings-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="channel_id">ID Canal de Logs Principal</label>
+                            <input type="text" id="channel_id" name="channel_id" class="settings-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="post_war_analysis_channel_id">ID Canal Análise Pós-Guerra</label>
+                            <input type="text" id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="clan_games_channel_id">ID Canal Jogos do Clã</label>
+                            <input type="text" id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input">
+                        </div>
+                         <div class="form-group">
+                            <label for="cwl_planner_channel_id">ID Canal Planejador CWL</label>
+                            <input type="text" id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="role_id_1star_alert">ID Cargo Alerta 1 Estrela</label>
+                            <input type="text" id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="role_id_missed_attack">ID Cargo Ataque Perdido</label>
+                            <input type="text" id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="maintenance_message">Mensagem de Manutenção</label>
+                        <textarea id="maintenance_message" name="maintenance_message" rows="3" class="settings-textarea"></textarea>
+                    </div>
+                    <button type="submit" class="control-btn">Salvar Configurações</button>
+                    <p id="settings-feedback" class="feedback-text"></p>
+                </form>
+            </div>
+
+            <!-- NOVA SEÇÃO: Ações do Bot -->
+            <div class="control-section">
+                <h3>Ações do Bot</h3>
+                <button class="control-btn action-btn" data-action="clear_cache" data-payload='{"cache_key": "war_details"}'>Limpar Cache da Guerra</button>
+                <button class="control-btn action-btn" data-action="force_sync_war" data-payload='{}'>Forçar Sincronização de Guerra</button>
+                <div class="announcement-section">
+                    <h4>Enviar Anúncio Global</h4>
+                    <div class="form-group">
+                        <input type="text" id="announcement-channel-id" placeholder="ID do Canal de Destino">
+                    </div>
+                    <div class="form-group">
+                        <textarea id="announcement-message" rows="4" placeholder="Digite sua mensagem aqui..."></textarea>
+                    </div>
+                    <button id="send-announcement-btn" class="control-btn">Enviar Anúncio</button>
+                </div>
+                 <p id="actions-feedback" class="feedback-text"></p>
+            </div>
+
+            <!-- NOVA SEÇÃO: Visualizador do Banco de Dados -->
+            <div class="control-section">
+                <h3>Visualizador do Banco de Dados (Últimos 5)</h3>
+                <h4>Histórico de Guerras</h4>
+                <div class="table-container-admin">
+                    <table id="db-wars-table">
+                        <thead><tr><th>Oponente</th><th>Data Fim</th><th>ID</th></tr></thead>
+                        <tbody><tr><td colspan="3">Carregando...</td></tr></tbody>
+                    </table>
+                </div>
+                <h4>Notas de Jogadores</h4>
+                <div class="table-container-admin">
+                    <table id="db-notes-table">
+                        <thead><tr><th>Tag do Jogador</th><th>Nota</th><th>Prioridade</th></tr></thead>
+                        <tbody><tr><td colspan="3">Carregando...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Seção de Informações do Sistema Existente -->
+            <div class="control-section">
                 <h3>Informações do Sistema</h3>
                 <p><strong>Versão do Bot:</strong> <span id="bot-version-text">-</span></p>
             </div>

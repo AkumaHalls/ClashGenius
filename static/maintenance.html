@@ -13,8 +13,20 @@
             <div class="gear-icon gear-two">⚙️</div>
         </div>
         <h1>Em Manutenção</h1>
-        <p>O painel do Clash Genius está passando por uma breve manutenção.</p>
-        <p>Voltaremos em breve!</p>
+        <p id="maintenance-custom-message">O painel do Clash Genius está passando por uma breve manutenção. Voltaremos em breve!</p>
     </div>
+    <script>
+        // Script para buscar e exibir a mensagem de manutenção personalizada
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch('/api/maintenance_message')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        document.getElementById('maintenance-custom-message').textContent = data.message;
+                    }
+                })
+                .catch(error => console.error('Erro ao buscar mensagem de manutenção:', error));
+        });
+    </script>
 </body>
 </html>
