@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.08-Middleware-Hotfix
+# Versão 20.2.08-Middleware-Hotfix#
 
 import os
 import logging
