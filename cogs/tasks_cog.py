@@ -5,6 +5,7 @@ from discord.ext import commands, tasks
 import coc
 import asyncio
 import datetime
+import pytz  # Importa a biblioteca de fuso horário
 from typing import Dict, Any
 
 from cogs.post_war_analysis import create_post_war_analysis_embed
@@ -129,11 +130,23 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 if not is_our_war:
                     continue
                 
-                if war.state != 'warEnded':
+                # CORREÇÃO: VERIFICAÇÃO ADICIONAL DE TEMPO PARA EVITAR RACE CONDITION
+                now = datetime.datetime.now(pytz.utc)
+                # Adiciona o fuso horário UTC ao tempo de término da guerra para uma comparação segura
+                end_time_utc = war.end_time.time.replace(tzinfo=pytz.utc)
+                is_ended_by_time = now > end_time_utc
+                
+                # A guerra será processada se o estado for 'warEnded' OU se o tempo já passou
+                if war.state != 'warEnded' and not is_ended_by_time:
                     continue
 
                 unique_war_id = self._get_war_id(war)
                 if unique_war_id not in self.bot.processed_war_ids:
+                    # Garante que o estado seja forçado para 'warEnded' se processamos pelo tempo
+                    if is_ended_by_time and war.state != 'warEnded':
+                        logger.warning(f"Forçando processamento da guerra (ID: {unique_war_id}) baseado no tempo. API state: {war.state}")
+                        war.state = 'warEnded' # Força o estado para garantir consistência
+
                     logger.info(f"Nova guerra terminada ({war.state}) encontrada para processar (ID: {unique_war_id}).")
                     if await self.process_ended_war(war, unique_war_id):
                         self.bot.processed_war_ids.add(unique_war_id)
@@ -170,4 +183,3 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
-
