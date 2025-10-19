@@ -10,11 +10,29 @@ import datetime
 logger = logging.getLogger("admin_cog")
 
 class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
-    """Cog para gerenciar a lógica do backend do painel de administração avançado."""
+    """Cog para gerenciar a lógica do backend do painel de administração e comandos de sincronização."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
+
+    @commands.command(name='sync')
+    @commands.has_permissions(administrator=True)
+    async def sync(self, ctx: commands.Context):
+        """Sincroniza os comandos de barra com o Discord."""
+        logger.info(f"Comando !sync invocado por {ctx.author.name}.")
+        await ctx.message.add_reaction("🔄")
+        try:
+            # Sincroniza a árvore de comandos de barra
+            synced = await self.bot.tree.sync()
+            await ctx.send(f"✅ Sincronizados {len(synced)} comandos de barra!")
+            logger.info(f"{len(synced)} comandos de barra foram sincronizados com sucesso.")
+        except Exception as e:
+            await ctx.send(f"❌ Falha ao sincronizar: {e}")
+            logger.error(f"Falha ao sincronizar comandos de barra: {e}", exc_info=True)
+        finally:
+             await ctx.message.remove_reaction("🔄", self.bot.user)
+
 
     async def get_api_status(self) -> Dict[str, Any]:
         """Verifica a conectividade com a API do Clash of Clans."""
@@ -41,13 +59,12 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         
         settings = await self.db.system_config.find_one({"_id": "bot_settings"})
         if not settings:
-            # Retorna os valores atuais do bot se não houver nada no DB
             return {
                 "channel_id": self.bot.channel_id,
                 "post_war_analysis_channel_id": self.bot.post_war_analysis_channel_id,
                 "clan_games_channel_id": self.bot.clan_games_channel_id,
                 "cwl_planner_channel_id": self.bot.cwl_planner_channel_id,
-                "donations_channel_id": self.bot.donations_channel_id, # NOVO
+                "donations_channel_id": self.bot.donations_channel_id,
                 "role_id_1star_alert": self.bot.role_id_1star_alert,
                 "role_id_missed_attack": self.bot.role_id_missed_attack,
                 "maintenance_message": self.bot.maintenance_message
@@ -56,53 +73,30 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
 
     async def update_settings(self, new_settings: Dict[str, Any]) -> Dict[str, Any]:
         """Atualiza as configurações no bot e no banco de dados."""
-        if self.db is None:
-            return {"error": "Banco de dados não configurado."}
+        if self.db is None: return {"error": "Banco de dados não configurado."}
 
-        # Atualiza os atributos do bot em tempo real
         for key, value in new_settings.items():
-            # Converte para int se for um ID
             try:
                 processed_value = int(value) if "id" in key and value else value
-                if hasattr(self.bot, key):
-                    setattr(self.bot, key, processed_value)
+                if hasattr(self.bot, key): setattr(self.bot, key, processed_value)
             except (ValueError, TypeError):
-                 if hasattr(self.bot, key):
-                    setattr(self.bot, key, value) # Mantém como string se não for número
+                 if hasattr(self.bot, key): setattr(self.bot, key, value)
 
-        # Salva no banco de dados
         await self.db.system_config.update_one(
-            {"_id": "bot_settings"},
-            {"$set": new_settings},
-            upsert=True
+            {"_id": "bot_settings"}, {"$set": new_settings}, upsert=True
         )
         logger.info(f"Configurações do bot atualizadas via painel admin: {new_settings}")
         return {"status": "success", "message": "Configurações salvas."}
 
     async def get_db_viewer_data(self) -> Dict[str, Any]:
         """Busca os últimos registros do banco de dados para visualização."""
-        if self.db is None:
-            return {"error": "Banco de dados não configurado."}
+        if self.db is None: return {"error": "Banco de dados não configurado."}
 
-        # Últimas 5 guerras
         wars_cursor = self.db.war_history.find({}, {"war_data.opponent_name": 1, "war_data.end_time_iso": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(5)
-        last_wars = [
-            {
-                "opponent": w.get("war_data", {}).get("opponent_name", "N/A"),
-                "end_time": w.get("war_data", {}).get("end_time_iso", "N/A"),
-                "id": w.get("_id", "N/A")
-            } async for w in wars_cursor
-        ]
+        last_wars = [ {"opponent": w.get("war_data", {}).get("opponent_name", "N/A"), "end_time": w.get("war_data", {}).get("end_time_iso", "N/A"), "id": w.get("_id", "N/A")} async for w in wars_cursor ]
         
-        # Últimas 5 notas de jogadores
-        notes_cursor = self.db.player_notes.find({}).sort([("$natural", -1)]).limit(5) # $natural para ordem de inserção
-        last_notes = [
-            {
-                "player_tag": n.get("_id", "N/A"),
-                "note": n.get("text", ""),
-                "priority": n.get("priority", "none")
-            } async for n in notes_cursor
-        ]
+        notes_cursor = self.db.player_notes.find({}).sort([("$natural", -1)]).limit(5)
+        last_notes = [ {"player_tag": n.get("_id", "N/A"), "note": n.get("text", ""), "priority": n.get("priority", "none")} async for n in notes_cursor ]
 
         return {"last_wars": last_wars, "last_notes": last_notes}
     
@@ -121,9 +115,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                 color=discord.Color.orange(),
                 timestamp=datetime.datetime.now(self.bot.timezone)
             )
-            # CORREÇÃO AQUI
             embed.set_footer(text=f"Enviado via Painel Clash Genius v{self.bot.bot_version}")
-
             await channel.send(embed=embed)
             logger.info(f"Anúncio enviado para o canal {channel_id} via painel.")
             return {"status": "success", "message": "Anúncio enviado com sucesso!"}
@@ -145,3 +137,4 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))
+
