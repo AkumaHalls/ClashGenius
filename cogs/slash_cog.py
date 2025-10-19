@@ -8,7 +8,7 @@ import coc
 logger = logging.getLogger("slash_cog")
 
 class SlashCog(commands.Cog, name="Comandos de Barra"):
-    """Cog para gerenciar todos os comandos de barra (/), mantendo-os organizados."""
+    """Cog para gerir todos os comandos de barra (/), mantendo-os organizados."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -45,7 +45,6 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
                 await interaction.followup.send(f"❌ {profile_data['error']}")
                 return
             
-            # Mudança aqui: Usa a função `create_profile_embed` que já existe no `profile_cog`
             embed = profile_cog.create_profile_embed(profile_data)
             await interaction.followup.send(embed=embed)
         except Exception as e:
@@ -63,14 +62,14 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
     async def doacoes_slash(self, interaction: discord.Interaction, periodo: app_commands.Choice[str]):
         """Gera e envia o relatório de doações diário ou semanal."""
         await interaction.response.defer(ephemeral=True)
+        # CORREÇÃO AQUI: Procura pelo nome correto "Gerenciador de Doações"
         donation_cog = self.bot.get_cog("Gerenciador de Doações")
         if not donation_cog:
             await interaction.followup.send("❌ Ocorreu um erro interno (Cog de Doações não encontrado).")
             return
             
         days = 1 if periodo.value == 'daily' else 7
-        success = await donation_cog.generate_and_send_report(days=days, force=True, interaction=interaction)
-        # A resposta agora é tratada dentro do `generate_and_send_report`
+        await donation_cog.generate_and_send_report(days=days, force=True, interaction=interaction)
         
     # --- Comandos de Guerra ---
     @app_commands.command(name="plano_guerra", description="Gera e exibe o plano de ataque da IA para a guerra atual.")
