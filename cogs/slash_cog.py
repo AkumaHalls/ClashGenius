@@ -44,6 +44,8 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
             if "error" in profile_data:
                 await interaction.followup.send(f"❌ {profile_data['error']}")
                 return
+            
+            # Mudança aqui: Usa a função `create_profile_embed` que já existe no `profile_cog`
             embed = profile_cog.create_profile_embed(profile_data)
             await interaction.followup.send(embed=embed)
         except Exception as e:
@@ -67,12 +69,9 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
             return
             
         days = 1 if periodo.value == 'daily' else 7
-        success = await donation_cog.generate_and_send_report(days=days, force=True)
-        if success:
-            await interaction.followup.send(f"✅ Relatório de doações `{periodo.name}` gerado e enviado com sucesso!", ephemeral=True)
-        else:
-            await interaction.followup.send(f"⚠️ Não foi possível gerar o relatório de doações `{periodo.name}`. Verifique os logs.", ephemeral=True)
-
+        success = await donation_cog.generate_and_send_report(days=days, force=True, interaction=interaction)
+        # A resposta agora é tratada dentro do `generate_and_send_report`
+        
     # --- Comandos de Guerra ---
     @app_commands.command(name="plano_guerra", description="Gera e exibe o plano de ataque da IA para a guerra atual.")
     @app_commands.default_permissions(administrator=True)
@@ -123,14 +122,14 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
         embed = discord.Embed(
             title="🔗 Link de Acesso ao Painel Admin",
             description=(
-                "Use o botão abaixo para acessar o painel de administração. "
+                "Use o botão abaixo para aceder ao painel de administração. "
                 "Este link já contém a identificação do seu servidor, permitindo o uso de todas as funcionalidades.\n\n"
-                "**Este link é para seu uso exclusivo. Não o compartilhe.**"
+                "**Este link é para seu uso exclusivo. Não o partilhe.**"
             ),
             color=discord.Color.blurple()
         )
         view = discord.ui.View()
-        view.add_item(discord.ui.Button(label="Acessar Painel de Administração", url=login_url, emoji="⚙️"))
+        view.add_item(discord.ui.Button(label="Aceder ao Painel de Administração", url=login_url, emoji="⚙️"))
         
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
@@ -146,28 +145,20 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
         """Sincroniza os comandos de barra, limpando os antigos do escopo selecionado."""
         await interaction.response.defer(ephemeral=True)
         
-        target_guild = interaction.guild if escopo.value == 'guild' else None
-        scope_name = f"o servidor '{interaction.guild.name}'" if target_guild else "globalmente"
-        
-        try:
-            logger.info(f"Iniciando limpeza e sincronização para o escopo: {scope_name}")
-            
-            # Limpa os comandos do escopo especificado
-            self.bot.tree.clear_commands(guild=target_guild)
-            await self.bot.tree.sync(guild=target_guild)
-            logger.info(f"Comandos de barra foram limpos de: {scope_name}.")
-            
-            # Sincroniza os comandos atuais do código para o escopo
-            synced = await self.bot.tree.sync(guild=target_guild)
-            
-            msg = f"✅ Comandos limpos e {len(synced)} comandos atuais sincronizados com sucesso em `{scope_name}`."
-            await interaction.followup.send(msg, ephemeral=True)
-            logger.info(msg)
-        except Exception as e:
-            logger.error(f"Falha ao sincronizar comandos de barra: {e}", exc_info=True)
-            await interaction.followup.send(f"❌ Falha ao sincronizar: {e}", ephemeral=True)
+        admin_cog = self.bot.get_cog("Painel de Administração Avançado")
+        if not admin_cog:
+            await interaction.followup.send("❌ Ocorreu um erro interno (Cog de Admin não encontrado).")
+            return
 
+        guild = interaction.guild if escopo.value == 'guild' else None
+        result = await admin_cog.sync_commands(escopo.value, guild)
 
+        if result['status'] == 'success':
+            await interaction.followup.send(f"✅ {result['message']}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ {result['message']}", ephemeral=True)
+
+# Esta função é ESSENCIAL para que o cog seja carregado.
 async def setup(bot: commands.Bot):
     """Função de setup para carregar o cog no bot."""
     await bot.add_cog(SlashCog(bot))
