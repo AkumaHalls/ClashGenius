@@ -47,6 +47,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                 "post_war_analysis_channel_id": self.bot.post_war_analysis_channel_id,
                 "clan_games_channel_id": self.bot.clan_games_channel_id,
                 "cwl_planner_channel_id": self.bot.cwl_planner_channel_id,
+                "donations_channel_id": self.bot.donations_channel_id, # NOVO
                 "role_id_1star_alert": self.bot.role_id_1star_alert,
                 "role_id_missed_attack": self.bot.role_id_missed_attack,
                 "maintenance_message": self.bot.maintenance_message
@@ -144,4 +145,3 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))
-
