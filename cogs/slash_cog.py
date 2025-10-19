@@ -73,7 +73,6 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
         else:
             await interaction.followup.send(f"⚠️ Não foi possível gerar o relatório de doações `{periodo.name}`. Verifique os logs.", ephemeral=True)
 
-
     # --- Comandos de Guerra ---
     @app_commands.command(name="plano_guerra", description="Gera e exibe o plano de ataque da IA para a guerra atual.")
     @app_commands.default_permissions(administrator=True)
@@ -85,7 +84,6 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
             await interaction.followup.send("❌ Ocorreu um erro interno (Cog de Guerra não encontrado).")
             return
         
-        # Simulando um contexto (ctx) para reutilizar a função existente
         class FakeContext:
             async def send(self, *args, **kwargs):
                 await interaction.followup.send(*args, **kwargs)
@@ -109,6 +107,34 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
         await war_advisor_cog.analyze_war_balance(FakeContext())
 
     # --- Comandos Administrativos ---
+    @app_commands.command(name="painel_admin", description="[Admin] Gera um link de login para o painel de administração.")
+    @app_commands.default_permissions(administrator=True)
+    async def painel_admin_slash(self, interaction: discord.Interaction):
+        """Gera um link de login seguro para o painel web."""
+        if not self.bot.base_url:
+            await interaction.response.send_message(
+                "❌ A `BASE_URL` não está configurada no ambiente do bot. Não é possível gerar o link.",
+                ephemeral=True
+            )
+            return
+
+        login_url = f"{self.bot.base_url}/admin?guild_id={interaction.guild.id}"
+        
+        embed = discord.Embed(
+            title="🔗 Link de Acesso ao Painel Admin",
+            description=(
+                "Use o botão abaixo para acessar o painel de administração. "
+                "Este link já contém a identificação do seu servidor, permitindo o uso de todas as funcionalidades.\n\n"
+                "**Este link é para seu uso exclusivo. Não o compartilhe.**"
+            ),
+            color=discord.Color.blurple()
+        )
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Acessar Painel de Administração", url=login_url, emoji="⚙️"))
+        
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
     @app_commands.command(name="sync", description="[Admin] Sincroniza os comandos de barra com o Discord.")
     @app_commands.describe(escopo="O escopo da sincronização: 'guild' (este servidor) ou 'global' (todos).")
     @app_commands.choices(escopo=[
@@ -116,24 +142,25 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
         app_commands.Choice(name="Global", value="global")
     ])
     @app_commands.default_permissions(administrator=True)
-    async def sync_slash(self, interaction: discord.Interaction, escopo: app_commands.Choice[str] = None):
-        """Sincroniza os comandos de barra."""
+    async def sync_slash(self, interaction: discord.Interaction, escopo: app_commands.Choice[str]):
+        """Sincroniza os comandos de barra, limpando os antigos do escopo selecionado."""
         await interaction.response.defer(ephemeral=True)
         
-        target_guild = interaction.guild if escopo and escopo.value == 'guild' else None
+        target_guild = interaction.guild if escopo.value == 'guild' else None
+        scope_name = f"o servidor '{interaction.guild.name}'" if target_guild else "globalmente"
         
         try:
-            if escopo:
-                 logger.info(f"Limpando comandos para o escopo: {escopo.name}")
-                 self.bot.tree.clear_commands(guild=target_guild)
-                 await self.bot.tree.sync(guild=target_guild)
+            logger.info(f"Iniciando limpeza e sincronização para o escopo: {scope_name}")
             
+            # Limpa os comandos do escopo especificado
+            self.bot.tree.clear_commands(guild=target_guild)
+            await self.bot.tree.sync(guild=target_guild)
+            logger.info(f"Comandos de barra foram limpos de: {scope_name}.")
+            
+            # Sincroniza os comandos atuais do código para o escopo
             synced = await self.bot.tree.sync(guild=target_guild)
             
-            msg = f"✅ Sincronizados {len(synced)} comandos."
-            if escopo:
-                msg += f" no escopo '{escopo.name}'"
-
+            msg = f"✅ Comandos limpos e {len(synced)} comandos atuais sincronizados com sucesso em `{scope_name}`."
             await interaction.followup.send(msg, ephemeral=True)
             logger.info(msg)
         except Exception as e:
