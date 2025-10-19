@@ -19,27 +19,27 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.bot = bot
         self.db = bot.db
         self.last_prediction_sent_time = None
-
-    async def cog_load(self):
+        
+        # Inicia as tarefas aqui
         self.check_war_end_task.start()
         self.daily_player_data_snapshot.start()
         self.send_online_status_task.start()
         self.post_war_prediction_task.start()
-        self.donation_snapshot_task.start() # Inicia a nova tarefa
+        self.donation_snapshot_task.start()
         logger.info("Tarefas em segundo plano iniciadas.")
 
-    async def cog_unload(self):
+    def cog_unload(self):
+        # Para todas as tarefas quando o cog é descarregado
         self.check_war_end_task.cancel()
         self.daily_player_data_snapshot.cancel()
         self.send_online_status_task.cancel()
         self.post_war_prediction_task.cancel()
-        self.donation_snapshot_task.cancel() # Para a nova tarefa
+        self.donation_snapshot_task.cancel()
 
     # --- Tarefa de Snapshot de Doações ---
     @tasks.loop(hours=1)
     async def donation_snapshot_task(self):
         """Tira um snapshot horário das doações de todos os membros."""
-        # CORREÇÃO APLICADA AQUI
         if self.bot.maintenance_mode or self.db is None:
             return
 
@@ -52,12 +52,9 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
             snapshot_members = [
                 {
-                    "tag": member.tag,
-                    "name": member.name,
-                    "donations": member.donations,
-                    "received": member.received
-                }
-                for member in clan.members
+                    "tag": member.tag, "name": member.name,
+                    "donations": member.donations, "received": member.received
+                } for member in clan.members
             ]
             
             snapshot_doc = {
@@ -68,12 +65,10 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             
             await self.db.donation_snapshots.insert_one(snapshot_doc)
 
-            # Limpa snapshots com mais de 8 dias para manter o banco de dados limpo
             eight_days_ago = datetime.datetime.now(pytz.utc) - datetime.timedelta(days=8)
             await self.db.donation_snapshots.delete_many({"timestamp": {"$lt": eight_days_ago}})
 
             logger.info(f"Snapshot de doações para {len(snapshot_members)} membros salvo com sucesso.")
-
         except Exception as e:
             logger.error(f"Erro na tarefa de snapshot de doações: {e}", exc_info=True)
 
@@ -93,10 +88,8 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
     def _get_war_id(self, war: coc.ClanWar) -> str:
-        if hasattr(war, 'tag') and war.tag and war.tag != '#0':
-            return war.tag
-        if hasattr(war, 'preparation_start_time') and war.preparation_start_time and hasattr(war.preparation_start_time, 'time'):
-            return war.preparation_start_time.time.isoformat()
+        if hasattr(war, 'tag') and war.tag and war.tag != '#0': return war.tag
+        if hasattr(war, 'preparation_start_time') and war.preparation_start_time and hasattr(war.preparation_start_time, 'time'): return war.preparation_start_time.time.isoformat()
         return war.end_time.time.isoformat()
 
     async def process_ended_war(self, war: coc.ClanWar, war_id: str):
@@ -135,9 +128,9 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         logger.info(f"Processamento da guerra contra {opponent_name} concluído.")
         return True
 
+
     @tasks.loop(seconds=60.0)
     async def check_war_end_task(self):
-        # ... (código inalterado) ...
         await self.bot.wait_until_ready()
         await self.bot.coc_client_ready.wait()
         
@@ -147,8 +140,10 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             wars_to_check = []
             try:
                 current_war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
-                if current_war: wars_to_check.append(current_war)
-            except (coc.PrivateWarLog, coc.NotFound): pass
+                if current_war:
+                    wars_to_check.append(current_war)
+            except (coc.PrivateWarLog, coc.NotFound):
+                pass
 
             try:
                 cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
@@ -156,22 +151,29 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                     for round_tags in cwl_group.rounds:
                         for war_tag in round_tags:
                             if war_tag == '#0': continue
-                            try: wars_to_check.append(await self.bot.api_client.get_league_war(war_tag))
-                            except coc.NotFound: continue
-            except coc.NotFound: pass
+                            try:
+                                cwl_war = await self.bot.api_client.get_league_war(war_tag)
+                                wars_to_check.append(cwl_war)
+                            except coc.NotFound:
+                                continue
+            except coc.NotFound:
+                pass
             
-            if not wars_to_check: return
+            if not wars_to_check:
+                return
 
             for war in wars_to_check:
                 if not war or not hasattr(war, 'clan') or not war.clan: continue
                 is_our_war = war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag
-                if not is_our_war: continue
+                if not is_our_war:
+                    continue
                 
                 now = datetime.datetime.now(pytz.utc)
                 end_time_utc = war.end_time.time.replace(tzinfo=pytz.utc)
                 is_ended_by_time = now > end_time_utc
                 
-                if war.state != 'warEnded' and not is_ended_by_time: continue
+                if war.state != 'warEnded' and not is_ended_by_time:
+                    continue
 
                 unique_war_id = self._get_war_id(war)
                 if unique_war_id not in self.bot.processed_war_ids:
@@ -185,12 +187,10 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
         except Exception as e:
             logger.error(f"Erro inesperado na task de fim de guerra: {e}", exc_info=True)
-
-
+        
     @commands.command(name='syncwar')
     @commands.has_permissions(administrator=True)
     async def sync_war(self, ctx: commands.Context):
-        # ... (código inalterado) ...
         await ctx.message.add_reaction("🔄")
         await self.bot.coc_client_ready.wait()
         logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
@@ -203,38 +203,28 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         finally:
             await ctx.message.remove_reaction("🔄", self.bot.user)
 
-
     @tasks.loop(minutes=10)
-    async def post_war_prediction_task(self):
-        pass
+    async def post_war_prediction_task(self): pass
 
     @tasks.loop(hours=24)
-    async def daily_player_data_snapshot(self):
-        pass
+    async def daily_player_data_snapshot(self): pass
 
     @tasks.loop(seconds=10, count=1)
-    async def send_online_status_task(self):
-        pass
-        
-    @tasks.loop(count=1) # A anotação @tasks.loop(count=1) faz com que a função rode apenas uma vez.
-    async def before_all_tasks(self):
+    async def send_online_status_task(self): pass
+
+    # Adiciona o before_loop a cada tarefa individualmente para garantir a segurança
+    @check_war_end_task.before_loop
+    @daily_player_data_snapshot.before_loop
+    @send_online_status_task.before_loop
+    @post_war_prediction_task.before_loop
+    @donation_snapshot_task.before_loop
+    async def before_tasks(self):
         await self.bot.wait_until_ready()
         await self.bot.db_ready.wait()
         await self.bot.coc_client_ready.wait()
 
-    def cog_load(self):
-        self.before_all_tasks.start()
-        # As tarefas reais são iniciadas após a conclusão de before_all_tasks
-        self.check_war_end_task.after_loop(self.start_other_tasks)
 
-    def start_other_tasks(self):
-        self.daily_player_data_snapshot.start()
-        self.send_online_status_task.start()
-        self.post_war_prediction_task.start()
-        self.donation_snapshot_task.start()
-        
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        self.db = bot.db
-        self.last_prediction_sent_time = None
+# Função setup que o discord.py chama para carregar o cog
+async def setup(bot: commands.Bot):
+    await bot.add_cog(TasksCog(bot))
 
