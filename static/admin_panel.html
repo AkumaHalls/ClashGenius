@@ -85,13 +85,19 @@
 
             <div class="control-section">
                 <h3>Ações do Bot</h3>
-                <!-- BOTÕES DE SINCRONIZAÇÃO ADICIONADOS AQUI -->
-                <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "guild"}'>Sincronizar Comandos (Servidor)</button>
-                <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "global"}'>Sincronizar Comandos (Global)</button>
-                <p class="control-description">Use 'Sincronizar (Servidor)' para testes rápidos ou 'Global' para atualizar em todos os lugares.</p>
-                <br>
-                <button class="control-btn action-btn" data-action="clear_cache" data-payload='{"cache_key": "war_details"}'>Limpar Cache da Guerra</button>
-                <button class="control-btn action-btn" data-action="force_sync_war" data-payload='{}'>Forçar Sincronização de Guerra</guerra>
+                <!-- Grupo de botões para ações gerais -->
+                <div class="action-buttons-group">
+                    <button class="control-btn action-btn" data-action="clear_cache" data-payload='{"cache_key": "war_details"}'>Limpar Cache da Guerra</button>
+                    <button class="control-btn action-btn" data-action="force_sync_war" data-payload='{}'>Forçar Sincronização de Guerra</button>
+                </div>
+
+                <!-- Grupo de botões para sincronização de comandos -->
+                <div class="action-buttons-group">
+                    <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "guild"}'>Sincronizar Comandos (Servidor)</button>
+                    <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "global"}'>Sincronizar Comandos (Global)</button>
+                    <p class="control-description">Use 'Sincronizar (Servidor)' para testes ou 'Global' para atualizar em todos os lugares.</p>
+                </div>
+
                 <div class="announcement-section">
                     <h4>Enviar Anúncio Global</h4>
                     <div class="form-group">
