@@ -25,7 +25,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.daily_player_data_snapshot.start()
         self.send_online_status_task.start()
         self.post_war_prediction_task.start()
-        self.donation_snapshot_task.start() # NOVO
+        self.donation_snapshot_task.start()
         logger.info("Tarefas em segundo plano iniciadas.")
 
     async def cog_unload(self):
@@ -33,7 +33,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.daily_player_data_snapshot.cancel()
         self.send_online_status_task.cancel()
         self.post_war_prediction_task.cancel()
-        self.donation_snapshot_task.cancel() # NOVO
+        self.donation_snapshot_task.cancel()
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
         if self.bot.maintenance_mode: return
@@ -65,10 +65,9 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         logger.info(f"A processar guerra ({war_type}) contra {opponent_name} (ID: {war_id})...")
         
         db_cog = self.bot.get_cog("Banco de Dados")
-        web_api_cog = self.bot.get_cog("Web API") # Pega o Cog da API Web
+        web_api_cog = self.bot.get_cog("Web API")
         
         if db_cog and web_api_cog:
-            # CORREÇÃO: Chama a função a partir do Cog correto.
             war_details_for_db = await web_api_cog.format_war_details_for_web(war)
             
             if 'error' not in war_details_for_db:
@@ -95,9 +94,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
     @tasks.loop(seconds=60.0)
     async def check_war_end_task(self):
-        await self.bot.wait_until_ready()
-        await self.bot.coc_client_ready.wait()
-        
         if not self.bot.api_client: return
         
         try:
@@ -152,9 +148,15 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         except Exception as e:
             logger.error(f"Erro inesperado na task de fim de guerra: {e}", exc_info=True)
             
-    # NOVA TAREFA para snapshots de doações
+    @check_war_end_task.before_loop
+    async def before_check_war_end_task(self):
+        """Espera o bot estar pronto antes de iniciar a task."""
+        await self.bot.wait_until_ready()
+        await self.bot.coc_client_ready.wait()
+
     @tasks.loop(hours=1)
     async def donation_snapshot_task(self):
+        """Salva um snapshot das doações dos membros a cada hora."""
         if self.bot.maintenance_mode or not self.db:
             return
 
@@ -190,13 +192,19 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
         except Exception as e:
             logger.error(f"Erro na tarefa de snapshot de doações: {e}", exc_info=True)
+            
+    @donation_snapshot_task.before_loop
+    async def before_donation_snapshot_task(self):
+        """Espera o bot estar pronto antes de iniciar a task."""
+        await self.bot.wait_until_ready()
+        await self.bot.db_ready.wait()
+        await self.bot.coc_client_ready.wait()
 
 
     @commands.command(name='syncwar')
     @commands.has_permissions(administrator=True)
     async def sync_war(self, ctx: commands.Context):
         await ctx.message.add_reaction("🔄")
-        await self.bot.coc_client_ready.wait()
         logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
         try:
             await self.check_war_end_task.coro(self)
@@ -210,14 +218,33 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @tasks.loop(minutes=10)
     async def post_war_prediction_task(self):
         pass
+        
+    @post_war_prediction_task.before_loop
+    async def before_post_war_prediction_task(self):
+        """Espera o bot estar pronto antes de iniciar a task."""
+        await self.bot.wait_until_ready()
+        await self.bot.coc_client_ready.wait()
 
     @tasks.loop(hours=24)
     async def daily_player_data_snapshot(self):
         pass
 
+    @daily_player_data_snapshot.before_loop
+    async def before_daily_player_data_snapshot(self):
+        """Espera o bot estar pronto antes de iniciar a task."""
+        await self.bot.wait_until_ready()
+        await self.bot.db_ready.wait()
+        await self.bot.coc_client_ready.wait()
+
     @tasks.loop(seconds=10, count=1)
     async def send_online_status_task(self):
         pass
+        
+    @send_online_status_task.before_loop
+    async def before_send_online_status_task(self):
+        """Espera o bot estar pronto antes de iniciar a task."""
+        await self.bot.wait_until_ready()
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
+
