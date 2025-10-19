@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-3
 """
 Sistema Avançado de Machine Learning para Predição de Guerras - ClashGenius v3.0
 Arquitetura modular com ensemble learning, feature engineering avançada e aprendizado contínuo.
@@ -420,4 +420,5 @@ class WarPredictionSystemV3:
             "panel": f"{title}. {detail}",
             "discord": f"**{title}**\n{detail}"
         }
+
 
