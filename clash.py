@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.11-LogHotfix
+# Versão 20.2.12-Startup-Hotfix
 
 import os
 import logging
@@ -31,7 +31,6 @@ class MemoryLogHandler(logging.Handler):
         self.buffer = []
 
     def emit(self, record):
-        # CORREÇÃO AQUI: Armazena a mensagem já formatada
         self.buffer.append(self.format(record))
         if len(self.buffer) > self.capacity:
             self.buffer.pop(0)
@@ -63,7 +62,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 BASE_URL = os.getenv("BASE_URL")
 
-BOT_VERSION = "20.2.11-LogHotfix"
+BOT_VERSION = "20.2.12-Startup-Hotfix"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -99,17 +98,17 @@ class ClashGeniusBot(commands.Bot):
         self.log_handler = log_handler
 
     async def setup_hook(self) -> None:
-        logger.info("Executando setup_hook...")
+        logger.info("A executar setup_hook...")
         if MONGO_DB_URL:
             try:
                 db_name = parse_uri(MONGO_DB_URL).get('database', 'genius_db')
                 self.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL)
                 self.db = self.mongo_client[db_name]
-                logger.info(f"Conectado ao MongoDB: {db_name}")
+                logger.info(f"Ligado ao MongoDB: {db_name}")
                 await self.load_initial_state_from_db()
                 self.db_ready.set()
             except Exception as e:
-                logger.error(f"Falha ao conectar com o MongoDB: {e}", exc_info=True)
+                logger.error(f"Falha ao ligar ao MongoDB: {e}", exc_info=True)
         else:
             logger.warning("URL do MongoDB não fornecida. Recursos de persistência desativados.")
             self.db_ready.set()
@@ -117,7 +116,7 @@ class ClashGeniusBot(commands.Bot):
         self.war_prediction_system = WarPredictionSystemV3(db_connection=self.db)
         await self.war_prediction_system.initialize_system()
         
-        logger.info("Carregando cogs...")
+        logger.info("A carregar cogs...")
         cog_files = [
             'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 
             'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog',
@@ -129,7 +128,8 @@ class ClashGeniusBot(commands.Bot):
                 await self.load_extension(f'cogs.{cog_name}')
                 logger.info(f"Cog '{cog_name}' carregado com sucesso.")
             except Exception as e:
-                logger.error(f"Falha ao carregar o cog '{cog_name}'. Erro: {e}", exc_info=True)
+                # ADICIONADO: Log de erro detalhado para diagnóstico
+                logger.error(f"FALHA CRÍTICA AO CARREGAR O COG '{cog_name}'. Erro: {e}", exc_info=True)
 
         self.loop.create_task(self.coc_login_task())
         self.loop.create_task(setup_web_server(self))
@@ -139,7 +139,7 @@ class ClashGeniusBot(commands.Bot):
         maint_config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
         if maint_config:
             self.maintenance_mode = maint_config.get("enabled", False)
-            logger.info(f"Modo manutenção carregado do DB. Estado: {'ATIVADO' if self.maintenance_mode else 'DESATIVADO'}")
+            logger.info(f"Modo de manutenção carregado da BD. Estado: {'ATIVADO' if self.maintenance_mode else 'DESATIVADO'}")
         
         bot_settings = await self.db.system_config.find_one({"_id": "bot_settings"})
         if bot_settings:
@@ -151,7 +151,7 @@ class ClashGeniusBot(commands.Bot):
             self.role_id_1star_alert = bot_settings.get("role_id_1star_alert", self.role_id_1star_alert)
             self.role_id_missed_attack = bot_settings.get("role_id_missed_attack", self.role_id_missed_attack)
             self.maintenance_message = bot_settings.get("maintenance_message", self.maintenance_message)
-            logger.info("Configurações de IDs e mensagens carregadas do banco de dados.")
+            logger.info("Configurações de IDs e mensagens carregadas da base de dados.")
 
         processed_wars_cursor = self.db.war_history.find({}, {"_id": 1})
         self.processed_war_ids = {doc["_id"] async for doc in processed_wars_cursor}
@@ -168,9 +168,16 @@ class ClashGeniusBot(commands.Bot):
 
     async def on_ready(self):
         logger.info(f'Bot {self.user.name} está online e pronto!')
+        # Adicionado: Tenta sincronizar os comandos no arranque para garantir que estão registados
+        try:
+            synced = await self.tree.sync()
+            logger.info(f"Sincronizados {len(synced)} comandos de barra no arranque.")
+        except Exception as e:
+            logger.error(f"Falha ao sincronizar comandos no arranque: {e}", exc_info=True)
+
 
     async def close(self):
-        logger.info("Fechando conexões...")
+        logger.info("A fechar ligações...")
         if self.api_client: await self.api_client.close()
         if self.mongo_client: self.mongo_client.close()
         await super().close()
@@ -186,7 +193,7 @@ class ClashGeniusBot(commands.Bot):
             self.clan_cache[normalized_tag] = {"data": clan_data, "timestamp": now}
             return clan_data
         except Exception as e:
-            logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
+            logger.error(f"Erro ao obter dados do clã {tag}: {e}")
             return None
 
 async def setup_web_server(bot_instance: ClashGeniusBot):
