@@ -70,12 +70,26 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
     # --- Tarefa de Fim de Guerra ---
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
-        # ... (código inalterado) ...
-        pass
+        if self.bot.maintenance_mode: return
+        channel_id_to_use = target_channel_id or self.bot.channel_id
+        if not channel_id_to_use: return
+        await self.bot.wait_until_ready()
+        try:
+            channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
+            now_in_timezone = datetime.datetime.now(self.bot.timezone)
+            embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {now_in_timezone.strftime('%d/%m/%Y %H:%M')}")
+            embed_to_log.timestamp = now_in_timezone
+            await channel.send(content=content, embed=embed_to_log)
+        except (discord.NotFound, discord.Forbidden, Exception) as e:
+            logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
+
 
     def _get_war_id(self, war: coc.ClanWar) -> str:
-        # ... (código inalterado) ...
-        pass
+        if hasattr(war, 'tag') and war.tag and war.tag != '#0':
+            return war.tag
+        if hasattr(war, 'preparation_start_time') and war.preparation_start_time and hasattr(war.preparation_start_time, 'time'):
+            return war.preparation_start_time.time.isoformat()
+        return war.end_time.time.isoformat()
 
     async def process_ended_war(self, war: coc.ClanWar, war_id: str) -> bool:
         """Processa uma guerra finalizada, salva no DB e envia alertas. Retorna True/False."""
@@ -173,8 +187,18 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @commands.command(name='syncwar')
     @commands.has_permissions(administrator=True)
     async def sync_war(self, ctx: commands.Context):
-        # ... (código inalterado) ...
-        pass
+        await ctx.message.add_reaction("🔄")
+        await self.bot.coc_client_ready.wait()
+        logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
+        try:
+            await self.check_war_end_task.coro(self)
+            await ctx.send("✅ Sincronização forçada concluída.")
+        except Exception as e:
+            logger.error(f"Erro no comando !syncwar: {e}", exc_info=True)
+            await ctx.send(f"❌ Erro crítico: {e}")
+        finally:
+            await ctx.message.remove_reaction("🔄", self.bot.user)
+
 
     # --- Tarefas Placeholder (Comentadas/Removidas) ---
     # @tasks.loop(minutes=10)
