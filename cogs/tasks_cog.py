@@ -25,6 +25,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.daily_player_data_snapshot.start()
         self.send_online_status_task.start()
         self.post_war_prediction_task.start()
+        self.donation_snapshot_task.start() # NOVO
         logger.info("Tarefas em segundo plano iniciadas.")
 
     async def cog_unload(self):
@@ -32,6 +33,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.daily_player_data_snapshot.cancel()
         self.send_online_status_task.cancel()
         self.post_war_prediction_task.cancel()
+        self.donation_snapshot_task.cancel() # NOVO
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
         if self.bot.maintenance_mode: return
@@ -130,22 +132,18 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 if not is_our_war:
                     continue
                 
-                # CORREÇÃO: VERIFICAÇÃO ADICIONAL DE TEMPO PARA EVITAR RACE CONDITION
                 now = datetime.datetime.now(pytz.utc)
-                # Adiciona o fuso horário UTC ao tempo de término da guerra para uma comparação segura
                 end_time_utc = war.end_time.time.replace(tzinfo=pytz.utc)
                 is_ended_by_time = now > end_time_utc
                 
-                # A guerra será processada se o estado for 'warEnded' OU se o tempo já passou
                 if war.state != 'warEnded' and not is_ended_by_time:
                     continue
 
                 unique_war_id = self._get_war_id(war)
                 if unique_war_id not in self.bot.processed_war_ids:
-                    # Garante que o estado seja forçado para 'warEnded' se processamos pelo tempo
                     if is_ended_by_time and war.state != 'warEnded':
                         logger.warning(f"Forçando processamento da guerra (ID: {unique_war_id}) baseado no tempo. API state: {war.state}")
-                        war.state = 'warEnded' # Força o estado para garantir consistência
+                        war.state = 'warEnded'
 
                     logger.info(f"Nova guerra terminada ({war.state}) encontrada para processar (ID: {unique_war_id}).")
                     if await self.process_ended_war(war, unique_war_id):
@@ -153,6 +151,46 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
         except Exception as e:
             logger.error(f"Erro inesperado na task de fim de guerra: {e}", exc_info=True)
+            
+    # NOVA TAREFA para snapshots de doações
+    @tasks.loop(hours=1)
+    async def donation_snapshot_task(self):
+        if self.bot.maintenance_mode or not self.db:
+            return
+
+        logger.info("Executando snapshot de doações...")
+        try:
+            clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
+            if not clan:
+                logger.warning("Não foi possível obter dados do clã para o snapshot de doações.")
+                return
+
+            members_data = [
+                {
+                    "tag": member.tag,
+                    "name": member.name,
+                    "donations": member.donations,
+                    "received": member.received
+                }
+                for member in clan.members
+            ]
+            
+            snapshot_doc = {
+                "timestamp": datetime.datetime.now(pytz.utc),
+                "members": members_data
+            }
+            
+            await self.db.donation_snapshots.insert_one(snapshot_doc)
+
+            # Limpa snapshots antigos (mantém por ~8 dias)
+            cutoff_date = datetime.datetime.now(pytz.utc) - datetime.timedelta(days=8)
+            await self.db.donation_snapshots.delete_many({"timestamp": {"$lt": cutoff_date}})
+
+            logger.info(f"Snapshot de doações para {len(members_data)} membros salvo com sucesso.")
+
+        except Exception as e:
+            logger.error(f"Erro na tarefa de snapshot de doações: {e}", exc_info=True)
+
 
     @commands.command(name='syncwar')
     @commands.has_permissions(administrator=True)
