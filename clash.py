@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.08-Middleware-Hotfix#
+# Versão 20.2.10-Donations-Hotfix
 
 import os
 import logging
@@ -23,7 +23,7 @@ import json
 
 from war_predictor import WarPredictionSystemV3
 
-# --- NOVO: Handler de log em memória ---
+# --- Handler de log em memória ---
 class MemoryLogHandler(logging.Handler):
     def __init__(self, capacity=50):
         super().__init__()
@@ -41,13 +41,10 @@ log_handler.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 log_handler.setFormatter(formatter)
 
-# Adiciona o handler customizado ao logger principal
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logging.getLogger().addHandler(log_handler)
 
 logger = logging.getLogger("clash_genius_bot")
-# --- FIM: Handler de log ---
-
 
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -59,14 +56,14 @@ AI_LOG_CHANNEL_ID = int(os.getenv("AI_LOG_CHANNEL_ID", 0))
 POST_WAR_ANALYSIS_CHANNEL_ID = int(os.getenv("POST_WAR_ANALYSIS_CHANNEL_ID", 0))
 CLAN_GAMES_CHANNEL_ID = int(os.getenv("CLAN_GAMES_CHANNEL_ID", 0))
 CWL_PLANNER_CHANNEL_ID = int(os.getenv("CWL_PLANNER_CHANNEL_ID", 0))
-DONATIONS_CHANNEL_ID = int(os.getenv("DONATIONS_CHANNEL_ID", 0)) # NOVO
+DONATIONS_CHANNEL_ID = int(os.getenv("DONATIONS_CHANNEL_ID", 0))
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
-BOT_VERSION = "20.2.10-Donations-Hotfix"
+BOT_VERSION = "20.2.11-Donations-Final-Fix"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -80,13 +77,13 @@ class ClashGeniusBot(commands.Bot):
         self.post_war_analysis_channel_id = POST_WAR_ANALYSIS_CHANNEL_ID
         self.clan_games_channel_id = CLAN_GAMES_CHANNEL_ID
         self.cwl_planner_channel_id = CWL_PLANNER_CHANNEL_ID
-        self.donations_channel_id = DONATIONS_CHANNEL_ID # NOVO
+        self.donations_channel_id = DONATIONS_CHANNEL_ID
         self.role_id_1star_alert = ROLE_ID_1STAR_ALERT
         self.role_id_missed_attack = ROLE_ID_MISSED_ATTACK
         self.bot_version = BOT_VERSION
         self.timezone = TIMEZONE
         self.maintenance_mode = False
-        self.maintenance_message = "O painel está em manutenção. Voltaremos em breve!" # Default message
+        self.maintenance_message = "O painel está em manutenção. Voltaremos em breve!"
         self.api_client: Optional[coc.Client] = None
         self.war_prediction_system: Optional[WarPredictionSystemV3] = None
         self.db = None
