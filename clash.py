@@ -66,7 +66,7 @@ ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
-BOT_VERSION = "20.2.09-Donations-Cog"
+BOT_VERSION = "20.2.10-Donations-Hotfix"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -123,7 +123,7 @@ class ClashGeniusBot(commands.Bot):
         cog_files = [
             'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 
             'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog',
-            'maintenance_cog', 'web_api_cog', 'admin_cog', 'donations_cog' # NOVO
+            'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog' # CORRIGIDO AQUI
         ]
         for cog_name in cog_files:
             try:
@@ -138,26 +138,23 @@ class ClashGeniusBot(commands.Bot):
     async def load_initial_state_from_db(self):
         if self.db is None: return
         
-        # Carrega modo manutenção
         maint_config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
         if maint_config:
             self.maintenance_mode = maint_config.get("enabled", False)
             logger.info(f"Modo manutenção carregado do DB. Estado: {'ATIVADO' if self.maintenance_mode else 'DESATIVADO'}")
         
-        # NOVO: Carrega outras configurações
         bot_settings = await self.db.system_config.find_one({"_id": "bot_settings"})
         if bot_settings:
             self.channel_id = bot_settings.get("channel_id", self.channel_id)
             self.post_war_analysis_channel_id = bot_settings.get("post_war_analysis_channel_id", self.post_war_analysis_channel_id)
             self.clan_games_channel_id = bot_settings.get("clan_games_channel_id", self.clan_games_channel_id)
             self.cwl_planner_channel_id = bot_settings.get("cwl_planner_channel_id", self.cwl_planner_channel_id)
-            self.donations_channel_id = bot_settings.get("donations_channel_id", self.donations_channel_id) # NOVO
+            self.donations_channel_id = bot_settings.get("donations_channel_id", self.donations_channel_id)
             self.role_id_1star_alert = bot_settings.get("role_id_1star_alert", self.role_id_1star_alert)
             self.role_id_missed_attack = bot_settings.get("role_id_missed_attack", self.role_id_missed_attack)
             self.maintenance_message = bot_settings.get("maintenance_message", self.maintenance_message)
             logger.info("Configurações de IDs e mensagens carregadas do banco de dados.")
 
-        # Carrega guerras processadas
         processed_wars_cursor = self.db.war_history.find({}, {"_id": 1})
         self.processed_war_ids = {doc["_id"] async for doc in processed_wars_cursor}
         logger.info(f"Carregados {len(self.processed_war_ids)} IDs de guerras já processadas do histórico.")
@@ -198,17 +195,21 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app = web.Application()
     
     await bot_instance.wait_until_ready()
-    web_api_cog = bot_instance.get_cog("Web API")
-    db_cog = bot_instance.get_cog("Banco de Dados")
-    profile_cog = bot_instance.get_cog("Perfis de Membros")
-    cwl_cog = bot_instance.get_cog("Planeador de CWL")
-    maintenance_cog = bot_instance.get_cog("Manutenção do Sistema")
-    war_advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
-    admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
+    # Carrega os cogs necessários para o servidor web
+    cogs_needed = ["Web API", "Banco de Dados", "Perfis de Membros", "Planeador de CWL", "Manutenção do Sistema", "Conselheiro de Guerra IA", "Painel de Administração Avançado"]
+    loaded_cogs = {cog_name: bot_instance.get_cog(cog_name) for cog_name in cogs_needed}
 
-    if not all([web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog, war_advisor_cog, admin_cog]):
-        logger.critical("Um ou mais cogs essenciais para o servidor web não foram carregados. O servidor não pode iniciar.")
+    if not all(loaded_cogs.values()):
+        logger.critical(f"Um ou mais cogs essenciais para o servidor web não foram carregados: {[name for name, cog in loaded_cogs.items() if not cog]}. O servidor não pode iniciar.")
         return
+
+    web_api_cog = loaded_cogs["Web API"]
+    db_cog = loaded_cogs["Banco de Dados"]
+    profile_cog = loaded_cogs["Perfis de Membros"]
+    cwl_cog = loaded_cogs["Planeador de CWL"]
+    maintenance_cog = loaded_cogs["Manutenção do Sistema"]
+    war_advisor_cog = loaded_cogs["Conselheiro de Guerra IA"]
+    admin_cog = loaded_cogs["Painel de Administração Avançado"]
 
     async def handle_web_response(request, key, func, *args, **kwargs):
         now = datetime.datetime.now()
@@ -318,7 +319,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     
     static_dir = os.path.join(os.path.dirname(__file__), "static")
 
-    # ADMIN PANEL ROUTES
     async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
     async def admin_panel_page(r):
         session = await get_session(r)
@@ -408,3 +408,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
