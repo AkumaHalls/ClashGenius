@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.08-Middleware-Hotfix#
+# Versão 20.2.10-AdminLink
 
 import os
 import logging
@@ -30,7 +30,7 @@ class MemoryLogHandler(logging.Handler):
         self.buffer = []
 
     def emit(self, record):
-        self.buffer.append(record)
+        self.buffer.append(record.getMessage())
         if len(self.buffer) > self.capacity:
             self.buffer.pop(0)
 
@@ -59,8 +59,9 @@ ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
+BASE_URL = os.getenv("BASE_URL") # NOVO: URL base do seu painel
 
-BOT_VERSION = "20.2.09-SlashCommands"
+BOT_VERSION = "20.2.10-AdminLink"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -79,6 +80,7 @@ class ClashGeniusBot(commands.Bot):
         self.role_id_missed_attack = ROLE_ID_MISSED_ATTACK
         self.bot_version = BOT_VERSION
         self.timezone = TIMEZONE
+        self.base_url = BASE_URL # NOVO
         self.maintenance_mode = False
         self.maintenance_message = "O painel está em manutenção. Voltaremos em breve!"
         self.api_client: Optional[coc.Client] = None
@@ -277,8 +279,10 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     
     async def api_admin_actions(r):
         data = await r.json()
+        session = await get_session(r) # Pega a sessão
         action = data.get("action")
         payload = data.get("payload", {})
+        
         if action == "send_announcement":
             return web.json_response(await admin_cog.send_announcement(payload.get("channel_id"), payload.get("message")))
         elif action == "clear_cache":
@@ -287,8 +291,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             tasks_cog = bot_instance.get_cog("Tarefas em Segundo Plano")
             asyncio.create_task(tasks_cog.check_war_end_task.coro(tasks_cog))
             return web.json_response({"status": "success", "message": "Sincronização de guerra forçada."})
-        elif action == "sync_commands": # NOVA AÇÃO
-            guild_id = payload.get("guild_id")
+        elif action == "sync_commands":
+            guild_id = session.get('guild_id') # Usa o ID da sessão
+            if not guild_id and payload.get("scope") == "guild":
+                return web.json_response({"status": "error", "message": "ID do servidor não encontrado na sessão. Faça login novamente usando o link do bot."})
+            
             guild = bot_instance.get_guild(int(guild_id)) if guild_id else None
             return web.json_response(await admin_cog.sync_commands(payload.get("scope", "guild"), guild))
         return web.json_response({"status": "error", "message": "Ação desconhecida."}, status=400)
@@ -315,7 +322,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if data.get('password') == ADMIN_PASSWORD:
             session = await get_session(r)
             session['admin'] = True
-            # ADICIONADO: Salvar o ID do servidor na sessão
             guild_id = data.get('guild_id')
             if guild_id:
                 session['guild_id'] = guild_id
@@ -344,8 +350,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             "status": "ok", 
             "maintenance_mode": bot_instance.maintenance_mode, 
             "version": BOT_VERSION,
-            "is_admin": is_admin,
-            "guild_id": session.get('guild_id') # Envia o ID do servidor para o frontend
+            "is_admin": is_admin
         })
     
     async def api_maintenance_message(r):
