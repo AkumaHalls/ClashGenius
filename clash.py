@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.10-Donations-Hotfix
+# Versão 20.2.12-SlashCommands
 
 import os
 import logging
@@ -23,30 +23,24 @@ import json
 
 from war_predictor import WarPredictionSystemV3
 
-# --- Handler de log em memória ---
 class MemoryLogHandler(logging.Handler):
     def __init__(self, capacity=50):
         super().__init__()
-        self.capacity = capacity
-        self.buffer = []
-
+        self.capacity, self.buffer = capacity, []
     def emit(self, record):
         self.buffer.append(record)
-        if len(self.buffer) > self.capacity:
-            self.buffer.pop(0)
+        if len(self.buffer) > self.capacity: self.buffer.pop(0)
 
-# Configuração do logging
 log_handler = MemoryLogHandler()
 log_handler.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 log_handler.setFormatter(formatter)
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logging.getLogger().addHandler(log_handler)
-
 logger = logging.getLogger("clash_genius_bot")
 
 load_dotenv()
+# ... (carregamento de todas as variáveis de ambiente)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 COC_EMAIL = os.getenv("COC_EMAIL")
 COC_PASSWORD = os.getenv("COC_PASSWORD")
@@ -63,12 +57,14 @@ ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
-BOT_VERSION = "20.2.11-Donations-Final-Fix"
+
+BOT_VERSION = "20.2.12-SlashCommands"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # ... (inicialização de todos os atributos)
         self.coc_email = COC_EMAIL
         self.coc_password = COC_PASSWORD
         self.clan_tag = CLAN_TAG
@@ -120,7 +116,8 @@ class ClashGeniusBot(commands.Bot):
         cog_files = [
             'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 
             'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog',
-            'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog' # CORRIGIDO AQUI
+            'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog',
+            'slash_cog' # ADICIONADO O NOVO COG DE SLASH COMMANDS
         ]
         for cog_name in cog_files:
             try:
@@ -133,6 +130,7 @@ class ClashGeniusBot(commands.Bot):
         self.loop.create_task(setup_web_server(self))
         
     async def load_initial_state_from_db(self):
+        # ... (código inalterado)
         if self.db is None: return
         
         maint_config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
@@ -157,6 +155,7 @@ class ClashGeniusBot(commands.Bot):
         logger.info(f"Carregados {len(self.processed_war_ids)} IDs de guerras já processadas do histórico.")
 
     async def coc_login_task(self):
+        # ... (código inalterado)
         try:
             self.api_client = coc.Client()
             await self.api_client.login(self.coc_email, self.coc_password)
@@ -165,16 +164,19 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.critical(f"Falha CRÍTICA no login do coc.Client: {e}", exc_info=True)
 
+
     async def on_ready(self):
         logger.info(f'Bot {self.user.name} está online e pronto!')
 
     async def close(self):
+        # ... (código inalterado)
         logger.info("Fechando conexões...")
         if self.api_client: await self.api_client.close()
         if self.mongo_client: self.mongo_client.close()
         await super().close()
 
     async def get_clan_data_with_cache(self, tag: str) -> Optional[coc.Clan]:
+        # ... (código inalterado)
         await self.coc_client_ready.wait()
         normalized_tag = coc.utils.correct_tag(tag)
         now = datetime.datetime.now()
@@ -188,7 +190,9 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
 
+
 async def setup_web_server(bot_instance: ClashGeniusBot):
+    # ... (código do servidor web inalterado)
     app = web.Application()
     
     await bot_instance.wait_until_ready()
@@ -388,6 +392,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
     logger.info(f"Servidor web iniciado em http://0.0.0.0:{port}")
+
 
 async def main():
     intents = discord.Intents.default()
