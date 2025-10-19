@@ -23,11 +23,9 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         scope_name = f"o servidor '{guild.name}'" if target_guild else "globalmente"
         logger.info(f"Sincronização iniciada para o escopo: {scope_name}")
         try:
-            # Limpa os comandos primeiro para garantir uma sincronização limpa
             self.bot.tree.clear_commands(guild=target_guild)
             await self.bot.tree.sync(guild=target_guild)
             
-            # Sincroniza os comandos atuais
             synced = await self.bot.tree.sync(guild=target_guild)
             
             message = f"Sincronizados {len(synced)} comandos com sucesso no escopo '{scope}'."
@@ -48,10 +46,13 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             return {"status": "error", "message": f"Erro de conexão com a API: {e}"}
 
     async def get_diagnostics(self) -> Dict[str, Any]:
+        """Coleta dados de diagnóstico do bot."""
         api_status = await self.get_api_status()
+        # CORREÇÃO AQUI: Acessa o buffer diretamente, pois já são strings formatadas
+        recent_logs = self.bot.log_handler.buffer
         return {
             "api_status": api_status,
-            "recent_logs": [record.getMessage() for record in self.bot.log_handler.buffer]
+            "recent_logs": recent_logs
         }
 
     async def get_settings(self) -> Dict[str, Any]:
@@ -71,7 +72,6 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         }
         if not settings:
             return defaults
-        # Garante que todas as chaves padrão existam
         for key, value in defaults.items():
             settings.setdefault(key, value)
         return settings
