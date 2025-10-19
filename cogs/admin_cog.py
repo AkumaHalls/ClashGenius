@@ -2,10 +2,10 @@
 import logging
 import discord
 from discord.ext import commands
-from discord import app_commands # Importa app_commands
+from discord import app_commands
 from pymongo import DESCENDING
 import coc
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import datetime
 
 logger = logging.getLogger("admin_cog")
@@ -22,39 +22,55 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx: commands.Context):
         """Sincroniza os comandos de barra com o Discord. (Apenas adiciona/atualiza)"""
-        try:
-            synced = await self.bot.tree.sync()
-            await ctx.send(f"✅ Sincronizados (adicionados/atualizados) {len(synced)} comandos de barra!")
-            logger.info(f"{len(synced)} comandos de barra foram sincronizados.")
-        except Exception as e:
-            await ctx.send(f"❌ Falha ao sincronizar: {e}")
-            logger.error(f"Falha ao sincronizar comandos de barra: {e}", exc_info=True)
+        if ctx.invoked_subcommand is None:
+            try:
+                synced = await self.bot.tree.sync()
+                await ctx.send(f"✅ Sincronizados (adicionados/atualizados) {len(synced)} comandos de barra!")
+                logger.info(f"{len(synced)} comandos de barra foram sincronizados.")
+            except Exception as e:
+                await ctx.send(f"❌ Falha ao sincronizar: {e}")
+                logger.error(f"Falha ao sincronizar comandos de barra: {e}", exc_info=True)
 
-    @sync.command(name='clean')
+    @sync.command(name='purge')
     @commands.has_permissions(administrator=True)
-    async def sync_clean(self, ctx: commands.Context):
-        """Limpa TODOS os comandos de barra globais e sincroniza apenas os atuais."""
+    async def sync_purge(self, ctx: commands.Context, scope: str = 'guild'):
+        """Limpa comandos de um escopo e sincroniza os atuais. Escopos: 'guild' ou 'global'."""
+        
+        scope_input = scope.lower()
+        if scope_input not in ['guild', 'global']:
+            await ctx.send("⚠️ Escopo inválido. Use `guild` para este servidor ou `global` para todos.")
+            return
+
         await ctx.message.add_reaction("🧹")
-        logger.info(f"Comando !sync clean invocado por {ctx.author.name}. Limpando comandos globais...")
+        
+        target_guild = ctx.guild if scope_input == 'guild' else None
+        scope_name = f"o servidor '{ctx.guild.name}'" if target_guild else "globalmente"
+
+        logger.info(f"Comando !sync purge invocado por {ctx.author.name}. Limpando comandos de: {scope_name}")
+        
         try:
-            # Limpa todos os comandos globais
-            self.bot.tree.clear_commands(guild=None)
-            await self.bot.tree.sync()
-            logger.info("Comandos de barra globais foram limpos.")
+            # Define a lista de comandos como vazia para o escopo desejado
+            self.bot.tree.clear_commands(guild=target_guild)
             
-            # Sincroniza apenas os comandos que estão no código atual
-            synced = await self.bot.tree.sync()
+            # Envia a lista vazia para o Discord, efetivamente limpando
+            await self.bot.tree.sync(guild=target_guild)
             
-            await ctx.send(f"✅ Comandos antigos limpos! Sincronizados {len(synced)} comandos de barra atuais.")
-            logger.info(f"{len(synced)} comandos de barra atuais foram sincronizados após a limpeza.")
+            logger.info(f"Comandos de barra foram limpos de: {scope_name}.")
+            
+            # Sincroniza novamente para adicionar os comandos que estão no código
+            # A sincronização global (guild=None) também atualiza os comandos de guilda se houver
+            final_synced = await self.bot.tree.sync()
+            
             await ctx.message.add_reaction("✅")
             await ctx.message.remove_reaction("🧹", self.bot.user)
+            await ctx.send(f"✅ Comandos limpos de `{scope_name}`. Sincronizados {len(final_synced)} comandos atuais.")
+            logger.info(f"{len(final_synced)} comandos de barra atuais foram sincronizados após a limpeza.")
+            
         except Exception as e:
-            await ctx.send(f"❌ Falha ao limpar e sincronizar: {e}")
-            logger.error(f"Falha ao limpar e sincronizar comandos de barra: {e}", exc_info=True)
             await ctx.message.add_reaction("❌")
             await ctx.message.remove_reaction("🧹", self.bot.user)
-
+            await ctx.send(f"❌ Falha ao limpar e sincronizar: {e}")
+            logger.error(f"Falha ao limpar e sincronizar comandos de barra: {e}", exc_info=True)
 
     # --- Restante do código do admin_cog ---
     async def get_api_status(self) -> Dict[str, Any]:
@@ -121,7 +137,6 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         if self.db is None:
             return {"error": "Banco de dados não configurado."}
 
-        # Últimas 5 guerras
         wars_cursor = self.db.war_history.find({}, {"war_data.opponent_name": 1, "war_data.end_time_iso": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(5)
         last_wars = [
             {
@@ -131,8 +146,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             } async for w in wars_cursor
         ]
         
-        # Últimas 5 notas de jogadores
-        notes_cursor = self.db.player_notes.find({}).sort([("$natural", -1)]).limit(5) # $natural para ordem de inserção
+        notes_cursor = self.db.player_notes.find({}).sort([("$natural", -1)]).limit(5)
         last_notes = [
             {
                 "player_tag": n.get("_id", "N/A"),
