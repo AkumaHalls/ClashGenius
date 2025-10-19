@@ -18,8 +18,8 @@ class DonationsCog(commands.Cog, name="Relatório de Doações"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
-        # Coleção para guardar o estado dos relatórios (último envio)
-        self.reports_log = self.db.reports_log if self.db else None
+        # CORREÇÃO AQUI: Verifica a conexão com o banco de dados da maneira correta
+        self.reports_log = self.db.reports_log if self.db is not None else None
         self.report_time = datetime.time(21, 0) # Horário de envio dos relatórios (21:00)
 
         self.send_donation_reports.start()
@@ -34,7 +34,6 @@ class DonationsCog(commands.Cog, name="Relatório de Doações"):
             if not clan:
                 return {}
             
-            # Usando um dict comprehension para criar o dicionário de dados
             return {
                 member.tag: {
                     "name": member.name,
@@ -53,7 +52,7 @@ class DonationsCog(commands.Cog, name="Relatório de Doações"):
         """
         logger.info(f"Gerando relatório de doações para o período: {period.capitalize()}")
 
-        if not self.db:
+        if self.db is None:
             logger.error("Banco de dados não configurado para gerar relatório de doações.")
             return None
 
@@ -82,7 +81,7 @@ class DonationsCog(commands.Cog, name="Relatório de Doações"):
                 donated = end_stats["donations"] - start_stats["donations"]
                 received = end_stats["received"] - start_stats["received"]
                 
-                if donated >= 0 or received >= 0: # Inclui mesmo se as doações diminuirem (saída/retorno)
+                if donated >= 0 or received >= 0:
                     player_stats.append({
                         "name": end_stats["name"],
                         "donated": donated,
@@ -91,10 +90,6 @@ class DonationsCog(commands.Cog, name="Relatório de Doações"):
                     total_donated += donated
                     total_received += received
 
-        if not player_stats:
-            logger.info("Nenhuma atividade de doação no período para gerar relatório.")
-            return None
-
         player_stats.sort(key=lambda x: x["donated"], reverse=True)
         
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
@@ -102,7 +97,7 @@ class DonationsCog(commands.Cog, name="Relatório de Doações"):
         title = f"Daily Donations" if period == 'daily' else f"Weekly Donations"
         embed = discord.Embed(
             title=f"{clan.name} (#{clan.tag.strip('#')})",
-            color=discord.Color.from_rgb(47, 49, 54) # Cor escura do Discord
+            color=discord.Color.from_rgb(47, 49, 54)
         )
         if clan.badge:
             embed.set_thumbnail(url=clan.badge.url)
@@ -114,14 +109,11 @@ class DonationsCog(commands.Cog, name="Relatório de Doações"):
         description += f"`{start_time_local.strftime('%d de %B de %Y %H:%M')} - {end_time_local.strftime('%d de %B de %Y %H:%M')}`\n\n"
         
         lines = []
-        # Limita a 30 jogadores para não exceder o limite do embed
         for p in player_stats[:30]:
-             # Garante que números negativos não quebrem o alinhamento
             donated_str = str(p['donated']).ljust(5)
             received_str = str(p['received']).ljust(5)
             lines.append(f"{donated_str} {received_str} {p['name']}")
 
-        # Divide em múltiplos campos se a lista for muito grande
         report_str = "\n".join(lines)
         if not report_str:
             report_str = "Nenhuma atividade registrada no período."
@@ -211,5 +203,5 @@ class DonationsCog(commands.Cog, name="Relatório de Doações"):
         await ctx.message.add_reaction("✅")
 
 async def setup(bot: commands.Bot):
-    # Renomeado para donation_cog.py
     await bot.add_cog(DonationsCog(bot))
+
