@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.12-SlashCommands
+# Versão 20.2.08-Middleware-Hotfix#
 
 import os
 import logging
@@ -26,21 +26,24 @@ from war_predictor import WarPredictionSystemV3
 class MemoryLogHandler(logging.Handler):
     def __init__(self, capacity=50):
         super().__init__()
-        self.capacity, self.buffer = capacity, []
+        self.capacity = capacity
+        self.buffer = []
+
     def emit(self, record):
         self.buffer.append(record)
-        if len(self.buffer) > self.capacity: self.buffer.pop(0)
+        if len(self.buffer) > self.capacity:
+            self.buffer.pop(0)
 
 log_handler = MemoryLogHandler()
 log_handler.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 log_handler.setFormatter(formatter)
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logging.getLogger().addHandler(log_handler)
 logger = logging.getLogger("clash_genius_bot")
 
 load_dotenv()
-# ... (carregamento de todas as variáveis de ambiente)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 COC_EMAIL = os.getenv("COC_EMAIL")
 COC_PASSWORD = os.getenv("COC_PASSWORD")
@@ -57,14 +60,12 @@ ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 
-
-BOT_VERSION = "20.2.12-SlashCommands"
+BOT_VERSION = "20.2.09-SlashCommands"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # ... (inicialização de todos os atributos)
         self.coc_email = COC_EMAIL
         self.coc_password = COC_PASSWORD
         self.clan_tag = CLAN_TAG
@@ -117,7 +118,7 @@ class ClashGeniusBot(commands.Bot):
             'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 
             'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog',
             'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog',
-            'slash_cog' # ADICIONADO O NOVO COG DE SLASH COMMANDS
+            'slash_cog'
         ]
         for cog_name in cog_files:
             try:
@@ -130,9 +131,7 @@ class ClashGeniusBot(commands.Bot):
         self.loop.create_task(setup_web_server(self))
         
     async def load_initial_state_from_db(self):
-        # ... (código inalterado)
         if self.db is None: return
-        
         maint_config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
         if maint_config:
             self.maintenance_mode = maint_config.get("enabled", False)
@@ -155,7 +154,6 @@ class ClashGeniusBot(commands.Bot):
         logger.info(f"Carregados {len(self.processed_war_ids)} IDs de guerras já processadas do histórico.")
 
     async def coc_login_task(self):
-        # ... (código inalterado)
         try:
             self.api_client = coc.Client()
             await self.api_client.login(self.coc_email, self.coc_password)
@@ -164,19 +162,16 @@ class ClashGeniusBot(commands.Bot):
         except Exception as e:
             logger.critical(f"Falha CRÍTICA no login do coc.Client: {e}", exc_info=True)
 
-
     async def on_ready(self):
         logger.info(f'Bot {self.user.name} está online e pronto!')
 
     async def close(self):
-        # ... (código inalterado)
         logger.info("Fechando conexões...")
         if self.api_client: await self.api_client.close()
         if self.mongo_client: self.mongo_client.close()
         await super().close()
 
     async def get_clan_data_with_cache(self, tag: str) -> Optional[coc.Clan]:
-        # ... (código inalterado)
         await self.coc_client_ready.wait()
         normalized_tag = coc.utils.correct_tag(tag)
         now = datetime.datetime.now()
@@ -190,42 +185,33 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro ao buscar dados do clã {tag}: {e}")
             return None
 
-
 async def setup_web_server(bot_instance: ClashGeniusBot):
-    # ... (código do servidor web inalterado)
     app = web.Application()
     
     await bot_instance.wait_until_ready()
-    # Carrega os cogs necessários para o servidor web
-    cogs_needed = ["Web API", "Banco de Dados", "Perfis de Membros", "Planeador de CWL", "Manutenção do Sistema", "Conselheiro de Guerra IA", "Painel de Administração Avançado"]
-    loaded_cogs = {cog_name: bot_instance.get_cog(cog_name) for cog_name in cogs_needed}
+    web_api_cog = bot_instance.get_cog("Web API")
+    db_cog = bot_instance.get_cog("Banco de Dados")
+    profile_cog = bot_instance.get_cog("Perfis de Membros")
+    cwl_cog = bot_instance.get_cog("Planeador de CWL")
+    maintenance_cog = bot_instance.get_cog("Manutenção do Sistema")
+    war_advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
+    admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
 
-    if not all(loaded_cogs.values()):
-        logger.critical(f"Um ou mais cogs essenciais para o servidor web não foram carregados: {[name for name, cog in loaded_cogs.items() if not cog]}. O servidor não pode iniciar.")
+    if not all([web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog, war_advisor_cog, admin_cog]):
+        logger.critical("Um ou mais cogs essenciais para o servidor web não foram carregados. O servidor não pode iniciar.")
         return
-
-    web_api_cog = loaded_cogs["Web API"]
-    db_cog = loaded_cogs["Banco de Dados"]
-    profile_cog = loaded_cogs["Perfis de Membros"]
-    cwl_cog = loaded_cogs["Planeador de CWL"]
-    maintenance_cog = loaded_cogs["Manutenção do Sistema"]
-    war_advisor_cog = loaded_cogs["Conselheiro de Guerra IA"]
-    admin_cog = loaded_cogs["Painel de Administração Avançado"]
 
     async def handle_web_response(request, key, func, *args, **kwargs):
         now = datetime.datetime.now()
         if not kwargs.get('force_api_call', False) and key in bot_instance.web_api_cache and (now - bot_instance.web_api_cache[key]["timestamp"]).total_seconds() < bot_instance.WEB_API_CACHE_DURATION_SECONDS:
             return web.json_response(bot_instance.web_api_cache[key]["data"])
-        
         if not bot_instance.coc_client_ready.is_set():
             return web.json_response({"error": "O bot ainda está a iniciar... Por favor, aguarde."}, status=503)
-
         data = await func(*args, **kwargs)
         if 'error' not in data and not kwargs.get('force_api_call', False):
              bot_instance.web_api_cache[key] = {"data": data, "timestamp": now}
         return web.json_response(data)
 
-    # API Handlers
     async def api_clan_handler(r): return await handle_web_response(r, 'clan', web_api_cog.fetch_clan_info_for_web)
     async def api_members_handler(r): return await handle_web_response(r, 'members', web_api_cog.fetch_clan_members_for_web)
     async def api_current_war_details_handler(r): return await handle_web_response(r, 'war_details', web_api_cog.fetch_current_war_details_for_web)
@@ -233,29 +219,24 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_war_log_handler(r): return await handle_web_response(r, 'war_log', web_api_cog.fetch_war_log_for_web)
     async def api_cwl_info_handler(r): return await handle_web_response(r, 'cwl', web_api_cog.fetch_cwl_info_for_web)
     async def api_highlights_handler(r): return await handle_web_response(r, 'highlights', web_api_cog.fetch_highlights_for_web)
-
     async def api_save_player_note_handler(request):
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         data = await request.json()
         await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
         bot_instance.web_api_cache.pop('members', None)
         return web.Response(status=204)
-
     async def api_historic_war_handler(request):
         war_id = request.match_info['war_id']
         war_doc = await bot_instance.db.war_history.find_one({"_id": war_id})
         return web.json_response(war_doc, dumps=lambda v: json.dumps(v, default=str)) if war_doc else web.json_response({"error": "Guerra não encontrada."}, status=404)
-
     async def api_member_profile_handler(request):
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         profile_data = await profile_cog.fetch_player_profile_data(player_tag)
         return web.json_response(profile_data, status=404 if "error" in profile_data else 200)
-
     async def api_cwl_generate_plan_handler(request):
         bot_instance.web_api_cache.pop('cwl_plan', None)
         plan = await cwl_cog.generate_rotation_plan()
         return web.json_response(plan)
-
     async def api_war_advisor_plan_handler(request):
         try:
             war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag)
@@ -268,7 +249,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             logger.error(f"Erro no endpoint do war_advisor: {e}", exc_info=True)
             return web.json_response({"success": False, "error": "Erro interno."}, status=500)
 
-    # API Routes
     app.router.add_get("/api/clan", api_clan_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
@@ -307,6 +287,10 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             tasks_cog = bot_instance.get_cog("Tarefas em Segundo Plano")
             asyncio.create_task(tasks_cog.check_war_end_task.coro(tasks_cog))
             return web.json_response({"status": "success", "message": "Sincronização de guerra forçada."})
+        elif action == "sync_commands": # NOVA AÇÃO
+            guild_id = payload.get("guild_id")
+            guild = bot_instance.get_guild(int(guild_id)) if guild_id else None
+            return web.json_response(await admin_cog.sync_commands(payload.get("scope", "guild"), guild))
         return web.json_response({"status": "error", "message": "Ação desconhecida."}, status=400)
 
     admin_api_app = web.Application(middlewares=[admin_auth_middleware])
@@ -326,18 +310,21 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not session.get('admin'):
             return web.HTTPFound('/admin')
         return web.FileResponse(os.path.join(static_dir, "admin_panel.html"))
-
     async def admin_login_handler(r):
         data = await r.post()
         if data.get('password') == ADMIN_PASSWORD:
             session = await get_session(r)
             session['admin'] = True
+            # ADICIONADO: Salvar o ID do servidor na sessão
+            guild_id = data.get('guild_id')
+            if guild_id:
+                session['guild_id'] = guild_id
             return web.HTTPFound('/admin/panel')
         return web.HTTPFound('/admin?error=1')
-
     async def admin_logout_handler(r):
         session = await get_session(r)
         session.pop('admin', None)
+        session.pop('guild_id', None)
         return web.HTTPFound('/admin')
     
     async def admin_toggle_maintenance_handler(request):
@@ -357,7 +344,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             "status": "ok", 
             "maintenance_mode": bot_instance.maintenance_mode, 
             "version": BOT_VERSION,
-            "is_admin": is_admin
+            "is_admin": is_admin,
+            "guild_id": session.get('guild_id') # Envia o ID do servidor para o frontend
         })
     
     async def api_maintenance_message(r):
@@ -392,7 +380,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
     logger.info(f"Servidor web iniciado em http://0.0.0.0:{port}")
-
 
 async def main():
     intents = discord.Intents.default()
