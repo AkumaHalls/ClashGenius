@@ -95,6 +95,7 @@ class ClashGeniusBot(commands.Bot):
         self.db_ready = asyncio.Event()
         self.coc_client_ready = asyncio.Event()
         self.processed_war_ids = set()
+        self.last_api_status = "ok" # Para monitorar mudanças no status da API
         self.log_handler = log_handler
 
     async def setup_hook(self) -> None:
@@ -426,3 +427,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
