@@ -260,6 +260,19 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             logger.error(f"Erro no endpoint do war_advisor: {e}", exc_info=True)
             return web.json_response({"success": False, "error": "Erro interno."}, status=500)
 
+    # NOVO: Rota para verificar o status da API do Clash of Clans
+    async def api_coc_status_handler(r):
+        """Handler to get the current status of the CoC API."""
+        if not admin_cog:
+            return web.json_response({"status": "error", "message": "Admin cog not loaded."}, status=500)
+        
+        # Se o bot ainda estiver a iniciar, trata como manutenção para o frontend
+        if not bot_instance.coc_client_ready.is_set():
+            return web.json_response({"status": "maintenance", "message": "O bot ainda está a iniciar... Por favor, aguarde."}, status=200)
+
+        status_data = await admin_cog.get_api_status()
+        return web.json_response(status_data)
+
     app.router.add_get("/api/clan", api_clan_handler)
     app.router.add_get("/api/members", api_members_handler)
     app.router.add_get("/api/current_war_details", api_current_war_details_handler)
@@ -272,6 +285,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler)
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
+    app.router.add_get("/api/coc_status", api_coc_status_handler) # Rota adicionada
     
     @web.middleware
     async def admin_auth_middleware(request, handler):
@@ -412,4 +426,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
