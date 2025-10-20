@@ -997,4 +997,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadAllData();
     setInterval(loadAllData, 45000);
+
+    // --- VERIFICAÇÃO DE MANUTENÇÃO DA API ---
+    async function checkApiMaintenance() {
+        try {
+            // Este endpoint não deve ser cacheado pelo navegador para verificações de status
+            const response = await fetch(`${API_BASE_URL}/api/coc_status`, { cache: 'no-store' });
+            if (!response.ok) {
+                console.error('Falha ao buscar status da API, o servidor pode estar offline.');
+                return;
+            }
+            const data = await response.json();
+            // Se a API estiver em manutenção, redireciona para a página de manutenção
+            if (data.status === 'maintenance') {
+                console.warn('API em manutenção. Redirecionando...');
+                window.location.href = '/static/maintenance.html';
+            }
+        } catch (error) {
+            console.error('Erro ao verificar o status de manutenção da API:', error);
+        }
+    }
+
+    // Verifica no carregamento e depois periodicamente
+    checkApiMaintenance();
+    setInterval(checkApiMaintenance, 20000); // Verifica a cada 20 segundos
 });
