@@ -15,40 +15,46 @@
         <h1>Em Manutenção</h1>
         <p id="maintenance-custom-message">O painel do Clash Genius está passando por uma breve manutenção. Voltaremos em breve!</p>
     </div>
-    <script>
-        // Script para buscar e exibir a mensagem de manutenção personalizada
-        document.addEventListener('DOMContentLoaded', () => {
-            fetch('/api/maintenance_message')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.message) {
-                        document.getElementById('maintenance-custom-message').textContent = data.message;
-                    }
-                })
-                .catch(error => console.error('Erro ao buscar mensagem de manutenção:', error));
-        });
-    </script>
-    <!-- NOVO SCRIPT PARA VERIFICAR A RECUPERAÇÃO DA API -->
+    <!-- SCRIPT ATUALIZADO PARA VERIFICAR STATUS E MOTIVO -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const statusCheckInterval = setInterval(async () => {
+            const messageEl = document.getElementById('maintenance-custom-message');
+
+            const checkStatus = async () => {
                 try {
                     const response = await fetch('/api/coc_status', { cache: 'no-store' });
-                    if (response.ok) {
-                        const data = await response.json();
-                        // Se a API voltou, redireciona para o painel principal
-                        if (data.status === 'ok') {
-                            console.log('API está online. Redirecionando para o painel...');
-                            window.location.href = '/painel';
-                            clearInterval(statusCheckInterval); // Para de verificar após o redirecionamento
+                    if (!response.ok) {
+                        // Se o próprio servidor do bot estiver offline, exibe uma mensagem genérica.
+                        messageEl.textContent = 'Servidor do Clash Genius indisponível. Tentando reconectar...';
+                        return; // Continua tentando no próximo intervalo
+                    }
+
+                    const data = await response.json();
+                    
+                    // Se a API da Supercell voltou, redireciona para o painel principal
+                    if (data.status === 'ok') {
+                        console.log('API está online. Redirecionando para o painel...');
+                        window.location.href = '/painel';
+                        if (statusCheckInterval) clearInterval(statusCheckInterval); // Para de verificar
+                    } else {
+                        // Se a API está em manutenção ou com erro, exibe a mensagem retornada pela API do bot
+                        if (data.message) {
+                            messageEl.textContent = data.message;
                         }
                     }
                 } catch (error) {
-                    // Continua tentando se houver um erro de rede
+                    // Em caso de falha de rede ao tentar conectar ao servidor do bot
                     console.error('Erro ao verificar status da API para recuperação:', error);
+                    messageEl.textContent = 'Não foi possível conectar ao servidor do Clash Genius. Verifique sua conexão e tente novamente.';
                 }
-            }, 15000); // Verifica a cada 15 segundos
+            };
+
+            // Verifica imediatamente ao carregar a página
+            checkStatus();
+            // E continua verificando a cada 15 segundos
+            const statusCheckInterval = setInterval(checkStatus, 15000);
         });
     </script>
 </body>
 </html>
+
