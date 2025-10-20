@@ -28,5 +28,27 @@
                 .catch(error => console.error('Erro ao buscar mensagem de manutenção:', error));
         });
     </script>
+    <!-- NOVO SCRIPT PARA VERIFICAR A RECUPERAÇÃO DA API -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const statusCheckInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/coc_status', { cache: 'no-store' });
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Se a API voltou, redireciona para o painel principal
+                        if (data.status === 'ok') {
+                            console.log('API está online. Redirecionando para o painel...');
+                            window.location.href = '/painel';
+                            clearInterval(statusCheckInterval); // Para de verificar após o redirecionamento
+                        }
+                    }
+                } catch (error) {
+                    // Continua tentando se houver um erro de rede
+                    console.error('Erro ao verificar status da API para recuperação:', error);
+                }
+            }, 15000); // Verifica a cada 15 segundos
+        });
+    </script>
 </body>
 </html>
