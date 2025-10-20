@@ -37,13 +37,14 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             return {"status": "error", "message": message}
 
     async def get_api_status(self) -> Dict[str, Any]:
+        """Verifica o status da API da Supercell."""
         try:
             await self.bot.api_client.get_clan(self.bot.clan_tag)
             return {"status": "ok", "message": "API do Clash of Clans operacional."}
         except coc.errors.Maintenance:
-            return {"status": "maintenance", "message": "API em manutenção."}
+            return {"status": "maintenance", "message": "A API do Clash of Clans está em manutenção. Tente novamente mais tarde."}
         except Exception as e:
-            return {"status": "error", "message": f"Erro de conexão com a API: {e}"}
+            return {"status": "error", "message": f"Erro de conexão com a API: Acesso temporariamente indisponível. ({type(e).__name__})"}
 
     async def get_diagnostics(self) -> Dict[str, Any]:
         """Coleta dados de diagnóstico do bot."""
@@ -132,4 +133,3 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))
-
