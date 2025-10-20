@@ -23,8 +23,8 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         # Inicia as tarefas
         self.check_war_end_task.start()
         self.donation_snapshot_task.start()
-        self.cleanup_old_snapshots_task.start() # Nova tarefa de limpeza
-        # As tasks vazias foram comentadas/removidas
+        self.cleanup_old_snapshots_task.start()
+        self.check_api_status_task.start() # Nova tarefa para monitorar a API
         logger.info("Tarefas em segundo plano iniciadas.")
 
     def cog_unload(self):
@@ -32,6 +32,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.check_war_end_task.cancel()
         self.donation_snapshot_task.cancel()
         self.cleanup_old_snapshots_task.cancel()
+        self.check_api_status_task.cancel()
 
     # --- Tarefas de Doações ---
     @tasks.loop(hours=1)
@@ -199,14 +200,48 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         finally:
             await ctx.message.remove_reaction("🔄", self.bot.user)
 
+    # --- Tarefa de Status da API ---
+    @tasks.loop(minutes=1)
+    async def check_api_status_task(self):
+        """Verifica o status da API da Supercell e notifica no Discord se houver mudança."""
+        if self.bot.maintenance_mode: return
+        
+        admin_cog = self.bot.get_cog("Painel de Administração Avançado")
+        if not admin_cog:
+            logger.warning("AdminCog não encontrado, pulando verificação de status da API.")
+            return
 
-    # --- Tarefas Placeholder (Comentadas/Removidas) ---
-    # @tasks.loop(minutes=10)
-    # async def post_war_prediction_task(self): return # TODO: Implementar
-    # @tasks.loop(hours=24)
-    # async def daily_player_data_snapshot(self): return # TODO: Implementar
-    # A task send_online_status_task foi removida pois não tinha funcionalidade.
+        api_status_data = await admin_cog.get_api_status()
+        current_status = api_status_data.get("status", "error")
+        status_message = api_status_data.get("message", "N/A")
 
+        if current_status != self.bot.last_api_status:
+            logger.info(f"Status da API da Supercell mudou de '{self.bot.last_api_status}' para '{current_status}'. Enviando notificação.")
+            
+            if current_status == "maintenance" or current_status == "error":
+                embed_color = discord.Color.orange()
+                title = "🚨 Alerta de API da Supercell 🚨"
+                description = "O acesso à API do Clash of Clans está instável ou em manutenção."
+                impact_value = "**Painel Web:** Indisponível (redirecionado para página de aviso).\n**Alertas no Discord:** Podem ser afetados."
+            else: # status is 'ok'
+                embed_color = discord.Color.green()
+                title = "✅ API da Supercell Operacional"
+                description = "A API do Clash of Clans voltou ao normal."
+                impact_value = "**Painel Web:** Acesso restaurado.\n**Alertas no Discord:** Funcionando normalmente."
+
+            embed = discord.Embed(
+                title=title,
+                description=description,
+                color=embed_color
+            )
+            embed.add_field(name="Motivo Detectado", value=status_message, inline=False)
+            embed.add_field(name="Impacto", value=impact_value, inline=False)
+
+            await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
+            
+            # Atualiza o último status conhecido
+            self.bot.last_api_status = current_status
+            
     # --- Funções de Inicialização Segura (before_loop) ---
     @donation_snapshot_task.before_loop
     async def before_donation_snapshot(self):
@@ -225,7 +260,11 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         await self.bot.db_ready.wait()
         await self.bot.coc_client_ready.wait()
 
+    @check_api_status_task.before_loop
+    async def before_check_api_status(self):
+        await self.bot.wait_until_ready()
+        await self.bot.coc_client_ready.wait()
+
 # Função setup que o discord.py chama para carregar o cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))
-
