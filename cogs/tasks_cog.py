@@ -114,7 +114,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 else:
                      logger.error(f"Falha ao obter detalhes da guerra para salvar no DB: {war_details_for_db['error']}.")
 
-            missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan_in_war.members if len(m.attacks) < war.attacks_per_member]
+            missed = [f"**{m.name}** ({m.tag}) (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan_in_war.members if len(m.attacks) < war.attacks_per_member]
             if missed:
                 embed = discord.Embed(title="🚩 Relatório de Ataques Perdidos", color=discord.Color.dark_gold())
                 embed.add_field(name="Placar Final", value=f"**{our_clan_in_war.name}:** {our_clan_in_war.stars}⭐\n**{opponent_clan_in_war.name}:** {opponent_clan_in_war.stars}⭐", inline=False)
