@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.12-Startup-Hotfix
+# Versão 20.2.12-Startup-Hotfix#
 
 import os
 import logging
