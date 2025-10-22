@@ -27,6 +27,7 @@ class WebApiCog(commands.Cog, name="Web API"):
         self.watchlist_cog = self.bot.get_cog("Lista de Observação")
         if not self.watchlist_cog:
             logger.error("WatchlistCog não encontrada! A funcionalidade de watchlist no painel web não funcionará.")
+            self.watchlist_cog = None # Define como None para evitar erros repetidos
 
     async def format_war_details_for_web(self, war: coc.ClanWar) -> Dict[str, Any]:
         try:
@@ -86,7 +87,7 @@ class WebApiCog(commands.Cog, name="Web API"):
                     "opponent_avg_stars": f"{opp_clan.stars / len(opp_attacks_raw):.2f}" if opp_attacks_raw else "0.00",
                     "is_cwl": war.is_cwl
                 },
-                "all_attacks": all_attacks_data,
+                "all_attacks": sorted(all_attacks_data, key=lambda x: x['order']), # Ordena ataques
                 "our_clan_members_in_war": get_team_details(our_clan, war),
                 "opponent_clan_members_in_war": get_team_details(opp_clan, war),
                 "prediction": prediction_data
@@ -113,6 +114,7 @@ class WebApiCog(commands.Cog, name="Web API"):
             "badge_url": getattr(clan.badge, 'url', None) if hasattr(clan, 'badge') else None,
             "version": self.bot.bot_version,
             "capital_league": capital_league_name,
+            # Removido districts
         }
 
     async def fetch_current_war_details_for_web(self, force_api_call=False):
@@ -135,11 +137,9 @@ class WebApiCog(commands.Cog, name="Web API"):
         player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
         members_list = []
 
-        # Certifica-se que watchlist_cog está carregado
         if not self.watchlist_cog:
              logger.error("WatchlistCog não carregado em fetch_clan_members_for_web.")
-             # Continua sem a informação da watchlist se a Cog falhar
-             self.watchlist_cog = None # Define como None para evitar erros repetidos
+             self.watchlist_cog = None
 
         for member in clan.members:
             note_data = player_notes.get(member.tag, {})
@@ -152,7 +152,6 @@ class WebApiCog(commands.Cog, name="Web API"):
                 "donations": member.donations, "received": member.received,
                 "note": note_data.get("text", ""), "note_priority": note_data.get("priority", "none"),
                 "cwl_status": note_data.get("cwl_status", "active"),
-                # Adiciona informação da watchlist
                 "isOnWatchlist": bool(watchlist_entry),
                 "watchlistReason": watchlist_entry.get('reason', None) if watchlist_entry else None,
                 "watchlistDetails": watchlist_entry.get('details', None) if watchlist_entry else None
@@ -182,10 +181,19 @@ class WebApiCog(commands.Cog, name="Web API"):
                         "town_hall": member.get("townhall", "?"), "attacks_left": attacks_left,
                     })
             if missed_attacks_members and war_data.get("end_time_iso"):
-                end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
+                 # Tenta analisar a data, mas usa string se falhar
+                end_date_str = war_data.get("end_time_iso")
+                end_date_formatted = "Data Inválida"
+                if end_date_str:
+                    try:
+                        end_time_dt = datetime.datetime.fromisoformat(end_date_str.replace("Z", "+00:00")) # Garante compatibilidade
+                        end_date_formatted = end_time_dt.astimezone(self.bot.timezone).strftime('%d/%m/%y')
+                    except ValueError:
+                         logger.warning(f"Formato de data inválido no histórico: {end_date_str}")
+
                 wars_with_missed_attacks.append({
                     "opponent_name": war_data.get("opponent_name", "Oponente Desconhecido"),
-                    "end_date": end_time_dt.astimezone(self.bot.timezone).strftime('%d/%m/%y'),
+                    "end_date": end_date_formatted,
                     "missed_attacks_members": missed_attacks_members, "is_latest": is_first_war
                 })
                 is_first_war = False
@@ -197,24 +205,41 @@ class WebApiCog(commands.Cog, name="Web API"):
         entries = []
         async for war_doc in log_cursor:
             war_data = war_doc.get("war_data", {})
-            if war_data.get("end_time_iso"):
-                end_time_dt = datetime.datetime.fromisoformat(war_data.get("end_time_iso"))
-                result = "Vitória" if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else "Derrota" if war_data.get("clan_stars", 0) < war_data.get("opponent_stars", 0) else "Empate"
-                entries.append({
-                    "war_id": war_doc.get("_id"),
-                    "end_time_iso": war_data.get("end_time_iso"),
-                    "end_time_formatted": end_time_dt.astimezone(self.bot.timezone).strftime('%d/%m/%y %H:%M'),
-                    "opponent_name": war_data.get("opponent_name"), "opponent_badge_url": war_data.get("opponent_badge_url"),
-                    "clan_stars": war_data.get("clan_stars"), "opponent_stars": war_data.get("opponent_stars"),
-                    "result": result, "team_size": war_data.get("team_size"), "is_cwl": war_data.get("is_cwl", False)
-                })
+            end_time_str = war_data.get("end_time_iso")
+            end_time_formatted = "Data Inválida"
+            if end_time_str:
+                try:
+                    end_time_dt = datetime.datetime.fromisoformat(end_time_str.replace("Z", "+00:00"))
+                    end_time_formatted = end_time_dt.astimezone(self.bot.timezone).strftime('%d/%m/%y %H:%M')
+                except ValueError:
+                    logger.warning(f"Formato de data inválido no log de guerra: {end_time_str}")
+
+            clan_stars = war_data.get("clan_stars", 0)
+            opp_stars = war_data.get("opponent_stars", 0)
+            clan_dest = float(war_data.get("clan_destruction", "0%").replace('%',''))
+            opp_dest = float(war_data.get("opponent_destruction", "0%").replace('%',''))
+
+            result = "Empate"
+            if clan_stars > opp_stars or (clan_stars == opp_stars and clan_dest > opp_dest):
+                result = "Vitória"
+            elif opp_stars > clan_stars or (clan_stars == opp_stars and opp_dest > clan_dest):
+                result = "Derrota"
+
+            entries.append({
+                "war_id": war_doc.get("_id"),
+                "end_time_iso": end_time_str,
+                "end_time_formatted": end_time_formatted,
+                "opponent_name": war_data.get("opponent_name"), "opponent_badge_url": war_data.get("opponent_badge_url"),
+                "clan_stars": clan_stars, "opponent_stars": opp_stars,
+                "result": result, "team_size": war_data.get("team_size"), "is_cwl": war_data.get("is_cwl", False)
+            })
         return {"log": entries}
 
     async def fetch_cwl_info_for_web(self):
         if not self.bot.api_client: return {"error": "API do CoC não iniciada."}
         try:
             cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
-            if not cwl_group: return {"status": "NotInCwl"}
+            if not cwl_group: return {"status": "NotInCwl", "message": "O clã não está participando da CWL nesta temporada."}
 
             clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_group.clans]
             rounds_info = []
@@ -226,18 +251,23 @@ class WebApiCog(commands.Cog, name="Web API"):
                     try:
                         war = await self.bot.api_client.get_league_war(war_tag)
                         if war:
-                            round_data["wars"].append({
-                                "war_tag": war_tag, "clan_name": war.clan.name, "clan_badge_url": war.clan.badge.url, "clan_stars": war.clan.stars,
+                             war_time_details = format_war_time_details(war, datetime.datetime.now(pytz.utc))
+                             round_data["wars"].append({
+                                "war_tag": war_tag,
+                                "clan_name": war.clan.name, "clan_badge_url": war.clan.badge.url, "clan_stars": war.clan.stars,
                                 "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url, "opponent_stars": war.opponent.stars,
-                                **format_war_time_details(war, datetime.datetime.now(pytz.utc))
+                                **war_time_details # Inclui time_key, time_value, etc.
                             })
+                    except coc.NotFound:
+                         round_data["wars"].append({"error": f"Guerra {war_tag} não encontrada (API)." })
                     except Exception as e:
                         logger.warning(f"Não foi possível buscar a guerra da CWL {war_tag}: {e}")
+                        round_data["wars"].append({"error": f"Erro ao buscar guerra {war_tag}." })
                 rounds_info.append(round_data)
 
             return {"status": "InCwl", "season": cwl_group.season, "state": str(cwl_group.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
         except coc.NotFound:
-            return {"status": "NotInCwl"}
+            return {"status": "NotInCwl", "message": "O clã não está inscrito na CWL."}
         except Exception as e:
             logger.error(f"Erro inesperado ao buscar dados da CWL: {e}", exc_info=True)
             return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
@@ -253,9 +283,13 @@ class WebApiCog(commands.Cog, name="Web API"):
                 from cogs.post_war_analysis import _calculate_post_war_stats
                 analysis = _calculate_post_war_stats(latest_war_doc)
                 war_heroes = analysis.get("war_heroes", [])
-                if latest_war_doc.get("war_data", {}).get("end_time_iso"):
-                    end_time = datetime.datetime.fromisoformat(latest_war_doc["war_data"]["end_time_iso"])
-                    war_end_date_str = end_time.astimezone(self.bot.timezone).strftime('%d/%m')
+                end_time_str = latest_war_doc.get("war_data", {}).get("end_time_iso")
+                if end_time_str:
+                    try:
+                         end_time = datetime.datetime.fromisoformat(end_time_str.replace("Z", "+00:00"))
+                         war_end_date_str = end_time.astimezone(self.bot.timezone).strftime('%d/%m')
+                    except ValueError:
+                         war_end_date_str = "Data Inv."
         active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
         chart_data = {"labels": [m.name for m in active_members], "donations": [m.donations for m in active_members], "received": [m.received for m in active_members]}
         return {"top_donors": top_donors_data, "war_heroes": war_heroes, "activity_chart_data": chart_data, "clan_name": clan.name, "war_date": war_end_date_str}
