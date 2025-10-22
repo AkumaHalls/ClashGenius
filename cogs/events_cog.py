@@ -9,7 +9,7 @@ import datetime
 logger = logging.getLogger("events_cog")
 
 class EventsCog(commands.Cog, name="Eventos do Clã"):
-    """Cog para gerenciar e notificar todos os eventos do clã e de guerra."""
+    """Cog para gerenciar e notificar eventos do clã e de guerra (exceto entrada de membro)."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -22,10 +22,11 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     def _add_event_listeners(self):
         """Aplica os decoradores de evento aos métodos de handle."""
-        @self.events_client.event
-        @coc.ClanEvents.member_join()
-        async def on_clan_member_join(member, clan):
-            await self.handle_clan_member_join(member, clan)
+        # REMOVIDO: O listener on_clan_member_join foi movido para WatchlistCog
+        # @self.events_client.event
+        # @coc.ClanEvents.member_join()
+        # async def on_clan_member_join(member, clan):
+        #     await self.handle_clan_member_join(member, clan)
 
         @self.events_client.event
         @coc.ClanEvents.member_leave()
@@ -36,7 +37,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         @coc.ClanEvents.member_role()
         async def on_clan_member_role_change(old_member, new_member):
             await self.handle_clan_member_role_change(old_member, new_member)
-        
+
         @self.events_client.event
         @coc.ClanEvents.member_trophies()
         async def on_clan_member_trophies_change(old_member, new_member):
@@ -51,7 +52,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         @coc.ClanEvents.member_donations()
         async def on_member_donations(old_member, new_member):
             await self.handle_member_donations(old_member, new_member)
-        
+
         @self.events_client.event
         @coc.ClanEvents.member_received()
         async def on_member_received(old_member, new_member):
@@ -93,15 +94,17 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
     # --- FUNÇÕES QUE RESPONDEM AOS EVENTOS ---
-    async def handle_clan_member_join(self, member, clan):
-        if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
-        embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
-        embed.add_field(name="CV", value=member.town_hall, inline=True)
-        embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
-        embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
-        await self._send_log_embed(embed)
+    # REMOVIDO: handle_clan_member_join foi movido para WatchlistCog
+    # async def handle_clan_member_join(self, member, clan):
+    #     if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
+    #     embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
+    #     embed.add_field(name="CV", value=member.town_hall, inline=True)
+    #     embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
+    #     embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
+    #     await self._send_log_embed(embed)
 
     async def handle_clan_member_leave(self, member, clan):
+        # Ignora eventos de outros clãs ou se o bot estiver em manutenção
         if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
         embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** ({member.tag}) saiu do clã.", color=discord.Color.dark_grey())
         embed.add_field(name="CV", value=member.town_hall, inline=True)
@@ -118,11 +121,11 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             is_our_attack = attacker.clan.tag == self.bot.clan_tag
             war_type = "CWL" if war.is_cwl else "Guerra"
             stars_str = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
-            
+
             # ALTERAÇÃO: Formata a string com Markdown para destacar os números
             attacker_str = f"`{attacker.map_position:02d}` **{attacker.name}** (CV{attacker.town_hall})"
             defender_str = f"`{defender.map_position:02d}` **{defender.name}** (CV{defender.town_hall})"
-            
+
             if is_our_attack:
                 embed = discord.Embed(title=f"⚔️ Ataque Realizado ({war_type})", description=f"{attacker.clan.name}", color=discord.Color.blue())
                 embed.add_field(name="Detalhes", value=f"{attacker_str} atacou {defender_str}", inline=False)
@@ -145,14 +148,14 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                 await self._send_log_embed(embed)
         except Exception as e:
             logger.error(f"Erro em on_war_attack: {e}", exc_info=True)
-    
+
     async def handle_clan_member_role_change(self, old_member, new_member):
         if self.bot.maintenance_mode: return
         embed = discord.Embed(title="✨ Mudança de Cargo", description=f"O cargo de **{new_member.name}** foi alterado.", color=discord.Color.purple())
         embed.add_field(name="Cargo Antigo", value=old_member.role.name.capitalize(), inline=True)
         embed.add_field(name="Novo Cargo", value=new_member.role.name.capitalize(), inline=True)
         await self._send_log_embed(embed)
-        
+
     async def handle_clan_member_trophies_change(self, old_member, new_member):
         if self.bot.maintenance_mode: return
         diff = new_member.trophies - old_member.trophies
@@ -201,7 +204,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             if self.war_attack_cache["war_end_time"] != war.end_time.time:
                 self.war_attack_cache = {"war_end_time": war.end_time.time, "processed_attacks": {a.order for a in war.attacks}}
                 return
-            
+
             new_attacks = [a for a in war.attacks if a.order not in self.war_attack_cache["processed_attacks"]]
             if new_attacks:
                 for attack in sorted(new_attacks, key=lambda a: a.order):
@@ -210,7 +213,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         except (coc.PrivateWarLog, coc.NotFound): pass
         except Exception as e:
             logger.error(f"Erro na task de novos ataques: {e}", exc_info=True)
-            
+
     @check_new_attack_task.before_loop
     async def before_check_new_attack_task(self):
         await self.bot.wait_until_ready()
