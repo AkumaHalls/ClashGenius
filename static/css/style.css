@@ -53,7 +53,7 @@
     --color-tab-inactive-bg: transparent;
     --color-tab-inactive-text: var(--color-text-secondary);
     --color-tab-border: var(--color-border);
-    
+
     --color-gold: #FFD700;
     --color-silver: #C0C0C0;
     --color-bronze: #CD7F32;
@@ -64,43 +64,43 @@
 }
 
 html {
-    height: 100%; 
+    height: 100%;
     scroll-behavior: smooth;
 }
 
 body {
     font-family: var(--font-body);
     margin: 0;
-    background-color: #000000; 
+    background-color: #000000;
     color: var(--color-text-main);
     line-height: 1.6;
     font-size: 16px;
-    position: relative; 
-    display: flex; 
-    flex-direction: column; 
-    min-height: 100%; 
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
 }
 
 #particle-background {
-    position: fixed; 
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: -1; 
+    z-index: -1;
 }
 
 
 .container {
     width: 95%;
     max-width: 1300px;
-    margin-left: auto; 
+    margin-left: auto;
     margin-right: auto;
-    padding-left: 15px; 
+    padding-left: 15px;
     padding-right: 15px;
     position:relative;
     z-index: 1;
-    box-sizing: border-box; 
+    box-sizing: border-box;
 }
 
 #loading-overlay {
@@ -156,12 +156,12 @@ body {
 .site-header {
     background-color: var(--color-header-background);
     color: var(--color-text-header);
-    padding-top: 12px; 
-    padding-bottom: 12px; 
+    padding-top: 12px;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--color-border);
     box-shadow: var(--box-shadow-base);
     position: sticky; top: 0; z-index: 1000;
-    width: 100%; 
+    width: 100%;
     box-sizing: border-box;
 }
 
@@ -187,11 +187,11 @@ main.container {
     padding-bottom: 25px;
     position: relative;
     z-index: 1;
-    flex-grow: 1; 
-    width: 100%; 
-    max-width: 1300px; 
-    margin-left: auto; 
-    margin-right: auto; 
+    flex-grow: 1;
+    width: 100%;
+    max-width: 1300px;
+    margin-left: auto;
+    margin-right: auto;
 }
 .card {
     background-color: var(--color-card-background);
@@ -430,7 +430,7 @@ main.container {
     display: none;
 }
 
-.mvp-card .tooltip-text, .attack-item .tooltip-text {
+.mvp-card .tooltip-text, .attack-item .tooltip-text, .member-card .watchlist-tooltip {
     visibility: hidden;
     width: 250px;
     background-color: var(--color-background);
@@ -442,14 +442,41 @@ main.container {
     z-index: 10;
     bottom: 110%;
     left: 50%;
-    margin-left: -125px;
+    margin-left: -125px; /* Metade da largura */
     opacity: 0;
     transition: opacity 0.3s;
     font-size: 0.85em;
     border: 1px solid var(--color-border-light);
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    pointer-events: none; /* Evita que o tooltip interfira com o hover */
 }
-.mvp-card:hover .tooltip-text, .attack-item:hover .tooltip-text {
+
+/* Tooltip da Watchlist (posição pode precisar de ajuste) */
+.member-card .watchlist-tooltip {
+    bottom: 115%; /* Um pouco mais acima */
+    left: 20px; /* Ajuste para alinhar com o ícone */
+    margin-left: 0;
+    width: 280px; /* Mais largo para detalhes */
+    background-color: var(--color-warning); /* Fundo de aviso */
+    color: var(--color-priority-text-dark); /* Texto escuro */
+    border-color: var(--color-gold);
+}
+
+.member-card .watchlist-tooltip::after { /* Seta para baixo */
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 15px; /* Posição da seta */
+    margin-left: 0;
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--color-gold) transparent transparent transparent;
+}
+
+
+.mvp-card:hover .tooltip-text,
+.attack-item:hover .tooltip-text,
+.watchlist-icon:hover + .watchlist-tooltip { /* Mostra tooltip ao passar sobre o ícone */
     visibility: visible;
     opacity: 1;
 }
@@ -467,7 +494,7 @@ main.container {
     position: relative;
     overflow: hidden;
     width: 100%;
-    flex-grow: 1; 
+    flex-grow: 1;
     display: block;
 }
 
@@ -629,6 +656,11 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     display: flex;
     flex-direction: column;
     transition: transform 0.2s, box-shadow 0.2s;
+    position: relative; /* Necessário para o tooltip */
+}
+/* Estilo para card na watchlist */
+.member-card.on-watchlist {
+    border-left: 5px solid var(--color-warning);
 }
 .member-card:hover {
     transform: translateY(-3px);
@@ -640,6 +672,13 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     gap: 12px;
     margin-bottom: 15px;
     cursor: pointer;
+    position: relative; /* Para o ícone ficar relativo a este header */
+}
+.watchlist-icon {
+    color: var(--color-warning);
+    font-size: 1.3em;
+    margin-left: 8px;
+    cursor: help; /* Indica que há informação ao passar o mouse */
 }
 .member-th-icon {
     width: 40px;
@@ -649,6 +688,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     margin: 0;
     font-size: 1.15em;
     color: var(--color-text-main);
+    display: flex; /* Para alinhar o ícone */
+    align-items: center;
 }
 .member-info p {
     margin: 0;
@@ -954,14 +995,14 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 
 .modal {
-    display: none; 
-    position: fixed; 
-    z-index: 2000; 
+    display: none;
+    position: fixed;
+    z-index: 2000;
     left: 0;
     top: 0;
-    width: 100%; 
-    height: 100%; 
-    overflow: auto; 
+    width: 100%;
+    height: 100%;
+    overflow: auto;
     background-color: rgba(0,0,0,0.7);
 }
 
@@ -1069,7 +1110,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 
 .profile-stats-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr); 
+    grid-template-columns: repeat(2, 1fr);
     gap: 15px;
 }
 .profile-stat-card {
@@ -1261,7 +1302,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .status-on, .status-error { background-color: var(--color-danger); }
 .status-off, .status-ok { background-color: var(--color-success); }
 .status-maintenance { background-color: var(--color-warning); color: var(--color-priority-text-dark); }
-.control-btn {
+.control-btn, .admin-remove-btn {
     padding: 10px 20px;
     font-size: 1em;
     cursor: pointer;
@@ -1280,6 +1321,14 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-text-secondary);
     margin-top: 10px;
 }
+/* Estilo botão remover */
+.admin-remove-btn {
+    background-color: var(--color-danger);
+    font-size: 0.8em;
+    padding: 5px 10px;
+    margin: 0;
+}
+.admin-remove-btn:hover { background-color: #c53030; }
 
 .action-buttons-group {
     margin-bottom: 20px;
@@ -1310,7 +1359,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 .form-group { display: flex; flex-direction: column; }
 .form-group label { margin-bottom: 5px; font-size: 0.9em; color: var(--color-text-secondary); }
-.settings-input, .settings-textarea {
+.settings-input, .settings-textarea, .admin-input, .admin-textarea {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid var(--color-border-light);
@@ -1322,6 +1371,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     box-sizing: border-box;
 }
 .feedback-text { font-size: 0.9em; margin-top: 10px; min-height: 1.2em; color: var(--color-success); }
+.feedback-text.error { color: var(--color-danger); }
 
 .announcement-section { margin-top: 20px; padding-top: 15px; border-top: 1px dashed var(--color-divider); }
 .announcement-section h4 { margin-top: 0; }
@@ -1332,6 +1382,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .table-container-admin td.priority-cell.priority-red { color: var(--color-danger); font-weight: bold; }
 .table-container-admin td.priority-cell.priority-yellow { color: var(--color-warning); }
 .table-container-admin td.priority-cell.priority-green { color: var(--color-success); }
+/* Estilo para tabela watchlist */
+#admin-watchlist-table td, #admin-watchlist-table th { padding: 8px 10px; }
 
 
 .admin-link-btn {
