@@ -18,6 +18,15 @@ class WebApiCog(commands.Cog, name="Web API"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
+        # Obtém referência à WatchlistCog após o bot estar pronto
+        self.watchlist_cog = None
+
+    async def cog_load(self):
+        # Espera o bot estar pronto para garantir que todas as Cogs foram carregadas
+        await self.bot.wait_until_ready()
+        self.watchlist_cog = self.bot.get_cog("Lista de Observação")
+        if not self.watchlist_cog:
+            logger.error("WatchlistCog não encontrada! A funcionalidade de watchlist no painel web não funcionará.")
 
     async def format_war_details_for_web(self, war: coc.ClanWar) -> Dict[str, Any]:
         try:
@@ -48,7 +57,7 @@ class WebApiCog(commands.Cog, name="Web API"):
 
             our_attacks_raw = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == our_clan.tag]
             opp_attacks_raw = [a for a in war.attacks if a and getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == opp_clan.tag]
-            
+
             all_attacks_data = []
             for attack in war.attacks:
                 if not attack: continue
@@ -56,8 +65,7 @@ class WebApiCog(commands.Cog, name="Web API"):
                 defender = war.get_member(attack.defender_tag)
                 all_attacks_data.append({
                     "order": attack.order, "attacker_clan_tag": getattr(getattr(attacker, 'clan', None), 'tag', None),
-                    # CORREÇÃO: Adicionando a tag do atacante que estava faltando
-                    "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag), 
+                    "attacker_tag": getattr(attacker, 'tag', attack.attacker_tag),
                     "attacker_name": getattr(attacker, 'name', attack.attacker_tag),
                     "attacker_townhall": getattr(attacker, 'town_hall', '?'), "defender_name": getattr(defender, 'name', attack.defender_tag),
                     "defender_townhall": getattr(defender, 'town_hall', '?'), "stars": attack.stars, "destruction": attack.destruction,
@@ -90,7 +98,7 @@ class WebApiCog(commands.Cog, name="Web API"):
     async def fetch_clan_info_for_web(self):
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
-        
+
         capital_league_name = "N/A"
         if hasattr(clan, 'capital_league') and clan.capital_league:
             capital_league_name = clan.capital_league.name
@@ -126,15 +134,28 @@ class WebApiCog(commands.Cog, name="Web API"):
         db_cog = self.bot.get_cog("Banco de Dados")
         player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
         members_list = []
+
+        # Certifica-se que watchlist_cog está carregado
+        if not self.watchlist_cog:
+             logger.error("WatchlistCog não carregado em fetch_clan_members_for_web.")
+             # Continua sem a informação da watchlist se a Cog falhar
+             self.watchlist_cog = None # Define como None para evitar erros repetidos
+
         for member in clan.members:
             note_data = player_notes.get(member.tag, {})
+            watchlist_entry = await self.watchlist_cog.is_on_watchlist(member.tag) if self.watchlist_cog else None
+
             members_list.append({
                 "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
                 "league": member.league.name if member.league else "Sem Liga",
                 "trophies": member.trophies, "role": member.role.name.capitalize() if member.role else "Membro",
                 "donations": member.donations, "received": member.received,
                 "note": note_data.get("text", ""), "note_priority": note_data.get("priority", "none"),
-                "cwl_status": note_data.get("cwl_status", "active")
+                "cwl_status": note_data.get("cwl_status", "active"),
+                # Adiciona informação da watchlist
+                "isOnWatchlist": bool(watchlist_entry),
+                "watchlistReason": watchlist_entry.get('reason', None) if watchlist_entry else None,
+                "watchlistDetails": watchlist_entry.get('details', None) if watchlist_entry else None
             })
         role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
         sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
@@ -181,7 +202,7 @@ class WebApiCog(commands.Cog, name="Web API"):
                 result = "Vitória" if war_data.get("clan_stars", 0) > war_data.get("opponent_stars", 0) else "Derrota" if war_data.get("clan_stars", 0) < war_data.get("opponent_stars", 0) else "Empate"
                 entries.append({
                     "war_id": war_doc.get("_id"),
-                    "end_time_iso": war_data.get("end_time_iso"), 
+                    "end_time_iso": war_data.get("end_time_iso"),
                     "end_time_formatted": end_time_dt.astimezone(self.bot.timezone).strftime('%d/%m/%y %H:%M'),
                     "opponent_name": war_data.get("opponent_name"), "opponent_badge_url": war_data.get("opponent_badge_url"),
                     "clan_stars": war_data.get("clan_stars"), "opponent_stars": war_data.get("opponent_stars"),
@@ -194,10 +215,10 @@ class WebApiCog(commands.Cog, name="Web API"):
         try:
             cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
             if not cwl_group: return {"status": "NotInCwl"}
-            
+
             clans_in_group = [{"name": c.name, "tag": c.tag, "level": c.level, "badge_url": c.badge.url} for c in cwl_group.clans]
             rounds_info = []
-            
+
             for i, a_round in enumerate(cwl_group.rounds):
                 round_data = {"round_number": i + 1, "wars": []}
                 for war_tag in a_round:
@@ -210,12 +231,12 @@ class WebApiCog(commands.Cog, name="Web API"):
                                 "opponent_name": war.opponent.name, "opponent_badge_url": war.opponent.badge.url, "opponent_stars": war.opponent.stars,
                                 **format_war_time_details(war, datetime.datetime.now(pytz.utc))
                             })
-                    except Exception as e: 
+                    except Exception as e:
                         logger.warning(f"Não foi possível buscar a guerra da CWL {war_tag}: {e}")
                 rounds_info.append(round_data)
 
             return {"status": "InCwl", "season": cwl_group.season, "state": str(cwl_group.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
-        except coc.NotFound: 
+        except coc.NotFound:
             return {"status": "NotInCwl"}
         except Exception as e:
             logger.error(f"Erro inesperado ao buscar dados da CWL: {e}", exc_info=True)
@@ -241,4 +262,3 @@ class WebApiCog(commands.Cog, name="Web API"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WebApiCog(bot))
-
