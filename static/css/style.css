@@ -679,6 +679,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     font-size: 1.3em;
     margin-left: 8px;
     cursor: help; /* Indica que há informação ao passar o mouse */
+    display: inline-block; /* Garante que ocupa espaço */
 }
 .member-th-icon {
     width: 40px;
@@ -980,6 +981,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .clan-profile-header { flex-direction: column; text-align: center; }
     .highlights-grid { grid-template-columns: 1fr; }
     .members-grid { grid-template-columns: 1fr; }
+    .admin-card .form-grid { grid-template-columns: 1fr; } /* Ajuste admin */
 }
 @media (max-width: 480px) {
     .loading-badge { width: 70vw; max-width: 300px; }
@@ -1287,6 +1289,10 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     margin-bottom: 15px;
     font-size: 1.3em;
 }
+.control-section h4 {
+    margin-top: 0; margin-bottom: 10px; font-size: 1.1em;
+    font-family: var(--font-title); font-weight: 500;
+}
 .maintenance-status {
     margin-bottom: 15px;
     font-size: 1.1em;
@@ -1357,7 +1363,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     gap: 15px;
     margin-bottom: 15px;
 }
-.form-group { display: flex; flex-direction: column; }
+.form-group { display: flex; flex-direction: column; margin-bottom: 10px; }
 .form-group label { margin-bottom: 5px; font-size: 0.9em; color: var(--color-text-secondary); }
 .settings-input, .settings-textarea, .admin-input, .admin-textarea {
     width: 100%;
@@ -1377,7 +1383,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .announcement-section h4 { margin-top: 0; }
 #announcement-channel-id { margin-bottom: 10px; }
 
-.table-container-admin { max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--border-radius-base); }
+.table-container-admin { max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--border-radius-base); margin-bottom: 15px;}
 .table-container-admin table { font-size: 0.85em; }
 .table-container-admin td.priority-cell.priority-red { color: var(--color-danger); font-weight: bold; }
 .table-container-admin td.priority-cell.priority-yellow { color: var(--color-warning); }
@@ -1946,3 +1952,4 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     background-color: var(--color-warning);
     color: var(--color-priority-text-dark);
 }
+
