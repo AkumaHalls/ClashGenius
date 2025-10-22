@@ -16,7 +16,6 @@
             </div>
             <p>Use os controles abaixo para gerenciar o bot e o painel.</p>
 
-            <!-- Seção de Controles Existente -->
             <div class="control-section">
                 <h3>Controles Gerais</h3>
                 <div class="maintenance-status">
@@ -29,7 +28,6 @@
                 <p class="control-description">Verifica a comunicação com o canal de logs do Discord.</p>
             </div>
             
-            <!-- NOVA SEÇÃO: Diagnóstico do Sistema -->
             <div class="control-section">
                 <h3>Diagnóstico do Sistema</h3>
                 <div class="status-line">
@@ -43,7 +41,6 @@
                 </div>
             </div>
 
-            <!-- NOVA SEÇÃO: Configurações -->
             <div class="control-section">
                 <h3>Gerenciamento de Configurações</h3>
                 <form id="settings-form">
@@ -65,6 +62,10 @@
                             <input type="text" id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input">
                         </div>
                         <div class="form-group">
+                            <label for="donations_channel_id">ID Canal Relatório de Doações</label>
+                            <input type="text" id="donations_channel_id" name="donations_channel_id" class="settings-input">
+                        </div>
+                        <div class="form-group">
                             <label for="role_id_1star_alert">ID Cargo Alerta 1 Estrela</label>
                             <input type="text" id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input">
                         </div>
@@ -82,11 +83,21 @@
                 </form>
             </div>
 
-            <!-- NOVA SEÇÃO: Ações do Bot -->
             <div class="control-section">
                 <h3>Ações do Bot</h3>
-                <button class="control-btn action-btn" data-action="clear_cache" data-payload='{"cache_key": "war_details"}'>Limpar Cache da Guerra</button>
-                <button class="control-btn action-btn" data-action="force_sync_war" data-payload='{}'>Forçar Sincronização de Guerra</button>
+                <!-- Grupo de botões para ações gerais -->
+                <div class="action-buttons-group">
+                    <button class="control-btn action-btn" data-action="clear_cache" data-payload='{"cache_key": "war_details"}'>Limpar Cache da Guerra</button>
+                    <button class="control-btn action-btn" data-action="force_sync_war" data-payload='{}'>Forçar Sincronização de Guerra</button>
+                </div>
+
+                <!-- Grupo de botões para sincronização de comandos -->
+                <div class="action-buttons-group">
+                    <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "guild"}'>Sincronizar Comandos (Servidor)</button>
+                    <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "global"}'>Sincronizar Comandos (Global)</button>
+                    <p class="control-description">Use 'Sincronizar (Servidor)' para testes ou 'Global' para atualizar em todos os lugares.</p>
+                </div>
+
                 <div class="announcement-section">
                     <h4>Enviar Anúncio Global</h4>
                     <div class="form-group">
@@ -100,7 +111,6 @@
                  <p id="actions-feedback" class="feedback-text"></p>
             </div>
 
-            <!-- NOVA SEÇÃO: Visualizador do Banco de Dados -->
             <div class="control-section">
                 <h3>Visualizador do Banco de Dados (Últimos 5)</h3>
                 <h4>Histórico de Guerras</h4>
@@ -119,7 +129,6 @@
                 </div>
             </div>
 
-            <!-- Seção de Informações do Sistema Existente -->
             <div class="control-section">
                 <h3>Informações do Sistema</h3>
                 <p><strong>Versão do Bot:</strong> <span id="bot-version-text">-</span></p>
@@ -129,3 +138,4 @@
     <script src="/static/js/admin.js"></script>
 </body>
 </html>
+

@@ -13,13 +13,29 @@
             <img src="/static/images/default_badge.png" alt="Emblema" class="login-badge">
             <h2>Acesso Restrito</h2>
             <p>Por favor, insira a senha de administrador.</p>
-            <form action="/admin/login" method="POST">
+            <form id="login-form" action="/admin/login" method="POST">
                 <input type="password" name="password" id="password" placeholder="Senha" required>
+                <!-- Campo oculto para o ID do servidor -->
+                <input type="hidden" name="guild_id" id="guild_id">
                 <button type="submit">Entrar</button>
             </form>
             <p id="error-message" class="error-text"></p>
         </div>
     </div>
+    <script>
+        // Pequeno script para capturar o guild_id da URL, se presente
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const guildId = urlParams.get('guild_id');
+            if (guildId) {
+                document.getElementById('guild_id').value = guildId;
+            }
+            if (urlParams.has('error')) {
+                const errorMessageEl = document.getElementById('error-message');
+                if(errorMessageEl) errorMessageEl.textContent = 'Senha incorreta. Tente novamente.';
+            }
+        });
+    </script>
     <script src="/static/js/admin.js"></script>
 </body>
 </html>

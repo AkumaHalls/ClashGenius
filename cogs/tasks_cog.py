@@ -5,8 +5,8 @@ from discord.ext import commands, tasks
 import coc
 import asyncio
 import datetime
-import pytz  # Importa a biblioteca de fuso horário
-from typing import Dict, Any
+import pytz
+from typing import Dict, Any, Optional
 
 from cogs.post_war_analysis import create_post_war_analysis_embed
 
@@ -19,20 +19,57 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.bot = bot
         self.db = bot.db
         self.last_prediction_sent_time = None
-
-    async def cog_load(self):
+        
+        # Inicia as tarefas
         self.check_war_end_task.start()
-        self.daily_player_data_snapshot.start()
-        self.send_online_status_task.start()
-        self.post_war_prediction_task.start()
+        self.donation_snapshot_task.start()
+        self.cleanup_old_snapshots_task.start()
+        self.check_api_status_task.start() # Nova tarefa para monitorar a API
         logger.info("Tarefas em segundo plano iniciadas.")
 
-    async def cog_unload(self):
+    def cog_unload(self):
+        # Para todas as tarefas quando o cog é descarregado
         self.check_war_end_task.cancel()
-        self.daily_player_data_snapshot.cancel()
-        self.send_online_status_task.cancel()
-        self.post_war_prediction_task.cancel()
+        self.donation_snapshot_task.cancel()
+        self.cleanup_old_snapshots_task.cancel()
+        self.check_api_status_task.cancel()
 
+    # --- Tarefas de Doações ---
+    @tasks.loop(hours=1)
+    async def donation_snapshot_task(self):
+        """Tira um snapshot horário das doações de todos os membros."""
+        if self.bot.maintenance_mode or self.db is None:
+            return
+
+        logger.info("Executando snapshot de doações...")
+        try:
+            clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
+            if not clan:
+                logger.warning("Snapshot de doações: Não foi possível obter dados do clã.")
+                return
+
+            snapshot_members = [{"tag": m.tag, "name": m.name, "donations": m.donations, "received": m.received} for m in clan.members]
+            snapshot_doc = {"timestamp": datetime.datetime.now(pytz.utc), "clan_tag": self.bot.clan_tag, "members": snapshot_members}
+            await self.db.donation_snapshots.insert_one(snapshot_doc)
+            logger.info(f"Snapshot de doações para {len(snapshot_members)} membros salvo com sucesso.")
+        except Exception as e:
+            logger.error(f"Erro na tarefa de snapshot de doações: {e}", exc_info=True)
+
+    @tasks.loop(hours=24)
+    async def cleanup_old_snapshots_task(self):
+        """Limpa snapshots de doações com mais de 8 dias, uma vez por dia."""
+        if self.bot.maintenance_mode or self.db is None:
+            return
+        
+        eight_days_ago = datetime.datetime.now(pytz.utc) - datetime.timedelta(days=8)
+        try:
+            result = await self.db.donation_snapshots.delete_many({"timestamp": {"$lt": eight_days_ago}})
+            if result.deleted_count > 0:
+                logger.info(f"Limpeza de snapshots: {result.deleted_count} registros antigos removidos.")
+        except Exception as e:
+            logger.error(f"Erro ao limpar snapshots antigos: {e}", exc_info=True)
+
+    # --- Tarefa de Fim de Guerra ---
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
         if self.bot.maintenance_mode: return
         channel_id_to_use = target_channel_id or self.bot.channel_id
@@ -47,6 +84,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         except (discord.NotFound, discord.Forbidden, Exception) as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
+
     def _get_war_id(self, war: coc.ClanWar) -> str:
         if hasattr(war, 'tag') and war.tag and war.tag != '#0':
             return war.tag
@@ -54,106 +92,99 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             return war.preparation_start_time.time.isoformat()
         return war.end_time.time.isoformat()
 
-    async def process_ended_war(self, war: coc.ClanWar, war_id: str):
-        war_type = "CWL" if war.is_cwl else "Normal"
-        our_clan_in_war = war.clan if war.clan.tag == self.bot.clan_tag else war.opponent
-        opponent_clan_in_war = war.opponent if war.clan.tag == self.bot.clan_tag else war.clan
-        
-        opponent_name = opponent_clan_in_war.name if opponent_clan_in_war else "Desconhecido"
-        logger.info(f"A processar guerra ({war_type}) contra {opponent_name} (ID: {war_id})...")
-        
-        db_cog = self.bot.get_cog("Banco de Dados")
-        web_api_cog = self.bot.get_cog("Web API") # Pega o Cog da API Web
-        
-        if db_cog and web_api_cog:
-            # CORREÇÃO: Chama a função a partir do Cog correto.
-            war_details_for_db = await web_api_cog.format_war_details_for_web(war)
+    async def process_ended_war(self, war: coc.ClanWar, war_id: str) -> bool:
+        """Processa uma guerra finalizada, salva no DB e envia alertas. Retorna True/False."""
+        try:
+            war_type = "CWL" if war.is_cwl else "Normal"
+            our_clan_in_war = war.clan if war.clan.tag == self.bot.clan_tag else war.opponent
+            opponent_clan_in_war = war.opponent if war.clan.tag == self.bot.clan_tag else war.clan
+            opponent_name = opponent_clan_in_war.name if opponent_clan_in_war else "Desconhecido"
+            logger.info(f"A processar guerra ({war_type}) contra {opponent_name} (ID: {war_id})...")
             
-            if 'error' not in war_details_for_db:
-                await db_cog.save_war_to_history(war_details_for_db, war_id)
-                
-                if self.bot.post_war_analysis_channel_id:
-                    analysis_embed = create_post_war_analysis_embed(war_details_for_db)
-                    if analysis_embed:
-                        await self._send_log_embed(analysis_embed, target_channel_id=self.bot.post_war_analysis_channel_id)
-            else:
-                 logger.error(f"Falha ao obter detalhes da guerra para salvar no DB: {war_details_for_db['error']}.")
+            db_cog = self.bot.get_cog("Banco de Dados")
+            web_api_cog = self.bot.get_cog("Web API")
+            
+            if db_cog and web_api_cog:
+                war_details_for_db = await web_api_cog.format_war_details_for_web(war)
+                if 'error' not in war_details_for_db:
+                    await db_cog.save_war_to_history(war_details_for_db, war_id)
+                    if self.bot.post_war_analysis_channel_id:
+                        analysis_embed = create_post_war_analysis_embed(war_details_for_db)
+                        if analysis_embed: await self._send_log_embed(analysis_embed, target_channel_id=self.bot.post_war_analysis_channel_id)
+                else:
+                     logger.error(f"Falha ao obter detalhes da guerra para salvar no DB: {war_details_for_db['error']}.")
 
-        missed = [f"**{m.name}** (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan_in_war.members if len(m.attacks) < war.attacks_per_member]
-        if missed:
-            embed = discord.Embed(title="🚩 Relatório de Ataques Perdidos", color=discord.Color.dark_gold())
-            embed.add_field(name="Placar Final", value=f"**{our_clan_in_war.name}:** {our_clan_in_war.stars}⭐\n**{opponent_clan_in_war.name}:** {opponent_clan_in_war.stars}⭐", inline=False)
-            embed.add_field(name="Jogadores com Ataques Pendentes", value="\n".join(missed), inline=False)
-            if opponent_clan_in_war.badge: embed.set_thumbnail(url=opponent_clan_in_war.badge.url)
-            role_mention = f"<@&{self.bot.role_id_missed_attack}>" if self.bot.role_id_missed_attack else ""
-            await self._send_log_embed(embed, content=f"{role_mention} Atenção!")
-        
-        logger.info(f"Processamento da guerra contra {opponent_name} concluído.")
-        return True
+            missed = [f"**{m.name}** ({m.tag}) (CV{m.town_hall}): {war.attacks_per_member - len(m.attacks)} perdido(s)" for m in our_clan_in_war.members if len(m.attacks) < war.attacks_per_member]
+            if missed:
+                embed = discord.Embed(title="🚩 Relatório de Ataques Perdidos", color=discord.Color.dark_gold())
+                embed.add_field(name="Placar Final", value=f"**{our_clan_in_war.name}:** {our_clan_in_war.stars}⭐\n**{opponent_clan_in_war.name}:** {opponent_clan_in_war.stars}⭐", inline=False)
+                embed.add_field(name="Jogadores com Ataques Pendentes", value="\n".join(missed), inline=False)
+                if opponent_clan_in_war.badge: embed.set_thumbnail(url=opponent_clan_in_war.badge.url)
+                role_mention = f"<@&{self.bot.role_id_missed_attack}>" if self.bot.role_id_missed_attack else ""
+                await self._send_log_embed(embed, content=f"{role_mention} Atenção!")
+            
+            logger.info(f"Processamento da guerra contra {opponent_name} concluído.")
+            return True
+        except Exception as e:
+            logger.error(f"Erro crítico ao processar guerra {war_id}: {e}", exc_info=True)
+            return False
 
     @tasks.loop(seconds=60.0)
     async def check_war_end_task(self):
+        if self.bot.maintenance_mode:
+            return
+
         await self.bot.wait_until_ready()
         await self.bot.coc_client_ready.wait()
-        
         if not self.bot.api_client: return
         
+        wars_to_check = []
         try:
-            wars_to_check = []
-            try:
-                current_war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
-                if current_war:
-                    wars_to_check.append(current_war)
-            except (coc.PrivateWarLog, coc.NotFound):
-                pass
+            current_war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
+            if current_war: wars_to_check.append(current_war)
+        except coc.PrivateWarLog: logger.debug("Log de guerra privado - ignorando.")
+        except coc.NotFound: logger.debug("Guerra atual não encontrada.")
+        except Exception as e: logger.error(f"Erro ao buscar guerra atual: {e}", exc_info=True)
 
-            try:
-                cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
-                if cwl_group:
-                    for round_tags in cwl_group.rounds:
-                        for war_tag in round_tags:
-                            if war_tag == '#0': continue
-                            try:
-                                cwl_war = await self.bot.api_client.get_league_war(war_tag)
-                                wars_to_check.append(cwl_war)
-                            except coc.NotFound:
-                                continue
-            except coc.NotFound:
-                pass
-            
-            if not wars_to_check:
-                return
+        try:
+            cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
+            if cwl_group:
+                for round_tags in cwl_group.rounds:
+                    for war_tag in round_tags:
+                        if war_tag == '#0': continue
+                        try:
+                            cwl_war = await self.bot.api_client.get_league_war(war_tag)
+                            wars_to_check.append(cwl_war)
+                        except coc.NotFound: continue
+        except coc.NotFound: pass
+        except Exception as e: logger.error(f"Erro ao buscar grupo de CWL: {e}", exc_info=True)
+        
+        if not wars_to_check: return
 
-            for war in wars_to_check:
+        for war in wars_to_check:
+            try:
                 if not war or not hasattr(war, 'clan') or not war.clan: continue
                 is_our_war = war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag
-                if not is_our_war:
-                    continue
+                if not is_our_war: continue
                 
-                # CORREÇÃO: VERIFICAÇÃO ADICIONAL DE TEMPO PARA EVITAR RACE CONDITION
                 now = datetime.datetime.now(pytz.utc)
-                # Adiciona o fuso horário UTC ao tempo de término da guerra para uma comparação segura
                 end_time_utc = war.end_time.time.replace(tzinfo=pytz.utc)
                 is_ended_by_time = now > end_time_utc
                 
-                # A guerra será processada se o estado for 'warEnded' OU se o tempo já passou
-                if war.state != 'warEnded' and not is_ended_by_time:
-                    continue
+                if war.state != 'warEnded' and not is_ended_by_time: continue
 
                 unique_war_id = self._get_war_id(war)
                 if unique_war_id not in self.bot.processed_war_ids:
-                    # Garante que o estado seja forçado para 'warEnded' se processamos pelo tempo
                     if is_ended_by_time and war.state != 'warEnded':
                         logger.warning(f"Forçando processamento da guerra (ID: {unique_war_id}) baseado no tempo. API state: {war.state}")
-                        war.state = 'warEnded' # Força o estado para garantir consistência
+                        war.state = 'warEnded'
 
                     logger.info(f"Nova guerra terminada ({war.state}) encontrada para processar (ID: {unique_war_id}).")
                     if await self.process_ended_war(war, unique_war_id):
                         self.bot.processed_war_ids.add(unique_war_id)
-
-        except Exception as e:
-            logger.error(f"Erro inesperado na task de fim de guerra: {e}", exc_info=True)
-
+            except Exception as e:
+                logger.error(f"Erro ao processar uma guerra específica no loop: {e}", exc_info=True)
+        
     @commands.command(name='syncwar')
     @commands.has_permissions(administrator=True)
     async def sync_war(self, ctx: commands.Context):
@@ -169,17 +200,71 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         finally:
             await ctx.message.remove_reaction("🔄", self.bot.user)
 
-    @tasks.loop(minutes=10)
-    async def post_war_prediction_task(self):
-        pass
+    # --- Tarefa de Status da API ---
+    @tasks.loop(minutes=1)
+    async def check_api_status_task(self):
+        """Verifica o status da API da Supercell e notifica no Discord se houver mudança."""
+        if self.bot.maintenance_mode: return
+        
+        admin_cog = self.bot.get_cog("Painel de Administração Avançado")
+        if not admin_cog:
+            logger.warning("AdminCog não encontrado, pulando verificação de status da API.")
+            return
 
-    @tasks.loop(hours=24)
-    async def daily_player_data_snapshot(self):
-        pass
+        api_status_data = await admin_cog.get_api_status()
+        current_status = api_status_data.get("status", "error")
+        status_message = api_status_data.get("message", "N/A")
 
-    @tasks.loop(seconds=10, count=1)
-    async def send_online_status_task(self):
-        pass
+        if current_status != self.bot.last_api_status:
+            logger.info(f"Status da API da Supercell mudou de '{self.bot.last_api_status}' para '{current_status}'. Enviando notificação.")
+            
+            if current_status == "maintenance" or current_status == "error":
+                embed_color = discord.Color.orange()
+                title = "🚨 Alerta de API da Supercell 🚨"
+                description = "O acesso à API do Clash of Clans está instável ou em manutenção."
+                impact_value = "**Painel Web:** Indisponível (redirecionado para página de aviso).\n**Alertas no Discord:** Podem ser afetados."
+            else: # status is 'ok'
+                embed_color = discord.Color.green()
+                title = "✅ API da Supercell Operacional"
+                description = "A API do Clash of Clans voltou ao normal."
+                impact_value = "**Painel Web:** Acesso restaurado.\n**Alertas no Discord:** Funcionando normalmente."
 
+            embed = discord.Embed(
+                title=title,
+                description=description,
+                color=embed_color
+            )
+            embed.add_field(name="Motivo Detectado", value=status_message, inline=False)
+            embed.add_field(name="Impacto", value=impact_value, inline=False)
+
+            await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
+            
+            # Atualiza o último status conhecido
+            self.bot.last_api_status = current_status
+            
+    # --- Funções de Inicialização Segura (before_loop) ---
+    @donation_snapshot_task.before_loop
+    async def before_donation_snapshot(self):
+        await self.bot.wait_until_ready()
+        await self.bot.db_ready.wait()
+        await self.bot.coc_client_ready.wait()
+
+    @cleanup_old_snapshots_task.before_loop
+    async def before_cleanup_snapshots(self):
+        await self.bot.wait_until_ready()
+        await self.bot.db_ready.wait()
+
+    @check_war_end_task.before_loop
+    async def before_check_war_end(self):
+        await self.bot.wait_until_ready()
+        await self.bot.db_ready.wait()
+        await self.bot.coc_client_ready.wait()
+
+    @check_api_status_task.before_loop
+    async def before_check_api_status(self):
+        await self.bot.wait_until_ready()
+        await self.bot.coc_client_ready.wait()
+
+# Função setup que o discord.py chama para carregar o cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(TasksCog(bot))

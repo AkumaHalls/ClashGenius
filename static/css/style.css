@@ -81,7 +81,6 @@ body {
     min-height: 100%; 
 }
 
-/* Canvas para animação de partículas */
 #particle-background {
     position: fixed; 
     top: 0;
@@ -104,8 +103,6 @@ body {
     box-sizing: border-box; 
 }
 
-
-/* Tela de Carregamento */
 #loading-overlay {
     position: fixed;
     top: 0;
@@ -156,8 +153,6 @@ body {
     100% { transform: rotate(360deg); }
 }
 
-
-/* Cabeçalho */
 .site-header {
     background-color: var(--color-header-background);
     color: var(--color-text-header);
@@ -187,7 +182,6 @@ body {
 .main-nav a:hover { color: #ffffff; background-color: var(--color-accent-hover); }
 .main-nav a.active-nav-link { color: #ffffff; background-color: var(--color-accent); }
 
-/* Conteúdo Principal e Cards */
 main.container {
     padding-top: 25px;
     padding-bottom: 25px;
@@ -247,7 +241,6 @@ main.container {
 .scrollable-box::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
 .scrollable-box::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
 
-/* --- INÍCIO: ESTILOS DA NOVA ABA CLÃ --- */
 .clan-profile-header {
     display: flex;
     align-items: center;
@@ -326,16 +319,14 @@ main.container {
     color: var(--color-text-main);
 }
 .stat-card.stat-card-wars { border-color: var(--color-success); }
-.stat-card.stat-card-trophies { border-color: #f1c40f; } /* Gold */
-.stat-card.stat-card-capital-trophies { border-color: #9b59b6; } /* Purple */
+.stat-card.stat-card-trophies { border-color: #f1c40f; }
+.stat-card.stat-card-capital-trophies { border-color: #9b59b6; }
 .stat-card.stat-card-capital-league { border-color: var(--color-info); }
 
 .capital-districts-grid p {
     text-align: center;
 }
-/* --- FIM: ESTILOS DA NOVA ABA CLÃ --- */
 
-/* --- INÍCIO: ESTILOS DA NOVA ABA DESTAQUES --- */
 .highlights-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -394,9 +385,8 @@ main.container {
     color: var(--color-text-secondary);
 }
 
-/* NOVO: Estilos para o MVP e Heróis na aba Destaques */
 .mvp-card, .attack-item {
-    position: relative; /* Para tooltip */
+    position: relative;
     padding: 12px;
     margin-bottom: 10px;
     border-radius: var(--border-radius-base);
@@ -437,7 +427,7 @@ main.container {
     color: var(--color-text-main);
 }
 .attack-details {
-    display: none; /* Esconde a descrição por padrão */
+    display: none;
 }
 
 .mvp-card .tooltip-text, .attack-item .tooltip-text {
@@ -472,10 +462,7 @@ main.container {
     height: 400px;
     width: 100%;
 }
-/* --- FIM: ESTILOS DA NOVA ABA DESTAQUES --- */
 
-
-/* Navegação e Animação de Seções */
 .sections-wrapper {
     position: relative;
     overflow: hidden;
@@ -529,8 +516,6 @@ main.container {
     visibility: visible;
 }
 
-
-/* Estilos de Guerra (Geral) */
 .war-header { display: flex; align-items: center; justify-content: center; margin-bottom: 15px; gap: 15px; }
 .war-header-badge { height: 40px; width: 40px; }
 .war-header h2 { margin-bottom: 0; border-bottom: none; font-size: 1.3em; text-align: center; }
@@ -550,7 +535,6 @@ main.container {
     text-align: center; margin-top:15px; color: var(--color-text-secondary);
 }
 
-/* Abas da Guerra */
 .war-tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid var(--color-tab-border); }
 .war-tab-button {
     padding: 10px 18px; cursor: pointer; background-color: var(--color-tab-inactive-bg);
@@ -567,7 +551,6 @@ main.container {
 .war-tab-content { display: none; padding-top:15px; }
 .war-tab-content.active { display: block; }
 
-/* Aba Estatísticas da Guerra */
 .war-score-container { display: flex; justify-content: space-around; align-items: center; text-align: center; margin: 20px 0; padding: 15px; background-color: rgba(74, 85, 104, 0.1); border: 1px solid var(--color-border); border-radius: var(--border-radius-base);}
 .team-score h4 { margin-top: 0; margin-bottom: 6px; font-family: var(--font-title); font-size: 1.15em; font-weight: 500; }
 .team-score.our-clan-score h4 { color: var(--color-war-our-clan); }
@@ -583,7 +566,6 @@ main.container {
 .star-distribution-container p span { color: var(--color-text-main); font-weight: 500; }
 
 
-/* Tabelas e a nova visualização de Membros */
 .table-container { overflow-x: auto; max-height: 750px; border: 1px solid var(--color-border); border-radius: var(--border-radius-base); background-color: var(--color-card-background); }
 .medium-table { max-height: 500px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
@@ -606,7 +588,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .attack-stars .star-filled { color: var(--color-star-gold); }
 .attack-stars .star-empty { color: var(--color-star-empty); }
 
-/* Aba Minha Equipe / Equipe Inimiga */
 .team-members-container {
     max-height: 600px;
     overflow-y: auto;
@@ -622,7 +603,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .member-attack-list li:last-child, .member-defense-list li:last-child { border-bottom: none; }
 .member-attack-list strong, .member-defense-list strong { color: var(--color-text-main); }
 
-/* Filtros de Membros */
 .member-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
 .member-filters input[type="text"] {
     flex-grow: 1; min-width: 150px; padding: 8px 10px;
@@ -636,7 +616,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .member-filters input[type="text"]:focus { border-color: var(--color-accent); outline: none; background-color: #354154; }
 
 
-/* --- NOVO: Estilos para o Grid de Membros --- */
 .members-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -689,13 +668,9 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     border-radius: 4px;
 }
 .member-card-note {
-    margin-top: auto; /* Empurra a nota para o final do card */
+    margin-top: auto;
 }
 
-/* --- FIM: Estilos do Grid de Membros --- */
-
-
-/* --- INÍCIO: NOVOS ESTILOS PARA ATAQUES PENDENTES --- */
 .missed-attacks-container {
     display: flex;
     flex-direction: column;
@@ -814,10 +789,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-text-secondary);
     display: block;
 }
-/* --- FIM: NOVOS ESTILOS PARA ATAQUES PENDENTES --- */
 
-
-/* Observações dos Membros */
 .note-container {
     display: flex;
     flex-direction: column;
@@ -880,7 +852,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .note-priority-red .note-text { background-color: rgba(229, 62, 62, 0.3); }
 
 
-/* CWL e Capital */
 .capital-districts-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 #cwlRoundsInfo { max-height: 400px; overflow-y: auto; }
 .cwl-round { margin-bottom: 15px; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--border-radius-base); background-color: rgba(74, 85, 104, 0.1); }
@@ -894,12 +865,9 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .log-opponent-badge { vertical-align: middle; margin-right: 5px; height: 20px; }
 
 
-/* Ícones */
 .icon-trophy::before { content: '🏆'; margin-left: 4px; }
 .icon-sword::before { content: '⚔️'; margin-left: 4px; }
 
-
-/* Rodapé */
 .site-footer {
     text-align: center;
     padding: 20px 0;
@@ -915,7 +883,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .site-footer p { margin: 4px 0; }
 .site-footer #botVersion { color: var(--color-text-main); font-weight: 500; }
 
-/* Estilos do Botão de Mudo */
 .mute-btn {
     position: fixed;
     bottom: 20px;
@@ -942,8 +909,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     transform: scale(1.1);
 }
 
-
-/* Responsividade */
 @media (max-width: 992px) {
     .main-nav ul { justify-content: flex-start; }
     .main-nav li { margin-left: 4px; margin-right: 4px; }
@@ -971,7 +936,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     th, td { padding: 8px 10px; font-size: 0.85em;}
     th { font-size: 0.7em;}
     .note-text { max-width: 120px; }
-    .clan-profile-header { flex-direction: column; text-align: center; } /* Centraliza no mobile */
+    .clan-profile-header { flex-direction: column; text-align: center; }
     .highlights-grid { grid-template-columns: 1fr; }
     .members-grid { grid-template-columns: 1fr; }
 }
@@ -985,10 +950,9 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .priority-btn { width: 20px; height: 20px; font-size: 10px; line-height: 18px; }
     .mute-btn { width: 40px; height: 40px; font-size: 20px; bottom: 15px; right: 15px;}
     .clan-profile-info h2 { font-size: 1.8em; }
-    .stats-grid { grid-template-columns: 1fr; } /* Uma coluna no mobile */
+    .stats-grid { grid-template-columns: 1fr; }
 }
 
-/* Estilos do Modal de Guerra Histórica */
 .modal {
     display: none; 
     position: fixed; 
@@ -1012,8 +976,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     position: relative;
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     animation: fadeIn 0.3s;
-    max-height: 90vh; /* Garante que não ultrapasse a altura da tela */
-    overflow-y: auto; /* Adiciona scroll se o conteúdo for maior */
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 
@@ -1057,7 +1021,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: #fff;
 }
 
-/* --- ESTILOS DO MODAL DE PERFIL DE MEMBRO (REVISADO) --- */
 #memberProfileContent {
     padding: 10px;
 }
@@ -1081,30 +1044,27 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-text-secondary);
 }
 
-/* Container principal para a seção de imagem e stats */
 .profile-main-content {
     display: flex;
     align-items: center;
-    gap: 25px; /* Espaçamento entre a imagem e os stats */
+    gap: 25px;
     margin-bottom: 25px;
-    flex-wrap: wrap; /* Permite quebrar a linha em telas pequenas */
+    flex-wrap: wrap;
 }
 
-/* Container da imagem da liga */
 .profile-league-container {
-    flex: 0 0 150px; /* Não cresce, não encolhe, base de 150px */
+    flex: 0 0 150px;
     text-align: center;
 }
 
 .profile-league-image {
-    max-width: 128px; /* Tamanho máximo da imagem */
+    max-width: 128px;
     height: auto;
-    margin: 0 auto; /* Centraliza se o container for maior */
+    margin: 0 auto;
 }
 
-/* Container para os cards de estatísticas */
 .profile-details-container {
-    flex: 1; /* Ocupa o espaço restante */
+    flex: 1;
 }
 
 .profile-stats-grid {
@@ -1117,7 +1077,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     border-radius: var(--border-radius-base);
     padding: 15px;
     text-align: center;
-    border-left: 3px solid var(--color-border-light); /* Borda lateral sutil */
+    border-left: 3px solid var(--color-border-light);
     transition: background-color 0.2s;
 }
 .profile-stat-card:hover {
@@ -1157,13 +1117,12 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     margin-top: 20px;
 }
 
-/* Ajustes de responsividade para o novo layout do perfil */
 @media (max-width: 600px) {
     .profile-main-content {
-        flex-direction: column; /* Empilha a imagem e os stats em telas pequenas */
+        flex-direction: column;
     }
     .profile-league-container {
-        flex-basis: auto; /* Reseta a base flex */
+        flex-basis: auto;
         margin-bottom: 20px;
     }
     .profile-stats-grid {
@@ -1171,8 +1130,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     }
 }
 
-
-/* --- PÁGINAS DE ADMIN E MANUTENÇÃO (NOVOS ESTILOS) --- */
 .admin-page, .maintenance-page {
     display: flex;
     justify-content: center;
@@ -1181,7 +1138,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     text-align: center;
 }
 
-/* Estilos do Login */
 .login-container {
     width: 100%;
     max-width: 400px;
@@ -1239,11 +1195,9 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     min-height: 1.2em;
 }
 
-
-/* Estilos do Painel Admin */
 .admin-panel-container {
     width: 100%;
-    max-width: 900px; /* Aumentado para acomodar mais conteúdo */
+    max-width: 900px;
     padding: 20px;
 }
 .admin-card {
@@ -1327,7 +1281,10 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     margin-top: 10px;
 }
 
-/* Novos Estilos do Painel Admin */
+.action-buttons-group {
+    margin-bottom: 20px;
+}
+
 .status-line { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
 .status-message { font-size: 0.9em; color: var(--color-text-secondary); }
 .logs-container { margin-top: 15px; }
@@ -1377,7 +1334,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .table-container-admin td.priority-cell.priority-green { color: var(--color-success); }
 
 
-/* Link para o Admin no Painel Principal */
 .admin-link-btn {
     position: fixed;
     bottom: 20px;
@@ -1404,7 +1360,13 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     transform: scale(1.1);
 }
 
-/* Página de Manutenção */
+.maintenance-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    text-align: center;
+}
 .maintenance-container {
     color: var(--color-text-main);
 }
@@ -1442,8 +1404,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     100% { transform: rotate(0deg); }
 }
 
-
-/* --- INÍCIO: NOVOS ESTILOS PARA PREVISÃO DE GUERRA --- */
 .war-prediction-container {
     background-color: rgba(0, 0, 0, 0.2);
     border-radius: var(--border-radius-base);
@@ -1464,7 +1424,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     letter-spacing: 1px;
     border: none;
     padding: 0;
-    /* Correção de Centralização */
     justify-content: center;
 }
 
@@ -1473,7 +1432,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     font-size: 1.05em;
     color: var(--color-text-main);
     line-height: 1.5;
-    margin-bottom: 15px; /* Espaço entre o texto e as tags */
+    margin-bottom: 15px;
 }
 
 .prediction-tags-container {
@@ -1493,7 +1452,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     align-items: center;
     gap: 10px;
     box-shadow: var(--box-shadow-base);
-    position: relative; /* Necessário para o tooltip */
+    position: relative;
 }
 
 .prediction-tag-icon {
@@ -1520,7 +1479,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-text-main);
 }
 
-/* Estilos do Tooltip */
 .prediction-tag .tooltip-text {
     visibility: hidden;
     width: 220px;
@@ -1531,9 +1489,9 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     padding: 8px;
     position: absolute;
     z-index: 1;
-    bottom: 125%; /* Posição acima da tag */
+    bottom: 125%;
     left: 50%;
-    margin-left: -110px; /* Metade da largura para centralizar */
+    margin-left: -110px;
     opacity: 0;
     transition: opacity 0.3s;
     font-size: 0.85em;
@@ -1544,7 +1502,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .prediction-tag .tooltip-text::after {
     content: "";
     position: absolute;
-    top: 100%; /* Na base do tooltip */
+    top: 100%;
     left: 50%;
     margin-left: -5px;
     border-width: 5px;
@@ -1557,10 +1515,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     opacity: 1;
 }
 
-/* --- FIM: NOVOS ESTILOS PARA PREVISÃO DE GUERRA --- */
-
-
-/* --- INÍCIO: NOVOS ESTILOS PARA O PLANEJADOR CWL --- */
 .cwl-planner-container {
     margin-top: 30px;
     padding-top: 20px;
@@ -1572,7 +1526,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-text-main);
     margin-bottom: 10px;
     font-size: 1.4em;
-    /* Correção de Centralização */
     justify-content: center;
 }
 
@@ -1589,21 +1542,20 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     margin: 0 auto 20px auto;
     background-color: var(--color-gold);
     color: var(--color-priority-text-dark);
-    position: relative; /* Para o tooltip e o cadeado */
+    position: relative;
 }
 .cwl-planner-container .control-btn:hover {
     background-color: #d4af37;
 }
 
-/* Estilos do botão desabilitado com cadeado */
 .control-btn.disabled {
     background-color: var(--color-border);
     color: var(--color-text-secondary);
     cursor: not-allowed;
-    pointer-events: all !important; /* Permite que eventos de mouse (hover) funcionem */
+    pointer-events: all !important;
 }
 .control-btn.disabled:hover {
-    background-color: var(--color-border); /* Não muda de cor */
+    background-color: var(--color-border);
 }
 
 .control-btn.disabled::before {
@@ -1731,15 +1683,11 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     margin-right: 8px;
 }
 
-/* --- FIM: NOVOS ESTILOS PARA O PLANEJADOR CWL --- */
-
-
-/* --- INÍCIO: NOVOS ESTILOS PARA O INDICADOR DE IA --- */
 .ai-indicator {
     display: inline-block;
     width: 10px;
     height: 10px;
-    background-color: #48bb78; /* Verde */
+    background-color: #48bb78;
     border-radius: 50%;
     margin-right: 8px;
     box-shadow: 0 0 8px #48bb78, 0 0 12px #48bb78;
@@ -1760,9 +1708,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
         box-shadow: 0 0 0 0 rgba(72, 187, 120, 0);
     }
 }
-/* --- FIM: NOVOS ESTILOS PARA O INDICADOR DE IA --- */
-
-/* INÍCIO: NOVOS ESTILOS PARA O WAR ADVISOR V4 */
 .advisor-header {
     text-align: center;
     margin-bottom: 25px;
@@ -1797,7 +1742,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     gap: 12px;
 }
 
-/* Cores por tipo de ataque */
 .advisor-card.type-mirror { border-left-color: var(--color-accent); }
 .advisor-card.type-dip { border-left-color: var(--color-success); }
 .advisor-card.type-safe { border-left-color: var(--color-warning); }
@@ -1861,7 +1805,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     gap: 8px;
     font-size: 0.8em;
     color: var(--color-text-secondary);
-    margin-top: auto; /* Empurra para baixo */
+    margin-top: auto;
 }
 .confidence-bar-container {
     flex-grow: 1;
@@ -1897,9 +1841,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     font-size: 1.2em;
     font-weight: 700;
 }
-/* FIM: NOVOS ESTILOS PARA O WAR ADVISOR V4 */
-
-/* NOVOS ESTILOS PARA O SELETOR DE STATUS DA CWL DENTRO DO MODAL */
 .member-cwl-status {
     background-color: rgba(0, 0, 0, 0.15);
     padding: 10px;
