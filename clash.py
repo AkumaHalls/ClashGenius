@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.12-Startup-Hotfix#
+# Versão 20.2.12-Startup-Hotfix
 
 import os
 import logging
@@ -62,7 +62,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 FERNET_KEY = os.getenv("FERNET_KEY")
 BASE_URL = os.getenv("BASE_URL")
 
-BOT_VERSION = "20.2.12-Startup-Hotfix"
+BOT_VERSION = "20.2.15-Watchlist" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -116,13 +116,13 @@ class ClashGeniusBot(commands.Bot):
 
         self.war_prediction_system = WarPredictionSystemV3(db_connection=self.db)
         await self.war_prediction_system.initialize_system()
-        
+
         logger.info("A carregar cogs...")
         cog_files = [
-            'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 
+            'events_cog', 'tasks_cog', 'database_cog', 'general_cog',
             'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog',
             'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog',
-            'slash_cog'
+            'slash_cog', 'watchlist_cog' # Adiciona a nova Cog
         ]
         for cog_name in cog_files:
             try:
@@ -134,14 +134,14 @@ class ClashGeniusBot(commands.Bot):
 
         self.loop.create_task(self.coc_login_task())
         self.loop.create_task(setup_web_server(self))
-        
+
     async def load_initial_state_from_db(self):
         if self.db is None: return
         maint_config = await self.db.system_config.find_one({"_id": "maintenance_mode"})
         if maint_config:
             self.maintenance_mode = maint_config.get("enabled", False)
             logger.info(f"Modo de manutenção carregado da BD. Estado: {'ATIVADO' if self.maintenance_mode else 'DESATIVADO'}")
-        
+
         bot_settings = await self.db.system_config.find_one({"_id": "bot_settings"})
         if bot_settings:
             self.channel_id = bot_settings.get("channel_id", self.channel_id)
@@ -199,8 +199,9 @@ class ClashGeniusBot(commands.Bot):
 
 async def setup_web_server(bot_instance: ClashGeniusBot):
     app = web.Application()
-    
+
     await bot_instance.wait_until_ready()
+    # Adiciona a referência à nova Cog
     web_api_cog = bot_instance.get_cog("Web API")
     db_cog = bot_instance.get_cog("Banco de Dados")
     profile_cog = bot_instance.get_cog("Perfis de Membros")
@@ -208,9 +209,16 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     maintenance_cog = bot_instance.get_cog("Manutenção do Sistema")
     war_advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
     admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
+    watchlist_cog = bot_instance.get_cog("Lista de Observação") # Referência à nova Cog
 
-    if not all([web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog, war_advisor_cog, admin_cog]):
-        logger.critical("Um ou mais cogs essenciais para o servidor web não foram carregados. O servidor não pode iniciar.")
+    # Verifica se todas as Cogs necessárias foram carregadas
+    required_cogs = [
+        web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog,
+        war_advisor_cog, admin_cog, watchlist_cog # Adiciona watchlist_cog à verificação
+    ]
+    if not all(required_cogs):
+        missing = [cog.__class__.__name__ for cog in required_cogs if cog is None]
+        logger.critical(f"Cogs essenciais para o servidor web não carregados: {', '.join(missing)}. O servidor não pode iniciar.")
         return
 
     async def handle_web_response(request, key, func, *args, **kwargs):
@@ -261,13 +269,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             logger.error(f"Erro no endpoint do war_advisor: {e}", exc_info=True)
             return web.json_response({"success": False, "error": "Erro interno."}, status=500)
 
-    # NOVO: Rota para verificar o status da API do Clash of Clans
     async def api_coc_status_handler(r):
         """Handler to get the current status of the CoC API."""
         if not admin_cog:
             return web.json_response({"status": "error", "message": "Admin cog not loaded."}, status=500)
-        
-        # Se o bot ainda estiver a iniciar, trata como manutenção para o frontend
+
         if not bot_instance.coc_client_ready.is_set():
             return web.json_response({"status": "maintenance", "message": "O bot ainda está a iniciar... Por favor, aguarde."}, status=200)
 
@@ -287,11 +293,16 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler)
     app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler)
     app.router.add_get("/api/coc_status", api_coc_status_handler) # Rota adicionada
-    
+
     @web.middleware
     async def admin_auth_middleware(request, handler):
         session = await get_session(request)
         if not session.get('admin'):
+            # Permite acesso ao GET /api/admin/watchlist sem autenticação se necessário
+            # (Ajustar se a leitura da watchlist precisar ser protegida)
+            # if request.method == 'GET' and request.path == '/api/admin/watchlist':
+            #     pass # Permite leitura pública da watchlist
+            # else:
             return web.json_response({"status": "unauthorized"}, status=403)
         response = await handler(request)
         return response
@@ -300,13 +311,59 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_admin_get_settings(r): return web.json_response(await admin_cog.get_settings())
     async def api_admin_update_settings(r): return web.json_response(await admin_cog.update_settings(await r.json()))
     async def api_admin_db_viewer(r): return web.json_response(await admin_cog.get_db_viewer_data(), dumps=lambda v: json.dumps(v, default=str))
-    
+
+    # --- Novas Rotas Admin para Watchlist ---
+    async def api_admin_get_watchlist(r):
+        data = await watchlist_cog.get_full_watchlist()
+        # Converte ObjectId e datetime para string para serialização JSON
+        for item in data:
+            item['_id'] = str(item['_id'])
+            if isinstance(item.get('date_added'), datetime.datetime):
+                item['date_added'] = item['date_added'].isoformat()
+        return web.json_response(data)
+
+    async def api_admin_add_watchlist(r):
+        data = await r.json()
+        tag = data.get('player_tag')
+        name = data.get('player_name') # Opcional, pode buscar se não fornecido
+        reason = data.get('reason')
+        details = data.get('details')
+        if not tag or not reason:
+            return web.json_response({"status": "error", "message": "Tag do jogador e motivo são obrigatórios."}, status=400)
+        # Opcional: buscar nome se não fornecido
+        if not name:
+             try:
+                 player = await bot_instance.api_client.get_player(tag)
+                 name = player.name
+             except:
+                 name = tag # Usa a tag como nome se não conseguir buscar
+        success = await watchlist_cog.add_to_watchlist(tag, name, reason, details)
+        if success:
+            bot_instance.web_api_cache.pop('members', None) # Limpa cache de membros
+            return web.json_response({"status": "success", "message": "Jogador adicionado à watchlist."})
+        else:
+            return web.json_response({"status": "error", "message": "Erro ao adicionar jogador."}, status=500)
+
+    async def api_admin_remove_watchlist(r):
+        data = await r.json()
+        tag = data.get('player_tag')
+        if not tag:
+            return web.json_response({"status": "error", "message": "Tag do jogador é obrigatória."}, status=400)
+        success = await watchlist_cog.remove_from_watchlist(tag)
+        if success:
+            bot_instance.web_api_cache.pop('members', None) # Limpa cache de membros
+            return web.json_response({"status": "success", "message": "Jogador removido da watchlist."})
+        else:
+            # Pode ser erro ou jogador não encontrado, tratamos como sucesso parcial para UI
+            return web.json_response({"status": "success", "message": "Jogador não encontrado ou erro ao remover."}, status=200)
+    # --- Fim das Novas Rotas Admin ---
+
     async def api_admin_actions(r):
         data = await r.json()
         session = await get_session(r)
         action = data.get("action")
         payload = data.get("payload", {})
-        
+
         if action == "send_announcement":
             return web.json_response(await admin_cog.send_announcement(payload.get("channel_id"), payload.get("message")))
         elif action == "clear_cache":
@@ -319,7 +376,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             guild_id = session.get('guild_id')
             if not guild_id and payload.get("scope") == "guild":
                 return web.json_response({"status": "error", "message": "ID do servidor não encontrado na sessão. Faça login novamente usando o link do bot."})
-            
+
             guild = bot_instance.get_guild(int(guild_id)) if guild_id else None
             return web.json_response(await admin_cog.sync_commands(payload.get("scope", "guild"), guild))
         return web.json_response({"status": "error", "message": "Ação desconhecida."}, status=400)
@@ -330,9 +387,14 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     admin_api_app.router.add_post("/settings", api_admin_update_settings)
     admin_api_app.router.add_get("/db_viewer", api_admin_db_viewer)
     admin_api_app.router.add_post("/actions", api_admin_actions)
-    
+    # Adiciona rotas da watchlist ao subapp admin
+    admin_api_app.router.add_get("/watchlist", api_admin_get_watchlist)
+    admin_api_app.router.add_post("/watchlist/add", api_admin_add_watchlist)
+    admin_api_app.router.add_post("/watchlist/remove", api_admin_remove_watchlist)
+
+
     app.add_subapp("/api/admin/", admin_api_app)
-    
+
     static_dir = os.path.join(os.path.dirname(__file__), "static")
 
     async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
@@ -357,7 +419,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         session.pop('admin', None)
         session.pop('guild_id', None)
         return web.HTTPFound('/admin')
-    
+
     async def admin_toggle_maintenance_handler(request):
         session = await get_session(request)
         if not session.get('admin'): return web.json_response({"status": "unauthorized"}, status=403)
@@ -372,12 +434,12 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         session = await get_session(request)
         is_admin = session.get('admin', False)
         return web.json_response({
-            "status": "ok", 
-            "maintenance_mode": bot_instance.maintenance_mode, 
+            "status": "ok",
+            "maintenance_mode": bot_instance.maintenance_mode,
             "version": BOT_VERSION,
             "is_admin": is_admin
         })
-    
+
     async def api_maintenance_message(r):
         return web.json_response({"message": bot_instance.maintenance_message})
 
@@ -389,7 +451,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_post("/admin/toggle_maintenance", admin_toggle_maintenance_handler)
     app.router.add_post("/admin/send_test_embed", admin_send_test_embed_handler)
     app.router.add_get("/api/status", admin_get_status_handler)
-    
+
     async def painel_handler(request):
         session = await get_session(request)
         is_admin = session.get('admin', False)
@@ -400,7 +462,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_static('/static/', path=static_dir, name='static')
     app.router.add_get("/painel", painel_handler)
     app.router.add_get("/", lambda r: web.Response(text=f"Bot running! v{BOT_VERSION}"))
-    
+
     secret_key = base64.urlsafe_b64decode(Fernet.generate_key() if not FERNET_KEY else FERNET_KEY.encode())
     setup_session(app, EncryptedCookieStorage(secret_key))
 
@@ -427,4 +489,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
