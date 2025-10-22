@@ -25,9 +25,9 @@
                 <p class="control-description">Pausa alertas e redireciona usuários para a página de manutenção.</p>
                 <br>
                 <button id="send-test-embed-btn" class="control-btn">Enviar Mensagem de Teste</button>
-                <p class="control-description">Verifica a comunicação com o canal de logs do Discord.</p>
+                <p class="control-description">Verifica a comunicação com o canal de logs principal do Discord.</p>
             </div>
-            
+
             <div class="control-section">
                 <h3>Diagnóstico do Sistema</h3>
                 <div class="status-line">
@@ -44,9 +44,10 @@
             <div class="control-section">
                 <h3>Gerenciamento de Configurações</h3>
                 <form id="settings-form">
+                    <h4>Canais e Cargos</h4>
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="channel_id">ID Canal de Logs Principal</label>
+                            <label for="channel_id">ID Canal Logs Principal</label>
                             <input type="text" id="channel_id" name="channel_id" class="settings-input">
                         </div>
                         <div class="form-group">
@@ -62,8 +63,12 @@
                             <input type="text" id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input">
                         </div>
                         <div class="form-group">
-                            <label for="donations_channel_id">ID Canal Relatório de Doações</label>
+                            <label for="donations_channel_id">ID Canal Rel. Doações</label>
                             <input type="text" id="donations_channel_id" name="donations_channel_id" class="settings-input">
+                        </div>
+                        <div class="form-group">
+                             <label for="watchlist_alert_channel_id">ID Canal Alerta Watchlist</label>
+                             <input type="text" id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input">
                         </div>
                         <div class="form-group">
                             <label for="role_id_1star_alert">ID Cargo Alerta 1 Estrela</label>
@@ -73,31 +78,78 @@
                             <label for="role_id_missed_attack">ID Cargo Ataque Perdido</label>
                             <input type="text" id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input">
                         </div>
+                        <div class="form-group">
+                            <label for="leader_role_id">ID Cargo Líder (Watchlist)</label>
+                            <input type="text" id="leader_role_id" name="leader_role_id" class="settings-input">
+                        </div>
+                         <div class="form-group">
+                            <label for="coleader_role_id">ID Cargo Co-líder (Watchlist)</label>
+                            <input type="text" id="coleader_role_id" name="coleader_role_id" class="settings-input">
+                        </div>
                     </div>
-                    <div class="form-group">
+                    <h4>Outras Configurações</h4>
+                     <div class="form-group">
                         <label for="maintenance_message">Mensagem de Manutenção</label>
                         <textarea id="maintenance_message" name="maintenance_message" rows="3" class="settings-textarea"></textarea>
                     </div>
+                     <div class="form-group">
+                        <label for="auto_add_watchlist_enabled">Adicionar Automaticamente à Watchlist (Ataques Perdidos)</label>
+                        <select id="auto_add_watchlist_enabled" name="auto_add_watchlist_enabled" class="settings-input">
+                            <option value="true">Sim</option>
+                            <option value="false">Não</option>
+                        </select>
+                     </div>
                     <button type="submit" class="control-btn">Salvar Configurações</button>
                     <p id="settings-feedback" class="feedback-text"></p>
                 </form>
             </div>
 
+             <div class="control-section">
+                <h3>Gerenciar Lista de Observação (Watchlist)</h3>
+                <form id="admin-add-watchlist-form">
+                    <h4>Adicionar Jogador</h4>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="watchlist-player-tag">Tag do Jogador</label>
+                            <input type="text" id="watchlist-player-tag" name="player_tag" class="admin-input" required placeholder="#ABC123XYZ">
+                        </div>
+                         <div class="form-group">
+                            <label for="watchlist-player-name">Nome (Opcional)</label>
+                            <input type="text" id="watchlist-player-name" name="player_name" class="admin-input" placeholder="Buscará se vazio">
+                        </div>
+                        <div class="form-group">
+                            <label for="watchlist-reason">Motivo</label>
+                            <input type="text" id="watchlist-reason" name="reason" class="admin-input" required placeholder="Ex: Não atacou na guerra">
+                        </div>
+                    </div>
+                     <div class="form-group">
+                        <label for="watchlist-details">Detalhes (Opcional)</label>
+                        <textarea id="watchlist-details" name="details" rows="2" class="admin-textarea" placeholder="Ex: Guerra vs Tropa XYZ em 15/10/2025"></textarea>
+                    </div>
+                    <button type="submit" class="control-btn">Adicionar à Lista</button>
+                    <p id="watchlist-add-feedback" class="feedback-text"></p>
+                </form>
+                <h4>Jogadores na Lista</h4>
+                 <div class="table-container-admin">
+                    <table id="admin-watchlist-table">
+                        <thead><tr><th>Nome</th><th>Tag</th><th>Motivo</th><th>Detalhes</th><th>Data Adição</th><th>Ação</th></tr></thead>
+                        <tbody><tr><td colspan="6">Carregando lista...</td></tr></tbody>
+                    </table>
+                </div>
+                 <p id="watchlist-list-feedback" class="feedback-text"></p>
+            </div>
+
             <div class="control-section">
                 <h3>Ações do Bot</h3>
-                <!-- Grupo de botões para ações gerais -->
                 <div class="action-buttons-group">
-                    <button class="control-btn action-btn" data-action="clear_cache" data-payload='{"cache_key": "war_details"}'>Limpar Cache da Guerra</button>
+                    <button class="control-btn action-btn" data-action="clear_cache" data-payload='{"cache_key": "all"}'>Limpar Todo o Cache Web</button>
                     <button class="control-btn action-btn" data-action="force_sync_war" data-payload='{}'>Forçar Sincronização de Guerra</button>
                 </div>
-
-                <!-- Grupo de botões para sincronização de comandos -->
                 <div class="action-buttons-group">
                     <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "guild"}'>Sincronizar Comandos (Servidor)</button>
                     <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "global"}'>Sincronizar Comandos (Global)</button>
                     <p class="control-description">Use 'Sincronizar (Servidor)' para testes ou 'Global' para atualizar em todos os lugares.</p>
                 </div>
-
                 <div class="announcement-section">
                     <h4>Enviar Anúncio Global</h4>
                     <div class="form-group">
