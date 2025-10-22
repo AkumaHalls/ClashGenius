@@ -216,7 +216,7 @@ class ClashGeniusBot(commands.Bot):
             logger.error(f"Erro ao obter dados do clã {tag}: {e}")
             return None
 
-# --- Servidor Web (mantido aqui para simplicidade) ---
+# --- Servidor Web ---
 async def setup_web_server(bot_instance: ClashGeniusBot):
     app = web.Application()
 
@@ -324,11 +324,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
     async def api_admin_get_watchlist(r):
         data = await admin_cog.get_watchlist_admin()
-        # Converte datetime para string ISO para serialização JSON
-        for item in data:
-            if isinstance(item.get('date_added'), datetime.datetime):
-                item['date_added'] = item['date_added'].isoformat()
-        return web.json_response(data)
+        return web.json_response(data) # WatchlistCog já formata a data
 
     async def api_admin_add_watchlist(r):
         data = await r.json()
@@ -337,16 +333,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         reason = data.get('reason')
         details = data.get('details')
         if not tag or not reason: return web.json_response({"status": "error", "message": "Tag e motivo são obrigatórios."}, status=400)
-        # Opcional: buscar nome se não fornecido
         if not name:
-             try:
-                 player = await bot_instance.api_client.get_player(tag)
-                 name = player.name
-             except: name = tag # Usa a tag se não conseguir buscar
+             try: player = await bot_instance.api_client.get_player(tag); name = player.name
+             except: name = tag
         success = await admin_cog.add_to_watchlist_admin(tag, name, reason, details)
-        if success:
-             bot_instance.web_api_cache.pop('members', None)
-             return web.json_response({"status": "success", "message": "Jogador adicionado."})
+        if success: bot_instance.web_api_cache.pop('members', None); return web.json_response({"status": "success", "message": "Jogador adicionado."})
         else: return web.json_response({"status": "error", "message": "Erro ao adicionar."}, status=500)
 
     async def api_admin_remove_watchlist(r):
@@ -354,10 +345,10 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         tag = data.get('player_tag')
         if not tag: return web.json_response({"status": "error", "message": "Tag é obrigatória."}, status=400)
         success = await admin_cog.remove_from_watchlist_admin(tag)
-        if success:
-            bot_instance.web_api_cache.pop('members', None)
-            return web.json_response({"status": "success", "message": "Jogador removido."})
-        else: return web.json_response({"status": "not_found", "message": "Jogador não encontrado na lista."}, status=404)
+        # Retorna success mesmo se não encontrado para a UI
+        bot_instance.web_api_cache.pop('members', None)
+        message = "Jogador removido." if success else "Jogador não encontrado na lista."
+        return web.json_response({"status": "success", "message": message})
 
 
     async def api_admin_actions(r):
@@ -390,7 +381,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     admin_api_app.router.add_post("/actions", api_admin_actions)
     admin_api_app.router.add_get("/watchlist", api_admin_get_watchlist)
     admin_api_app.router.add_post("/watchlist/add", api_admin_add_watchlist)
-    admin_api_app.router.add_post("/watchlist/remove", api_admin_remove_watchlist) # Mudado para POST por segurança
+    admin_api_app.router.add_post("/watchlist/remove", api_admin_remove_watchlist)
 
     app.add_subapp("/api/admin/", admin_api_app)
 
@@ -398,14 +389,13 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
     async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
     async def admin_panel_page(r):
-        session = await get_session(r)
+        session = await get_session(r);
         if not session.get('admin'): return web.HTTPFound('/admin')
         return web.FileResponse(os.path.join(static_dir, "admin_panel.html"))
     async def admin_login_handler(r):
         data = await r.post()
         if data.get('password') == ADMIN_PASSWORD:
-            session = await get_session(r)
-            session['admin'] = True
+            session = await get_session(r); session['admin'] = True
             guild_id = data.get('guild_id'); session['guild_id'] = guild_id if guild_id else None
             return web.HTTPFound('/admin/panel')
         return web.HTTPFound(f"/admin?error=1&guild_id={data.get('guild_id', '')}")
@@ -474,4 +464,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
