@@ -23,10 +23,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
     def _add_event_listeners(self):
         """Aplica os decoradores de evento aos métodos de handle."""
         # REMOVIDO: O listener on_clan_member_join foi movido para WatchlistCog
-        # @self.events_client.event
-        # @coc.ClanEvents.member_join()
-        # async def on_clan_member_join(member, clan):
-        #     await self.handle_clan_member_join(member, clan)
 
         @self.events_client.event
         @coc.ClanEvents.member_leave()
@@ -69,7 +65,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self.bot.wait_until_ready()
         try:
             self.events_client.add_clan_updates(self.bot.clan_tag)
-            # A versão correta do login não usa o argumento 'client'
             await self.events_client.login(self.bot.coc_email, self.bot.coc_password)
             logger.info("Cliente de eventos (EventsClient) logado e escutando.")
         except Exception as e:
@@ -94,14 +89,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
     # --- FUNÇÕES QUE RESPONDEM AOS EVENTOS ---
-    # REMOVIDO: handle_clan_member_join foi movido para WatchlistCog
-    # async def handle_clan_member_join(self, member, clan):
-    #     if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
-    #     embed = discord.Embed(title="➡️ Novo Membro no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.blue())
-    #     embed.add_field(name="CV", value=member.town_hall, inline=True)
-    #     embed.add_field(name="Liga", value=member.league.name if member.league else "N/A", inline=True)
-    #     embed.add_field(name="Troféus", value=f"🏆 {member.trophies}", inline=True)
-    #     await self._send_log_embed(embed)
 
     async def handle_clan_member_leave(self, member, clan):
         # Ignora eventos de outros clãs ou se o bot estiver em manutenção
@@ -122,7 +109,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             war_type = "CWL" if war.is_cwl else "Guerra"
             stars_str = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
 
-            # ALTERAÇÃO: Formata a string com Markdown para destacar os números
             attacker_str = f"`{attacker.map_position:02d}` **{attacker.name}** (CV{attacker.town_hall})"
             defender_str = f"`{defender.map_position:02d}` **{defender.name}** (CV{defender.town_hall})"
 
@@ -202,21 +188,33 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                 return
 
             if self.war_attack_cache["war_end_time"] != war.end_time.time:
-                self.war_attack_cache = {"war_end_time": war.end_time.time, "processed_attacks": {a.order for a in war.attacks}}
+                # Se a guerra mudou, reseta o cache com os ataques já feitos nela
+                self.war_attack_cache = {"war_end_time": war.end_time.time, "processed_attacks": {a.order for a in war.attacks if a}} # Garante que a existe
+                logger.info(f"Nova guerra detectada ou cache resetado. {len(self.war_attack_cache['processed_attacks'])} ataques já processados.")
                 return
 
-            new_attacks = [a for a in war.attacks if a.order not in self.war_attack_cache["processed_attacks"]]
+            # Verifica ataques que estão na guerra mas não no cache
+            new_attacks = [a for a in war.attacks if a and a.order not in self.war_attack_cache["processed_attacks"]]
             if new_attacks:
+                logger.info(f"Detectados {len(new_attacks)} novos ataques.")
                 for attack in sorted(new_attacks, key=lambda a: a.order):
                     await self.on_war_attack(attack, war)
                     self.war_attack_cache["processed_attacks"].add(attack.order)
-        except (coc.PrivateWarLog, coc.NotFound): pass
+            else:
+                logger.debug("Nenhum ataque novo detectado.")
+
+        except (coc.PrivateWarLog, coc.NotFound):
+            # Se não há guerra ativa, reseta o cache
+            if self.war_attack_cache["war_end_time"] is not None:
+                logger.info("Guerra não encontrada ou log privado. Resetando cache de ataques.")
+                self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
         except Exception as e:
             logger.error(f"Erro na task de novos ataques: {e}", exc_info=True)
 
     @check_new_attack_task.before_loop
     async def before_check_new_attack_task(self):
         await self.bot.wait_until_ready()
+        await self.bot.coc_client_ready.wait() # Garante que o cliente principal está pronto
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EventsCog(bot))
