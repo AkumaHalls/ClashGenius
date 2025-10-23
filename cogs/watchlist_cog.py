@@ -15,7 +15,6 @@ class WatchlistCog(commands.Cog, name="Lista de Observação"):
         self.bot = bot
         self.db = bot.db
         self.watchlist_collection = self.db.clan_watchlist if self.db is not None else None
-        # <<< MODIFICADO: Busca ID do canal de alerta aqui, com fallback para canal principal >>>
         self.alert_channel_id = getattr(self.bot, 'watchlist_alert_channel_id', self.bot.channel_id)
         if not self.alert_channel_id:
              logger.warning("Nenhum ID de canal configurado para alertas da Watchlist (nem watchlist_alert_channel_id nem channel_id). Alertas desativados.")
@@ -50,13 +49,16 @@ class WatchlistCog(commands.Cog, name="Lista de Observação"):
             date_added_str = "Desconhecida"
             if isinstance(entry.get('date_added'), datetime.datetime):
                 try:
-                    date_added_str = entry['date_added'].strftime('%d/%m/%Y')
+                    # Converte para o fuso horário local antes de formatar
+                    local_dt = entry['date_added'].astimezone(self.bot.timezone)
+                    date_added_str = local_dt.strftime('%d/%m/%Y')
                 except Exception: pass # Ignora erro de formatação
             elif isinstance(entry.get('date_added'), str): # Se já for string (do DB corrigido)
                  try:
-                     # Tenta parsear e formatar, ou usa a string
-                     dt_obj = datetime.datetime.fromisoformat(entry['date_added'].replace("Z", "+00:00"))
-                     date_added_str = dt_obj.strftime('%d/%m/%Y')
+                     # Tenta parsear, converter para local e formatar, ou usa a string
+                     dt_obj_utc = datetime.datetime.fromisoformat(entry['date_added'].replace("Z", "+00:00")).replace(tzinfo=datetime.timezone.utc)
+                     local_dt = dt_obj_utc.astimezone(self.bot.timezone)
+                     date_added_str = local_dt.strftime('%d/%m/%Y')
                  except ValueError:
                       date_added_str = entry['date_added'] # Usa a string como fallback
 
@@ -94,24 +96,28 @@ class WatchlistCog(commands.Cog, name="Lista de Observação"):
         except Exception as e:
             logger.error(f"Falha inesperada ao enviar alerta de Watchlist: {e}", exc_info=True)
 
-    @commands.Cog.listener()
-    async def on_clan_member_join(self, member: coc.Player, clan: coc.Clan):
-        """Listener que verifica se o membro que entrou está na watchlist."""
-        # Ignora eventos de outros clãs ou se o bot estiver em manutenção ou sem DB
-        if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag or self.watchlist_collection is None:
-            # <<< Adicionado log para clareza >>>
-            if clan.tag != self.bot.clan_tag: logger.debug(f"Evento member_join ignorado (clã {clan.tag} != {self.bot.clan_tag})")
-            elif self.bot.maintenance_mode: logger.debug("Evento member_join ignorado (modo manutenção)")
-            elif self.watchlist_collection is None: logger.debug("Evento member_join ignorado (DB não disponível)")
+    # ---> REMOVIDO: Listener on_clan_member_join foi movido para EventsCog <---
+    # @commands.Cog.listener()
+    # async def on_clan_member_join(self, member: coc.Player, clan: coc.Clan):
+    #     ... (código removido) ...
+
+    # ---> NOVO: Método público chamado pelo EventsCog <---
+    async def check_and_alert_on_join(self, member: coc.Player):
+        """Verifica se um membro que entrou está na watchlist e envia alerta."""
+        # Verifica DB aqui também por segurança
+        if self.watchlist_collection is None:
+            logger.error("check_and_alert_on_join: DB não disponível.")
             return
 
-        logger.info(f"Membro {member.name} ({member.tag}) entrou. Verificando watchlist...") # <<< Log Informativo >>>
+        logger.info(f"WatchlistCog: Verificando jogador {member.name} ({member.tag})...")
         entry = await self.is_on_watchlist(member.tag)
         if entry:
-            logger.info(f"Jogador {member.name} ({member.tag}) ENCONTRADO na watchlist. Acionando alerta.") # <<< Log Detalhado >>>
+            logger.info(f"WatchlistCog: Jogador {member.name} ({member.tag}) ENCONTRADO. Acionando alerta.")
             await self._send_watchlist_alert(member, entry)
         else:
-            logger.info(f"Jogador {member.name} ({member.tag}) NÃO encontrado na watchlist.") # <<< Log Detalhado >>>
+            logger.info(f"WatchlistCog: Jogador {member.name} ({member.tag}) NÃO encontrado.")
+    # ---> FIM NOVO <---
+
 
     # --- Funções de Banco de Dados ---
     # (add_to_watchlist, remove_from_watchlist, is_on_watchlist, get_full_watchlist - MANTIDAS IGUAIS) ...
@@ -127,6 +133,8 @@ class WatchlistCog(commands.Cog, name="Lista de Observação"):
                 {"$set": {"name": player_name, "reason": reason, "details": details, "date_added": utc_now }}, upsert=True
             )
             logger.info(f"Jogador {player_name} ({player_tag_cleaned}) adicionado/atualizado na watchlist. Motivo: {reason}")
+            # Limpa cache de membros para o painel refletir a mudança
+            self.bot.web_api_cache.pop('members', None)
             return True
         except Exception as e: logger.error(f"Erro ao adicionar/atualizar {player_tag} na watchlist: {e}", exc_info=True); return False
 
@@ -136,8 +144,14 @@ class WatchlistCog(commands.Cog, name="Lista de Observação"):
         try:
             player_tag_cleaned = coc.utils.correct_tag(player_tag)
             result = await self.watchlist_collection.delete_one({"_id": player_tag_cleaned})
-            if result.deleted_count > 0: logger.info(f"Jogador {player_tag_cleaned} removido da watchlist."); return True
-            else: logger.warning(f"Tentativa de remover {player_tag_cleaned}, mas não foi encontrado."); return False # Retorna False se não encontrou
+            if result.deleted_count > 0:
+                logger.info(f"Jogador {player_tag_cleaned} removido da watchlist.")
+                # Limpa cache de membros para o painel refletir a mudança
+                self.bot.web_api_cache.pop('members', None)
+                return True
+            else:
+                logger.warning(f"Tentativa de remover {player_tag_cleaned}, mas não foi encontrado.")
+                return False # Retorna False se não encontrou
         except Exception as e: logger.error(f"Erro ao remover {player_tag} da watchlist: {e}", exc_info=True); return False
 
     async def is_on_watchlist(self, player_tag: str) -> Optional[Dict[str, Any]]:
