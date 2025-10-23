@@ -1,27 +1,99 @@
 # -*- coding: utf-8 -*-
 # Versão 20.2.16-Watchlist-Final-Debug-Timeout
 
-# ... (Importações e configurações iniciais mantidas iguais) ...
 import os
 import logging
 import asyncio
 import datetime
 from typing import Dict, Any, Optional, List
-# ... (restante das importações) ...
 
-# --- Logging --- (mantido igual)
-# ...
+import discord
+from discord.ext import commands
+import coc
+import pytz # <<< ADICIONADO IMPORT AQUI
+from dotenv import load_dotenv
+import motor.motor_asyncio
+from pymongo.uri_parser import parse_uri
+from aiohttp import web
+from aiohttp_session import setup as setup_session, get_session
+from aiohttp_session.cookie_storage import EncryptedCookieStorage
+import base64
+from cryptography.fernet import Fernet
+import json
 
-# --- Variáveis de Ambiente --- (mantido igual)
-# ...
+from war_predictor import WarPredictionSystemV3
 
-BOT_VERSION = "20.2.16-Watchlist-Final-Debug-Timeout"
-TIMEZONE = pytz.timezone('America/Sao_Paulo')
+# --- Configuração de Logging ---
+class MemoryLogHandler(logging.Handler):
+    def __init__(self, capacity=50):
+        super().__init__()
+        self.capacity = capacity
+        self.buffer = []
+    def emit(self, record):
+        self.buffer.append(self.format(record))
+        if len(self.buffer) > self.capacity: self.buffer.pop(0)
+
+log_handler = MemoryLogHandler()
+log_handler.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+log_handler.setFormatter(formatter)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.getLogger().addHandler(log_handler)
+logger = logging.getLogger("clash_genius_bot")
+# --- Fim Configuração de Logging ---
+
+# --- Carregamento de Variáveis de Ambiente ---
+load_dotenv()
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+COC_EMAIL = os.getenv("COC_EMAIL")
+COC_PASSWORD = os.getenv("COC_PASSWORD")
+CLAN_TAG = os.getenv("CLAN_TAG")
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
+AI_LOG_CHANNEL_ID = int(os.getenv("AI_LOG_CHANNEL_ID", 0))
+POST_WAR_ANALYSIS_CHANNEL_ID = int(os.getenv("POST_WAR_ANALYSIS_CHANNEL_ID", 0))
+CLAN_GAMES_CHANNEL_ID = int(os.getenv("CLAN_GAMES_CHANNEL_ID", 0))
+CWL_PLANNER_CHANNEL_ID = int(os.getenv("CWL_PLANNER_CHANNEL_ID", 0))
+DONATIONS_CHANNEL_ID = int(os.getenv("DONATIONS_CHANNEL_ID", 0))
+MONGO_DB_URL = os.getenv("MONGO_DB_URL")
+ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
+ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+FERNET_KEY = os.getenv("FERNET_KEY")
+BASE_URL = os.getenv("BASE_URL")
+WATCHLIST_ALERT_CHANNEL_ID = int(os.getenv("WATCHLIST_ALERT_CHANNEL_ID", "1390479489401753732"))
+LEADER_ROLE_ID = int(os.getenv("LEADER_ROLE_ID", "1362076878458065041"))
+COLEADER_ROLE_ID = int(os.getenv("COLEADER_ROLE_ID", "1362076878458065040"))
+AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
+# --- Fim Variáveis de Ambiente ---
+
+BOT_VERSION = "20.2.17-Fix-pytz-Import" # Atualiza a versão
+TIMEZONE = pytz.timezone('America/Sao_Paulo') # Agora pytz está definido
 
 class ClashGeniusBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # ... (Atribuições de Configurações mantidas iguais) ...
+        # --- Atribuição de Configurações ---
+        self.coc_email = COC_EMAIL
+        self.coc_password = COC_PASSWORD
+        self.clan_tag = CLAN_TAG
+        self.channel_id = CHANNEL_ID
+        self.ai_log_channel_id = AI_LOG_CHANNEL_ID
+        self.post_war_analysis_channel_id = POST_WAR_ANALYSIS_CHANNEL_ID
+        self.clan_games_channel_id = CLAN_GAMES_CHANNEL_ID
+        self.cwl_planner_channel_id = CWL_PLANNER_CHANNEL_ID
+        self.donations_channel_id = DONATIONS_CHANNEL_ID
+        self.role_id_1star_alert = ROLE_ID_1STAR_ALERT
+        self.role_id_missed_attack = ROLE_ID_MISSED_ATTACK
+        self.watchlist_alert_channel_id = WATCHLIST_ALERT_CHANNEL_ID
+        self.leader_role_id = LEADER_ROLE_ID
+        self.coleader_role_id = COLEADER_ROLE_ID
+        self.auto_add_watchlist_enabled = AUTO_ADD_WATCHLIST_ENABLED
+        self.bot_version = BOT_VERSION
+        self.timezone = TIMEZONE
+        self.base_url = BASE_URL
+        self.maintenance_mode = False
+        self.maintenance_message = "O painel está em manutenção. Voltaremos em breve!"
+        # --- Fim Atribuição ---
         self.api_client: Optional[coc.Client] = None
         self.war_prediction_system: Optional[WarPredictionSystemV3] = None
         self.db = None
@@ -38,14 +110,14 @@ class ClashGeniusBot(commands.Bot):
         logger.info(f"Instância ClashGeniusBot v{self.bot_version} criada.")
 
     async def setup_hook(self) -> None:
-        # ... (Código do setup_hook mantido igual, com logging detalhado) ...
         logger.info("### Iniciando setup_hook ###")
         # --- Conexão DB ---
         if MONGO_DB_URL:
             try:
                 db_name = parse_uri(MONGO_DB_URL).get('database', 'genius_db')
-                self.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL, serverSelectionTimeoutMS=5000) # Timeout DB
-                await self.mongo_client.admin.command('ping')
+                # Aumenta timeout para conexão inicial
+                self.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL, serverSelectionTimeoutMS=10000)
+                await self.mongo_client.admin.command('ping') # Testa conexão
                 self.db = self.mongo_client[db_name]
                 logger.info(f"Conectado ao MongoDB: {db_name}")
                 await self.load_initial_state_from_db()
@@ -53,6 +125,7 @@ class ClashGeniusBot(commands.Bot):
                 logger.info("Estado inicial carregado do DB e db_ready definido.")
             except Exception as e:
                 logger.error(f"Falha ao conectar/configurar MongoDB: {e}", exc_info=True)
+                # Considerar não setar db_ready ou até parar o bot se DB for essencial
         else:
             logger.warning("URL MongoDB não fornecida. Persistência desativada.")
             self.db_ready.set()
@@ -79,15 +152,14 @@ class ClashGeniusBot(commands.Bot):
         # --- Fim Cogs ---
         # --- Tarefas Assíncronas ---
         logger.info("Criando tarefas assíncronas (coc_login_task, setup_web_server)...")
-        self.loop.create_task(self.coc_login_task()) # Inicia a tarefa de login CoC
-        self.loop.create_task(setup_web_server(self)) # Inicia a tarefa do servidor web
+        self.loop.create_task(self.coc_login_task())
+        self.loop.create_task(setup_web_server(self))
         logger.info("Tarefas assíncronas criadas.")
         # --- Fim Tarefas ---
         logger.info("### Finalizando setup_hook ###")
 
 
     async def load_initial_state_from_db(self):
-        # ... (Código mantido igual) ...
         if self.db is None: logger.warning("load_initial_state_from_db sem conexão DB."); return
         logger.info("Carregando estado inicial do DB...")
         try:
@@ -109,7 +181,8 @@ class ClashGeniusBot(commands.Bot):
                 self.watchlist_alert_channel_id = bot_settings.get("watchlist_alert_channel_id", self.watchlist_alert_channel_id)
                 self.leader_role_id = bot_settings.get("leader_role_id", self.leader_role_id)
                 self.coleader_role_id = bot_settings.get("coleader_role_id", self.coleader_role_id)
-                self.auto_add_watchlist_enabled = bot_settings.get("auto_add_watchlist_enabled", self.auto_add_watchlist_enabled)
+                # Converte explicitamente para bool ao carregar
+                self.auto_add_watchlist_enabled = str(bot_settings.get("auto_add_watchlist_enabled", self.auto_add_watchlist_enabled)).lower() in ['true', 'on', '1']
                 logger.info("Configurações 'bot_settings' carregadas.")
             else: logger.warning("Doc 'bot_settings' não encontrado. Usando defaults.")
 
@@ -121,52 +194,27 @@ class ClashGeniusBot(commands.Bot):
 
     async def coc_login_task(self):
         """Tarefa assíncrona para login no cliente CoC com logging robusto."""
+        # (Código mantido igual, com loop de tentativas e timeout)
         logger.info("Iniciando tarefa de login coc_login_task...")
-        login_attempts = 0
-        max_attempts = 5 # Tenta 5 vezes antes de desistir
-        retry_delay = 10 # Segundos entre tentativas
-
+        login_attempts = 0; max_attempts = 5; retry_delay = 10
         while login_attempts < max_attempts:
-            login_attempts += 1
-            logger.info(f"Tentativa de login no CoC API ({login_attempts}/{max_attempts})...")
+            login_attempts += 1; logger.info(f"Tentativa login CoC ({login_attempts}/{max_attempts})...")
             try:
                 self.api_client = coc.Client()
-                # Tenta login com timeout interno (se suportado pela lib) ou asyncio.wait_for
-                # A lib coc.py não tem timeout explícito no login, usamos asyncio.wait_for
-                await asyncio.wait_for(
-                    self.api_client.login(self.coc_email, self.coc_password),
-                    timeout=30.0 # Timeout de 30 segundos para o login
-                )
-                logger.info(">>> Login no coc.Client (api_client) BEM-SUCEDIDO. <<<")
-                self.coc_client_ready.set() # Sinaliza que o cliente está pronto
-                logger.info("Evento coc_client_ready definido.")
-                return # Sai do loop e da task se o login for bem-sucedido
+                await asyncio.wait_for(self.api_client.login(self.coc_email, self.coc_password), timeout=30.0)
+                logger.info(">>> Login coc.Client BEM-SUCEDIDO. <<<")
+                self.coc_client_ready.set(); logger.info("Evento coc_client_ready definido.")
+                return
+            except coc.errors.LoginError as e: logger.error(f"### ERRO LOGIN CoC (Tentativa {login_attempts}) ###: Credenciais inválidas/problema Supercell ID. Erro: {e}"); break
+            except asyncio.TimeoutError: logger.error(f"### TIMEOUT LOGIN CoC (Tentativa {login_attempts}) ###: API não respondeu em 30s.")
+            except Exception as e: logger.error(f"### ERRO INESPERADO login CoC (Tentativa {login_attempts}) ###: {e}", exc_info=True)
+            if login_attempts < max_attempts: logger.info(f"Aguardando {retry_delay}s..."); await asyncio.sleep(retry_delay)
+        logger.critical(f"### FALHA CRÍTICA: Login CoC falhou após {max_attempts} tentativas. ###")
 
-            except coc.errors.LoginError as e:
-                logger.error(f"### ERRO DE LOGIN NO COC API (Tentativa {login_attempts}) ###: Credenciais inválidas ou problema na Supercell ID. Verifique email/senha. Erro: {e}")
-                # Não adianta tentar novamente se as credenciais estiverem erradas
-                break # Sai do loop
-            except asyncio.TimeoutError:
-                 logger.error(f"### TIMEOUT NO LOGIN DO COC API (Tentativa {login_attempts}) ###: A API não respondeu em 30 segundos.")
-                 # Continua para a próxima tentativa após delay
-            except Exception as e:
-                logger.error(f"### ERRO INESPERADO no login do CoC API (Tentativa {login_attempts}) ###: {e}", exc_info=True)
-                # Continua para a próxima tentativa após delay
-
-            if login_attempts < max_attempts:
-                logger.info(f"Aguardando {retry_delay} segundos antes da próxima tentativa de login no CoC...")
-                await asyncio.sleep(retry_delay)
-
-        # Se sair do loop sem sucesso
-        logger.critical(f"### FALHA CRÍTICA: Não foi possível logar no CoC API após {max_attempts} tentativas. ###")
-        logger.critical("Verifique suas credenciais (COC_EMAIL, COC_PASSWORD) e a conectividade com a API da Supercell.")
-        # O evento coc_client_ready nunca será setado, as tasks que dependem dele vão dar timeout.
-        # Considerar parar o bot: await self.close()
 
     async def on_ready(self):
-        # ... (Código mantido igual) ...
         logger.info("="*30)
-        logger.info(f'>>> BOT {self.user.name} (ID: {self.user.id}) ESTÁ ONLINE E PRONTO! <<<')
+        logger.info(f'>>> BOT {self.user.name} (ID: {self.user.id}) ONLINE E PRONTO! <<<')
         logger.info(f"Versão: {self.bot_version}")
         logger.info(f"Conectado a {len(self.guilds)} servidor(es).")
         logger.info("="*30)
@@ -177,7 +225,6 @@ class ClashGeniusBot(commands.Bot):
 
 
     async def close(self):
-        # ... (Código mantido igual) ...
         logger.info("Iniciando desligamento...")
         if self.api_client: logger.info("Fechando coc.py client..."); await self.api_client.close(); logger.info("coc.py fechado.")
         if self.mongo_client: logger.info("Fechando MongoDB client..."); self.mongo_client.close(); logger.info("MongoDB fechado.")
@@ -186,7 +233,6 @@ class ClashGeniusBot(commands.Bot):
         logger.info("Bot desligado.")
 
     async def get_clan_data_with_cache(self, tag: str) -> Optional[coc.Clan]:
-        # ... (Código mantido igual, com timeout e logging) ...
         try: await asyncio.wait_for(self.coc_client_ready.wait(), timeout=10.0)
         except asyncio.TimeoutError: logger.error("Timeout esperando coc_client_ready em get_clan_data."); return None
         normalized_tag = coc.utils.correct_tag(tag); now = datetime.datetime.now()
@@ -202,9 +248,9 @@ class ClashGeniusBot(commands.Bot):
         except coc.errors.NotFound: logger.warning(f"Clã {tag} não encontrado."); return None
         except Exception as e: logger.error(f"Erro ao obter clã {tag}: {e}", exc_info=True); return None
 
-# --- Servidor Web --- (código mantido igual)
+# --- Servidor Web ---
 async def setup_web_server(bot_instance: ClashGeniusBot):
-    # ... (Todo o código de setup_web_server mantido igual) ...
+    # (Código mantido igual, com logging detalhado e verificações)
     logger.info("Iniciando config servidor web...")
     app = web.Application()
     logger.info("Aguardando bot pronto p/ refs Cogs...")
@@ -224,7 +270,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         logger.critical(f"### ERRO FATAL: Cogs web não carregados: {', '.join(missing)}. Servidor web NÃO PODE iniciar. ###")
         return
     logger.info("Todas Cogs web encontradas.")
-    # --- Handlers API --- (mantidos)
+    # --- Handlers API ---
     async def handle_web_response(request, key, func, *args, **kwargs):
         now = datetime.datetime.now(); cache_entry = bot_instance.web_api_cache.get(key)
         if not kwargs.get('force_api_call', False) and cache_entry and (now - cache_entry["timestamp"]).total_seconds() < bot_instance.WEB_API_CACHE_DURATION_SECONDS: return web.json_response(cache_entry["data"])
@@ -273,7 +319,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         session=await get_session(request)
         if not session.get('admin'): logger.warning(f"Acesso não autorizado: {request.path}"); return web.json_response({"status":"unauthorized"}, status=403)
         return await handler(request)
-    # --- Handlers API Admin --- (mantidos)
+    # --- Handlers API Admin ---
     async def api_admin_diagnostics(r): return web.json_response(await admin_cog.get_diagnostics())
     async def api_admin_get_settings(r): return web.json_response(await admin_cog.get_settings())
     async def api_admin_update_settings(r): return web.json_response(await admin_cog.update_settings(await r.json()))
@@ -299,7 +345,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if action=="send_announcement": return web.json_response(await admin_cog.send_announcement(payload.get("channel_id"),payload.get("message")))
         elif action=="clear_cache": return web.json_response(await admin_cog.clear_web_cache(payload.get("cache_key")))
         elif action=="force_sync_war":
-            tasks_cog=bot_instance.get_cog("Tarefas em Segundo Plano"); asyncio.create_task(tasks_cog.check_war_end_task()) # Chama direto
+            tasks_cog=bot_instance.get_cog("Tarefas em Segundo Plano"); asyncio.create_task(tasks_cog.check_war_end_task())
             return web.json_response({"status":"success","message":"Sincronização forçada."})
         elif action=="sync_commands":
             guild_id=session.get('guild_id')
@@ -309,7 +355,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         return web.json_response({"status":"error","message":"Ação desconhecida."},status=400)
     # --- Rotas API Admin ---
     logger.info("Registrando rotas API Admin..."); admin_api_app = web.Application(middlewares=[admin_auth_middleware]); admin_api_app.router.add_get("/diagnostics", api_admin_diagnostics); admin_api_app.router.add_get("/settings", api_admin_get_settings); admin_api_app.router.add_post("/settings", api_admin_update_settings); admin_api_app.router.add_get("/db_viewer", api_admin_db_viewer); admin_api_app.router.add_post("/actions", api_admin_actions); admin_api_app.router.add_get("/watchlist", api_admin_get_watchlist); admin_api_app.router.add_post("/watchlist/add", api_admin_add_watchlist); admin_api_app.router.add_post("/watchlist/remove", api_admin_remove_watchlist); app.add_subapp("/api/admin/", admin_api_app); logger.info("Rotas API Admin OK.")
-    # --- Handlers Páginas/Auth --- (mantidos)
+    # --- Handlers Páginas/Auth ---
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
     async def admin_panel_page(r):
@@ -333,12 +379,12 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         session=await get_session(r);
         if not session.get('admin'): return web.json_response({"status":"unauthorized"}, status=403)
         return await maintenance_cog.send_test_embed_web()
-    async def admin_get_status_handler(r):
+    async def admin_get_status_handler(r): # Renamed to avoid conflict
         session=await get_session(r); is_admin=session.get('admin',False)
         return web.json_response({"status":"ok","maintenance_mode":bot_instance.maintenance_mode,"version":BOT_VERSION,"is_admin":is_admin})
     async def painel_handler(r):
         session=await get_session(r); is_admin=session.get('admin',False)
-        api_status_data = await admin_cog.get_api_status() if admin_cog and bot_instance.coc_client_ready.is_set() else {"status": "error", "message": "Bot iniciando..."} # Verifica status da API CoC
+        api_status_data = await admin_cog.get_api_status() if admin_cog and bot_instance.coc_client_ready.is_set() else {"status": "error", "message": "Bot iniciando..."}
         if (bot_instance.maintenance_mode or api_status_data.get("status") in ["maintenance", "error"]) and not is_admin:
             logger.info(f"Acesso painel bloqueado (Manut: {bot_instance.maintenance_mode}, API: {api_status_data.get('status')}). Redirecionando...")
             return web.FileResponse(os.path.join(static_dir,"maintenance.html"))
@@ -362,7 +408,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
 
 async def main():
-    # ... (Código mantido igual) ...
     intents = discord.Intents.default(); intents.message_content = True; intents.members = True; intents.guilds = True
     bot = ClashGeniusBot(command_prefix="!", intents=intents)
     try:
