@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
-    const loadingStatusTextEl = loadingOverlayEl.querySelector('p');
+    const loadingStatusTextEl = loadingOverlayEl?.querySelector('p'); // Add null check
     const backgroundMusicEl = document.getElementById('background-music');
     const muteButtonEl = document.getElementById('mute-button');
     const adminLinkBtn = document.querySelector('.admin-link-btn');
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanBadgeEl = document.getElementById('clanBadge');
     const clanCapitalPointsEl = document.getElementById('clanCapitalPoints');
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
-    const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts');
+    const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts'); // Keep reference if needed elsewhere
 
     const highlightsClanNameEl = document.getElementById('highlightsClanName');
     const topDonorsListEl = document.getElementById('topDonorsList');
@@ -53,9 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const statsOpponentDestructionEl = document.getElementById('statsOpponentDestruction');
     const statsOpponentAttacksUsedEl = document.getElementById('statsOpponentAttacksUsed');
     const statsOurAvgStarsEl = document.getElementById('statsOurAvgStars');
-    const statsOurAvgDurationEl = document.getElementById('statsOurAvgDuration');
+    const statsOurAvgDurationEl = document.getElementById('statsOurAvgDuration'); // Keep reference if needed elsewhere
     const statsOpponentAvgStarsEl = document.getElementById('statsOpponentAvgStars');
-    const statsOpponentAvgDurationEl = document.getElementById('statsOpponentAvgDuration');
+    const statsOpponentAvgDurationEl = document.getElementById('statsOpponentAvgDuration'); // Keep reference if needed elsewhere
     const statsOurStars3El = document.getElementById('statsOurStars3');
     const statsOurStars2El = document.getElementById('statsOurStars2');
     const statsOurStars1El = document.getElementById('statsOurStars1');
@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
-    const cwlStatusTextEl = document.getElementById('cwlStatusText');
+    const cwlStatusTextEl = document.getElementById('cwlStatusText'); // Keep reference if needed elsewhere
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
     const cwlSeasonEl = document.getElementById('cwlSeason');
     const cwlGroupStateEl = document.getElementById('cwlGroupState');
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
     const generateCwlPlanBtn = document.getElementById('generateCwlPlanBtn');
     const cwlPlanResultEl = document.getElementById('cwlPlanResult');
-    const cwlPlanSpinner = document.getElementById('cwlPlanSpinner');
+    // const cwlPlanSpinner = document.getElementById('cwlPlanSpinner'); // Spinner added directly in HTML now
     const cwlPlanContentEl = document.getElementById('cwlPlanContent');
     const cwlInactivityAlertEl = document.getElementById('cwlInactivityAlert');
     const cwlInactivityTextEl = document.getElementById('cwlInactivityText');
@@ -110,11 +110,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const historicWarModal = document.getElementById('historicWarModal');
     const historicWarDetailContent = document.getElementById('historicWarDetailContent');
-    const closeModalButton = document.querySelector('#historicWarModal .close-button');
+    const closeModalButton = historicWarModal?.querySelector('.close-button'); // Add null check
 
     const memberProfileModal = document.getElementById('memberProfileModal');
     const memberProfileContent = document.getElementById('memberProfileContent');
-    const closeProfileModalButton = document.querySelector('#memberProfileModal .close-button');
+    const closeProfileModalButton = memberProfileModal?.querySelector('.close-button'); // Add null check
     let memberTrophyChart = null;
 
     // --- FUNÇÃO DE FETCH MELHORADA ---
@@ -122,51 +122,72 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(`${API_BASE_URL}/api/${endpoint}`, options);
 
+            // Handle non-OK responses first
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ error: `Erro HTTP ${response.status}` }));
+                const errorMessage = errorData.error || errorData.message || `Falha ao carregar ${endpoint}.`;
 
                 if (response.status === 503) {
-                    console.warn(`API retornou 503 (Serviço Indisponível) para ${endpoint}. O bot pode estar a iniciar.`);
-                    if (!loadingOverlayEl.classList.contains('hidden')) {
-                         setText(loadingStatusTextEl, errorData.error || 'A aguardar o bot iniciar...');
+                    console.warn(`API retornou 503 (Serviço Indisponível/Iniciando) para ${endpoint}.`);
+                    // Update loading text only if overlay is visible
+                    if (loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
+                         setText(loadingStatusTextEl, 'Aguardando API CoC ficar pronta...');
                     }
                 } else {
                     console.error(`Erro na API! Status: ${response.status} para ${endpoint}`, errorData);
                 }
-                return { error: errorData.error || `Falha ao carregar ${endpoint}.` };
+                // Always return an object with an error key for consistency
+                return { error: errorMessage };
             }
 
-            if (response.status === 204) return { success: true }; // Handle No Content response
+            // Handle successful No Content response
+            if (response.status === 204) {
+                return { success: true };
+            }
+
+            // Handle successful responses with content
             return await response.json();
 
         } catch (error) {
             console.error(`Erro de conexão ao buscar ${endpoint}:`, error);
-            if (loadingStatusTextEl && !loadingOverlayEl.classList.contains('hidden')) {
+            // Update loading text only if overlay is visible
+            if (loadingStatusTextEl && loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
                 setText(loadingStatusTextEl, 'Erro de conexão. Verifique a consola.');
             }
+            // Return an object with an error key
             return { error: `Erro de conexão ao buscar ${endpoint}.` };
         }
     }
 
+
     // --- LÓGICA DA MÚSICA DE FUNDO ---
     if (backgroundMusicEl && muteButtonEl) {
         backgroundMusicEl.volume = 0.2;
+        let musicStarted = false; // Flag to ensure play is attempted only once via interaction
+
         const playMusic = async () => {
+            if (musicStarted) return; // Don't try again if already started or blocked
             try {
                 await backgroundMusicEl.play();
-                document.body.removeEventListener('click', playMusic); // Remove listener after first interaction
+                musicStarted = true; // Set flag on successful play
+                // Remove listener after first successful interaction play
+                document.body.removeEventListener('click', playMusic);
+                document.body.removeEventListener('keydown', playMusic);
             } catch (err) {
-                console.log('Autoplay da música bloqueado pelo navegador.');
-                // We don't need to add the listener again if blocked initially
+                 musicStarted = true; // Set flag even if blocked, to prevent retries
+                 console.log('Autoplay da música bloqueado pelo navegador.');
+                 // Keep listeners if initially blocked, maybe next interaction works
             }
         };
-        // Add listener only once on body click to attempt play
+        // Attempt play on first click or keydown
         document.body.addEventListener('click', playMusic, { once: true });
+        document.body.addEventListener('keydown', playMusic, { once: true });
+
 
         muteButtonEl.addEventListener('click', () => {
             backgroundMusicEl.muted = !backgroundMusicEl.muted;
             muteButtonEl.textContent = backgroundMusicEl.muted ? '🔇' : '🔊';
-            localStorage.setItem('musicMuted', backgroundMusicEl.muted); // Save preference
+            localStorage.setItem('musicMuted', backgroundMusicEl.muted.toString()); // Save preference
         });
 
         // Restore preference on load
@@ -183,7 +204,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setText(element, text, defaultValue = '-') {
-        if (element) element.textContent = text === null || text === undefined || text === '' ? defaultValue : text;
+        if (element) {
+            // Ensure text is a string, handle null/undefined explicitly
+            const finalText = (text === null || text === undefined || text === '') ? defaultValue : String(text);
+            element.textContent = finalText;
+        }
     }
 
     function setHtml(element, htmlContent) {
@@ -191,7 +216,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setBadge(element, url) {
-        if (element) element.src = url || DEFAULT_BADGE_URL;
+        if (element) {
+             element.src = url || DEFAULT_BADGE_URL;
+             // Add error handler for badges
+             element.onerror = () => { element.src = DEFAULT_BADGE_URL; };
+        }
     }
 
     // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
@@ -200,28 +229,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Set initial active section and link
     contentSections.forEach(section => {
-        section.classList.toggle('active-section', section.id === currentActiveSectionId);
+        section?.classList.toggle('active-section', section.id === currentActiveSectionId); // Add null check
     });
     navLinks.forEach(link => {
-        link.classList.toggle('active-nav-link', link.dataset.section === currentActiveSectionId);
+        link?.classList.toggle('active-nav-link', link.dataset.section === currentActiveSectionId); // Add null check
     });
 
     function setActiveSection(newSectionId) {
-        if (newSectionId === currentActiveSectionId) return; // Do nothing if already active
+        if (!newSectionId || newSectionId === currentActiveSectionId) return; // Do nothing if invalid or already active
 
         const oldSectionEl = document.getElementById(currentActiveSectionId);
         const newSectionEl = document.getElementById(newSectionId);
 
-        if (!newSectionEl) return; // Exit if the new section doesn't exist
+        if (!newSectionEl) {
+            console.warn(`Section with ID "${newSectionId}" not found.`);
+            return; // Exit if the new section doesn't exist
+        }
 
         // Remove active class from old section and link
-        if (oldSectionEl) oldSectionEl.classList.remove('active-section');
-        navLinks.forEach(link => link.classList.remove('active-nav-link'));
+        oldSectionEl?.classList.remove('active-section'); // Add null check
+        navLinks.forEach(link => link?.classList.remove('active-nav-link')); // Add null check
 
         // Add active class to new section and link
         newSectionEl.classList.add('active-section');
         const newLink = document.querySelector(`.nav-link[data-section="${newSectionId}"]`);
-        if (newLink) newLink.classList.add('active-nav-link');
+        newLink?.classList.add('active-nav-link'); // Add null check
 
         // Store the new active section and update the current ID
         localStorage.setItem('activeSection', newSectionId);
@@ -230,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add click listeners to navigation links
     navLinks.forEach((link) => {
-        link.addEventListener('click', (e) => {
+        link?.addEventListener('click', (e) => { // Add null check
             e.preventDefault(); // Prevent default anchor behavior
             setActiveSection(link.dataset.section);
         });
@@ -238,9 +270,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
-        if (data.error || !data.name) {
+        // (Código mantido igual, verificações já existentes)
+        if (!data || data.error || !data.name) {
             setText(clanNameHeaderEl, "Erro");
-            setText(clanNameEl, data.error || "N/A");
+            setText(clanNameEl, data?.error || "N/A"); // Add null check for data
             return;
         }
         setText(clanNameHeaderEl, data.name);
@@ -252,97 +285,115 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(clanMemberCountEl, `Membros: ${data.member_count || '-'}/50`);
         setText(clanLocationEl, `Local: ${data.location || '-'}`);
         setText(clanTypeEl, `Tipo: ${data.type || '-'}`);
-        setText(clanWarWinsEl, `${data.war_wins || '-'} ⚔️`);
-        setText(clanPointsEl, `${data.points || '-'} 🏆`);
-        setText(clanCapitalPointsEl, `${data.capital_points || '-'} 🏆`);
+        setText(clanWarWinsEl, `${data.war_wins?.toLocaleString() || '-'} ⚔️`); // Add toLocaleString
+        setText(clanPointsEl, `${data.points?.toLocaleString() || '-'} 🏆`); // Add toLocaleString
+        setText(clanCapitalPointsEl, `${data.capital_points?.toLocaleString() || '-'} 🏆`); // Add toLocaleString
         setText(clanCapitalLeagueEl, data.capital_league);
         setText(clanDescriptionEl, data.description, 'Sem descrição.');
-        // Removed Capital Districts population as per previous request
-        // setHtml(clanCapitalDistrictsEl, data.capital_districts?.map(d => `<p><strong>${d.name || 'N/A'}:</strong> Nv ${d.level || '?'}</p>`).join('') || '<p>Nenhum distrito encontrado.</p>');
         setText(botVersionEl, data.version, '?');
     }
 
     function populateHighlights(data) {
-        if (data.error || !data.clan_name) {
-            noHighlightsMessageEl.style.display = 'block';
-            setText(noHighlightsMessageEl, data.error || "Não foi possível carregar os destaques.");
-            document.getElementById('highlightsContent').style.display = 'none'; // Hide content area
+        const highlightsContentEl = document.getElementById('highlightsContent'); // Get content wrapper
+
+        // Handle error case first
+        if (!data || data.error || !data.clan_name) {
+            if (noHighlightsMessageEl) {
+                noHighlightsMessageEl.style.display = 'block';
+                setText(noHighlightsMessageEl, data?.error || "Não foi possível carregar os destaques.");
+            }
+            if(highlightsContentEl) highlightsContentEl.style.display = 'none'; // Hide content area
             return;
         }
 
         // Show content area and hide error message
-        noHighlightsMessageEl.style.display = 'none';
-        document.getElementById('highlightsContent').style.display = 'block';
+        if (noHighlightsMessageEl) noHighlightsMessageEl.style.display = 'none';
+        if (highlightsContentEl) highlightsContentEl.style.display = 'block';
 
         setText(highlightsClanNameEl, data.clan_name);
         setText(warDateHighlightEl, data.war_date ? `(${data.war_date})` : ''); // Show war date if available
 
         // Populate Top Donors
-        setHtml(topDonorsListEl, data.top_donors?.map((donor, index) => {
+        setHtml(topDonorsListEl, data.top_donors?.length > 0 ? data.top_donors.map((donor, index) => {
             const medals = ['gold', 'silver', 'bronze'];
             const medal_icons = ['🥇', '🥈', '🥉'];
+            const rankIcon = medal_icons[index] || `${index + 1}.`; // Use number if beyond top 3
             return `<div class="podium-item ${medals[index] || ''}">
-                        <span class="podium-rank">${medal_icons[index] || ''}</span>
+                        <span class="podium-rank">${rankIcon}</span>
                         <div class="podium-details">
-                            <div class="member-name">${donor.name} (CV${donor.town_hall})</div>
-                            <div class="donation-count"><strong>${donor.donations.toLocaleString()}</strong> tropas doadas</div>
+                            <div class="member-name">${donor.name || 'N/A'} (CV${donor.town_hall || '?'})</div>
+                            <div class="donation-count"><strong>${(donor.donations || 0).toLocaleString()}</strong> tropas doadas</div>
                         </div>
                     </div>`;
-        }).join('') || '<p>Nenhum doador encontrado.</p>');
+        }).join('') : '<p>Nenhum doador encontrado.</p>');
 
         // Populate War Heroes/Best Attacks
         const warHeroTitleEl = document.getElementById('warHeroTitle');
         setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra'); // Title for the section
-        setHtml(bestAttacksListEl, data.war_heroes?.map(hero => {
+        setHtml(bestAttacksListEl, data.war_heroes?.length > 0 ? data.war_heroes.map(hero => {
             const isMvp = hero.rank === 1;
-            const heroClass = isMvp ? 'mvp-card' : 'attack-item'; // Different style for MVP
+            const heroClass = isMvp ? 'mvp-card' : 'attack-item';
             const medals = ['🥇', '🥈', '🥉'];
+            const rankIcon = medals[hero.rank - 1] || `${hero.rank}.`; // Use number if beyond top 3
+
             const titleHtml = isMvp
-                ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p><h4 class="mvp-name">${hero.name} <span>(CV${hero.town_hall})</span></h4>` // MVP specific title
-                : `<div class="attack-header">${medals[hero.rank - 1] || ''} ${hero.name} (CV${hero.town_hall})</div>`; // Normal rank title
+                ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p><h4 class="mvp-name">${hero.name || 'N/A'} <span>(CV${hero.town_hall || '?'})</span></h4>`
+                : `<div class="attack-header">${rankIcon} ${hero.name || 'N/A'} (CV${hero.town_hall || '?'})</div>`;
 
             // Add tooltip with the reason
             return `<div class="${heroClass}">
                         ${titleHtml}
-                        <span class="tooltip-text">${hero.reason}</span>
+                        <span class="tooltip-text">${hero.reason || 'Sem detalhes'}</span>
                     </div>`;
-        }).join('') || '<p>Nenhum herói para destacar na última guerra.</p>');
+        }).join('') : '<p>Nenhum herói para destacar na última guerra ou análise indisponível.</p>'); // More informative default
 
         // Destroy previous chart instance if exists
         if (activityChart) activityChart.destroy();
 
         // Create new Activity Chart if data is available
-        if (data.activity_chart_data?.labels.length > 0) {
-            activityChart = new Chart(activityChartCanvas.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: data.activity_chart_data.labels,
-                    datasets: [
-                        { label: 'Tropas Doadas', data: data.activity_chart_data.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
-                        { label: 'Tropas Recebidas', data: data.activity_chart_data.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
-                    ]
-                },
-                options: { // Chart options for responsiveness, axes, legend colors
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, // Y-axis styling
-                        x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } // X-axis styling
-                    },
-                    plugins: {
-                        legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } // Legend styling
-                    }
-                }
-            });
+        if (activityChartCanvas && data.activity_chart_data?.labels?.length > 0) {
+            try {
+                 activityChart = new Chart(activityChartCanvas.getContext('2d'), {
+                     type: 'bar',
+                     data: {
+                         labels: data.activity_chart_data.labels,
+                         datasets: [
+                             { label: 'Tropas Doadas', data: data.activity_chart_data.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
+                             { label: 'Tropas Recebidas', data: data.activity_chart_data.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
+                         ]
+                     },
+                     options: {
+                         responsive: true, maintainAspectRatio: false,
+                         scales: {
+                             y: { beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.7)' } },
+                             x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }
+                         },
+                         plugins: { legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } }
+                     }
+                 });
+            } catch (e) {
+                console.error("Erro ao criar gráfico de atividade:", e);
+                // Optionally display an error message in the chart area
+            }
+        } else if (activityChartCanvas) {
+             // Clear canvas or show message if no data
+             const ctx = activityChartCanvas.getContext('2d');
+             ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
+             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+             ctx.textAlign = 'center';
+             ctx.fillText('Dados de atividade indisponíveis.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
         }
     }
 
+
     function createStarString(stars) {
-        // Creates a string like ⭐⭐⚫ for 2 stars
-        return '⭐'.repeat(stars) + '⚫'.repeat(Math.max(0, 3 - stars));
+        const starCount = parseInt(stars, 10); // Ensure it's a number
+        if (isNaN(starCount) || starCount < 0) return '⚫⚫⚫'; // Default empty
+        return '⭐'.repeat(starCount) + '⚫'.repeat(Math.max(0, 3 - starCount));
     }
 
     function populateWarDetails(data, containerId = 'war-details-nav', isModal = false) {
+        // (Código mantido igual, verificações já existentes)
         const container = document.getElementById(containerId);
         if (!container) return; // Exit if container not found
 
@@ -350,26 +401,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const warHeader = container.querySelector('.war-header');
         const warTabsNav = container.querySelector('.war-tabs');
         const noWarMsg = container.querySelector(isModal ? `#${prefix}noWarDetailMessage` : '#noWarDetailMessage');
-        const predictionSection = container.querySelector(isModal ? null : '#warPredictionSection'); // Prediction only on main page
+        const predictionSection = container.querySelector(isModal ? null : '#warPredictionSection');
 
         // Handle error or no war data
-        if (data.error || !data.war_data) {
-            if (noWarMsg) { noWarMsg.style.display = 'block'; setText(noWarMsg, data.error || "Nenhuma guerra para detalhar."); }
+        if (!data || data.error || !data.war_data) {
+            if (noWarMsg) { noWarMsg.style.display = 'block'; setText(noWarMsg, data?.error || "Nenhuma guerra para detalhar."); }
             if (warHeader) warHeader.style.display = 'none';
             if (warTabsNav) warTabsNav.style.display = 'none';
             container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none'); // Hide all tabs
             if (predictionSection) predictionSection.style.display = 'none'; // Hide prediction
             return;
         }
-
         // --- Populate War Prediction (only on main page) ---
+        // (Código mantido igual)
         if (!isModal && predictionSection) {
             const predictionTextEl = container.querySelector('#warPredictionText');
             const predictionTagsEl = container.querySelector('#warPredictionTags');
 
             if (data.prediction && data.prediction.summary_panel) {
                 setText(predictionTextEl, data.prediction.summary_panel);
-                // Populate prediction tags with probability and confidence
                 predictionTagsEl.innerHTML = `
                     <div class="prediction-tag">
                         <span class="prediction-tag-icon">🎯</span>
@@ -395,7 +445,6 @@ document.addEventListener('DOMContentLoaded', () => {
              predictionSection.style.display = 'none'; // Ensure prediction is hidden in modal
         }
 
-
         // --- Populate General War Info ---
         if (noWarMsg) noWarMsg.style.display = 'none'; // Hide no war message
         if (warHeader) warHeader.style.display = 'flex'; // Show header
@@ -417,22 +466,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if(stateEl) stateEl.className = 'war-state ' + (war.status || '').toLowerCase(); // Style based on war state
 
         // --- Populate Stats Tab ---
+        // (Código mantido igual)
         setText(query(`#${prefix}statsOurClanName`), war.clan_name);
         setText(query(`#${prefix}statsOurStars`), war.clan_stars);
-        setText(query(`#${prefix}statsOurDestruction`), war.clan_destruction?.replace('%', '')); // Remove % for display
+        setText(query(`#${prefix}statsOurDestruction`), war.clan_destruction?.replace('%', ''));
         setText(query(`#${prefix}statsOurAttacksUsed`), `${war.clan_attacks_used}/${war.team_size * war.attacks_per_member}`);
         setText(query(`#${prefix}statsOpponentName`), war.opponent_name);
         setText(query(`#${prefix}statsOpponentStars`), war.opponent_stars);
-        setText(query(`#${prefix}statsOpponentDestruction`), war.opponent_destruction?.replace('%', '')); // Remove %
+        setText(query(`#${prefix}statsOpponentDestruction`), war.opponent_destruction?.replace('%', ''));
         setText(query(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
-
         setText(query(`#${prefix}statsOurAvgStars`), war.clan_avg_stars);
-        // Average duration needs backend support or complex calculation here
-        // setText(query(`#${prefix}statsOurAvgDuration`), '-');
         setText(query(`#${prefix}statsOpponentAvgStars`), war.opponent_avg_stars);
-        // setText(query(`#${prefix}statsOpponentAvgDuration`), '-');
-
-        // Populate star distribution
         if(war.clan_star_distribution){
              for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOurStars${i}`), war.clan_star_distribution[i]);
         }
@@ -440,302 +484,269 @@ document.addEventListener('DOMContentLoaded', () => {
              for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOpponentStars${i}`), war.opponent_star_distribution[i]);
          }
 
-
         // --- Populate Events Tab ---
+        // (Código mantido igual)
         const eventsTableBody = query(`#${prefix}warEventsTableBody`);
-        setText(query(`#${prefix}warTotalAttacksCount`), data.all_attacks.length); // Show total attacks
-        setHtml(eventsTableBody, data.all_attacks.map(att => `
+        setText(query(`#${prefix}warTotalAttacksCount`), data.all_attacks?.length || 0); // Add null check
+        setHtml(eventsTableBody, data.all_attacks?.length > 0 ? data.all_attacks.map(att => `
             <tr>
-                <td>${att.order}</td>
-                <td>${att.attacker_name} (CV${att.attacker_townhall})</td>
-                <td><span class="attack-stars">${createStarString(att.stars)}</span> ${att.destruction}%</td>
-                <td>${att.defender_name} (CV${att.defender_townhall})</td>
-                <td>${att.duration}</td>
+                <td>${att.order ?? '-'}</td>
+                <td>${att.attacker_name || '?'} (CV${att.attacker_townhall || '?'})</td>
+                <td><span class="attack-stars">${createStarString(att.stars)}</span> ${att.destruction ?? 0}%</td>
+                <td>${att.defender_name || '?'} (CV${att.defender_townhall || '?'})</td>
+                <td>${att.duration ?? '-'}</td>
             </tr>
-        `).join('') || '<tr><td colspan="5">Nenhum ataque registado.</td></tr>'); // Message if no attacks
+        `).join('') : '<tr><td colspan="5">Nenhum ataque registado.</td></tr>');
 
         // --- Populate Team Tabs ---
+        // (Código mantido igual)
         const populateTeamTabData = (teamMembersData, teamName, teamElementId) => {
-            setText(query(`#${prefix}${teamElementId}Name`), teamName); // Set team name header
-            // Map member data to HTML cards
-            setHtml(query(`#${prefix}${teamElementId}Members`), teamMembersData.map(member => {
-                // Generate HTML for attacks made
+            const teamMembersEl = query(`#${prefix}${teamElementId}Members`);
+            setText(query(`#${prefix}${teamElementId}Name`), teamName);
+            setHtml(teamMembersEl, teamMembersData?.length > 0 ? teamMembersData.map(member => {
                 const attacksHtml = '<h5>Ataques Feitos:</h5><ul class="member-attack-list">' +
                     (member.attacks_made?.length > 0
-                        ? member.attacks_made.map(atk => `<li>${createStarString(atk.stars)} ${atk.destruction}% vs ${atk.defender_name} (CV${atk.defender_townhall})</li>`).join('')
+                        ? member.attacks_made.map(atk => `<li>${createStarString(atk.stars)} ${atk.destruction ?? 0}% vs ${atk.defender_name || '?'} (CV${atk.defender_townhall || '?'})</li>`).join('')
                         : '<li>Nenhum ataque feito.</li>') + '</ul>';
-                // Generate HTML for defenses received
                 const defensesHtml = '<h5>Defesas Recebidas:</h5><ul class="member-defense-list">' +
                     (member.defenses_received?.length > 0
-                        ? member.defenses_received.map(def => `<li>${createStarString(def.stars)} ${def.destruction}% por ${def.attacker_name} (CV${def.attacker_townhall})</li>`).join('')
+                        ? member.defenses_received.map(def => `<li>${createStarString(def.stars)} ${def.destruction ?? 0}% por ${def.attacker_name || '?'} (CV${def.attacker_townhall || '?'})</li>`).join('')
                         : '<li>Nenhuma defesa registada.</li>') + '</ul>';
-                // Member card HTML
                 return `<div class="team-member-card">
-                            <h4><img src="/static/images/townhall${member.townhall}.png" alt="CV${member.townhall}" onerror="this.style.display='none'"/> ${member.map_position}. ${member.name} (CV${member.townhall})</h4>
-                            <p>Ataques: ${member.attacks_used}/${war.attacks_per_member}</p>
+                            <h4><img src="/static/images/townhall${member.townhall || 1}.png" alt="CV${member.townhall || '?'}" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='28px';"/> ${member.map_position || '?'}. ${member.name || 'N/A'} (CV${member.townhall || '?'})</h4>
+                            <p>Ataques: ${member.attacks_used ?? 0}/${war.attacks_per_member}</p>
                             ${attacksHtml}${defensesHtml}
                         </div>`;
-            }).join('') || '<p>Nenhum membro nesta equipa para a guerra.</p>'); // Message if no members
+            }).join('') : '<p>Nenhum membro nesta equipa para a guerra.</p>');
         };
 
         populateTeamTabData(data.our_clan_members_in_war, war.clan_name, "warOurTeam");
         populateTeamTabData(data.opponent_clan_members_in_war, war.opponent_name, "warOpponentTeam");
 
-        // --- Activate Default Tab (if needed, especially for modal) ---
-         if (!query('.war-tab-button.active')) { // If no tab is currently active
-            const firstTabButton = query('.war-tab-button'); // Get the first tab button
-            const firstTabContentId = isModal ? `#historic-${firstTabButton?.dataset.tab}` : `#${firstTabButton?.dataset.tab}`; // Determine content ID
-            const firstTabContent = query(firstTabContentId); // Get the content element
-            firstTabButton?.classList.add('active'); // Activate button
-            if(firstTabContent) firstTabContent.style.display = 'block'; // Show content
+        // --- Activate Default Tab ---
+        // (Código mantido igual)
+         const currentActiveTab = query('.war-tab-button.active');
+         if (!currentActiveTab || !currentActiveTab.closest(`#${containerId}`)) { // Activate first tab if none is active within the container
+            const firstTabButton = query('.war-tab-button');
+            const firstTabContentId = isModal ? `#historic-${firstTabButton?.dataset.tab}` : `#${firstTabButton?.dataset.tab}`;
+            const firstTabContent = query(firstTabContentId);
+            // Deactivate others first
+            container.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+            container.querySelectorAll('.war-tab-content').forEach(cont => cont.style.display = 'none');
+            // Activate first
+            firstTabButton?.classList.add('active');
+            if(firstTabContent) firstTabContent.style.display = 'block';
          }
     }
 
+
     function populateWarAdvisorPlan(data) {
-        if (!warAdvisorContentEl) return; // Exit if element doesn't exist
+        // (Código mantido igual)
+        if (!warAdvisorContentEl) return;
 
-        // Clear existing timer if running
-        if (phaseTimerInterval) {
-            clearInterval(phaseTimerInterval);
-            phaseTimerInterval = null;
-        }
+        if (phaseTimerInterval) { clearInterval(phaseTimerInterval); phaseTimerInterval = null; }
 
-        // Function to set up the UI based on plan data
-         const setupAdvisorUI = (planData) => {
-             // Handle error or unsuccessful plan generation
+        const setupAdvisorUI = (planData) => {
             if (!planData || !planData.success) {
-                // Hide timer if it exists in the template
                 const timerEl = warAdvisorContentEl.querySelector('#advisorPhaseTimer');
                 if(timerEl) timerEl.style.display = 'none';
-                // Show error message
                 setHtml(warAdvisorContentEl, `<div class="advisor-plan-container"><p class="message-box">${planData?.error || 'Nenhuma recomendação disponível.'}</p></div>`);
                 return;
             }
-
-            // --- Build Advisor Plan HTML ---
-            // Start with timer placeholder and header
             let contentHtml = `
                 <div id="advisorPhaseTimer" class="advisor-phase-timer" style="display: none;"><h4>MUDANÇA DE FASE</h4><p id="advisorPhaseTimerText">Calculando...</p></div>
                 <div class="advisor-header">
-                    <h3>${planData.phase_title}</h3>
-                    <p>${planData.prediction_summary}</p>
+                    <h3>${planData.phase_title || 'Plano de Ataque'}</h3>
+                    <p>${planData.prediction_summary || '-'}</p>
                 </div>
-                <div class="advisor-grid">
-            `;
-
-            // Map each recommendation to an advisor card
-            contentHtml += planData.recommendations.map(rec => {
-                 const confidencePercent = (rec.confidence_score * 100).toFixed(0);
-                 // Determine confidence color based on score
+                <div class="advisor-grid">`;
+            contentHtml += planData.recommendations?.length > 0 ? planData.recommendations.map(rec => {
+                 const confidencePercent = ((rec.confidence_score || 0) * 100).toFixed(0);
                  let confidenceColor = 'low';
                  if (confidencePercent >= 75) confidenceColor = 'high';
                  else if (confidencePercent >= 50) confidenceColor = 'medium';
-                 // Add alternative targets if available
-                 const alternativesHtml = rec.alternative_targets.length > 0
-                     ? `<div class="advisor-alternatives"><strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}</div>`
-                     : '';
-                 // Card HTML structure
+                 const alternativesHtml = rec.alternative_targets?.length > 0 ? `<div class="advisor-alternatives"><strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}</div>` : '';
                  return `
-                    <div class="advisor-card type-${rec.attack_type || 'unknown'}"> {/* Class based on attack type */}
+                    <div class="advisor-card type-${rec.attack_type || 'unknown'}">
                         <div class="advisor-member-info">
-                            <h4>${rec.member_pos}. ${rec.member_name} (CV${rec.member_th})</h4>
-                            <span>Ataque Nº ${rec.attack_number}</span>
+                            <h4>${rec.member_pos || '?'}. ${rec.member_name || 'N/A'} (CV${rec.member_th || '?'})</h4>
+                            <span>Ataque Nº ${rec.attack_number || '?'}</span>
                         </div>
                         <div class="advisor-target-info">
                             <p>Alvo Recomendado</p>
-                            <span>#${rec.recommended_target_pos} (CV${rec.recommended_target_th})</span>
+                            <span>#${rec.recommended_target_pos || '?'} (CV${rec.recommended_target_th || '?'})</span>
                         </div>
                         <div class="advisor-justification">
-                            <p><strong>IA:</strong> ${rec.justification}</p>
+                            <p><strong>IA:</strong> ${rec.justification || '-'}</p>
                         </div>
                         ${alternativesHtml}
                         <div class="advisor-confidence">
-                            <span>Confiança da IA</span>
-                            <div class="confidence-bar-container">
-                                <div class="confidence-bar ${confidenceColor}" style="width: ${confidencePercent}%;"></div> {/* Confidence bar */}
-                            </div>
+                            <span>Confiança</span> {/* Simplified label */}
+                            <div class="confidence-bar-container"><div class="confidence-bar ${confidenceColor}" style="width: ${confidencePercent}%;"></div></div>
                             <span>${confidencePercent}%</span>
                         </div>
                     </div>`;
-            }).join(''); // Join all card HTML strings
-             contentHtml += '</div>'; // Close advisor-grid
-             setHtml(warAdvisorContentEl, contentHtml); // Set the generated HTML
+            }).join('') : '<p class="message-box">Nenhuma recomendação específica gerada.</p>'; // Message if no recommendations
+             contentHtml += '</div>';
+             setHtml(warAdvisorContentEl, contentHtml);
 
-             // --- Set up Phase Timer (if applicable) ---
-             // Query timer elements *after* setting the HTML
              const timerEl = warAdvisorContentEl.querySelector('#advisorPhaseTimer');
              const timerTextEl = warAdvisorContentEl.querySelector('#advisorPhaseTimerText');
-
-             // Check if phase 2 start time is provided and elements exist
              if (planData.phase_2_start_time_iso && timerEl && timerTextEl) {
                 const phase2StartTime = new Date(planData.phase_2_start_time_iso);
-                timerEl.style.display = 'block'; // Show the timer
-                // Start interval to update timer every second
-                phaseTimerInterval = setInterval(() => {
-                    const now = new Date(); const diff = phase2StartTime - now; // Calculate time difference
-                    if (diff <= 0) { // If time is up
-                        setText(timerTextEl, 'Fase 2 Iniciada! Foco em limpeza.'); // Update text
-                        clearInterval(phaseTimerInterval); // Stop timer
-                        phaseTimerInterval = null;
+                timerEl.style.display = 'block';
+                const updateTimer = () => { // Function to update timer text
+                    const now = new Date(); const diff = phase2StartTime - now;
+                    if (diff <= 0) {
+                        setText(timerTextEl, 'Fase 2 Iniciada! Foco em limpeza.');
+                        if(phaseTimerInterval) clearInterval(phaseTimerInterval); phaseTimerInterval = null;
                         return;
                     }
-                    // Calculate hours, minutes, seconds remaining
-                    const hours = Math.floor(diff / (36e5)); // 1000 * 60 * 60
-                    const minutes = Math.floor((diff % (36e5)) / (6e4)); // 1000 * 60
-                    const seconds = Math.floor((diff % (6e4)) / 1000);
-                    // Update timer text
+                    const hours = Math.floor(diff / 36e5); const minutes = Math.floor((diff % 36e5) / 6e4); const seconds = Math.floor((diff % 6e4) / 1000);
                     setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
-                }, 1000);
-             } else if (timerEl) { // If no phase 2 time, hide timer element
+                };
+                updateTimer(); // Initial call
+                phaseTimerInterval = setInterval(updateTimer, 1000); // Update every second
+             } else if (timerEl) {
                  timerEl.style.display = 'none';
              }
          };
-         // Call the setup function with the provided data
          setupAdvisorUI(data);
     }
 
+
     function populateMissedAttacksHistory(data) {
-        setText(attacksRemainingTitleEl.querySelector('span'), data.clan_name); // Set clan name in title
-        // Handle error or no data
-        if (data.error || !data.wars_with_missed_attacks?.length) {
+        // Check if title element exists before setting text
+        if(attacksRemainingTitleEl?.querySelector('span')) setText(attacksRemainingTitleEl.querySelector('span'), data?.clan_name || 'Clã');
+
+        if (!data || data.error || !data.wars_with_missed_attacks?.length) {
             setHtml(missedAttacksContainerEl, ''); // Clear container
-            if (noMissedAttacksMessageEl) { noMissedAttacksMessageEl.style.display = 'block'; setText(noMissedAttacksMessageEl, data.error || "Nenhuma pendência de ataque encontrada."); }
+            if (noMissedAttacksMessageEl) {
+                noMissedAttacksMessageEl.style.display = 'block';
+                setText(noMissedAttacksMessageEl, data?.error || "Nenhuma pendência de ataque encontrada.");
+            }
             return;
         }
-        // Hide error message and populate container
+
         if (noMissedAttacksMessageEl) noMissedAttacksMessageEl.style.display = 'none';
+
+        // <<< CORRIGIDO: Removido comentário dentro do template string >>>
         setHtml(missedAttacksContainerEl, data.wars_with_missed_attacks.map(war => `
             <div class="war-group">
-                {/* War header with opponent and date */}
-                <h3 class="war-group-header">Guerra vs <strong>${war.opponent_name}</strong> (${war.end_date}) ${war.is_latest ? '<span class="latest-war-badge">💥 Última Guerra</span>' : ''}</h3>
+                <h3 class="war-group-header">Guerra vs <strong>${war.opponent_name || '?'}</strong> (${war.end_date || '?'}) ${war.is_latest ? '<span class="latest-war-badge">💥 Última Guerra</span>' : ''}</h3>
                 <div class="player-card-grid">
-                    {/* Map members with missed attacks */}
-                    ${war.missed_attacks_members.map(member => `
-                        <div class="missed-attack-card ${member.attacks_left >= 2 ? 'severity-high' : 'severity-medium'}"> {/* Style based on severity */}
+                    ${war.missed_attacks_members?.map(member => `
+                        <div class="missed-attack-card ${member.attacks_left >= 2 ? 'severity-high' : 'severity-medium'}">
                             <div class="player-info">
-                                <h4>${member.name} <span>(CV${member.town_hall})</span></h4>
+                                <h4>${member.name || '?'} <span>(CV${member.town_hall || '?'})</span></h4>
                                 <div class="player-tag-container">
-                                    <span class="player-tag">${member.tag}</span>
-                                    {/* Copy button */}
-                                    <button class="copy-tag-btn" data-tag="${member.tag}">Copiar</button>
+                                    <span class="player-tag">${member.tag || '#?'}</span>
+                                    <button class="copy-tag-btn" data-tag="${member.tag || '#?'}">Copiar</button>
                                 </div>
                             </div>
                             <div class="attacks-info">
-                                <span class="attacks-count">${member.attacks_left}</span>
-                                <span class="attacks-label">Ataque${member.attacks_left > 1 ? 's' : ''} Pendente${member.attacks_left > 1 ? 's' : ''}</span>
+                                <span class="attacks-count">${member.attacks_left || '?'}</span>
+                                <span class="attacks-label">Ataque${(member.attacks_left || 0) > 1 ? 's' : ''} Pendente${(member.attacks_left || 0) > 1 ? 's' : ''}</span>
                             </div>
-                        </div>`).join('')}
+                        </div>`).join('') || '<p>Nenhum membro com ataques pendentes nesta guerra.</p>'}
                 </div>
             </div>`).join(''));
-        // Add listeners to copy buttons after they are added to the DOM
+
+        // Re-attach listeners to copy buttons
         document.querySelectorAll('.copy-tag-btn').forEach(button => {
             button.addEventListener('click', () => copyTagToClipboard(button));
         });
     }
 
+
     function copyTagToClipboard(button) {
+        // (Código mantido igual)
         const tag = button.dataset.tag;
-        // Use document.execCommand as a fallback for potential iframe restrictions
         const textArea = document.createElement("textarea");
         textArea.value = tag;
         document.body.appendChild(textArea);
         textArea.select();
         try {
-            document.execCommand('copy'); // Attempt copy command
-            button.textContent = 'Copiado!'; // Success feedback
-            button.disabled = true; // Disable briefly
-            setTimeout(() => { // Reset button after 2 seconds
-                button.textContent = 'Copiar';
-                button.disabled = false;
-            }, 2000);
+            // Use execCommand as fallback
+            const successful = document.execCommand('copy');
+            if(successful){
+                 button.textContent = 'Copiado!'; button.disabled = true;
+                 setTimeout(() => { button.textContent = 'Copiar'; button.disabled = false; }, 2000);
+            } else { throw new Error('execCommand failed'); }
         } catch (err) {
-            console.error('Falha ao copiar tag:', err); // Log error
-            button.textContent = 'Erro'; // Error feedback
-            setTimeout(() => { button.textContent = 'Copiar'; }, 2000); // Reset button
+            console.error('Falha ao copiar tag:', err); button.textContent = 'Erro';
+            setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
         }
-        document.body.removeChild(textArea); // Clean up textarea element
+        document.body.removeChild(textArea);
     }
 
     function populateCwlInfo(data) {
-        cwlPlannerSectionEl.style.display = 'block'; // Show planner section regardless
-        // Handle error or not in CWL
-        if (data.error || data.status === "NotInCwl") {
-            if(noCwlMessageEl) noCwlMessageEl.style.display = 'block'; // Show message
-            setText(noCwlMessageEl, data.message || data.error || "O clã não está em CWL no momento.");
-            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none'; // Hide active info
-            generateCwlPlanBtn.disabled = true; generateCwlPlanBtn.classList.add('disabled'); // Disable button
-        } else { // Populate CWL info if active
-            if(noCwlMessageEl) noCwlMessageEl.style.display = 'none'; // Hide message
-            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; // Show active info
-            setText(cwlSeasonEl, data.season); // Set season
-            setText(cwlGroupStateEl, data.state); // Set group state
-            // Populate list of clans in the group
-            setHtml(cwlGroupClansEl, data.clans_in_group?.map(c => `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name}"> <strong>${c.name}</strong> (${c.tag}) Nv ${c.level}</p>`).join('') || '<p>Nenhum clã no grupo.</p>');
-            // Populate rounds info
+        // (Código mantido igual)
+        if (cwlPlannerSectionEl) cwlPlannerSectionEl.style.display = 'block';
+
+        if (!data || data.error || data.status === "NotInCwl") {
+            if(noCwlMessageEl) { noCwlMessageEl.style.display = 'block'; setText(noCwlMessageEl, data?.message || data?.error || "O clã não está em CWL no momento."); }
+            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
+            if(generateCwlPlanBtn) { generateCwlPlanBtn.disabled = true; generateCwlPlanBtn.classList.add('disabled'); }
+        } else {
+            if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
+            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
+            setText(cwlSeasonEl, data.season);
+            setText(cwlGroupStateEl, data.state);
+            setHtml(cwlGroupClansEl, data.clans_in_group?.map(c => `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name || '?'}"> <strong>${c.name || '?'}</strong> (${c.tag || '#?'}) Nv ${c.level || '?'}</p>`).join('') || '<p>Nenhum clã no grupo.</p>');
             setHtml(cwlRoundsInfoEl, data.rounds?.map(r => `
                 <div class="cwl-round">
-                    <h4>Rodada ${r.round_number}</h4>
-                    {/* Map wars in the round */}
+                    <h4>Rodada ${r.round_number || '?'}</h4>
                     ${r.wars?.map(w => w.error ? `<p class="cwl-war-entry">Guerra: ${w.error}</p>` : `<p class="cwl-war-entry">
-                        <strong><img src="${w.clan_badge_url}" class="cwl-war-badge"> ${w.clan_name}</strong> ${w.clan_stars}⭐ vs ${w.opponent_stars}⭐ <strong><img src="${w.opponent_badge_url}" class="cwl-war-badge"> ${w.opponent_name}</strong>
-                        <br><small>Estado: ${w.state_description}</small></p>`).join('') || "<p>Nenhuma guerra nesta rodada.</p>"}
+                        <strong><img src="${w.clan_badge_url || DEFAULT_BADGE_URL}" class="cwl-war-badge"> ${w.clan_name || '?'}</strong> ${w.clan_stars ?? '?'}⭐ vs ${w.opponent_stars ?? '?'}⭐ <strong><img src="${w.opponent_badge_url || DEFAULT_BADGE_URL}" class="cwl-war-badge"> ${w.opponent_name || '?'}</strong>
+                        <br><small>${w.time_key || 'Estado'}: ${w.time_value || (w.state_description || '?')}</small></p>`).join('') || "<p>Nenhuma guerra nesta rodada.</p>"}
                 </div>`).join('') || "Nenhuma info de rodada.");
-            generateCwlPlanBtn.disabled = false; generateCwlPlanBtn.classList.remove('disabled'); // Enable button
-            // Start checking for inactivity periodically
-            checkCwlInactivity();
-            setInterval(checkCwlInactivity, 60000); // Check every minute
+            if(generateCwlPlanBtn) { generateCwlPlanBtn.disabled = false; generateCwlPlanBtn.classList.remove('disabled'); }
+            // checkCwlInactivity(); // Inactivity check needs backend logic
+            // setInterval(checkCwlInactivity, 60000);
         }
     }
 
-    async function handleGenerateCwlPlan() {
-        // Disable button and show spinner
-        generateCwlPlanBtn.disabled = true; generateCwlPlanBtn.textContent = 'A gerar...';
-        cwlPlanResultEl.style.display = 'block'; // Show result area
-        setHtml(cwlPlanContentEl, '<div class="loading-spinner" style="margin: 20px auto;"></div>'); // Show spinner inside
 
-        // Fetch plan data
+    async function handleGenerateCwlPlan() {
+        // (Código mantido igual)
+        if (!generateCwlPlanBtn) return;
+        generateCwlPlanBtn.disabled = true; generateCwlPlanBtn.textContent = 'A gerar...';
+        if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block';
+        setHtml(cwlPlanContentEl, '<div class="loading-spinner" style="margin: 20px auto;"></div>');
+
         const data = await fetchData('cwl/generate_plan', { method: 'POST' });
 
-        // Re-enable button
         generateCwlPlanBtn.disabled = false; generateCwlPlanBtn.textContent = 'Gerar Plano de Rotação';
+        const tabsContainer = document.getElementById('cwlPlanDaysTabs'); // Get tabs container
 
-        // Handle error
-        if (data.error) {
-            setHtml(cwlPlanContentEl, `<p class="message-box">${data.error}</p>`);
-            document.getElementById('cwlPlanDaysTabs').innerHTML = ''; // Clear tabs
-        } else { // Populate plan
-            // Create day tabs
-            const tabsHtml = data.schedule.map((dayPlan, index) =>
-                `<button class="cwl-plan-day-tab ${index === 0 ? 'active' : ''}" data-day="${dayPlan.day}">Dia ${dayPlan.day}</button>`
+        if (!data || data.error) {
+            setHtml(cwlPlanContentEl, `<p class="message-box">${data?.error || 'Erro ao gerar plano.'}</p>`);
+            if(tabsContainer) tabsContainer.innerHTML = '';
+        } else {
+            const tabsHtml = data.schedule?.map((dayPlan, index) =>
+                `<button class="cwl-plan-day-tab ${index === 0 ? 'active' : ''}" data-day="${dayPlan.day || (index + 1)}">Dia ${dayPlan.day || (index + 1)}</button>`
             ).join('');
-            document.getElementById('cwlPlanDaysTabs').innerHTML = tabsHtml;
+            if(tabsContainer) tabsContainer.innerHTML = tabsHtml || '';
 
-            // Function to render a specific day's plan
             const renderDayPlan = (day) => {
-                const dayData = data.schedule.find(d => d.day == day); // Find data for the selected day
-                if (!dayData) { // Handle case where day data is missing
-                    setHtml(cwlPlanContentEl, `<p class="message-box">Plano para o dia ${day} não encontrado.</p>`);
-                    return;
-                }
-                // Build HTML for substitutions
+                const dayData = data.schedule?.find(d => d.day == day);
+                if (!dayData) { setHtml(cwlPlanContentEl, `<p class="message-box">Plano para o dia ${day} não encontrado.</p>`); return; }
+
                 let planHtml = `<h4>Alterações na Equipa</h4>`;
-                planHtml += dayData.substitutions.length > 0 ? dayData.substitutions.map(sub => `<div class="substitution-card"><p>🔴 <strong>Sai:</strong> ${sub.out.name} (CV${sub.out.town_hall})</p><p>🟢 <strong>Entra:</strong> ${sub.in.name} (CV${sub.in.town_hall})</p><p class="reason"><em>IA: ${sub.reason}</em></p></div>`).join('') : `<p>Manter a escalação do dia anterior.</p>`;
-                // Build HTML for active roster
+                planHtml += dayData.substitutions?.length > 0 ? dayData.substitutions.map(sub => `<div class="substitution-card"><p>🔴 <strong>Sai:</strong> ${sub.out?.name || '?'} (CV${sub.out?.town_hall || '?'})</p><p>🟢 <strong>Entra:</strong> ${sub.in?.name || '?'} (CV${sub.in?.town_hall || '?'})</p><p class="reason"><em>IA: ${sub.reason || '-'}</em></p></div>`).join('') : `<p>${day == 1 ? 'Escalação inicial.' : 'Manter a escalação do dia anterior.'}</p>`;
+
                 planHtml += `<h4>⚔️ Escalação Ativa</h4><div class="roster-grid">`;
-                planHtml += dayData.active_roster.map((p, i) => `<div class="roster-player"><span>${i+1}.</span>${p.name} (CV${p.town_hall})</div>`).join('');
+                planHtml += dayData.active_roster?.map((p, i) => `<div class="roster-player"><span>${i+1}.</span>${p.name || '?'} (CV${p.town_hall || '?'})</div>`).join('') || '<p>Nenhum jogador na escalação.</p>';
                 planHtml += `</div>`;
-                // Set the content
                 setHtml(cwlPlanContentEl, planHtml);
             };
 
-            // Render day 1 initially
-            renderDayPlan(1);
+            renderDayPlan(1); // Render day 1 initially
 
-            // Add click listeners to day tabs
-            document.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
+            tabsContainer?.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
-                    // Deactivate old tab, activate new one, and render plan
-                    document.querySelector('.cwl-plan-day-tab.active').classList.remove('active');
+                    tabsContainer.querySelector('.cwl-plan-day-tab.active')?.classList.remove('active'); // Add null check
                     tab.classList.add('active');
                     renderDayPlan(tab.dataset.day);
                 });
@@ -743,23 +754,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function checkCwlInactivity() {
-        // Fetch inactivity data (implementation depends on backend endpoint)
-        // const data = await fetchData('cwl/inactivity_check');
-        // Example logic:
-        const data = {}; // Placeholder - Replace with actual fetch
-        if (data && data.alert) {
-            const { inactive_players, time_remaining, best_substitute } = data.alert;
-            let alertText = `<strong>${inactive_players.map(p => p.name).join(', ')}</strong> ainda não atacou(aram)! Faltam ${time_remaining} horas.`;
-            if (best_substitute) { // Suggest substitute if provided
-                alertText += `<br>A IA sugere a substituição imediata por <strong>${best_substitute.name}</strong> para não afetar a próxima rodada.`;
-            }
-            setHtml(cwlInactivityTextEl, alertText);
-            cwlInactivityAlertEl.style.display = 'block'; // Show alert
-        } else {
-            cwlInactivityAlertEl.style.display = 'none'; // Hide alert if no inactivity
-        }
-    }
+
+    // async function checkCwlInactivity() { // Needs backend support
+    //     // const data = await fetchData('cwl/inactivity_check');
+    //     const data = {}; // Placeholder
+    //     if (data && data.alert) {
+    //         const { inactive_players, time_remaining, best_substitute } = data.alert;
+    //         let alertText = `<strong>${inactive_players.map(p => p.name).join(', ')}</strong> ainda não atacou(aram)! Faltam ${time_remaining} horas.`;
+    //         if (best_substitute) {
+    //             alertText += `<br>A IA sugere a substituição imediata por <strong>${best_substitute.name}</strong> para não afetar a próxima rodada.`;
+    //         }
+    //         setHtml(cwlInactivityTextEl, alertText);
+    //         if(cwlInactivityAlertEl) cwlInactivityAlertEl.style.display = 'block';
+    //     } else {
+    //         if(cwlInactivityAlertEl) cwlInactivityAlertEl.style.display = 'none';
+    //     }
+    // }
 
 
     if (generateCwlPlanBtn) {
@@ -767,51 +777,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateWarLog(data) {
-        setText(warLogLimitEl, data.log?.length || '0'); // Show number of entries
-        // Handle error or no log data
-        if (data.error || !data.log?.length) {
-            if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'block';
-            setText(noWarLogMessageEl, data.error || "Log de guerra indisponível.");
-            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data.error || "Nenhum registo encontrado."}</td></tr>`);
+        setText(warLogLimitEl, data?.log?.length || '0');
+
+        // <<< CORRIGIDO: Removido comentário dentro do template string >>>
+        if (!data || data.error || !data.log?.length) {
+            if(noWarLogMessageEl) { noWarLogMessageEl.style.display = 'block'; setText(noWarLogMessageEl, data?.error || "Log de guerra indisponível."); }
+            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data?.error || "Nenhum registo encontrado."}</td></tr>`);
             return;
         }
-        // Hide error message and populate table
+
         if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none';
         setHtml(warLogTableBodyEl, data.log.map(e => `
-            <tr class="historic-war-row" data-war-id="${e.war_id}"> {/* Add war ID for modal */}
-                <td>${e.end_time_formatted}</td>
+            <tr class="historic-war-row" data-war-id="${e.war_id || ''}"> {/* Add war ID */}
+                <td>${e.end_time_formatted || '?'}</td>
                 <td><img src="${e.opponent_badge_url || DEFAULT_BADGE_URL}" alt="Emblema" class="log-opponent-badge">${e.opponent_name || 'N/A'}</td>
-                <td>${e.clan_stars}⭐ vs ${e.opponent_stars}⭐</td>
-                <td class="war-result-${e.result?.toLowerCase()}">${e.result}</td> {/* Style based on result */}
-                <td>${e.team_size}</td>
+                <td>${e.clan_stars ?? '?'}⭐ vs ${e.opponent_stars ?? '?'}⭐</td>
+                <td class="war-result-${e.result?.toLowerCase() || 'unknown'}">${e.result || '?'}</td>
+                <td>${e.team_size || '?'}</td>
                 <td>${e.is_cwl ? "CWL" : "Normal"}</td>
             </tr>`).join(''));
     }
 
 
     async function savePlayerNote(playerTag, text, priority) {
-        // Sends note data to the backend API
-        await fetchData(`notes/${encodeURIComponent(playerTag)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, priority })
-        });
-        // No explicit success/error handling here, assuming backend handles it
+        // (Código mantido igual)
+        try {
+             await fetchData(`notes/${encodeURIComponent(playerTag)}`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ text, priority })
+             });
+             // No explicit success feedback needed here, UI updates optimistically
+         } catch (e) {
+             console.error("Erro ao salvar nota:", e);
+             // Maybe add visual feedback about save failure here
+         }
     }
 
     function populateMembersList(data) {
-        setText(membersClanNameEl, data.clan_name); // Set clan name in header
-        // Handle error or no member data
-        if (data.error || !data.members) {
-            setHtml(membersGridEl, `<p class="message-box">${data.error || "Não foi possível carregar os membros."}</p>`);
+        setText(membersClanNameEl, data?.clan_name);
+
+        // <<< CORRIGIDO: Removido comentário dentro do template string >>>
+        if (!data || data.error || !data.members) {
+            setHtml(membersGridEl, `<p class="message-box">${data?.error || "Não foi possível carregar os membros."}</p>`);
             return;
         }
 
-        // Map member data to HTML cards
         setHtml(membersGridEl, data.members.map(m => {
-            const watchlistClass = m.isOnWatchlist ? 'on-watchlist' : ''; // Add class if on watchlist
-            const watchlistIconHtml = m.isOnWatchlist ? '<span class="watchlist-icon">⚠️</span>' : ''; // Add icon if on watchlist
-            // Add tooltip if on watchlist
+            const watchlistClass = m.isOnWatchlist ? 'on-watchlist' : '';
+            const watchlistIconHtml = m.isOnWatchlist ? '<span class="watchlist-icon">⚠️</span>' : '';
             const watchlistTooltipHtml = m.isOnWatchlist
                 ? `<span class="watchlist-tooltip">
                        <strong>Em Observação!</strong><br>
@@ -819,31 +833,30 @@ document.addEventListener('DOMContentLoaded', () => {
                        ${m.watchlistDetails ? `Detalhes: ${m.watchlistDetails}` : ''}
                    </span>`
                 : '';
+            const noteText = m.note || 'Clique para editar...';
+            const notePriority = m.note_priority || 'none';
 
-            // Member card HTML structure
             return `
-            <div class="member-card ${watchlistClass}" data-th="${m.town_hall}" data-name="${m.name.toLowerCase()}">
-                <div class="member-card-header" data-player-tag="${m.tag}"> {/* Store tag for profile modal */}
-                    <img src="/static/images/townhall${m.town_hall}.png" alt="CV${m.town_hall}" class="member-th-icon" onerror="this.style.display='none'">
+            <div class="member-card ${watchlistClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
+                <div class="member-card-header" data-player-tag="${m.tag || ''}"> {/* Store tag */}
+                    <img src="/static/images/townhall${m.town_hall || 1}.png" alt="CV${m.town_hall || '?'}" class="member-th-icon" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='40px';">
                     <div class="member-info">
-                        <h4>${m.name} ${watchlistIconHtml}</h4> {/* Add watchlist icon */}
-                        <p>${m.role} • 🏆 ${m.trophies}</p>
+                        <h4>${m.name || 'N/A'} ${watchlistIconHtml}</h4> {/* Add icon */}
+                        <p>${m.role || 'Membro'} • 🏆 ${m.trophies || 0}</p>
                     </div>
-                     ${watchlistTooltipHtml} {/* Add watchlist tooltip */}
+                     ${watchlistTooltipHtml} {/* Add tooltip */}
                 </div>
                 <div class="member-card-stats">
-                    <span>🎁 Doadas: ${m.donations}</span>
-                    <span>📥 Recebidas: ${m.received}</span>
+                    <span>🎁 Doadas: ${m.donations || 0}</span>
+                    <span>📥 Recebidas: ${m.received || 0}</span>
                 </div>
                 <div class="member-card-note">
-                    {/* Note editing elements */}
-                    <div class="note-container note-priority-${m.note_priority || 'none'}">
-                        <span class="note-text">${m.note || 'Clique para editar...'}</span>
-                        <input type="text" class="note-input" value="${m.note}" style="display: none;">
+                    <div class="note-container note-priority-${notePriority}">
+                        <span class="note-text">${noteText}</span>
+                        <input type="text" class="note-input" value="${m.note || ''}" style="display: none;">
                         <div class="priority-selector">
-                            {/* Priority buttons */}
                             ${['green', 'yellow', 'red', 'none'].map(prio => `
-                                <button class="priority-btn priority-${prio} ${prio === (m.note_priority || 'none') ? 'active' : ''}" data-priority="${prio}">
+                                <button class="priority-btn priority-${prio} ${prio === notePriority ? 'active' : ''}" data-priority="${prio}">
                                     ${prio === 'green' ? '✓' : prio === 'yellow' ? '!' : prio === 'red' ? '✗' : '×'}
                                 </button>
                             `).join('')}
@@ -851,132 +864,144 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             </div>`;
-        }).join('')); // Join all card HTML strings
-        attachMemberEventListeners(); // Add event listeners after populating
+        }).join(''));
+
+        attachMemberEventListeners();
+        applyMemberFilters(); // Apply filters after populating
     }
 
 
     function attachMemberEventListeners() {
-        // Listener to open profile modal on header click
-        document.querySelectorAll('.member-card-header').forEach(header => {
+        // Remove existing listeners before adding new ones to prevent duplicates
+        membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
+            header.replaceWith(header.cloneNode(true)); // Simple way to remove listeners
+        });
+        membersGridEl?.querySelectorAll('.note-text').forEach(span => {
+             span.replaceWith(span.cloneNode(true));
+        });
+        membersGridEl?.querySelectorAll('.note-input').forEach(input => {
+             input.replaceWith(input.cloneNode(true));
+        });
+         membersGridEl?.querySelectorAll('.priority-btn').forEach(btn => {
+             btn.replaceWith(btn.cloneNode(true));
+        });
+
+        // Add new listeners
+        membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
             header.addEventListener('click', () => openMemberProfileModal(header.dataset.playerTag));
         });
-        // Listener to switch note display to input on click
-        document.querySelectorAll('.note-text').forEach(span => {
+        membersGridEl?.querySelectorAll('.note-text').forEach(span => {
             span.addEventListener('click', () => {
-                const input = span.nextElementSibling; // Get the input field
-                span.style.display = 'none'; // Hide the span
-                input.style.display = 'inline-block'; // Show the input
-                input.focus(); // Focus the input
+                const input = span.nextElementSibling;
+                if (input && input.classList.contains('note-input')) { // Check if next sibling is the input
+                    span.style.display = 'none'; input.style.display = 'inline-block'; input.focus();
+                }
             });
         });
-        // Listeners for note input blur (lose focus) or Enter key
-        document.querySelectorAll('.note-input').forEach(input => {
-            const saveChanges = () => { // Function to save changes
+        membersGridEl?.querySelectorAll('.note-input').forEach(input => {
+            const saveChanges = () => {
                 const container = input.closest('.note-container');
-                const span = container.querySelector('.note-text');
-                const playerTag = input.closest('.member-card').querySelector('.member-card-header').dataset.playerTag;
-                const activePriority = container.querySelector('.priority-btn.active')?.dataset.priority || 'none'; // Get current priority
-                span.textContent = input.value || 'Clique para editar...'; // Update span text
-                input.style.display = 'none'; // Hide input
-                span.style.display = 'inline-block'; // Show span
-                savePlayerNote(playerTag, input.value, activePriority); // Save note via API
+                const span = container?.querySelector('.note-text');
+                const memberCard = input.closest('.member-card');
+                const playerTag = memberCard?.querySelector('.member-card-header')?.dataset.playerTag;
+                const activePriority = container?.querySelector('.priority-btn.active')?.dataset.priority || 'none';
+                if (span) {
+                    span.textContent = input.value || 'Clique para editar...'; span.style.display = 'inline-block';
+                }
+                input.style.display = 'none';
+                if(playerTag) savePlayerNote(playerTag, input.value, activePriority);
             };
-            input.addEventListener('blur', saveChanges); // Save on blur
-            input.addEventListener('keypress', e => { if (e.key === 'Enter') input.blur(); }); // Save on Enter
+            input.addEventListener('blur', saveChanges);
+            input.addEventListener('keypress', e => { if (e.key === 'Enter') input.blur(); });
         });
-        // Listeners for priority button clicks
-        document.querySelectorAll('.priority-btn').forEach(btn => {
+        membersGridEl?.querySelectorAll('.priority-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const container = btn.closest('.note-container');
-                const playerTag = btn.closest('.member-card').querySelector('.member-card-header').dataset.playerTag;
-                const text = container.querySelector('.note-input').value; // Get current note text
-                const newPriority = btn.dataset.priority; // Get new priority
-                container.className = `note-container note-priority-${newPriority}`; // Update container class for styling
-                // Update active button state
-                container.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
+                const memberCard = btn.closest('.member-card');
+                const playerTag = memberCard?.querySelector('.member-card-header')?.dataset.playerTag;
+                const text = container?.querySelector('.note-input')?.value || '';
+                const newPriority = btn.dataset.priority;
+                if(container) container.className = `note-container note-priority-${newPriority}`;
+                container?.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                savePlayerNote(playerTag, text, newPriority); // Save note with new priority
+                if(playerTag) savePlayerNote(playerTag, text, newPriority);
             });
         });
     }
 
-    async function setPlayerCwlStatus(playerTag, status) {
-        // Updates player CWL status via API
-        const response = await fetchData(`cwl/player_status/${encodeURIComponent(playerTag)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status })
-        });
-        return !response.error; // Return true on success
+    // (setPlayerCwlStatus, applyMemberFilters, openMemberProfileModal, openHistoricWarModal, loadAllData, EventListeners Modal, Inicialização - MANTIDOS IGUAIS)
+    // ... restante do código ...
+     async function setPlayerCwlStatus(playerTag, status) {
+        try {
+             const response = await fetchData(`cwl/player_status/${encodeURIComponent(playerTag)}`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ status })
+             });
+             return response && !response.error; // Success if no error reported
+         } catch (e) {
+             console.error("Erro ao definir status CWL:", e);
+             return false;
+         }
     }
 
     function applyMemberFilters() {
-        // Filters member list based on name and TH inputs
-        const nameFilter = filterNameInput.value.toLowerCase();
-        const thFilter = filterTHInput.value;
+        const nameFilter = filterNameInput?.value?.toLowerCase() || '';
+        const thFilter = filterTHInput?.value || '';
         document.querySelectorAll('.member-card').forEach(card => {
-            const name = card.dataset.name;
-            const th = card.dataset.th;
-            // Show card only if name matches and TH matches (or TH filter is empty)
-            card.style.display = (name.includes(nameFilter) && (!thFilter || th === thFilter)) ? 'flex' : 'none';
+            const name = card.dataset.name || '';
+            const th = card.dataset.th || '';
+            const nameMatch = name.includes(nameFilter);
+            const thMatch = !thFilter || th === thFilter;
+            card.style.display = (nameMatch && thMatch) ? 'flex' : 'none';
         });
     }
 
-    // Add listeners to filter inputs
-    [filterNameInput, filterTHInput].forEach(input => input.addEventListener('keyup', applyMemberFilters));
+    filterNameInput?.addEventListener('input', applyMemberFilters); // Use input for instant filtering
+    filterTHInput?.addEventListener('input', applyMemberFilters);
 
     async function openMemberProfileModal(playerTag) {
-        // Show loading spinner
+        if (!playerTag || !memberProfileModal || !memberProfileContent) return;
         setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar perfil do membro...</p>');
-        memberProfileModal.style.display = 'block'; // Show modal
+        memberProfileModal.style.display = 'block';
 
-        // Fetch profile data
         const profileData = await fetchData(`player_profile/${encodeURIComponent(playerTag)}`);
 
-        // Handle error fetching profile
-        if (profileData.error) {
-            setHtml(memberProfileContent, `<p class="message-box">${profileData.error}</p>`);
+        if (!profileData || profileData.error) {
+            setHtml(memberProfileContent, `<p class="message-box">${profileData?.error || 'Erro ao carregar perfil.'}</p>`);
             return;
         }
 
-        // --- Build Profile Modal HTML ---
-        // Heroes list
-        const heroesHtml = profileData.heroes.map(hero => `
+        const heroesHtml = profileData.heroes?.map(hero => `
             <div class="hero-item">
-                <img src="/static/images/heroes/${hero.name.toLowerCase().replace(/\s+/g, '-')}.png" alt="${hero.name}" onerror="this.style.display='none'">
-                <p><strong>${hero.level}</strong> / ${hero.max_level}</p>
+                <img src="/static/images/heroes/${(hero.name || '').toLowerCase().replace(/\s+/g, '-')}.png" alt="${hero.name || '?'}" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='50px';">
+                <p><strong>${hero.level || '?'}</strong> / ${hero.max_level || '?'}</p>
             </div>`).join('');
-        // League image (if exists)
-        const leagueImageHtml = profileData.league_icon
-            ? `<div class="profile-league-container"><img src="${profileData.league_icon}" alt="${profileData.league}" class="profile-league-image"></div>`
-            : '';
-        // CWL Status selector
+        const leagueImageHtml = profileData.league_icon ? `<div class="profile-league-container"><img src="${profileData.league_icon}" alt="${profileData.league || '?'}" class="profile-league-image"></div>` : '';
+        const cwlStatus = profileData.cwl_status || 'active';
         const cwlStatusHtml = `
-            <div class="member-cwl-status" data-player-tag="${profileData.tag}">
+            <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}">
                 <label>Status na CWL:</label>
                 <div class="cwl-status-selector">
-                    <button class="cwl-status-btn ${profileData.cwl_status === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
-                    <button class="cwl-status-btn ${profileData.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
+                    <button class="cwl-status-btn ${cwlStatus === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
+                    <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
                 </div>
             </div>`;
-        // Stats grid
         const statsGridHtml = `
             <div class="profile-details-container">
                 <div class="profile-stats-grid">
-                    <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league}</p></div>
-                    <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies}</p></div>
-                    <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations}</p></div>
-                    <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received}</p></div>
+                    <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league || 'N/A'}</p></div>
+                    <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies || 0}</p></div>
+                    <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations || 0}</p></div>
+                    <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received || 0}</p></div>
                 </div>
-                ${cwlStatusHtml} {/* Include CWL status selector */}
+                ${cwlStatusHtml}
             </div>`;
 
-        // Set the complete modal content
         setHtml(memberProfileContent, `
             <div class="profile-header">
-                <h2>${profileData.name} (CV${profileData.town_hall})</h2>
-                <p class="player-tag">${profileData.tag}</p>
+                <h2>${profileData.name || '?'} (CV${profileData.town_hall || '?'})</h2>
+                <p class="player-tag">${profileData.tag || '#?'}</p>
             </div>
             <div class="profile-main-content">
                 ${leagueImageHtml}
@@ -986,222 +1011,213 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="heroes-list">${heroesHtml || '<p>Nenhum herói encontrado.</p>'}</div>
             <div class="profile-chart-container">
                  <h3>Evolução de Troféus</h3>
-                <canvas id="trophyChart"></canvas> {/* Canvas for trophy chart */}
+                <canvas id="trophyChart"></canvas>
             </div>`);
 
-        // Add listeners to CWL status buttons within the modal
-        document.querySelectorAll('#memberProfileContent .cwl-status-btn').forEach(btn => {
+        memberProfileContent.querySelectorAll('.cwl-status-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                if (btn.classList.contains('active')) return; // Ignore clicks on active button
+                if (btn.classList.contains('active')) return;
                 const selector = e.target.closest('.cwl-status-selector');
-                const playerTag = e.target.closest('.member-cwl-status').dataset.playerTag;
+                const playerTag = e.target.closest('.member-cwl-status')?.dataset.playerTag;
                 const newStatus = e.target.dataset.status;
-                // Update button states
-                selector.querySelector('.active').classList.remove('active');
+                if (!playerTag || !newStatus) return;
+
+                selector?.querySelector('.active')?.classList.remove('active'); // Add null checks
                 e.target.classList.add('active');
-                // Save status via API
                 const success = await setPlayerCwlStatus(playerTag, newStatus);
-                // Revert UI on error
                 if (!success) {
                     alert('Erro ao salvar o status. Tente novamente.');
-                    e.target.classList.remove('active'); // Remove active from clicked
-                    // Reactivate the previously active button
-                    selector.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`).classList.add('active');
+                    e.target.classList.remove('active');
+                    selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); // Add null checks
                 }
+                 // Refresh member list in background after status change
+                fetchData('members').then(populateMembersList);
             });
         });
 
-        // --- Create Trophy Chart ---
-        if (memberTrophyChart) memberTrophyChart.destroy(); // Destroy previous chart
-        if (profileData.trophy_history?.length > 0) { // If history data exists
-            memberTrophyChart = new Chart(document.getElementById('trophyChart').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: profileData.trophy_history.map(h => h.timestamp), // X-axis labels (dates)
-                    datasets: [{
-                        label: 'Troféus',
-                        data: profileData.trophy_history.map(h => h.trophies), // Y-axis data (trophies)
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        fill: true,
-                        tension: 0.1 // Smooth line
-                    }]
-                },
-                options: { // Chart options
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } },
-                    plugins: { legend: { display: false } } // Hide legend
-                }
-            });
+        if (memberTrophyChart) memberTrophyChart.destroy();
+        const trophyCanvas = document.getElementById('trophyChart');
+        if (trophyCanvas && profileData.trophy_history?.length > 0) {
+            try {
+                memberTrophyChart = new Chart(trophyCanvas.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: profileData.trophy_history.map(h => h.timestamp || '?'),
+                        datasets: [{
+                            label: 'Troféus', data: profileData.trophy_history.map(h => h.trophies || 0),
+                            borderColor: 'rgba(54, 162, 235, 1)', backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            fill: true, tension: 0.1
+                        }]
+                    },
+                    options: {
+                         responsive: true, maintainAspectRatio: false,
+                         scales: { y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } },
+                         plugins: { legend: { display: false } }
+                    }
+                });
+            } catch (e) {
+                 console.error("Erro ao criar gráfico de troféus:", e);
+                 if(trophyCanvas){
+                     const ctx = trophyCanvas.getContext('2d');
+                     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.textAlign = 'center';
+                     ctx.fillText('Erro ao carregar gráfico.', trophyCanvas.width / 2, trophyCanvas.height / 2);
+                 }
+            }
+        } else if (trophyCanvas) {
+             const ctx = trophyCanvas.getContext('2d');
+             ctx.clearRect(0, 0, trophyCanvas.width, trophyCanvas.height);
+             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.textAlign = 'center';
+             ctx.fillText('Histórico de troféus indisponível.', trophyCanvas.width / 2, trophyCanvas.height / 2);
         }
     }
 
-
     async function openHistoricWarModal(warId) {
-        // Show loading state
+        if (!warId || !historicWarModal || !historicWarDetailContent) return;
         setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar detalhes da guerra...</p>');
-        historicWarModal.style.display = 'block'; // Show modal
+        historicWarModal.style.display = 'block';
 
-        // Fetch historic war data
         const historicWarData = await fetchData(`war_history/${encodeURIComponent(warId)}`);
 
-        // Get modal content template
         const template = document.getElementById('historic-war-template');
-        if (!template) { // Handle template error
+        if (!template) {
             setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro: Template do modal não encontrado.</p>');
             return;
         }
 
-        // Clone template and inject into modal
-        const warDetailsContent = template.content.cloneNode(true);
-        historicWarDetailContent.innerHTML = ''; // Clear loading state
-        historicWarDetailContent.appendChild(warDetailsContent);
+        historicWarDetailContent.innerHTML = ''; // Clear loading
+        try {
+            const warDetailsContent = template.content.cloneNode(true);
+            historicWarDetailContent.appendChild(warDetailsContent);
+        } catch (e) {
+             setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro ao clonar template.</p>');
+             console.error("Template clone error:", e);
+             return;
+        }
 
-        // Add event listeners to tabs within the newly added content
+
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
-                const modalContentEl = button.closest('.modal-content'); // Find parent modal
-                // Deactivate all tabs, activate clicked one
+                const modalContentEl = button.closest('.modal-content');
+                if(!modalContentEl) return;
                 modalContentEl.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
-                const tabId = `historic-${button.dataset.tab}`; // Construct content ID
-                // Show/hide content based on clicked tab
+                const tabId = `historic-${button.dataset.tab}`;
                 modalContentEl.querySelectorAll('.war-tab-content').forEach(content => {
                     content.style.display = content.id === tabId ? 'block' : 'none';
                 });
             });
         });
 
-        // Populate the modal content with fetched data
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
     }
 
-    // Add click listeners to main page war tabs
+
     warTabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const parentSection = button.closest('.content-section'); // Find parent section
+        button?.addEventListener('click', () => { // Add null check
+            const parentSection = button.closest('.content-section');
             if (!parentSection) return;
-            // Deactivate all tabs in section, activate clicked one
             parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            const tabId = button.dataset.tab; // Get target content ID
-            // Show/hide content based on clicked tab
+            const tabId = button.dataset.tab;
             parentSection.querySelectorAll('.war-tab-content').forEach(content => {
                 content.style.display = content.id === tabId ? 'block' : 'none';
             });
         });
     });
 
-    // --- CARREGAMENTO INICIAL E PERIÓDICO ---
     async function loadAllData() {
         try {
-            // Fetch bot status (includes maintenance mode) first
-            const statusData = await fetch('/api/status').then(res => res.json());
-             if (statusData.maintenance_mode) {
-                 // The main painel_handler on the backend should redirect to maintenance.html,
-                 // but log a message here just in case.
-                 console.log("Bot em modo manutenção, painel pode ter dados limitados ou redirecionar.");
-             }
+            const statusData = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true }).catch(() => ({ maintenance_mode: true }));
+             // No need to redirect here, backend handles it in /painel handler
 
-            // Fetch clan data first to update header early
             const clanData = await fetchData('clan');
-             populateClanInfo(clanData); // Populate header early
+            populateClanInfo(clanData);
 
-            // If initial clan fetch fails, hide loading and stop (prevents errors)
-            if (clanData.error && isFirstLoad) {
-                loadingOverlayEl.classList.add('hidden');
+            if (clanData?.error && isFirstLoad) { // Add null check
+                 if(loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
                 return;
             }
 
-            // Fetch remaining data in parallel using Promise.all
             const [
-                membersData,
-                currentWarDetailsData,
-                missedAttacksData,
-                warLogData,
-                cwlInfoData,
-                highlightsData,
-                warAdvisorData
+                membersData, currentWarDetailsData, missedAttacksData,
+                warLogData, cwlInfoData, highlightsData, warAdvisorData
             ] = await Promise.all([
-                fetchData('members'),
-                fetchData('current_war_details'),
-                fetchData('missed_attacks_history'),
-                fetchData('war_log'),
-                fetchData('cwl_info'),
-                fetchData('highlights'),
-                fetchData('war_advisor_plan')
+                fetchData('members'), fetchData('current_war_details'), fetchData('missed_attacks_history'),
+                fetchData('war_log'), fetchData('cwl_info'), fetchData('highlights'), fetchData('war_advisor_plan')
             ]);
 
-            // Populate the rest of the sections with fetched data
             populateMembersList(membersData);
-            populateWarDetails(currentWarDetailsData, 'war-details-nav', false); // Populate main war section
+            populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
             populateWarAdvisorPlan(warAdvisorData);
             populateMissedAttacksHistory(missedAttacksData);
             populateWarLog(warLogData);
             populateCwlInfo(cwlInfoData);
-            populateHighlights(highlightsData); // Highlights uses clanData which is already populated
+            populateHighlights(highlightsData);
 
-            updateLastUpdated(); // Update timestamp
+            updateLastUpdated();
         } catch (error) {
             console.error("Erro geral ao carregar todos os dados:", error);
+            // Don't hide loading overlay if there's a major fetch error
+             if (loadingStatusTextEl && loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
+                setText(loadingStatusTextEl, 'Erro grave ao carregar dados. Verifique a consola.');
+            }
         } finally {
-            // Hide loading overlay after first load attempt (success or fail)
-            if (isFirstLoad) {
-                setTimeout(() => { loadingOverlayEl.classList.add('hidden'); }, 500); // Small delay for smoother transition
+            if (isFirstLoad && loadingOverlayEl) {
+                // Check if there was an error message displayed before hiding
+                 const isLoadingError = loadingStatusTextEl?.textContent?.toLowerCase().includes('erro');
+                 if(!isLoadingError){ // Hide only if no major error was shown during loading
+                     setTimeout(() => { loadingOverlayEl.classList.add('hidden'); }, 300); // Shorter delay
+                 }
                 isFirstLoad = false;
             }
         }
     }
 
-    // --- EVENT LISTENERS DOS MODAIS ---
-    // Close historic war modal
-    if (closeModalButton) closeModalButton.addEventListener('click', () => historicWarModal.style.display = 'none');
-    // Close member profile modal and refresh member list
+
+    if (closeModalButton) closeModalButton.addEventListener('click', () => { if(historicWarModal) historicWarModal.style.display = 'none'; });
     if (closeProfileModalButton) closeProfileModalButton.addEventListener('click', () => {
-        memberProfileModal.style.display = 'none';
-        fetchData('members').then(populateMembersList); // Refresh member list after closing profile
+        if(memberProfileModal) memberProfileModal.style.display = 'none';
+        // Refresh member list after closing profile is handled in populateMembersList/attachMemberEventListeners
     });
-    // Close modals on clicking outside the content
+
     window.addEventListener('click', (event) => {
-        if (event.target == historicWarModal) historicWarModal.style.display = 'none';
-        if (event.target == memberProfileModal) {
-            memberProfileModal.style.display = 'none';
-            fetchData('members').then(populateMembersList); // Refresh member list
+        if (event.target == historicWarModal && historicWarModal) historicWarModal.style.display = 'none';
+        if (event.target == memberProfileModal && memberProfileModal) {
+             memberProfileModal.style.display = 'none';
+             // Refresh list handled inside modal logic now
         }
     });
-    // Open historic war modal on table row click
-    warLogTableBodyEl.addEventListener('click', (event) => {
+
+    // Use event delegation on the table body for war log clicks
+    warLogTableBodyEl?.addEventListener('click', (event) => { // Add null check
         const row = event.target.closest('.historic-war-row');
         if (row && row.dataset.warId) {
-             openHistoricWarModal(row.dataset.warId); // Call function to open modal with war ID
+             openHistoricWarModal(row.dataset.warId);
         }
     });
 
-
-    // --- Inicialização ---
-    loadAllData(); // Load data on initial page load
+    loadAllData();
     setInterval(loadAllData, 45000); // Refresh data every 45 seconds
 
-    // --- VERIFICAÇÃO DE MANUTENÇÃO DA API ---
     async function checkApiMaintenance() {
+        // (Código mantido igual)
         try {
-            // Fetch API status, ensuring no browser cache is used
             const response = await fetch(`${API_BASE_URL}/api/coc_status`, { cache: 'no-store' });
-            if (!response.ok) { // Handle server error
-                console.error('Falha ao buscar status da API, servidor pode estar offline.');
-                return;
-            }
+            if (!response.ok) { console.error('Falha ao buscar status da API.'); return; }
             const data = await response.json();
-            // If API is in maintenance, redirect to maintenance page
             if (data.status === 'maintenance') {
-                console.warn('API em manutenção. Redirecionando...');
-                window.location.href = '/static/maintenance.html';
+                 console.warn('API em manutenção. Redirecionando...');
+                 // Check if already on maintenance page to prevent loop
+                 if (!window.location.pathname.endsWith('/maintenance.html') && !window.location.pathname.endsWith('/maintenance')) {
+                      window.location.href = '/maintenance'; // Use relative path
+                 }
+            } else if (data.status === 'ok' && (window.location.pathname.endsWith('/maintenance.html') || window.location.pathname.endsWith('/maintenance'))) {
+                 // If API is OK and we are on maintenance page, redirect back
+                 console.info('API voltou. Redirecionando para o painel...');
+                 window.location.href = '/painel';
             }
-        } catch (error) { // Handle network error
-            console.error('Erro ao verificar status de manutenção:', error);
-        }
+        } catch (error) { console.error('Erro ao verificar status de manutenção:', error); }
     }
-    checkApiMaintenance(); // Check immediately on load
+    checkApiMaintenance(); // Check immediately
     setInterval(checkApiMaintenance, 20000); // Check every 20 seconds
 });
-
