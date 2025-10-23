@@ -303,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setText(noHighlightsMessageEl, data?.error || "Não foi possível carregar os destaques.");
             }
             if(highlightsContentEl) highlightsContentEl.style.display = 'none'; // Hide content area
+            console.error("Erro ao carregar destaques ou dados ausentes:", data?.error || "Dados ausentes"); // Log do erro
             return;
         }
 
@@ -347,19 +348,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
         }).join('') : '<p>Nenhum herói para destacar na última guerra ou análise indisponível.</p>'); // More informative default
 
+        // --- CHART LOGIC ---
         // Destroy previous chart instance if exists
-        if (activityChart) activityChart.destroy();
+        if (activityChart) {
+            try {
+                activityChart.destroy();
+                activityChart = null; // Ensure variable is reset
+                 console.log("Gráfico anterior destruído.");
+            } catch(e) {
+                 console.error("Erro ao destruir gráfico anterior:", e);
+            }
+        }
 
         // Create new Activity Chart if data is available
-        if (activityChartCanvas && data.activity_chart_data?.labels?.length > 0) {
+        const chartData = data.activity_chart_data;
+        if (activityChartCanvas && chartData && chartData.labels && chartData.labels.length > 0 && chartData.donations && chartData.received) {
+            console.log("Tentando criar gráfico com dados:", chartData); // Log dos dados
             try {
-                activityChart = new Chart(activityChartCanvas.getContext('d'), {
+                const ctx = activityChartCanvas.getContext('2d');
+                if (!ctx) throw new Error("Não foi possível obter o contexto 2D do canvas."); // Verifica se o contexto foi obtido
+
+                activityChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: data.activity_chart_data.labels,
+                        labels: chartData.labels,
                         datasets: [
-                            { label: 'Tropas Doadas', data: data.activity_chart_data.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
-                            { label: 'Tropas Recebidas', data: data.activity_chart_data.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
+                            { label: 'Tropas Doadas', data: chartData.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
+                            { label: 'Tropas Recebidas', data: chartData.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
                         ]
                     },
                     options: {
@@ -371,17 +386,43 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: { legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } }
                     }
                 });
+                console.log("Gráfico de atividade criado com sucesso.");
             } catch (e) {
-                console.error("Erro ao criar gráfico de atividade:", e);
+                console.error("Erro detalhado ao criar gráfico de atividade:", e);
                 // Optionally display an error message in the chart area
+                if (activityChartCanvas) {
+                    const ctx = activityChartCanvas.getContext('2d');
+                    if (ctx) {
+                        ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
+                        ctx.fillStyle = 'rgba(255, 100, 100, 0.8)'; // Cor de erro
+                        ctx.textAlign = 'center';
+                        ctx.font = '14px Open Sans';
+                        ctx.fillText('Erro ao renderizar o gráfico.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
+                         console.error("Canvas context was available, but chart creation failed.");
+                    } else {
+                         console.error("Falha ao obter contexto 2D para mensagem de erro no canvas.");
+                    }
+                }
             }
         } else if (activityChartCanvas) {
-                // Clear canvas or show message if no data
+            console.warn("Dados de atividade insuficientes ou canvas não encontrado. Limpando área do gráfico.");
+            // Clear canvas or show message if no data or canvas error
+            try {
                 const ctx = activityChartCanvas.getContext('2d');
-                ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-                ctx.textAlign = 'center';
-                ctx.fillText('Dados de atividade indisponíveis.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
+                if (ctx) {
+                    ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.textAlign = 'center';
+                    ctx.font = '14px Open Sans';
+                    ctx.fillText('Dados de atividade indisponíveis para o gráfico.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
+                } else {
+                     console.error("Não foi possível obter contexto 2D para limpar/mostrar mensagem no canvas.");
+                }
+            } catch(e) {
+                 console.error("Erro ao tentar limpar ou exibir mensagem no canvas:", e);
+            }
+        } else {
+             console.error("Elemento canvas 'activityChart' não encontrado no DOM.");
         }
     }
 
@@ -1135,7 +1176,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (clanData?.error && isFirstLoad) { // Add null check
                 if(loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
-                return;
+                console.error("Erro inicial ao carregar dados do clã, parando carregamento:", clanData.error);
+                return; // Stop further loading if essential clan data failed initially
             }
 
             const [
@@ -1146,13 +1188,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchData('war_log'), fetchData('cwl_info'), fetchData('highlights'), fetchData('war_advisor_plan')
             ]);
 
-            populateMembersList(membersData);
-            populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
-            populateWarAdvisorPlan(warAdvisorData);
-            populateMissedAttacksHistory(missedAttacksData);
-            populateWarLog(warLogData);
-            populateCwlInfo(cwlInfoData);
-            populateHighlights(highlightsData);
+            // Populate sections, checking for errors in each response
+            if (membersData && !membersData.error) populateMembersList(membersData); else console.error("Erro ao carregar membros:", membersData?.error);
+            if (currentWarDetailsData) populateWarDetails(currentWarDetailsData, 'war-details-nav', false); else console.error("Erro ao carregar detalhes da guerra atual:", currentWarDetailsData?.error); // War details can have expected 'error' like 'not in war'
+            if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); else console.error("Erro ao carregar plano da IA:", warAdvisorData?.error);
+            if (missedAttacksData && !missedAttacksData.error) populateMissedAttacksHistory(missedAttacksData); else console.error("Erro ao carregar histórico de ataques perdidos:", missedAttacksData?.error);
+            if (warLogData && !warLogData.error) populateWarLog(warLogData); else console.error("Erro ao carregar log de guerra:", warLogData?.error);
+            if (cwlInfoData) populateCwlInfo(cwlInfoData); else console.error("Erro ao carregar informações da CWL:", cwlInfoData?.error); // CWL info can have expected 'error' like 'not in CWL'
+            if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); else console.error("Erro ao carregar destaques:", highlightsData?.error);
 
             updateLastUpdated();
         } catch (error) {
