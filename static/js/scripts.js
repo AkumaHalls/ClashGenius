@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn(`API retornou 503 (Serviço Indisponível/Iniciando) para ${endpoint}.`);
                     // Update loading text only if overlay is visible
                     if (loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
-                         setText(loadingStatusTextEl, 'Aguardando API CoC ficar pronta...');
+                            setText(loadingStatusTextEl, 'Aguardando API CoC ficar pronta...');
                     }
                 } else {
                     console.error(`Erro na API! Status: ${response.status} para ${endpoint}`, errorData);
@@ -174,9 +174,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.removeEventListener('click', playMusic);
                 document.body.removeEventListener('keydown', playMusic);
             } catch (err) {
-                 musicStarted = true; // Set flag even if blocked, to prevent retries
-                 console.log('Autoplay da música bloqueado pelo navegador.');
-                 // Keep listeners if initially blocked, maybe next interaction works
+                musicStarted = true; // Set flag even if blocked, to prevent retries
+                console.log('Autoplay da música bloqueado pelo navegador.');
+                // Keep listeners if initially blocked, maybe next interaction works
             }
         };
         // Attempt play on first click or keydown
@@ -217,9 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setBadge(element, url) {
         if (element) {
-             element.src = url || DEFAULT_BADGE_URL;
-             // Add error handler for badges
-             element.onerror = () => { element.src = DEFAULT_BADGE_URL; };
+                element.src = url || DEFAULT_BADGE_URL;
+                // Add error handler for badges
+                element.onerror = () => { element.src = DEFAULT_BADGE_URL; };
         }
     }
 
@@ -353,35 +353,35 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create new Activity Chart if data is available
         if (activityChartCanvas && data.activity_chart_data?.labels?.length > 0) {
             try {
-                 activityChart = new Chart(activityChartCanvas.getContext('2d'), {
-                     type: 'bar',
-                     data: {
-                         labels: data.activity_chart_data.labels,
-                         datasets: [
-                             { label: 'Tropas Doadas', data: data.activity_chart_data.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
-                             { label: 'Tropas Recebidas', data: data.activity_chart_data.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
-                         ]
-                     },
-                     options: {
-                         responsive: true, maintainAspectRatio: false,
-                         scales: {
-                             y: { beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.7)' } },
-                             x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }
-                         },
-                         plugins: { legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } }
-                     }
-                 });
+                activityChart = new Chart(activityChartCanvas.getContext('d'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.activity_chart_data.labels,
+                        datasets: [
+                            { label: 'Tropas Doadas', data: data.activity_chart_data.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
+                            { label: 'Tropas Recebidas', data: data.activity_chart_data.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.7)' } },
+                            x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }
+                        },
+                        plugins: { legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } }
+                    }
+                });
             } catch (e) {
                 console.error("Erro ao criar gráfico de atividade:", e);
                 // Optionally display an error message in the chart area
             }
         } else if (activityChartCanvas) {
-             // Clear canvas or show message if no data
-             const ctx = activityChartCanvas.getContext('2d');
-             ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
-             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-             ctx.textAlign = 'center';
-             ctx.fillText('Dados de atividade indisponíveis.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
+                // Clear canvas or show message if no data
+                const ctx = activityChartCanvas.getContext('2d');
+                ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.textAlign = 'center';
+                ctx.fillText('Dados de atividade indisponíveis.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
         }
     }
 
@@ -442,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 predictionSection.style.display = 'none'; // Hide if no prediction data
             }
         } else if (predictionSection) {
-             predictionSection.style.display = 'none'; // Ensure prediction is hidden in modal
+                predictionSection.style.display = 'none'; // Ensure prediction is hidden in modal
         }
 
         // --- Populate General War Info ---
@@ -478,11 +478,11 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(query(`#${prefix}statsOurAvgStars`), war.clan_avg_stars);
         setText(query(`#${prefix}statsOpponentAvgStars`), war.opponent_avg_stars);
         if(war.clan_star_distribution){
-             for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOurStars${i}`), war.clan_star_distribution[i]);
+                for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOurStars${i}`), war.clan_star_distribution[i]);
         }
-         if(war.opponent_star_distribution){
-             for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOpponentStars${i}`), war.opponent_star_distribution[i]);
-         }
+        if(war.opponent_star_distribution){
+                for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOpponentStars${i}`), war.opponent_star_distribution[i]);
+        }
 
         // --- Populate Events Tab ---
         // (Código mantido igual)
@@ -525,8 +525,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Activate Default Tab ---
         // (Código mantido igual)
-         const currentActiveTab = query('.war-tab-button.active');
-         if (!currentActiveTab || !currentActiveTab.closest(`#${containerId}`)) { // Activate first tab if none is active within the container
+        const currentActiveTab = query('.war-tab-button.active');
+        if (!currentActiveTab || !currentActiveTab.closest(`#${containerId}`)) { // Activate first tab if none is active within the container
             const firstTabButton = query('.war-tab-button');
             const firstTabContentId = isModal ? `#historic-${firstTabButton?.dataset.tab}` : `#${firstTabButton?.dataset.tab}`;
             const firstTabContent = query(firstTabContentId);
@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Activate first
             firstTabButton?.classList.add('active');
             if(firstTabContent) firstTabContent.style.display = 'block';
-         }
+        }
     }
 
 
@@ -561,12 +561,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="advisor-grid">`;
             contentHtml += planData.recommendations?.length > 0 ? planData.recommendations.map(rec => {
-                 const confidencePercent = ((rec.confidence_score || 0) * 100).toFixed(0);
-                 let confidenceColor = 'low';
-                 if (confidencePercent >= 75) confidenceColor = 'high';
-                 else if (confidencePercent >= 50) confidenceColor = 'medium';
-                 const alternativesHtml = rec.alternative_targets?.length > 0 ? `<div class="advisor-alternatives"><strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}</div>` : '';
-                 return `
+                const confidencePercent = ((rec.confidence_score || 0) * 100).toFixed(0);
+                let confidenceColor = 'low';
+                if (confidencePercent >= 75) confidenceColor = 'high';
+                else if (confidencePercent >= 50) confidenceColor = 'medium';
+                const alternativesHtml = rec.alternative_targets?.length > 0 ? `<div class="advisor-alternatives"><strong>Alternativas:</strong> #${rec.alternative_targets.join(', #')}</div>` : '';
+                return `
                     <div class="advisor-card type-${rec.attack_type || 'unknown'}">
                         <div class="advisor-member-info">
                             <h4>${rec.member_pos || '?'}. ${rec.member_name || 'N/A'} (CV${rec.member_th || '?'})</h4>
@@ -587,12 +587,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>`;
             }).join('') : '<p class="message-box">Nenhuma recomendação específica gerada.</p>'; // Message if no recommendations
-             contentHtml += '</div>';
-             setHtml(warAdvisorContentEl, contentHtml);
+            contentHtml += '</div>';
+            setHtml(warAdvisorContentEl, contentHtml);
 
-             const timerEl = warAdvisorContentEl.querySelector('#advisorPhaseTimer');
-             const timerTextEl = warAdvisorContentEl.querySelector('#advisorPhaseTimerText');
-             if (planData.phase_2_start_time_iso && timerEl && timerTextEl) {
+            const timerEl = warAdvisorContentEl.querySelector('#advisorPhaseTimer');
+            const timerTextEl = warAdvisorContentEl.querySelector('#advisorPhaseTimerText');
+            if (planData.phase_2_start_time_iso && timerEl && timerTextEl) {
                 const phase2StartTime = new Date(planData.phase_2_start_time_iso);
                 timerEl.style.display = 'block';
                 const updateTimer = () => { // Function to update timer text
@@ -607,11 +607,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 updateTimer(); // Initial call
                 phaseTimerInterval = setInterval(updateTimer, 1000); // Update every second
-             } else if (timerEl) {
-                 timerEl.style.display = 'none';
-             }
-         };
-         setupAdvisorUI(data);
+            } else if (timerEl) {
+                timerEl.style.display = 'none';
+            }
+        };
+        setupAdvisorUI(data);
     }
 
 
@@ -670,8 +670,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Use execCommand as fallback
             const successful = document.execCommand('copy');
             if(successful){
-                 button.textContent = 'Copiado!'; button.disabled = true;
-                 setTimeout(() => { button.textContent = 'Copiar'; button.disabled = false; }, 2000);
+                button.textContent = 'Copiado!'; button.disabled = true;
+                setTimeout(() => { button.textContent = 'Copiar'; button.disabled = false; }, 2000);
             } else { throw new Error('execCommand failed'); }
         } catch (err) {
             console.error('Falha ao copiar tag:', err); button.textContent = 'Erro';
@@ -757,18 +757,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // async function checkCwlInactivity() { // Needs backend support
     //     // const data = await fetchData('cwl/inactivity_check');
-    //     const data = {}; // Placeholder
-    //     if (data && data.alert) {
-    //         const { inactive_players, time_remaining, best_substitute } = data.alert;
-    //         let alertText = `<strong>${inactive_players.map(p => p.name).join(', ')}</strong> ainda não atacou(aram)! Faltam ${time_remaining} horas.`;
-    //         if (best_substitute) {
-    //             alertText += `<br>A IA sugere a substituição imediata por <strong>${best_substitute.name}</strong> para não afetar a próxima rodada.`;
-    //         }
-    //         setHtml(cwlInactivityTextEl, alertText);
-    //         if(cwlInactivityAlertEl) cwlInactivityAlertEl.style.display = 'block';
-    //     } else {
-    //         if(cwlInactivityAlertEl) cwlInactivityAlertEl.style.display = 'none';
-    //     }
+    //     // const data = {}; // Placeholder
+    //     // if (data && data.alert) {
+    //     //     const { inactive_players, time_remaining, best_substitute } = data.alert;
+    //     //     let alertText = `<strong>${inactive_players.map(p => p.name).join(', ')}</strong> ainda não atacou(aram)! Faltam ${time_remaining} horas.`;
+    //     //     if (best_substitute) {
+    //     //         alertText += `<br>A IA sugere a substituição imediata por <strong>${best_substitute.name}</strong> para não afetar a próxima rodada.`;
+    //     //     }
+    //     //     setHtml(cwlInactivityTextEl, alertText);
+    //     //     if(cwlInactivityAlertEl) cwlInactivityAlertEl.style.display = 'block';
+    //     // } else {
+    //     //     if(cwlInactivityAlertEl) cwlInactivityAlertEl.style.display = 'none';
+    //     // }
     // }
 
 
@@ -788,7 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none';
         setHtml(warLogTableBodyEl, data.log.map(e => `
-            <tr class="historic-war-row" data-war-id="${e.war_id || ''}"> {/* Add war ID */}
+            <tr class="historic-war-row" data-war-id="${e.war_id || ''}">
                 <td>${e.end_time_formatted || '?'}</td>
                 <td><img src="${e.opponent_badge_url || DEFAULT_BADGE_URL}" alt="Emblema" class="log-opponent-badge">${e.opponent_name || 'N/A'}</td>
                 <td>${e.clan_stars ?? '?'}⭐ vs ${e.opponent_stars ?? '?'}⭐</td>
@@ -802,16 +802,16 @@ document.addEventListener('DOMContentLoaded', () => {
     async function savePlayerNote(playerTag, text, priority) {
         // (Código mantido igual)
         try {
-             await fetchData(`notes/${encodeURIComponent(playerTag)}`, {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ text, priority })
-             });
-             // No explicit success feedback needed here, UI updates optimistically
-         } catch (e) {
-             console.error("Erro ao salvar nota:", e);
-             // Maybe add visual feedback about save failure here
-         }
+            await fetchData(`notes/${encodeURIComponent(playerTag)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, priority })
+            });
+            // No explicit success feedback needed here, UI updates optimistically
+        } catch (e) {
+            console.error("Erro ao salvar nota:", e);
+            // Maybe add visual feedback about save failure here
+        }
     }
 
     function populateMembersList(data) {
@@ -828,23 +828,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const watchlistIconHtml = m.isOnWatchlist ? '<span class="watchlist-icon">⚠️</span>' : '';
             const watchlistTooltipHtml = m.isOnWatchlist
                 ? `<span class="watchlist-tooltip">
-                       <strong>Em Observação!</strong><br>
-                       Motivo: ${m.watchlistReason || 'Não especificado'}<br>
-                       ${m.watchlistDetails ? `Detalhes: ${m.watchlistDetails}` : ''}
-                   </span>`
+                    <strong>Em Observação!</strong><br>
+                    Motivo: ${m.watchlistReason || 'Não especificado'}<br>
+                    ${m.watchlistDetails ? `Detalhes: ${m.watchlistDetails}` : ''}
+                </span>`
                 : '';
             const noteText = m.note || 'Clique para editar...';
             const notePriority = m.note_priority || 'none';
 
             return `
             <div class="member-card ${watchlistClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
-                <div class="member-card-header" data-player-tag="${m.tag || ''}"> {/* Store tag */}
+                <div class="member-card-header" data-player-tag="${m.tag || ''}">
                     <img src="/static/images/townhall${m.town_hall || 1}.png" alt="CV${m.town_hall || '?'}" class="member-th-icon" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='40px';">
                     <div class="member-info">
-                        <h4>${m.name || 'N/A'} ${watchlistIconHtml}</h4> {/* Add icon */}
+                        <h4>${m.name || 'N/A'} ${watchlistIconHtml}</h4>
                         <p>${m.role || 'Membro'} • 🏆 ${m.trophies || 0}</p>
                     </div>
-                     ${watchlistTooltipHtml} {/* Add tooltip */}
+                    ${watchlistTooltipHtml}
                 </div>
                 <div class="member-card-stats">
                     <span>🎁 Doadas: ${m.donations || 0}</span>
@@ -877,13 +877,13 @@ document.addEventListener('DOMContentLoaded', () => {
             header.replaceWith(header.cloneNode(true)); // Simple way to remove listeners
         });
         membersGridEl?.querySelectorAll('.note-text').forEach(span => {
-             span.replaceWith(span.cloneNode(true));
+            span.replaceWith(span.cloneNode(true));
         });
         membersGridEl?.querySelectorAll('.note-input').forEach(input => {
-             input.replaceWith(input.cloneNode(true));
+            input.replaceWith(input.cloneNode(true));
         });
-         membersGridEl?.querySelectorAll('.priority-btn').forEach(btn => {
-             btn.replaceWith(btn.cloneNode(true));
+        membersGridEl?.querySelectorAll('.priority-btn').forEach(btn => {
+            btn.replaceWith(btn.cloneNode(true));
         });
 
         // Add new listeners
@@ -931,18 +931,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // (setPlayerCwlStatus, applyMemberFilters, openMemberProfileModal, openHistoricWarModal, loadAllData, EventListeners Modal, Inicialização - MANTIDOS IGUAIS)
     // ... restante do código ...
-     async function setPlayerCwlStatus(playerTag, status) {
+    async function setPlayerCwlStatus(playerTag, status) {
         try {
-             const response = await fetchData(`cwl/player_status/${encodeURIComponent(playerTag)}`, {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ status })
-             });
-             return response && !response.error; // Success if no error reported
-         } catch (e) {
-             console.error("Erro ao definir status CWL:", e);
-             return false;
-         }
+            const response = await fetchData(`cwl/player_status/${encodeURIComponent(playerTag)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            return response && !response.error; // Success if no error reported
+        } catch (e) {
+            console.error("Erro ao definir status CWL:", e);
+            return false;
+        }
     }
 
     function applyMemberFilters() {
@@ -1010,7 +1010,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <h3>Heróis</h3>
             <div class="heroes-list">${heroesHtml || '<p>Nenhum herói encontrado.</p>'}</div>
             <div class="profile-chart-container">
-                 <h3>Evolução de Troféus</h3>
+                <h3>Evolução de Troféus</h3>
                 <canvas id="trophyChart"></canvas>
             </div>`);
 
@@ -1030,7 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.target.classList.remove('active');
                     selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); // Add null checks
                 }
-                 // Refresh member list in background after status change
+                // Refresh member list in background after status change
                 fetchData('members').then(populateMembersList);
             });
         });
@@ -1050,24 +1050,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         }]
                     },
                     options: {
-                         responsive: true, maintainAspectRatio: false,
-                         scales: { y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } },
-                         plugins: { legend: { display: false } }
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } },
+                        plugins: { legend: { display: false } }
                     }
                 });
             } catch (e) {
-                 console.error("Erro ao criar gráfico de troféus:", e);
-                 if(trophyCanvas){
-                     const ctx = trophyCanvas.getContext('2d');
-                     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.textAlign = 'center';
-                     ctx.fillText('Erro ao carregar gráfico.', trophyCanvas.width / 2, trophyCanvas.height / 2);
-                 }
+                console.error("Erro ao criar gráfico de troféus:", e);
+                if(trophyCanvas){
+                    const ctx = trophyCanvas.getContext('2d');
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.textAlign = 'center';
+                    ctx.fillText('Erro ao carregar gráfico.', trophyCanvas.width / 2, trophyCanvas.height / 2);
+                }
             }
         } else if (trophyCanvas) {
-             const ctx = trophyCanvas.getContext('2d');
-             ctx.clearRect(0, 0, trophyCanvas.width, trophyCanvas.height);
-             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.textAlign = 'center';
-             ctx.fillText('Histórico de troféus indisponível.', trophyCanvas.width / 2, trophyCanvas.height / 2);
+            const ctx = trophyCanvas.getContext('2d');
+            ctx.clearRect(0, 0, trophyCanvas.width, trophyCanvas.height);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.textAlign = 'center';
+            ctx.fillText('Histórico de troféus indisponível.', trophyCanvas.width / 2, trophyCanvas.height / 2);
         }
     }
 
@@ -1089,9 +1089,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const warDetailsContent = template.content.cloneNode(true);
             historicWarDetailContent.appendChild(warDetailsContent);
         } catch (e) {
-             setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro ao clonar template.</p>');
-             console.error("Template clone error:", e);
-             return;
+            setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro ao clonar template.</p>');
+            console.error("Template clone error:", e);
+            return;
         }
 
 
@@ -1128,13 +1128,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadAllData() {
         try {
             const statusData = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true }).catch(() => ({ maintenance_mode: true }));
-             // No need to redirect here, backend handles it in /painel handler
+            // No need to redirect here, backend handles it in /painel handler
 
             const clanData = await fetchData('clan');
             populateClanInfo(clanData);
 
             if (clanData?.error && isFirstLoad) { // Add null check
-                 if(loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
+                if(loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
                 return;
             }
 
@@ -1158,16 +1158,16 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("Erro geral ao carregar todos os dados:", error);
             // Don't hide loading overlay if there's a major fetch error
-             if (loadingStatusTextEl && loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
+            if (loadingStatusTextEl && loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
                 setText(loadingStatusTextEl, 'Erro grave ao carregar dados. Verifique a consola.');
             }
         } finally {
             if (isFirstLoad && loadingOverlayEl) {
                 // Check if there was an error message displayed before hiding
-                 const isLoadingError = loadingStatusTextEl?.textContent?.toLowerCase().includes('erro');
-                 if(!isLoadingError){ // Hide only if no major error was shown during loading
-                     setTimeout(() => { loadingOverlayEl.classList.add('hidden'); }, 300); // Shorter delay
-                 }
+                const isLoadingError = loadingStatusTextEl?.textContent?.toLowerCase().includes('erro');
+                if(!isLoadingError){ // Hide only if no major error was shown during loading
+                    setTimeout(() => { loadingOverlayEl.classList.add('hidden'); }, 300); // Shorter delay
+                }
                 isFirstLoad = false;
             }
         }
@@ -1183,8 +1183,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('click', (event) => {
         if (event.target == historicWarModal && historicWarModal) historicWarModal.style.display = 'none';
         if (event.target == memberProfileModal && memberProfileModal) {
-             memberProfileModal.style.display = 'none';
-             // Refresh list handled inside modal logic now
+            memberProfileModal.style.display = 'none';
+            // Refresh list handled inside modal logic now
         }
     });
 
@@ -1192,7 +1192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     warLogTableBodyEl?.addEventListener('click', (event) => { // Add null check
         const row = event.target.closest('.historic-war-row');
         if (row && row.dataset.warId) {
-             openHistoricWarModal(row.dataset.warId);
+            openHistoricWarModal(row.dataset.warId);
         }
     });
 
@@ -1206,15 +1206,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) { console.error('Falha ao buscar status da API.'); return; }
             const data = await response.json();
             if (data.status === 'maintenance') {
-                 console.warn('API em manutenção. Redirecionando...');
-                 // Check if already on maintenance page to prevent loop
-                 if (!window.location.pathname.endsWith('/maintenance.html') && !window.location.pathname.endsWith('/maintenance')) {
-                      window.location.href = '/maintenance'; // Use relative path
-                 }
+                console.warn('API em manutenção. Redirecionando...');
+                // Check if already on maintenance page to prevent loop
+                if (!window.location.pathname.endsWith('/maintenance.html') && !window.location.pathname.endsWith('/maintenance')) {
+                    window.location.href = '/maintenance'; // Use relative path
+                }
             } else if (data.status === 'ok' && (window.location.pathname.endsWith('/maintenance.html') || window.location.pathname.endsWith('/maintenance'))) {
-                 // If API is OK and we are on maintenance page, redirect back
-                 console.info('API voltou. Redirecionando para o painel...');
-                 window.location.href = '/painel';
+                // If API is OK and we are on maintenance page, redirect back
+                console.info('API voltou. Redirecionando para o painel...');
+                window.location.href = '/painel';
             }
         } catch (error) { console.error('Erro ao verificar status de manutenção:', error); }
     }
