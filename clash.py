@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.16-Watchlist-Final-Debug-Timeout
+# Versão 20.2.17-Fix-pytz-Import
 
 import os
 import logging
@@ -66,7 +66,7 @@ COLEADER_ROLE_ID = int(os.getenv("COLEADER_ROLE_ID", "1362076878458065040"))
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
 # --- Fim Variáveis de Ambiente ---
 
-BOT_VERSION = "20.2.17-Fix-pytz-Import" # Atualiza a versão
+BOT_VERSION = "20.2.18-Fix-Render-Startup" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo') # Agora pytz está definido
 
 class ClashGeniusBot(commands.Bot):
@@ -128,14 +128,21 @@ class ClashGeniusBot(commands.Bot):
                 # Considerar não setar db_ready ou até parar o bot se DB for essencial
         else:
             logger.warning("URL MongoDB não fornecida. Persistência desativada.")
-            self.db_ready.set()
+            self.db_ready.set() # Define como pronto mesmo sem DB
         # --- Fim DB ---
+
+        # --- Login CoC (Inicia agora, mas setup_web_server esperará por ele) ---
+        logger.info("Criando tarefa coc_login_task...")
+        self.loop.create_task(self.coc_login_task())
+
         # --- War Predictor ---
         logger.info("Inicializando WarPredictionSystemV3...")
         self.war_prediction_system = WarPredictionSystemV3(db_connection=self.db)
-        await self.war_prediction_system.initialize_system()
-        logger.info("WarPredictionSystemV3 inicializado.")
+        # Não precisa esperar aqui, pode inicializar em paralelo
+        self.loop.create_task(self.war_prediction_system.initialize_system())
+        logger.info("Inicialização do WarPredictionSystemV3 iniciada.")
         # --- Fim War Predictor ---
+
         # --- Carregamento de Cogs ---
         logger.info("--- Iniciando carregamento de Cogs ---")
         cog_files = [ 'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog', 'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog', 'slash_cog', 'watchlist_cog' ]
@@ -150,12 +157,13 @@ class ClashGeniusBot(commands.Bot):
             except Exception as e: logger.critical(f"### ERRO FATAL AO CARREGAR COG '{cog_name}' ###: {e}", exc_info=True)
         logger.info(f"--- Carregamento de Cogs finalizado ({loaded_cogs_count}/{len(cog_files)} carregados) ---")
         # --- Fim Cogs ---
-        # --- Tarefas Assíncronas ---
-        logger.info("Criando tarefas assíncronas (coc_login_task, setup_web_server)...")
-        self.loop.create_task(self.coc_login_task())
-        self.loop.create_task(setup_web_server(self))
-        logger.info("Tarefas assíncronas criadas.")
+
+        # --- Tarefa do Servidor Web (Inicia agora, mas esperará internamente) ---
+        logger.info("Criando tarefa setup_web_server...")
+        self.loop.create_task(setup_web_server(self)) # Passa a instância do bot
+        logger.info("Tarefa setup_web_server criada.")
         # --- Fim Tarefas ---
+
         logger.info("### Finalizando setup_hook ###")
 
 
@@ -194,7 +202,8 @@ class ClashGeniusBot(commands.Bot):
 
     async def coc_login_task(self):
         """Tarefa assíncrona para login no cliente CoC com logging robusto."""
-        # (Código mantido igual, com loop de tentativas e timeout)
+        # Adiciona espera pelo bot estar pronto antes de tentar logar
+        await self.wait_until_ready()
         logger.info("Iniciando tarefa de login coc_login_task...")
         login_attempts = 0; max_attempts = 5; retry_delay = 10
         while login_attempts < max_attempts:
@@ -210,6 +219,8 @@ class ClashGeniusBot(commands.Bot):
             except Exception as e: logger.error(f"### ERRO INESPERADO login CoC (Tentativa {login_attempts}) ###: {e}", exc_info=True)
             if login_attempts < max_attempts: logger.info(f"Aguardando {retry_delay}s..."); await asyncio.sleep(retry_delay)
         logger.critical(f"### FALHA CRÍTICA: Login CoC falhou após {max_attempts} tentativas. ###")
+        # Considerar fechar o bot se o login CoC for essencial
+        # await self.close()
 
 
     async def on_ready(self):
@@ -218,6 +229,7 @@ class ClashGeniusBot(commands.Bot):
         logger.info(f"Versão: {self.bot_version}")
         logger.info(f"Conectado a {len(self.guilds)} servidor(es).")
         logger.info("="*30)
+        # Sincroniza comandos DEPOIS que o bot está pronto
         try:
             synced = await self.tree.sync()
             logger.info(f"Sincronizados {len(synced)} comandos de barra globalmente no on_ready.")
@@ -233,14 +245,21 @@ class ClashGeniusBot(commands.Bot):
         logger.info("Bot desligado.")
 
     async def get_clan_data_with_cache(self, tag: str) -> Optional[coc.Clan]:
-        try: await asyncio.wait_for(self.coc_client_ready.wait(), timeout=10.0)
-        except asyncio.TimeoutError: logger.error("Timeout esperando coc_client_ready em get_clan_data."); return None
+        try:
+            # Aumenta o timeout aqui para dar mais margem ao login inicial
+            await asyncio.wait_for(self.coc_client_ready.wait(), timeout=45.0)
+        except asyncio.TimeoutError:
+            logger.error("Timeout esperando coc_client_ready em get_clan_data.")
+            return None
+        if not self.api_client:
+             logger.error("api_client não inicializado em get_clan_data.")
+             return None
+
         normalized_tag = coc.utils.correct_tag(tag); now = datetime.datetime.now()
         cache_entry = self.clan_cache.get(normalized_tag)
         if cache_entry and (now - cache_entry["timestamp"]).total_seconds() < self.CACHE_DURATION_SECONDS: return cache_entry["data"]
         try:
             logger.debug(f"Buscando clã {tag} na API...")
-            if not self.api_client: logger.error("api_client não inicializado em get_clan_data."); return None
             clan_data = await self.api_client.get_clan(normalized_tag)
             self.clan_cache[normalized_tag] = {"data": clan_data, "timestamp": now}
             logger.debug(f"Clã {tag} obtido e cacheado.")
@@ -250,12 +269,20 @@ class ClashGeniusBot(commands.Bot):
 
 # --- Servidor Web ---
 async def setup_web_server(bot_instance: ClashGeniusBot):
-    # (Código mantido igual, com logging detalhado e verificações)
-    logger.info("Iniciando config servidor web...")
-    app = web.Application()
-    logger.info("Aguardando bot pronto p/ refs Cogs...")
+    # <<< ADICIONADO: Espera o bot e o cliente CoC estarem prontos ANTES de configurar o servidor web >>>
+    logger.info("setup_web_server: Aguardando bot ficar pronto...")
     await bot_instance.wait_until_ready()
-    logger.info("Bot pronto. Obtendo refs Cogs p/ web...")
+    logger.info("setup_web_server: Aguardando cliente CoC ficar pronto...")
+    try:
+        await asyncio.wait_for(bot_instance.coc_client_ready.wait(), timeout=60.0) # Timeout para CoC login
+    except asyncio.TimeoutError:
+        logger.critical("### ERRO FATAL: Cliente CoC não ficou pronto a tempo para iniciar o servidor web. Servidor web NÃO INICIADO. ###")
+        return # Não inicia o servidor web se o CoC falhar
+
+    logger.info("setup_web_server: Bot e CoC prontos. Iniciando configuração do servidor web...")
+    app = web.Application()
+
+    # Obtém refs Cogs p/ web (agora é seguro, pois o bot está pronto e cogs carregados)
     web_api_cog = bot_instance.get_cog("Web API")
     db_cog = bot_instance.get_cog("Banco de Dados")
     profile_cog = bot_instance.get_cog("Perfis de Membros")
@@ -263,22 +290,49 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     maintenance_cog = bot_instance.get_cog("Manutenção do Sistema")
     war_advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
     admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
-    watchlist_cog = bot_instance.get_cog("Lista de Observação")
+    watchlist_cog = bot_instance.get_cog("Lista de Observação") # Watchlist já era carregado antes
+
     required_cogs = [ web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog, war_advisor_cog, admin_cog, watchlist_cog ]
     if not all(required_cogs):
         missing = [name for name, inst in zip(["WebAPI","DB","Profile","CWL","Maint","Advisor","Admin","Watchlist"], required_cogs) if inst is None]
-        logger.critical(f"### ERRO FATAL: Cogs web não carregados: {', '.join(missing)}. Servidor web NÃO PODE iniciar. ###")
+        logger.critical(f"### ERRO FATAL: Cogs web essenciais não carregados: {', '.join(missing)}. Servidor web NÃO PODE iniciar. ###")
         return
     logger.info("Todas Cogs web encontradas.")
+
     # --- Handlers API ---
     async def handle_web_response(request, key, func, *args, **kwargs):
         now = datetime.datetime.now(); cache_entry = bot_instance.web_api_cache.get(key)
-        if not kwargs.get('force_api_call', False) and cache_entry and (now - cache_entry["timestamp"]).total_seconds() < bot_instance.WEB_API_CACHE_DURATION_SECONDS: return web.json_response(cache_entry["data"])
-        if not bot_instance.coc_client_ready.is_set(): return web.json_response({"error": "Bot iniciando (API CoC indisponível)..."}, status=503)
-        logger.debug(f"Buscando dados web '{key}'...")
-        data = await func(*args, **kwargs)
-        if 'error' not in data and not kwargs.get('force_api_call', False): bot_instance.web_api_cache[key] = {"data": data, "timestamp": now}; logger.debug(f"Dados '{key}' cacheados.")
-        return web.json_response(data, dumps=lambda v: json.dumps(v, default=str))
+        # Força chamada à API se 'force_api_call' for verdadeiro OU se o cache estiver vazio/expirado
+        force_call = kwargs.get('force_api_call', False)
+        if not force_call and cache_entry and (now - cache_entry["timestamp"]).total_seconds() < bot_instance.WEB_API_CACHE_DURATION_SECONDS:
+            logger.debug(f"Servindo dados web '{key}' do cache.")
+            return web.json_response(cache_entry["data"], dumps=lambda v: json.dumps(v, default=str))
+
+        if not bot_instance.coc_client_ready.is_set(): # Checagem extra
+            logger.warning(f"Requisição web '{key}' recebida, mas cliente CoC não está pronto.")
+            return web.json_response({"error": "Bot iniciando (API CoC indisponível)..."}, status=503)
+
+        logger.debug(f"Buscando dados web '{key}' na API CoC/DB...")
+        try:
+            data = await func(*args, **kwargs)
+            # Só cacheia se não houver erro e não for forçado
+            if 'error' not in data and not force_call:
+                bot_instance.web_api_cache[key] = {"data": data, "timestamp": now}
+                logger.debug(f"Dados '{key}' obtidos e cacheados.")
+            elif 'error' in data:
+                 logger.warning(f"Erro ao buscar dados para '{key}': {data['error']}")
+                 # Retorna status apropriado se for erro do lado do cliente ou servidor
+                 status_code = 404 if "não encontrado" in data.get('error','').lower() else 500
+                 return web.json_response(data, status=status_code, dumps=lambda v: json.dumps(v, default=str))
+            else:
+                 logger.debug(f"Dados '{key}' obtidos (forçado, sem cache).")
+
+            return web.json_response(data, dumps=lambda v: json.dumps(v, default=str))
+        except Exception as e:
+            logger.error(f"Erro inesperado no handler para '{key}': {e}", exc_info=True)
+            return web.json_response({"error": f"Erro interno no servidor ao processar '{key}'."}, status=500)
+
+
     async def api_clan_handler(r): return await handle_web_response(r, 'clan', web_api_cog.fetch_clan_info_for_web)
     async def api_members_handler(r): return await handle_web_response(r, 'members', web_api_cog.fetch_clan_members_for_web)
     async def api_current_war_details_handler(r): return await handle_web_response(r, 'war_details', web_api_cog.fetch_current_war_details_for_web)
@@ -286,90 +340,196 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_war_log_handler(r): return await handle_web_response(r, 'war_log', web_api_cog.fetch_war_log_for_web)
     async def api_cwl_info_handler(r): return await handle_web_response(r, 'cwl', web_api_cog.fetch_cwl_info_for_web)
     async def api_highlights_handler(r): return await handle_web_response(r, 'highlights', web_api_cog.fetch_highlights_for_web)
+
+    # Handlers que modificam dados ou buscam por ID específico (não usam cache da mesma forma)
     async def api_save_player_note_handler(request):
         player_tag = coc.utils.correct_tag(request.match_info['player_tag']); data = await request.json()
-        await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
-        bot_instance.web_api_cache.pop('members', None); return web.Response(status=204)
+        try:
+            await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
+            bot_instance.web_api_cache.pop('members', None); # Invalida cache de membros
+            return web.Response(status=204)
+        except ConnectionError as e:
+            logger.error(f"Erro ao salvar nota (DB não conectado?): {e}")
+            return web.json_response({"error": "Erro de conexão com o banco de dados."}, status=500)
+        except Exception as e:
+            logger.error(f"Erro ao salvar nota: {e}", exc_info=True)
+            return web.json_response({"error": "Erro interno ao salvar nota."}, status=500)
+
     async def api_historic_war_handler(request):
+        if not bot_instance.db: return web.json_response({"error": "Banco de dados não configurado."}, status=503)
         war_id = request.match_info['war_id']; war_doc = await bot_instance.db.war_history.find_one({"_id": war_id})
         return web.json_response(war_doc, dumps=lambda v: json.dumps(v, default=str)) if war_doc else web.json_response({"error": "Guerra não encontrada."}, status=404)
+
     async def api_member_profile_handler(request):
         player_tag = coc.utils.correct_tag(request.match_info['player_tag']); profile_data = await profile_cog.fetch_player_profile_data(player_tag)
         return web.json_response(profile_data, status=404 if "error" in profile_data else 200)
+
     async def api_cwl_generate_plan_handler(request):
-        bot_instance.web_api_cache.pop('cwl_plan', None); plan = await cwl_cog.generate_rotation_plan()
+        bot_instance.web_api_cache.pop('cwl_plan', None); # Invalida cache se houver
+        plan = await cwl_cog.generate_rotation_plan()
         return web.json_response(plan)
+
     async def api_war_advisor_plan_handler(request):
         try:
+            # Força busca na API para ter dados frescos
             war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag, ignore_cache=True)
             prediction_data = await bot_instance.war_prediction_system.predict_war_outcome(war, bot_instance.clan_tag)
             plan = war_advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
             return web.json_response(plan)
-        except (coc.NotFound, coc.PrivateWarLog): return web.json_response({"success": False, "error": "Nenhuma guerra ativa."}, status=404)
-        except Exception as e: logger.error(f"Erro /api/war_advisor_plan: {e}", exc_info=True); return web.json_response({"success": False, "error": "Erro interno."}, status=500)
+        except (coc.NotFound, coc.PrivateWarLog): return web.json_response({"success": False, "error": "Nenhuma guerra ativa ou log privado."}, status=404) # Ajustado status code
+        except Exception as e: logger.error(f"Erro /api/war_advisor_plan: {e}", exc_info=True); return web.json_response({"success": False, "error": "Erro interno ao gerar plano."}, status=500)
+
     async def api_coc_status_handler(r):
         if not admin_cog: return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
-        if not bot_instance.coc_client_ready.is_set(): return web.json_response({"status": "maintenance", "message": "Bot iniciando..."}, status=200)
+        # Retorna status mesmo que o CoC não esteja pronto, indicando que o bot está iniciando
+        if not bot_instance.coc_client_ready.is_set():
+            return web.json_response({"status": "maintenance", "message": "Bot iniciando (Aguardando API CoC)..."}, status=200) # Usa status 200 p/ não ser erro
         return web.json_response(await admin_cog.get_api_status())
+
+    async def api_maintenance_message(r):
+         return web.json_response({"message": bot_instance.maintenance_message})
+
+    async def admin_get_status_handler(r): # Renomeado no código original, mantendo aqui
+        session=await get_session(r); is_admin=session.get('admin',False)
+        return web.json_response({"status":"ok","maintenance_mode":bot_instance.maintenance_mode,"version":BOT_VERSION,"is_admin":is_admin})
+
     # --- Rotas API Principal ---
-    logger.info("Registrando rotas API principal..."); app.router.add_get("/api/clan", api_clan_handler); app.router.add_get("/api/members", api_members_handler); app.router.add_get("/api/current_war_details", api_current_war_details_handler); app.router.add_get("/api/missed_attacks_history", api_missed_attacks_history_handler); app.router.add_get("/api/war_log", api_war_log_handler); app.router.add_get("/api/cwl_info", api_cwl_info_handler); app.router.add_get("/api/highlights", api_highlights_handler); app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler); app.router.add_get("/api/war_history/{war_id:.*}", api_historic_war_handler); app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler); app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler); app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler); app.router.add_get("/api/coc_status", api_coc_status_handler); app.router.add_get("/api/status", admin_get_status_handler); app.router.add_get("/api/maintenance_message", api_maintenance_message); logger.info("Rotas API principal OK.")
+    logger.info("Registrando rotas API principal...");
+    app.router.add_get("/api/clan", api_clan_handler);
+    app.router.add_get("/api/members", api_members_handler);
+    app.router.add_get("/api/current_war_details", api_current_war_details_handler);
+    app.router.add_get("/api/missed_attacks_history", api_missed_attacks_history_handler);
+    app.router.add_get("/api/war_log", api_war_log_handler);
+    app.router.add_get("/api/cwl_info", api_cwl_info_handler);
+    app.router.add_get("/api/highlights", api_highlights_handler);
+    app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler);
+    app.router.add_get("/api/war_history/{war_id:.*}", api_historic_war_handler);
+    app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler);
+    app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler);
+    app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler);
+    app.router.add_get("/api/coc_status", api_coc_status_handler);
+    app.router.add_get("/api/status", admin_get_status_handler); # Rota de status geral
+    app.router.add_get("/api/maintenance_message", api_maintenance_message); # Nova rota
+    logger.info("Rotas API principal OK.")
+
     # --- Middleware Admin ---
     @web.middleware
     async def admin_auth_middleware(request, handler):
         session=await get_session(request)
-        if not session.get('admin'): logger.warning(f"Acesso não autorizado: {request.path}"); return web.json_response({"status":"unauthorized"}, status=403)
+        if not session.get('admin'):
+            logger.warning(f"Acesso não autorizado à API Admin: {request.path}")
+            return web.json_response({"status":"unauthorized", "message": "Acesso negado."}, status=403)
         return await handler(request)
+
     # --- Handlers API Admin ---
     async def api_admin_diagnostics(r): return web.json_response(await admin_cog.get_diagnostics())
     async def api_admin_get_settings(r): return web.json_response(await admin_cog.get_settings())
     async def api_admin_update_settings(r): return web.json_response(await admin_cog.update_settings(await r.json()))
     async def api_admin_db_viewer(r): return web.json_response(await admin_cog.get_db_viewer_data(), dumps=lambda v: json.dumps(v, default=str))
+
+    # Watchlist Admin Handlers
     async def api_admin_get_watchlist(r): return web.json_response(await admin_cog.get_watchlist_admin())
+
     async def api_admin_add_watchlist(r):
         data=await r.json(); tag=data.get('player_tag'); name=data.get('player_name'); reason=data.get('reason'); details=data.get('details')
         if not tag or not reason: return web.json_response({"status":"error","message":"Tag e motivo obrigatórios."}, status=400)
-        if not name:
-             try: player=await bot_instance.api_client.get_player(tag); name=player.name
-             except: name=tag
-        success = await admin_cog.add_to_watchlist_admin(tag, name, reason, details)
-        if success: bot_instance.web_api_cache.pop('members',None); return web.json_response({"status":"success","message":"Adicionado."})
-        else: return web.json_response({"status":"error","message":"Erro ao adicionar."},status=500)
+        if not name: # Tenta buscar o nome se não fornecido
+             try:
+                 player=await bot_instance.api_client.get_player(tag); name=player.name
+             except coc.NotFound:
+                 name = tag # Usa a tag como nome se não encontrar
+             except Exception as e:
+                 logger.warning(f"Erro ao buscar nome para tag {tag} em add_watchlist: {e}")
+                 name = tag # Usa a tag como nome em caso de erro
+
+        result = await admin_cog.add_to_watchlist_admin(tag, name, reason, details)
+        if result:
+            bot_instance.web_api_cache.pop('members',None); # Invalida cache de membros
+            return web.json_response({"status":"success","message":"Jogador adicionado/atualizado na watchlist."})
+        else: return web.json_response({"status":"error","message":"Erro interno ao adicionar à watchlist."},status=500)
+
     async def api_admin_remove_watchlist(r):
         data=await r.json(); tag=data.get('player_tag')
         if not tag: return web.json_response({"status":"error","message":"Tag obrigatória."}, status=400)
         success = await admin_cog.remove_from_watchlist_admin(tag)
-        if success: bot_instance.web_api_cache.pop('members',None); return web.json_response({"status":"success","message":"Removido."})
-        else: return web.json_response({"status":"not_found","message":"Não encontrado."}, status=404)
+        if success:
+            bot_instance.web_api_cache.pop('members',None); # Invalida cache de membros
+            return web.json_response({"status":"success","message":"Jogador removido da watchlist."})
+            # O status 204 (No Content) também seria apropriado aqui, mas a UI espera uma mensagem
+            # return web.Response(status=204)
+        else:
+            # Retorna 404 se não encontrou, ou 500 se houve outro erro no backend
+            # A lógica no admin_cog já loga o erro, aqui só retornamos o status
+            entry_exists = await admin_cog.is_on_watchlist(tag) # Verifica se existe para diferenciar 404 de 500
+            if not entry_exists:
+                 return web.json_response({"status":"not_found","message":"Jogador não encontrado na watchlist."}, status=404)
+            else:
+                 return web.json_response({"status":"error","message":"Erro interno ao remover da watchlist."}, status=500)
+
+
     async def api_admin_actions(r):
         data=await r.json(); session=await get_session(r); action=data.get("action"); payload=data.get("payload",{})
-        if action=="send_announcement": return web.json_response(await admin_cog.send_announcement(payload.get("channel_id"),payload.get("message")))
-        elif action=="clear_cache": return web.json_response(await admin_cog.clear_web_cache(payload.get("cache_key")))
-        elif action=="force_sync_war":
-            tasks_cog=bot_instance.get_cog("Tarefas em Segundo Plano"); asyncio.create_task(tasks_cog.check_war_end_task())
-            return web.json_response({"status":"success","message":"Sincronização forçada."})
-        elif action=="sync_commands":
-            guild_id=session.get('guild_id')
-            if not guild_id and payload.get("scope")=="guild": return web.json_response({"status":"error","message":"ID servidor não encontrado."})
-            guild=bot_instance.get_guild(int(guild_id)) if guild_id else None
-            return web.json_response(await admin_cog.sync_commands(payload.get("scope","guild"),guild))
-        return web.json_response({"status":"error","message":"Ação desconhecida."},status=400)
+        logger.info(f"Ação admin recebida: {action} com payload: {payload}")
+        try:
+            if action=="send_announcement": return web.json_response(await admin_cog.send_announcement(payload.get("channel_id"),payload.get("message")))
+            elif action=="clear_cache": return web.json_response(await admin_cog.clear_web_cache(payload.get("cache_key")))
+            elif action=="force_sync_war":
+                tasks_cog=bot_instance.get_cog("Tarefas em Segundo Plano")
+                if tasks_cog:
+                    # Roda a task em background sem esperar
+                    asyncio.create_task(tasks_cog.check_war_end_task())
+                    return web.json_response({"status":"success","message":"Sincronização de guerra iniciada."})
+                else: return web.json_response({"status":"error","message":"Cog de Tarefas não encontrado."}, status=500)
+            elif action=="sync_commands":
+                guild_id=session.get('guild_id')
+                if not guild_id and payload.get("scope")=="guild": return web.json_response({"status":"error","message":"ID do servidor não encontrado na sessão para sync local."}, status=400)
+                guild=bot_instance.get_guild(int(guild_id)) if guild_id else None
+                return web.json_response(await admin_cog.sync_commands(payload.get("scope","guild"),guild))
+            else:
+                 logger.warning(f"Ação admin desconhecida recebida: {action}")
+                 return web.json_response({"status":"error","message":"Ação desconhecida."},status=400)
+        except Exception as e:
+            logger.error(f"Erro ao processar ação admin '{action}': {e}", exc_info=True)
+            return web.json_response({"status":"error","message": f"Erro interno ao processar '{action}'."}, status=500)
+
     # --- Rotas API Admin ---
-    logger.info("Registrando rotas API Admin..."); admin_api_app = web.Application(middlewares=[admin_auth_middleware]); admin_api_app.router.add_get("/diagnostics", api_admin_diagnostics); admin_api_app.router.add_get("/settings", api_admin_get_settings); admin_api_app.router.add_post("/settings", api_admin_update_settings); admin_api_app.router.add_get("/db_viewer", api_admin_db_viewer); admin_api_app.router.add_post("/actions", api_admin_actions); admin_api_app.router.add_get("/watchlist", api_admin_get_watchlist); admin_api_app.router.add_post("/watchlist/add", api_admin_add_watchlist); admin_api_app.router.add_post("/watchlist/remove", api_admin_remove_watchlist); app.add_subapp("/api/admin/", admin_api_app); logger.info("Rotas API Admin OK.")
+    logger.info("Registrando rotas API Admin...");
+    admin_api_app = web.Application(middlewares=[admin_auth_middleware]);
+    admin_api_app.router.add_get("/diagnostics", api_admin_diagnostics);
+    admin_api_app.router.add_get("/settings", api_admin_get_settings);
+    admin_api_app.router.add_post("/settings", api_admin_update_settings);
+    admin_api_app.router.add_get("/db_viewer", api_admin_db_viewer);
+    admin_api_app.router.add_post("/actions", api_admin_actions);
+    # Watchlist admin routes
+    admin_api_app.router.add_get("/watchlist", api_admin_get_watchlist);
+    admin_api_app.router.add_post("/watchlist/add", api_admin_add_watchlist);
+    admin_api_app.router.add_post("/watchlist/remove", api_admin_remove_watchlist);
+    app.add_subapp("/api/admin/", admin_api_app);
+    logger.info("Rotas API Admin OK.")
+
     # --- Handlers Páginas/Auth ---
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
     async def admin_panel_page(r):
         session=await get_session(r);
-        if not session.get('admin'): return web.HTTPFound('/admin')
+        if not session.get('admin'): return web.HTTPFound('/admin') # Redireciona se não logado
         return web.FileResponse(os.path.join(static_dir,"admin_panel.html"))
     async def admin_login_handler(r):
         data=await r.post()
+        guild_id_from_form = data.get('guild_id', '') # Pega o guild_id do form
         if data.get('password')==ADMIN_PASSWORD:
-            session=await get_session(r); session['admin']=True; guild_id=data.get('guild_id'); session['guild_id']=guild_id if guild_id else None
+            session=await get_session(r); session['admin']=True;
+            # Armazena guild_id na sessão se presente
+            session['guild_id']= guild_id_from_form if guild_id_from_form else None
+            logger.info(f"Login admin bem-sucedido. Guild ID na sessão: {session['guild_id']}")
             return web.HTTPFound('/admin/panel')
-        return web.HTTPFound(f"/admin?error=1&guild_id={data.get('guild_id','')}")
+        else:
+            logger.warning("Tentativa de login admin falhou.")
+            # Mantém o guild_id na URL de erro para persistir no formulário
+            return web.HTTPFound(f"/admin?error=1&guild_id={guild_id_from_form}")
     async def admin_logout_handler(r):
         session=await get_session(r); session.pop('admin',None); session.pop('guild_id',None)
+        logger.info("Logout admin.")
         return web.HTTPFound('/admin')
     async def admin_toggle_maintenance_handler(r):
         session=await get_session(r);
@@ -379,32 +539,92 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         session=await get_session(r);
         if not session.get('admin'): return web.json_response({"status":"unauthorized"}, status=403)
         return await maintenance_cog.send_test_embed_web()
-    async def admin_get_status_handler(r): # Renamed to avoid conflict
-        session=await get_session(r); is_admin=session.get('admin',False)
-        return web.json_response({"status":"ok","maintenance_mode":bot_instance.maintenance_mode,"version":BOT_VERSION,"is_admin":is_admin})
+
+    # Handler da página principal/painel
     async def painel_handler(r):
+        # Verifica status da API CoC ANTES de decidir se mostra manutenção
+        api_status = {"status": "error"} # Default
+        if admin_cog and bot_instance.coc_client_ready.is_set():
+             api_status = await admin_cog.get_api_status()
+        elif not bot_instance.coc_client_ready.is_set():
+             api_status = {"status": "maintenance", "message": "Bot iniciando..."}
+
         session=await get_session(r); is_admin=session.get('admin',False)
-        api_status_data = await admin_cog.get_api_status() if admin_cog and bot_instance.coc_client_ready.is_set() else {"status": "error", "message": "Bot iniciando..."}
-        if (bot_instance.maintenance_mode or api_status_data.get("status") in ["maintenance", "error"]) and not is_admin:
-            logger.info(f"Acesso painel bloqueado (Manut: {bot_instance.maintenance_mode}, API: {api_status_data.get('status')}). Redirecionando...")
-            return web.FileResponse(os.path.join(static_dir,"maintenance.html"))
+
+        # Redireciona para manutenção SE (modo manutenção ATIVO OU API CoC com problema) E usuário NÃO é admin
+        if (bot_instance.maintenance_mode or api_status.get("status") in ["maintenance", "error"]) and not is_admin:
+            logger.info(f"Acesso ao painel bloqueado (Manut: {bot_instance.maintenance_mode}, API: {api_status.get('status')}). Redirecionando para /maintenance...")
+            # Não serve o arquivo diretamente, redireciona para uma rota específica de manutenção
+            return web.HTTPFound('/maintenance') # <<< ALTERADO: Redireciona para /maintenance
+
+        # Se passou, serve o painel normal
         return web.FileResponse(os.path.join(static_dir,"painel.html"))
+
+    # Nova rota para a página de manutenção estática
+    async def maintenance_page_handler(r):
+        return web.FileResponse(os.path.join(static_dir, "maintenance.html"))
+
+
     # --- Rotas Páginas/Static ---
-    logger.info("Registrando rotas páginas/static..."); app.router.add_static('/static/', path=static_dir, name='static'); app.router.add_get("/admin", admin_login_page); app.router.add_post("/admin/login", admin_login_handler); app.router.add_get("/admin/logout", admin_logout_handler); app.router.add_get("/admin/panel", admin_panel_page); app.router.add_post("/admin/toggle_maintenance", admin_toggle_maintenance_handler); app.router.add_post("/admin/send_test_embed", admin_send_test_embed_handler); app.router.add_get("/painel", painel_handler); app.router.add_get("/", lambda r: web.HTTPFound('/painel')); logger.info("Rotas páginas/static OK.")
+    logger.info("Registrando rotas páginas/static...");
+    app.router.add_static('/static/', path=static_dir, name='static');
+    app.router.add_get("/", lambda r: web.HTTPFound('/painel')); # Redireciona raiz para painel
+    app.router.add_get("/painel", painel_handler);
+    app.router.add_get("/maintenance", maintenance_page_handler); # <<< NOVA ROTA para página de manutenção
+    # Admin routes
+    app.router.add_get("/admin", admin_login_page);
+    app.router.add_post("/admin/login", admin_login_handler);
+    app.router.add_get("/admin/logout", admin_logout_handler);
+    app.router.add_get("/admin/panel", admin_panel_page);
+    app.router.add_post("/admin/toggle_maintenance", admin_toggle_maintenance_handler); # Manteve POST
+    app.router.add_post("/admin/send_test_embed", admin_send_test_embed_handler); # Manteve POST
+    logger.info("Rotas páginas/static OK.")
+
     # --- Sessão e Start Servidor ---
     logger.info("Configurando sessão web...");
     try:
-        secret_key_bytes = Fernet.generate_key() if not FERNET_KEY else FERNET_KEY.encode()
-        secret_key = base64.urlsafe_b64decode(secret_key_bytes)
-        setup_session(app, EncryptedCookieStorage(secret_key))
+        # Tenta decodificar a chave, assume que já está em bytes se falhar
+        try:
+            secret_key_bytes = FERNET_KEY.encode()
+            secret_key_decoded = base64.urlsafe_b64decode(secret_key_bytes)
+        except (AttributeError, ValueError, TypeError):
+             logger.warning("FERNET_KEY não parece ser base64 válida ou já está em bytes. Usando diretamente.")
+             # Assume que FERNET_KEY já pode ser os bytes decodificados ou uma chave diferente
+             # Se for None ou inválida, EncryptedCookieStorage levantará erro
+             secret_key_decoded = FERNET_KEY # Pode ser None ou bytes
+
+        if not secret_key_decoded:
+             logger.warning("FERNET_KEY não definida ou inválida. Gerando chave de sessão temporária.")
+             # Gera uma chave temporária se nenhuma válida foi fornecida
+             secret_key_decoded = Fernet.generate_key()
+
+        setup_session(app, EncryptedCookieStorage(secret_key_decoded))
         logger.info("Sessão web configurada.")
-    except Exception as e: logger.critical(f"### ERRO FATAL config sessão web ###: {e}", exc_info=True); return
-    logger.info("Configurando AppRunner/TCPSite..."); runner = web.AppRunner(app); await runner.setup(); port = int(os.environ.get("PORT", 8080)); site = web.TCPSite(runner, '0.0.0.0', port)
+    except Exception as e:
+        logger.critical(f"### ERRO FATAL config sessão web ###: {e}. Verifique a FERNET_KEY.", exc_info=True);
+        return # Não inicia o servidor se a sessão falhar
+
+    logger.info("Configurando AppRunner/TCPSite...");
+    runner = web.AppRunner(app);
+    await runner.setup();
+    port = int(os.environ.get("PORT", 8080)); # Lê a porta do ambiente (padrão Render) ou usa 8080
+    site = web.TCPSite(runner, '0.0.0.0', port) # Escuta em todas as interfaces
     try:
         await site.start()
-        logger.info(f">>> SERVIDOR WEB INICIADO: http://0.0.0.0:{port} <<<")
-    except OSError as e: logger.critical(f"### ERRO FATAL ao iniciar servidor web porta {port} ###: {e}", exc_info=True); logger.critical("Verifique uso da porta/permissões.")
-    except Exception as e: logger.critical(f"### ERRO FATAL inesperado ao iniciar servidor web ###: {e}", exc_info=True)
+        # <<< MENSAGEM DE SUCESSO MAIS CLARA >>>
+        logger.info(f">>> SERVIDOR WEB INICIADO E ESCUTANDO EM http://0.0.0.0:{port} <<<")
+        logger.info("Render deve detectar a porta aberta agora.")
+    except OSError as e:
+        if "Address already in use" in str(e):
+             logger.critical(f"### ERRO FATAL: Porta {port} já está em uso! ###")
+        else:
+             logger.critical(f"### ERRO FATAL de OS ao iniciar servidor web porta {port} ###: {e}", exc_info=True);
+        logger.critical("Verifique se outra aplicação está usando a porta ou se há permissões.")
+        # Considerar fechar o bot se o servidor web for essencial
+        # await bot_instance.close()
+    except Exception as e:
+        logger.critical(f"### ERRO FATAL inesperado ao iniciar servidor web ###: {e}", exc_info=True)
+        # await bot_instance.close()
 
 
 async def main():
@@ -417,10 +637,18 @@ async def main():
     except KeyboardInterrupt: logger.info("Bot desligado manualmente.")
     except Exception as e: logger.critical(f"### ERRO FATAL NÃO TRATADO NO LOOP PRINCIPAL ###: {e}", exc_info=True)
     finally:
-        if not bot.is_closed(): logger.info("Garantindo fechamento do bot..."); await bot.close()
+        if not bot.is_closed():
+            logger.info("Garantindo fechamento do bot no finally...")
+            await bot.close()
         logger.info("Processo finalizado.")
 
 if __name__ == "__main__":
     logger.info("="*10 + f" INICIANDO ClashGeniusBot v{BOT_VERSION} " + "="*10)
-    asyncio.run(main())
-
+    # Adiciona logging do asyncio se precisar depurar tarefas travadas
+    # logging.getLogger('asyncio').setLevel(logging.DEBUG)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Programa interrompido pelo usuário (KeyboardInterrupt).")
+    except Exception as e:
+         logger.critical(f"### ERRO FATAL NÃO TRATADO no nível do asyncio.run() ###: {e}", exc_info=True)
