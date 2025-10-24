@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Lógica para a página de login
+    // Lógica para a página de login (mantida)
     const loginForm = document.querySelector('form[action="/admin/login"]');
     if (loginForm) {
         const urlParams = new URLSearchParams(window.location.search);
@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsForm = document.getElementById('settings-form');
     const settingsFeedback = document.getElementById('settings-feedback');
     const actionsFeedback = document.getElementById('actions-feedback');
+    const geralFeedback = document.getElementById('geral-feedback'); // Feedback para aba Geral
+    const dbFeedback = document.getElementById('db-feedback'); // Feedback para aba DB
     const dbWarsTableBody = document.querySelector('#db-wars-table tbody');
     const dbNotesTableBody = document.querySelector('#db-notes-table tbody');
     const sendAnnouncementBtn = document.getElementById('send-announcement-btn');
@@ -44,14 +46,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Seletores para Navegação por Abas
     const navLinks = document.querySelectorAll('.admin-nav .nav-link');
     const contentSections = document.querySelectorAll('.admin-section');
-    const initialSectionId = navLinks.length > 0 ? navLinks[0].dataset.section : 'admin-geral';
+    // Encontra o link inicial ou usa o primeiro
+    const initialSectionId = document.querySelector('.admin-nav .nav-link')?.dataset.section || 'admin-geral'; // Mais robusto
     let currentActiveSectionId = localStorage.getItem('activeAdminSection') || initialSectionId;
 
 
-    // --- Funções API ---
+    // --- Funções API --- (sem alterações)
     async function fetchAdminAPI(endpoint, options = {}) {
         // Adiciona tratamento para POST sem body esperado na resposta
-        const isPostWithoutBodyResponse = options.method === 'POST' && (endpoint.startsWith('watchlist/') || endpoint === 'actions');
+        const isPostWithoutBodyResponse = options.method === 'POST' && (endpoint.startsWith('watchlist/') || endpoint === 'actions' || endpoint === 'settings'); // Inclui settings
 
         try {
             const response = await fetch(`/api/admin/${endpoint}`, options);
@@ -72,20 +75,27 @@ document.addEventListener('DOMContentLoaded', () => {
             return response.json(); // Default: return JSON
         } catch (error) {
             console.error(`Erro na API admin em ${endpoint}:`, error);
-            const feedbackEl = document.getElementById('actions-feedback') || document.getElementById('settings-feedback') || document.getElementById('watchlist-add-feedback') || document.getElementById('watchlist-list-feedback');
+            // Determina qual feedback usar baseado na aba ativa
+            let feedbackEl = actionsFeedback; // Default
+            if (currentActiveSectionId === 'admin-configuracoes') feedbackEl = settingsFeedback;
+            else if (currentActiveSectionId === 'admin-watchlist') feedbackEl = watchlistListFeedback || watchlistAddFeedback; // Tenta os dois
+            else if (currentActiveSectionId === 'admin-geral') feedbackEl = geralFeedback;
+            else if (currentActiveSectionId === 'admin-db') feedbackEl = dbFeedback;
+
             displayFeedback(feedbackEl, `Erro: ${error.message}`, true);
             throw error; // Re-throw para indicar falha
         }
     }
 
-    // --- Funções de UI ---
+    // --- Funções de UI --- (sem alterações significativas)
     function displayFeedback(element, message, isError = false, duration = 4000) {
         if (!element) return;
         element.textContent = message;
-        element.classList.toggle('error', isError);
+        element.classList.remove('error', 'success'); // Remove ambas
+        element.classList.add(isError ? 'error' : 'success'); // Adiciona a correta
         // Clear previous timeouts if any
         if (element.timeoutId) clearTimeout(element.timeoutId);
-        element.timeoutId = setTimeout(() => { element.textContent = ''; element.classList.remove('error'); }, duration);
+        element.timeoutId = setTimeout(() => { element.textContent = ''; element.classList.remove('error', 'success'); }, duration);
     }
 
     function updateStatus(data) {
@@ -126,7 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function updateDbViewer(data) {
-        if (!data || data.error) return; // Adiciona verificação
+        if (!data || data.error) {
+             displayFeedback(dbFeedback, data?.error || 'Erro ao carregar dados do DB.', true);
+             return; // Adiciona verificação
+        }
 
         const formatDbDate = (isoString) => {
              if (!isoString) return 'N/A';
@@ -141,11 +154,20 @@ document.addEventListener('DOMContentLoaded', () => {
              td.style.cursor = 'pointer';
              td.title = 'Clique para copiar';
              td.onclick = () => {
-                 navigator.clipboard.writeText(text).then(() => {
-                     const originalText = td.textContent;
-                     td.textContent = 'Copiado!';
-                     setTimeout(() => { td.textContent = originalText; }, 1500);
-                 }).catch(err => console.error('Falha ao copiar ID:', err));
+                 // Use execCommand as fallback for clipboard
+                 const textArea = document.createElement("textarea");
+                 textArea.value = text;
+                 document.body.appendChild(textArea);
+                 textArea.select();
+                 try {
+                     const successful = document.execCommand('copy');
+                     if(successful){
+                         const originalText = td.textContent;
+                         td.textContent = 'Copiado!';
+                         setTimeout(() => { td.textContent = originalText; }, 1500);
+                     } else { throw new Error('execCommand failed'); }
+                 } catch (err) { console.error('Falha ao copiar ID:', err); }
+                 document.body.removeChild(textArea);
              };
              return td;
          };
@@ -162,6 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '<tr><td colspan="3">Nenhum registro de guerra encontrado.</td></tr>';
         } else if (dbWarsTableBody) {
              dbWarsTableBody.innerHTML = '<tr><td colspan="3">Erro ao carregar guerras.</td></tr>';
+             displayFeedback(dbFeedback, 'Erro ao carregar histórico de guerras.', true);
         }
 
         if(dbNotesTableBody && Array.isArray(data.last_notes)) { // Verifica se é array
@@ -175,10 +198,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '<tr><td colspan="3">Nenhuma nota de jogador encontrada.</td></tr>';
         } else if (dbNotesTableBody) {
              dbNotesTableBody.innerHTML = '<tr><td colspan="3">Erro ao carregar notas.</td></tr>';
+             displayFeedback(dbFeedback, 'Erro ao carregar notas de jogadores.', true);
         }
     }
 
-    // --- Watchlist Functions ---
+    // --- Watchlist Functions --- (sem alterações)
     async function loadWatchlist() {
         if (!watchlistTableBody) return;
         watchlistTableBody.innerHTML = '<tr><td colspan="6"><div class="loading-spinner" style="margin: 10px auto; width: 20px; height: 20px;"></div></td></tr>'; // Add spinner
@@ -187,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
              // A resposta pode ser um objeto com erro ou um array
             if (response.error) {
                  watchlistTableBody.innerHTML = `<tr><td colspan="6" class="error-text">Erro: ${response.error}</td></tr>`;
+                 displayFeedback(watchlistListFeedback, `Erro: ${response.error}`, true);
                  return;
             }
             // Assume que se não tem erro, é o array (pode estar vazio)
@@ -218,6 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.addEventListener('click', handleRemoveWatchlist);
             });
         } catch (error) {
+             // Erro já tratado por fetchAdminAPI, apenas atualiza a tabela
              watchlistTableBody.innerHTML = '<tr><td colspan="6" class="error-text">Erro ao carregar a lista. Verifique a consola.</td></tr>';
              console.error("Error loading watchlist:", error); // Log detailed error
         }
@@ -253,8 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   displayFeedback(watchlistAddFeedback, response.message || 'Erro desconhecido ao adicionar.', true);
              }
         } catch (error) {
-            // Error already displayed by fetchAdminAPI, just clear the loading message
-            displayFeedback(watchlistAddFeedback, `Erro: ${error.message}`, true);
+            // Error already displayed by fetchAdminAPI
         }
     }
 
@@ -282,12 +307,12 @@ document.addEventListener('DOMContentLoaded', () => {
                  loadWatchlist(); // Reload the list after successful removal or if not found
              } else {
                  // Se houve outro erro
-                 displayFeedback(watchlistListFeedback, response.message || 'Erro ao remover.', true);
+                 // Não mostra feedback aqui, pois fetchAdminAPI já mostrou
                  button.disabled = false; // Re-enable button on error
                  button.textContent = 'Remover';
              }
         } catch (error) {
-           // Error already displayed by fetchAdminAPI
+           // Error handled by fetchAdminAPI
            button.disabled = false; // Re-enable button on error
            button.textContent = 'Remover';
         }
@@ -295,7 +320,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Navegação por Abas ---
     function setActiveAdminSection(newSectionId) {
-        if (!newSectionId || newSectionId === currentActiveSectionId) return;
+        console.log(`Tentando ativar a seção: ${newSectionId}`); // Log de depuração
+        if (!newSectionId || newSectionId === currentActiveSectionId) {
+            console.log(`Seção '${newSectionId}' já ativa ou inválida.`);
+            return;
+        }
 
         const oldSectionEl = document.getElementById(currentActiveSectionId);
         const newSectionEl = document.getElementById(newSectionId);
@@ -305,102 +334,141 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        oldSectionEl?.classList.remove('active-section');
+        // Esconde a seção antiga
+        if (oldSectionEl) {
+            oldSectionEl.classList.remove('active-section');
+            console.log(`Removida classe 'active-section' de: ${currentActiveSectionId}`);
+        } else {
+            console.warn(`Elemento da seção antiga '${currentActiveSectionId}' não encontrado.`);
+        }
+
+        // Remove a classe ativa de todos os links
         navLinks.forEach(link => link?.classList.remove('active-nav-link'));
 
+        // Mostra a nova seção e ativa o link
         newSectionEl.classList.add('active-section');
+        console.log(`Adicionada classe 'active-section' a: ${newSectionId}`);
         const newLink = document.querySelector(`.admin-nav .nav-link[data-section="${newSectionId}"]`);
-        newLink?.classList.add('active-nav-link');
+        if (newLink) {
+            newLink.classList.add('active-nav-link');
+            console.log(`Adicionada classe 'active-nav-link' ao link para: ${newSectionId}`);
+        } else {
+            console.warn(`Link de navegação para a seção '${newSectionId}' não encontrado.`);
+        }
 
         localStorage.setItem('activeAdminSection', newSectionId);
         currentActiveSectionId = newSectionId;
     }
 
     // --- Carregamento Inicial e Event Listeners ---
-    async function loadAllAdminData() {
+    async function loadDataForCurrentTab() {
+        console.log(`Carregando dados para a aba: ${currentActiveSectionId}`); // Log
+        // Limpa feedbacks antigos ao carregar dados
+        [settingsFeedback, actionsFeedback, geralFeedback, dbFeedback, watchlistAddFeedback, watchlistListFeedback].forEach(el => {
+             if (el) el.textContent = '';
+        });
         try {
-            // Fetch status separadamente
+            // Sempre busca o status geral
             const status = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true, version: '?', error: 'Status fetch failed' }).catch(err => {
                  console.error("Falha ao buscar status:", err);
                  return { maintenance_mode: true, version: '?', error: 'Status fetch failed'};
             });
              updateStatus(status);
-             if (status.error) return; // Para se o status falhar
+             if (status.error && currentActiveSectionId === 'admin-geral') { // Mostra erro se for aba geral
+                 displayFeedback(geralFeedback, status.error, true);
+                 return;
+             }
 
-            // Carrega dados específicos da aba ativa primeiro
-            if (currentActiveSectionId === 'admin-diagnostico') {
-                const diagnostics = await fetchAdminAPI('diagnostics').catch(() => null);
-                updateDiagnostics(diagnostics);
-            } else if (currentActiveSectionId === 'admin-configuracoes') {
-                const settings = await fetchAdminAPI('settings').catch(() => null);
-                populateSettingsForm(settings);
-            } else if (currentActiveSectionId === 'admin-db') {
-                 const dbData = await fetchAdminAPI('db_viewer').catch(() => null);
-                 updateDbViewer(dbData);
-            } else if (currentActiveSectionId === 'admin-watchlist') {
-                 await loadWatchlist();
+            // Carrega dados específicos da aba ativa
+            switch (currentActiveSectionId) {
+                case 'admin-geral':
+                    // Status já carregado
+                    break;
+                case 'admin-diagnostico':
+                    const diagnostics = await fetchAdminAPI('diagnostics');
+                    updateDiagnostics(diagnostics);
+                    break;
+                case 'admin-configuracoes':
+                    const settings = await fetchAdminAPI('settings');
+                    populateSettingsForm(settings);
+                    break;
+                case 'admin-db':
+                     const dbData = await fetchAdminAPI('db_viewer');
+                     updateDbViewer(dbData);
+                    break;
+                case 'admin-watchlist':
+                     await loadWatchlist();
+                    break;
+                 case 'admin-acoes':
+                     // Geralmente não há dados para carregar aqui, apenas ações
+                     break;
+                default:
+                    console.warn(`Nenhuma lógica de carregamento definida para a aba: ${currentActiveSectionId}`);
             }
-
-            // Opcional: Carregar outros dados em segundo plano se necessário,
-            // mas geralmente é melhor carregar sob demanda ao clicar na aba
-            // para evitar sobrecarga inicial.
-
         } catch (error) {
-            console.error("Falha ao carregar dados do admin.", error);
-            // Pode exibir uma mensagem de erro mais genérica se necessário
+            console.error(`Falha ao carregar dados para a aba ${currentActiveSectionId}:`, error);
+            // O erro específico da API já foi mostrado por fetchAdminAPI
         }
     }
 
-    // Define a aba ativa inicial
-    setActiveAdminSection(currentActiveSectionId);
+    // --- Inicialização ---
+
+    // Define a aba ativa inicial VISUALMENTE no HTML (importante!)
+    contentSections.forEach(section => {
+        if (section) section.classList.toggle('active-section', section.id === currentActiveSectionId);
+    });
+    navLinks.forEach(link => {
+        if (link) link.classList.toggle('active-nav-link', link.dataset.section === currentActiveSectionId);
+    });
+     console.log(`Seção ativa inicial definida como: ${currentActiveSectionId}`);
 
     // Adiciona listeners aos links de navegação
     navLinks.forEach((link) => {
         link?.addEventListener('click', (e) => {
-            e.preventDefault();
+            e.preventDefault(); // Impede a navegação padrão do link '#'
             const sectionId = link.dataset.section;
-            setActiveAdminSection(sectionId);
-            // Carrega os dados da nova aba ativa
-            loadAllAdminData();
+            if (sectionId !== currentActiveSectionId) { // Só faz algo se for uma aba diferente
+                 setActiveAdminSection(sectionId);
+                 // Carrega os dados da nova aba ativa
+                 loadDataForCurrentTab();
+            }
         });
     });
 
 
-    // Attach form/button listeners only if elements exist
+    // --- Anexar Listeners para Botões e Formulários (com verificações) ---
+
     if (toggleBtn) {
         toggleBtn.addEventListener('click', async () => {
-            let originalText = toggleBtn.textContent; // Guarda texto original
+            let originalText = toggleBtn.textContent;
+            toggleBtn.disabled = true; toggleBtn.textContent = 'Aguarde...';
             try {
-                toggleBtn.disabled = true; toggleBtn.textContent = 'Aguarde...';
-                // Usa fetchAdminAPI que já trata erros
-                await fetchAdminAPI('actions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'toggle_maintenance' }) // Assumindo que a API aceita essa ação
-                 });
+                // Endpoint direto para toggle, não precisa de 'actions'
+                await fetch('/admin/toggle_maintenance', { method: 'POST' });
                  // Re-busca o status para ter certeza
                 const status = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: false }).catch(()=>({ maintenance_mode: false }));
                 updateStatus(status);
-                displayFeedback(actionsFeedback, status.maintenance_mode ? 'Modo manutenção ATIVADO.' : 'Modo manutenção DESATIVADO.');
-            } catch (error) { /* Erro já tratado por fetchAdminAPI */ }
-            finally { toggleBtn.disabled = false; toggleBtn.textContent = originalText; } // Restaura texto original
+                displayFeedback(geralFeedback, status.maintenance_mode ? 'Modo manutenção ATIVADO.' : 'Modo manutenção DESATIVADO.');
+            } catch (error) {
+                console.error('Erro ao alternar modo manutenção:', error);
+                displayFeedback(geralFeedback, `Erro: ${error.message || 'Falha na comunicação.'}`, true);
+            }
+            finally { toggleBtn.disabled = false; toggleBtn.textContent = originalText; }
         });
     }
-
 
     if (testBtn) {
         testBtn.addEventListener('click', async () => {
              let originalText = testBtn.textContent;
+            testBtn.disabled = true; testBtn.textContent = 'Enviando...';
             try {
-                testBtn.disabled = true; testBtn.textContent = 'Enviando...';
-                // Usa fetchAdminAPI
-                await fetchAdminAPI('actions', {
-                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({ action: 'send_test_embed' }) // Assumindo ação
-                 });
-                displayFeedback(actionsFeedback, "Mensagem de teste enviada!");
-            } catch (error) { /* Erro já tratado */ }
+                // Endpoint direto para teste, não precisa de 'actions'
+                await fetch('/admin/send_test_embed', { method: 'POST' });
+                displayFeedback(geralFeedback, "Mensagem de teste enviada!");
+            } catch (error) {
+                 console.error('Erro ao enviar embed de teste:', error);
+                 displayFeedback(geralFeedback, `Erro: ${error.message || 'Falha na comunicação.'}`, true);
+            }
             finally { testBtn.disabled = false; testBtn.textContent = originalText; }
         });
     }
@@ -419,7 +487,9 @@ document.addEventListener('DOMContentLoaded', () => {
                      settings[key] = parseInt(value, 10);
                  } else if (value.match(/^\d+$/) && !key.includes('message')) {
                       // Converte outros campos numéricos (exceto mensagem)
-                      settings[key] = parseInt(value, 10);
+                      // Adiciona verificação para não converter strings vazias
+                      if (value !== '') settings[key] = parseInt(value, 10);
+                      else settings[key] = null; // Ou envia null se estava vazio
                  }
                  else {
                      settings[key] = value;
@@ -483,13 +553,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
-    // Watchlist Add Form Listener
     if (addWatchlistForm) {
         addWatchlistForm.addEventListener('submit', handleAddWatchlist);
     }
 
-    // Initial load for the active tab
-    loadAllAdminData();
-    // Não precisa de setInterval aqui, carrega ao mudar de aba
+    // --- Carregamento Inicial ---
+    loadDataForCurrentTab(); // Carrega dados para a aba ativa ao iniciar
+
 });
+
