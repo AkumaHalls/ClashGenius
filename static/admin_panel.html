@@ -9,12 +9,25 @@
     <style>
         .admin-nav ul { list-style: none; padding: 0; margin: 0 0 20px 0; display: flex; flex-wrap: wrap; background-color: rgba(0,0,0,0.2); border-radius: var(--border-radius-base); padding: 5px; }
         .admin-nav li { margin: 5px; }
-        .admin-nav a { font-family: var(--font-body); color: var(--color-text-secondary); text-decoration: none; font-size: 0.9em; padding: 8px 12px; border-radius: var(--border-radius-base); transition: background-color 0.2s, color 0.2s; white-space: nowrap; font-weight: 500; display: block; }
+        .admin-nav a { font-family: var(--font-body); color: var(--color-text-secondary); text-decoration: none; font-size: 0.9em; padding: 8px 12px; border-radius: var(--border-radius-base); transition: background-color 0.2s, color 0.2s; white-space: nowrap; font-weight: 500; display: block; cursor: pointer; } /* Added cursor: pointer */
         .admin-nav a:hover { color: #ffffff; background-color: var(--color-accent-hover); }
         .admin-nav a.active-nav-link { color: #ffffff; background-color: var(--color-accent); }
         .admin-sections-wrapper { position: relative; overflow: hidden; width: 100%;} /* Similar ao painel principal */
-        .admin-section { display: none; } /* Esconde por padrão */
-        .admin-section.active-section { display: block; animation: fadeIn 0.3s;} /* Mostra ativa com fade */
+        .admin-section {
+            display: none; /* Esconde por padrão */
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out; /* Add transition for fade */
+         }
+        .admin-section.active-section {
+            display: block; /* Mostra ativa */
+            opacity: 1; /* Make it visible */
+            animation: fadeIn 0.3s; /* Optional: Keep fade-in animation if desired */
+         }
+
+         @keyframes fadeIn {
+             from { opacity: 0; }
+             to { opacity: 1; }
+         }
 
          /* Estilos dos inputs e textareas do admin para consistência */
         .admin-input, .admin-textarea, .settings-input, .settings-textarea {
@@ -58,12 +71,13 @@
             <!-- Navegação por Abas -->
             <nav class="admin-nav">
                 <ul>
-                    <li><a href="#admin-geral" class="nav-link" data-section="admin-geral">Geral</a></li>
-                    <li><a href="#admin-diagnostico" class="nav-link" data-section="admin-diagnostico">Diagnóstico</a></li>
-                    <li><a href="#admin-configuracoes" class="nav-link" data-section="admin-configuracoes">Configurações</a></li>
-                    <li><a href="#admin-watchlist" class="nav-link" data-section="admin-watchlist">Watchlist</a></li>
-                    <li><a href="#admin-acoes" class="nav-link" data-section="admin-acoes">Ações</a></li>
-                    <li><a href="#admin-db" class="nav-link" data-section="admin-db">Base de Dados</a></li>
+                    <!-- Links agora usam # como href mas confiam no data-section -->
+                    <li><a href="#" class="nav-link" data-section="admin-geral">Geral</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-diagnostico">Diagnóstico</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-configuracoes">Configurações</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-watchlist">Watchlist</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-acoes">Ações</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-db">Base de Dados</a></li>
                 </ul>
             </nav>
 
@@ -85,6 +99,8 @@
                          <h3>Informações do Sistema</h3>
                          <p><strong>Versão do Bot:</strong> <span id="bot-version-text">-</span></p>
                     </div>
+                     <!-- Feedback global para ações gerais -->
+                     <p id="geral-feedback" class="feedback-text" style="margin-top: 15px;"></p>
                 </div>
 
                 <!-- Seção Diagnóstico -->
@@ -97,7 +113,7 @@
                             <span id="api-status-message" class="status-message"></span>
                         </div>
                         <div class="logs-container">
-                            <h4>Logs Recentes do Bot</h4>
+                            <h4>Logs Recentes do Bot (Últimos 50)</h4>
                             <pre id="recent-logs-box">Carregando logs...</pre>
                         </div>
                     </div>
@@ -262,6 +278,8 @@
                             </table>
                         </div>
                          <p class="control-description">Exibe os registros mais recentes salvos no MongoDB.</p>
+                         <!-- Feedback específico para DB -->
+                         <p id="db-feedback" class="feedback-text" style="margin-top: 15px;"></p>
                     </div>
                 </div>
             </div> <!-- Fim admin-sections-wrapper -->
@@ -270,3 +288,4 @@
     <script src="/static/js/admin.js"></script>
 </body>
 </html>
+
