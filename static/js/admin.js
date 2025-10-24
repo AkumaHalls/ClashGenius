@@ -7,8 +7,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const errorMessageEl = document.getElementById('error-message');
             if(errorMessageEl) errorMessageEl.textContent = 'Senha incorreta. Tente novamente.';
         }
+        // Captura guild_id da URL, se presente
+        const guildId = urlParams.get('guild_id');
+        const guildIdInput = document.getElementById('guild_id');
+        if (guildId && guildIdInput) {
+            guildIdInput.value = guildId;
+        }
     }
 
+    // Só executa o resto se estiver no painel admin
     if (!window.location.pathname.includes('/admin/panel')) return;
 
     // --- Seletores ---
@@ -25,6 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const dbWarsTableBody = document.querySelector('#db-wars-table tbody');
     const dbNotesTableBody = document.querySelector('#db-notes-table tbody');
     const sendAnnouncementBtn = document.getElementById('send-announcement-btn');
+    const announcementChannelInput = document.getElementById('announcement-channel-id');
+    const announcementMessageInput = document.getElementById('announcement-message');
 
     // Watchlist selectors
     const addWatchlistForm = document.getElementById('admin-add-watchlist-form');
@@ -32,32 +41,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const watchlistAddFeedback = document.getElementById('watchlist-add-feedback');
     const watchlistListFeedback = document.getElementById('watchlist-list-feedback');
 
+    // Seletores para Navegação por Abas
+    const navLinks = document.querySelectorAll('.admin-nav .nav-link');
+    const contentSections = document.querySelectorAll('.admin-section');
+    const initialSectionId = navLinks.length > 0 ? navLinks[0].dataset.section : 'admin-geral';
+    let currentActiveSectionId = localStorage.getItem('activeAdminSection') || initialSectionId;
+
 
     // --- Funções API ---
     async function fetchAdminAPI(endpoint, options = {}) {
+        // Adiciona tratamento para POST sem body esperado na resposta
+        const isPostWithoutBodyResponse = options.method === 'POST' && (endpoint.startsWith('watchlist/') || endpoint === 'actions');
+
         try {
             const response = await fetch(`/api/admin/${endpoint}`, options);
+
+            if (response.status === 204) return { status: 'success', message: 'Operação concluída.' }; // Handle No Content globally
+
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: `Erro HTTP ${response.status}` }));
                 throw new Error(errorData.message || `Falha ao acessar ${endpoint}`);
             }
-             // Handle 204 No Content for successful deletions/updates without body
-            if (response.status === 204) return { status: 'success', message: 'Operação concluída.'};
-            // Handle successful POST/DELETE with body
-            if (options.method === 'POST' && response.status === 200) {
-                 const data = await response.json();
-                 // Assume success if status is ok and there's a message
-                 if (data.status === 'success' || data.message) {
-                      return data;
-                 }
+
+            // Para POSTs específicos que podem não retornar JSON mas indicam sucesso com 200 OK
+            if (isPostWithoutBodyResponse && response.status === 200) {
+                 // Tenta pegar JSON, se falhar, retorna sucesso genérico
+                 try { return await response.json(); } catch(e) { return { status: 'success', message: 'Ação executada.' }; }
             }
-            // Default: return JSON for GET or if specific success conditions not met
-            return response.json();
+
+            return response.json(); // Default: return JSON
         } catch (error) {
             console.error(`Erro na API admin em ${endpoint}:`, error);
             const feedbackEl = document.getElementById('actions-feedback') || document.getElementById('settings-feedback') || document.getElementById('watchlist-add-feedback') || document.getElementById('watchlist-list-feedback');
             displayFeedback(feedbackEl, `Erro: ${error.message}`, true);
-            throw error; // Re-throw to indicate failure
+            throw error; // Re-throw para indicar falha
         }
     }
 
@@ -80,17 +97,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateDiagnostics(data) {
+        if (!data) return; // Adiciona verificação
         const { api_status, recent_logs } = data;
-        if(apiStatusBadge) {
+        if(apiStatusBadge && api_status) { // Adiciona verificação para api_status
             apiStatusBadge.className = `status-badge status-${api_status.status}`;
             apiStatusBadge.textContent = api_status.status === 'ok' ? 'Operacional' : (api_status.status === 'maintenance' ? 'Manutenção' : 'Erro');
         }
-        if(apiStatusMessage) apiStatusMessage.textContent = api_status.message;
-        if(recentLogsBox) recentLogsBox.textContent = recent_logs.length > 0 ? recent_logs.join('\n') : 'Nenhum log recente.';
+        if(apiStatusMessage && api_status) apiStatusMessage.textContent = api_status.message; // Adiciona verificação para api_status
+        if(recentLogsBox) recentLogsBox.textContent = Array.isArray(recent_logs) && recent_logs.length > 0 ? recent_logs.join('\n') : 'Nenhum log recente.'; // Verifica se é array
     }
 
     function populateSettingsForm(data) {
-        if (data.error || !settingsForm) return;
+        if (!data || data.error || !settingsForm) return;
         for (const key in data) {
             const input = document.getElementById(key);
             if (input) {
@@ -108,16 +126,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function updateDbViewer(data) {
-        if (data.error) return;
-        if(dbWarsTableBody) {
-            dbWarsTableBody.innerHTML = data.last_wars.length > 0
-                ? data.last_wars.map(w => `<tr><td>${w.opponent}</td><td>${w.end_time ? new Date(w.end_time).toLocaleString('pt-BR') : 'N/A'}</td><td>${w.id}</td></tr>`).join('')
-                : '<tr><td colspan="3">Nenhum registro de guerra encontrado.</td></tr>';
+        if (!data || data.error) return; // Adiciona verificação
+
+        const formatDbDate = (isoString) => {
+             if (!isoString) return 'N/A';
+             try { return new Date(isoString).toLocaleString('pt-BR'); }
+             catch(e) { return 'Data Inválida'; }
         }
-        if(dbNotesTableBody) {
+
+        const createClickToCopyCell = (text) => {
+             if (!text) return '<td>N/A</td>';
+             const td = document.createElement('td');
+             td.textContent = text;
+             td.style.cursor = 'pointer';
+             td.title = 'Clique para copiar';
+             td.onclick = () => {
+                 navigator.clipboard.writeText(text).then(() => {
+                     const originalText = td.textContent;
+                     td.textContent = 'Copiado!';
+                     setTimeout(() => { td.textContent = originalText; }, 1500);
+                 }).catch(err => console.error('Falha ao copiar ID:', err));
+             };
+             return td;
+         };
+
+
+        if(dbWarsTableBody && Array.isArray(data.last_wars)) { // Verifica se é array
+            dbWarsTableBody.innerHTML = data.last_wars.length > 0
+                ? data.last_wars.map(w => {
+                     const row = document.createElement('tr');
+                     row.innerHTML = `<td>${w.opponent || 'N/A'}</td><td>${formatDbDate(w.end_time)}</td>`;
+                     row.appendChild(createClickToCopyCell(w.id)); // Adiciona célula clicável
+                     return row.outerHTML;
+                  }).join('')
+                : '<tr><td colspan="3">Nenhum registro de guerra encontrado.</td></tr>';
+        } else if (dbWarsTableBody) {
+             dbWarsTableBody.innerHTML = '<tr><td colspan="3">Erro ao carregar guerras.</td></tr>';
+        }
+
+        if(dbNotesTableBody && Array.isArray(data.last_notes)) { // Verifica se é array
             dbNotesTableBody.innerHTML = data.last_notes.length > 0
-                ? data.last_notes.map(n => `<tr><td>${n.player_tag}</td><td>${n.note}</td><td class="priority-cell priority-${n.priority}">${n.priority}</td></tr>`).join('')
+                ? data.last_notes.map(n => `
+                    <tr>
+                        <td>${n.player_tag || 'N/A'}</td>
+                        <td>${n.note || '-'}</td>
+                        <td class="priority-cell priority-${n.priority || 'none'}">${n.priority || 'none'}</td>
+                    </tr>`).join('')
                 : '<tr><td colspan="3">Nenhuma nota de jogador encontrada.</td></tr>';
+        } else if (dbNotesTableBody) {
+             dbNotesTableBody.innerHTML = '<tr><td colspan="3">Erro ao carregar notas.</td></tr>';
         }
     }
 
@@ -126,12 +183,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!watchlistTableBody) return;
         watchlistTableBody.innerHTML = '<tr><td colspan="6"><div class="loading-spinner" style="margin: 10px auto; width: 20px; height: 20px;"></div></td></tr>'; // Add spinner
         try {
-            const watchlist = await fetchAdminAPI('watchlist'); // Uses GET by default
-            if (watchlist.error) {
-                 watchlistTableBody.innerHTML = `<tr><td colspan="6" class="error-text">Erro: ${watchlist.error}</td></tr>`;
+            const response = await fetchAdminAPI('watchlist'); // Uses GET by default
+             // A resposta pode ser um objeto com erro ou um array
+            if (response.error) {
+                 watchlistTableBody.innerHTML = `<tr><td colspan="6" class="error-text">Erro: ${response.error}</td></tr>`;
                  return;
             }
-            if (!Array.isArray(watchlist) || watchlist.length === 0) {
+            // Assume que se não tem erro, é o array (pode estar vazio)
+            const watchlist = Array.isArray(response) ? response : [];
+
+            if (watchlist.length === 0) {
                  watchlistTableBody.innerHTML = '<tr><td colspan="6">Nenhum jogador na lista de observação.</td></tr>';
                  return;
             }
@@ -139,16 +200,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 let dateStr = '-';
                 if (player.date_added) {
                      try { dateStr = new Date(player.date_added).toLocaleDateString('pt-BR'); }
-                     catch(e) { console.warn("Invalid date format from watchlist:", player.date_added); }
+                     catch(e) { console.warn("Invalid date format from watchlist:", player.date_added); dateStr = player.date_added; } // Usa a string se der erro
                 }
                 return `
                 <tr>
                     <td>${player.name || 'N/A'}</td>
-                    <td>${player._id}</td>
+                    <td>${player._id || 'N/A'}</td>
                     <td>${player.reason || '-'}</td>
                     <td>${player.details || '-'}</td>
                     <td>${dateStr}</td>
-                    <td><button class="admin-remove-btn" data-tag="${player._id}">Remover</button></td>
+                    <td><button class="admin-remove-btn" data-tag="${player._id || ''}">Remover</button></td>
                 </tr>`;
             }).join('');
 
@@ -182,11 +243,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            displayFeedback(watchlistAddFeedback, response.message);
-            if (response.status === 'success') {
-                addWatchlistForm.reset();
-                loadWatchlist(); // Reload the list
-            }
+            // A resposta pode ou não ter uma 'message', mas o status indica sucesso
+             displayFeedback(watchlistAddFeedback, response.message || 'Jogador adicionado/atualizado.');
+             if (response.status === 'success' || !response.error) { // Considera sucesso se não houver erro explícito
+                 addWatchlistForm.reset();
+                 loadWatchlist(); // Reload the list
+             } else {
+                  // Se houve erro específico retornado pela API
+                  displayFeedback(watchlistAddFeedback, response.message || 'Erro desconhecido ao adicionar.', true);
+             }
         } catch (error) {
             // Error already displayed by fetchAdminAPI, just clear the loading message
             displayFeedback(watchlistAddFeedback, `Erro: ${error.message}`, true);
@@ -210,68 +275,133 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ player_tag: playerTag })
             });
-            displayFeedback(watchlistListFeedback, response.message || "Operação concluída."); // Show message from backend
-            loadWatchlist(); // Reload the list after successful removal or if not found
+
+             // Verifica se a resposta indica sucesso ou item não encontrado
+             if (response.status === 'success' || response.status === 'not_found' || !response.error) {
+                 displayFeedback(watchlistListFeedback, response.message || "Operação concluída.");
+                 loadWatchlist(); // Reload the list after successful removal or if not found
+             } else {
+                 // Se houve outro erro
+                 displayFeedback(watchlistListFeedback, response.message || 'Erro ao remover.', true);
+                 button.disabled = false; // Re-enable button on error
+                 button.textContent = 'Remover';
+             }
         } catch (error) {
            // Error already displayed by fetchAdminAPI
            button.disabled = false; // Re-enable button on error
            button.textContent = 'Remover';
         }
-        // Button state is handled by reloading the list on success
     }
 
+    // --- Navegação por Abas ---
+    function setActiveAdminSection(newSectionId) {
+        if (!newSectionId || newSectionId === currentActiveSectionId) return;
+
+        const oldSectionEl = document.getElementById(currentActiveSectionId);
+        const newSectionEl = document.getElementById(newSectionId);
+
+        if (!newSectionEl) {
+            console.warn(`Admin section with ID "${newSectionId}" not found.`);
+            return;
+        }
+
+        oldSectionEl?.classList.remove('active-section');
+        navLinks.forEach(link => link?.classList.remove('active-nav-link'));
+
+        newSectionEl.classList.add('active-section');
+        const newLink = document.querySelector(`.admin-nav .nav-link[data-section="${newSectionId}"]`);
+        newLink?.classList.add('active-nav-link');
+
+        localStorage.setItem('activeAdminSection', newSectionId);
+        currentActiveSectionId = newSectionId;
+    }
 
     // --- Carregamento Inicial e Event Listeners ---
     async function loadAllAdminData() {
         try {
-            // Fetch status separately as it doesn't require admin auth
-            const status = await fetch('/api/status').then(res => res.json()).catch(err => {
-                 console.error("Failed to fetch status:", err);
-                 return { maintenance_mode: true, version: '?', error: 'Status fetch failed'}; // Assume maintenance if status fails
+            // Fetch status separadamente
+            const status = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true, version: '?', error: 'Status fetch failed' }).catch(err => {
+                 console.error("Falha ao buscar status:", err);
+                 return { maintenance_mode: true, version: '?', error: 'Status fetch failed'};
             });
              updateStatus(status);
-             if (status.error) return; // Stop if status fetch failed
+             if (status.error) return; // Para se o status falhar
 
-            const [diagnostics, settings, dbData] = await Promise.all([
-                fetchAdminAPI('diagnostics'),
-                fetchAdminAPI('settings'),
-                fetchAdminAPI('db_viewer')
-            ]);
+            // Carrega dados específicos da aba ativa primeiro
+            if (currentActiveSectionId === 'admin-diagnostico') {
+                const diagnostics = await fetchAdminAPI('diagnostics').catch(() => null);
+                updateDiagnostics(diagnostics);
+            } else if (currentActiveSectionId === 'admin-configuracoes') {
+                const settings = await fetchAdminAPI('settings').catch(() => null);
+                populateSettingsForm(settings);
+            } else if (currentActiveSectionId === 'admin-db') {
+                 const dbData = await fetchAdminAPI('db_viewer').catch(() => null);
+                 updateDbViewer(dbData);
+            } else if (currentActiveSectionId === 'admin-watchlist') {
+                 await loadWatchlist();
+            }
 
-            updateDiagnostics(diagnostics);
-            populateSettingsForm(settings);
-            updateDbViewer(dbData);
-            loadWatchlist(); // Load watchlist data
+            // Opcional: Carregar outros dados em segundo plano se necessário,
+            // mas geralmente é melhor carregar sob demanda ao clicar na aba
+            // para evitar sobrecarga inicial.
 
         } catch (error) {
             console.error("Falha ao carregar dados do admin.", error);
-            // Don't show generic error if specific handled by fetchAdminAPI
+            // Pode exibir uma mensagem de erro mais genérica se necessário
         }
     }
+
+    // Define a aba ativa inicial
+    setActiveAdminSection(currentActiveSectionId);
+
+    // Adiciona listeners aos links de navegação
+    navLinks.forEach((link) => {
+        link?.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sectionId = link.dataset.section;
+            setActiveAdminSection(sectionId);
+            // Carrega os dados da nova aba ativa
+            loadAllAdminData();
+        });
+    });
+
 
     // Attach form/button listeners only if elements exist
     if (toggleBtn) {
         toggleBtn.addEventListener('click', async () => {
+            let originalText = toggleBtn.textContent; // Guarda texto original
             try {
                 toggleBtn.disabled = true; toggleBtn.textContent = 'Aguarde...';
-                await fetch('/admin/toggle_maintenance', { method: 'POST' });
-                const status = await fetch('/api/status').then(res => res.json());
+                // Usa fetchAdminAPI que já trata erros
+                await fetchAdminAPI('actions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'toggle_maintenance' }) // Assumindo que a API aceita essa ação
+                 });
+                 // Re-busca o status para ter certeza
+                const status = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: false }).catch(()=>({ maintenance_mode: false }));
                 updateStatus(status);
                 displayFeedback(actionsFeedback, status.maintenance_mode ? 'Modo manutenção ATIVADO.' : 'Modo manutenção DESATIVADO.');
-            } catch (error) { console.error('Erro ao alternar modo manutenção:', error); displayFeedback(actionsFeedback, `Erro: ${error.message}`, true); }
-            finally { toggleBtn.disabled = false; toggleBtn.textContent = 'Ativar/Desativar'; }
+            } catch (error) { /* Erro já tratado por fetchAdminAPI */ }
+            finally { toggleBtn.disabled = false; toggleBtn.textContent = originalText; } // Restaura texto original
         });
     }
 
 
     if (testBtn) {
         testBtn.addEventListener('click', async () => {
+             let originalText = testBtn.textContent;
             try {
                 testBtn.disabled = true; testBtn.textContent = 'Enviando...';
-                await fetch('/admin/send_test_embed', { method: 'POST' });
+                // Usa fetchAdminAPI
+                await fetchAdminAPI('actions', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ action: 'send_test_embed' }) // Assumindo ação
+                 });
                 displayFeedback(actionsFeedback, "Mensagem de teste enviada!");
-            } catch (error) { console.error('Erro ao enviar embed de teste:', error); displayFeedback(actionsFeedback, `Erro: ${error.message}`, true); }
-            finally { testBtn.disabled = false; testBtn.textContent = 'Enviar Mensagem de Teste'; }
+            } catch (error) { /* Erro já tratado */ }
+            finally { testBtn.disabled = false; testBtn.textContent = originalText; }
         });
     }
 
@@ -285,8 +415,13 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (key === "auto_add_watchlist_enabled") {
                     settings[key] = value === 'true'; // Convert select string to boolean
                 } else if (key.includes('_id') && value.match(/^\d+$/)) {
-                     settings[key] = parseInt(value, 10); // Convert IDs to numbers if they are digits
-                 } else {
+                     // Converte apenas se for número e tiver ID no nome
+                     settings[key] = parseInt(value, 10);
+                 } else if (value.match(/^\d+$/) && !key.includes('message')) {
+                      // Converte outros campos numéricos (exceto mensagem)
+                      settings[key] = parseInt(value, 10);
+                 }
+                 else {
                      settings[key] = value;
                  }
             }
@@ -298,7 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(settings)
                 });
-                displayFeedback(settingsFeedback, response.message);
+                displayFeedback(settingsFeedback, response.message || 'Configurações salvas.');
             } catch(error) { /* Error handled by fetchAdminAPI */ }
         });
     }
@@ -306,8 +441,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.action-btn').forEach(button => {
         button.addEventListener('click', async () => {
+             let originalText = button.textContent;
+             button.disabled = true; button.textContent = 'Executando...';
             const action = button.dataset.action;
-            const payload = JSON.parse(button.dataset.payload);
+            const payload = JSON.parse(button.dataset.payload || '{}'); // Garante que payload seja objeto
             displayFeedback(actionsFeedback, `Executando ${action}...`);
             try {
                 const response = await fetchAdminAPI('actions', {
@@ -315,19 +452,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action, payload })
                 });
-                displayFeedback(actionsFeedback, response.message);
+                displayFeedback(actionsFeedback, response.message || `Ação '${action}' concluída.`);
             } catch (error) { /* Error handled by fetchAdminAPI */ }
+             finally { button.disabled = false; button.textContent = originalText; }
         });
     });
 
     if (sendAnnouncementBtn) {
         sendAnnouncementBtn.addEventListener('click', async () => {
-            const channelIdInput = document.getElementById('announcement-channel-id');
-            const messageInput = document.getElementById('announcement-message');
-            const channelId = channelIdInput.value;
-            const message = messageInput.value;
+            let originalText = sendAnnouncementBtn.textContent;
+            sendAnnouncementBtn.disabled = true; sendAnnouncementBtn.textContent = 'Enviando...';
+            const channelId = announcementChannelInput?.value; // Usa optional chaining
+            const message = announcementMessageInput?.value;
             if (!channelId || !channelId.match(/^\d+$/) || !message) {
                  displayFeedback(actionsFeedback, "Preencha um ID de canal válido e a mensagem.", true);
+                 sendAnnouncementBtn.disabled = false; sendAnnouncementBtn.textContent = originalText;
                  return;
             }
             displayFeedback(actionsFeedback, 'Enviando anúncio...');
@@ -337,9 +476,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'send_announcement', payload: { channel_id: channelId, message: message }})
                 });
-                displayFeedback(actionsFeedback, response.message);
-                 if(response.status === 'success') messageInput.value = ''; // Clear message on success
+                displayFeedback(actionsFeedback, response.message || 'Anúncio enviado.');
+                 if((response.status === 'success' || !response.error) && announcementMessageInput) announcementMessageInput.value = ''; // Clear message on success
             } catch (error) { /* Error handled by fetchAdminAPI */ }
+             finally { sendAnnouncementBtn.disabled = false; sendAnnouncementBtn.textContent = originalText; }
         });
     }
 
@@ -349,8 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addWatchlistForm.addEventListener('submit', handleAddWatchlist);
     }
 
-    // Initial load and periodic refresh
+    // Initial load for the active tab
     loadAllAdminData();
-    setInterval(loadAllAdminData, 30000); // Refresh every 30 seconds
+    // Não precisa de setInterval aqui, carrega ao mudar de aba
 });
-
