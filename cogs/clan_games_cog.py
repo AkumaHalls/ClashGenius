@@ -8,10 +8,10 @@ import pytz
 import datetime
 from typing import Optional, List # Adicionado List
 import math # Adicionado math
+import asyncio # <<< ADICIONADO IMPORT
 
 logger = logging.getLogger("clan_games_cog")
 
-# CORREÇÃO AQUI: Adicionado `name="Gerenciador de Doações"` -> Nome correto é "Jogos do Clã"
 class ClanGamesCog(commands.Cog, name="Jogos do Clã"): # Nome corrigido
     """Cog para gerenciar todas as funcionalidades dos Jogos do Clã."""
 
@@ -48,7 +48,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"): # Nome corrigido
             if embeds: # Se for uma lista de embeds
                 for emb in embeds:
                     await channel.send(embed=emb)
-                    await asyncio.sleep(0.5) # Pequeno delay entre embeds
+                    await asyncio.sleep(0.5) # Pequeno delay entre embeds <<< USA asyncio importado
             elif embed: # Se for um único embed
                 await channel.send(embed=embed)
             elif message: # Se for apenas texto
@@ -254,7 +254,6 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"): # Nome corrigido
                         current_achievement = player.get_achievement("Games Champion")
                         current_points_value = current_achievement.value if current_achievement else 0
                         # Como não temos snapshot, o score é o valor atual (assume que começou do 0)
-                        # Idealmente, precisaríamos de um snapshot inicial para TODOS, mas isso aproxima.
                         if current_points_value > 0:
                              score = current_points_value # Score é o total, pois não há 'initial'
                              player_scores.append({"name": member.name + " *", "score": score, "tag": member.tag}) # Marca com *
@@ -293,44 +292,69 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"): # Nome corrigido
             current_embed = embed
             players_with_score = [p for p in player_scores if p['score'] > 0]
             total_players_with_score = len(players_with_score)
-            num_fields_needed = math.ceil(total_players_with_score / MAX_PLAYERS_PER_FIELD) if total_players_with_score > 0 else 1 # Pelo menos 1 campo (ou msg 'ninguém')
             embed_index = 0 # Índice do embed atual (0 para o principal)
 
             if not players_with_score:
-                 current_embed.add_field(name="Participantes (0)", value="Ninguém pontuou ainda.", inline=False)
+                 # Adiciona ao primeiro embed
+                 embeds_to_send[0].add_field(name="Participantes (0)", value="Ninguém pontuou ainda.", inline=False)
             else:
-                for i in range(0, total_players_with_score, MAX_PLAYERS_PER_FIELD):
-                    chunk = players_with_score[i:i + MAX_PLAYERS_PER_FIELD]
-                    field_name = f"🏆 Contribuidores ({i + 1} - {i + len(chunk)})"
-                    field_value = ""
-                    rank_offset = i + 1 # Para o ranking correto
+                current_field_value = ""
+                field_name_base = "🏆 Contribuidores"
+                player_count_in_field = 0
+                total_fields_added = 0 # Contador geral de campos adicionados (excluindo cabeçalho)
 
-                    for rank, player in enumerate(chunk, start=rank_offset):
-                         line = f"`{rank}.` **{player['name']}**: {player['score']:,} pontos\n"
-                         # Verifica se adicionar a linha excede o limite de caracteres do campo
-                         if len(field_value) + len(line) > 1024:
-                             # Se exceder, finaliza o campo atual e começa um novo (se possível)
-                             current_embed.add_field(name=field_name, value=field_value, inline=False)
-                             field_value = line # Começa o novo valor com a linha atual
-                             field_name += " (cont.)" # Indica continuação
-                             # Verifica se precisa de um novo embed
-                             if len(current_embed.fields) >= MAX_FIELDS_PER_EMBED:
-                                 embed_index += 1
-                                 current_embed = discord.Embed(title=f"{embed_title} (Página {embed_index + 1})", color=discord.Color.gold())
-                                 if clan.badge: current_embed.set_thumbnail(url=clan.badge.url)
-                                 embeds_to_send.append(current_embed)
-                         else:
-                              field_value += line
+                for rank, player in enumerate(players_with_score, start=1):
+                    line = f"`{rank}.` **{player['name']}**: {player['score']:,} pontos\n"
 
-                    # Adiciona o último (ou único) pedaço do campo
-                    if field_value:
-                        # Verifica se precisa de um novo embed antes de adicionar o último campo
-                        if len(current_embed.fields) >= MAX_FIELDS_PER_EMBED:
-                            embed_index += 1
-                            current_embed = discord.Embed(title=f"{embed_title} (Página {embed_index + 1})", color=discord.Color.gold())
-                            if clan.badge: current_embed.set_thumbnail(url=clan.badge.url)
-                            embeds_to_send.append(current_embed)
-                        current_embed.add_field(name=field_name, value=field_value, inline=False)
+                    # Verifica se adicionar a linha OU iniciar um novo campo excederia os limites
+                    new_field_needed = player_count_in_field == 0
+                    embed_would_be_full = len(current_embed.fields) >= MAX_FIELDS_PER_EMBED
+                    field_value_would_be_full = len(current_field_value) + len(line) > 1024
+                    field_player_count_would_be_full = player_count_in_field >= MAX_PLAYERS_PER_FIELD
+
+                    # Condição para criar um novo embed
+                    if embed_would_be_full and new_field_needed:
+                        # Finaliza campo anterior se houver
+                        if current_field_value:
+                            start_rank = rank - player_count_in_field
+                            field_name = f"{field_name_base} ({start_rank} - {rank - 1})"
+                            current_embed.add_field(name=field_name, value=current_field_value, inline=False)
+                            total_fields_added += 1
+
+                        # Cria novo embed
+                        embed_index += 1
+                        current_embed = discord.Embed(title=f"{embed_title} (Página {embed_index + 1})", color=discord.Color.gold())
+                        if clan.badge: current_embed.set_thumbnail(url=clan.badge.url)
+                        embeds_to_send.append(current_embed)
+                        current_field_value = ""
+                        player_count_in_field = 0
+                        # Não precisa resetar total_fields_added
+
+                    # Condição para criar um novo campo (no embed atual ou novo)
+                    elif field_value_would_be_full or field_player_count_would_be_full:
+                        if current_field_value: # Só adiciona se tiver conteúdo
+                             start_rank = rank - player_count_in_field
+                             field_name = f"{field_name_base} ({start_rank} - {rank - 1})"
+                             current_embed.add_field(name=field_name, value=current_field_value, inline=False)
+                             total_fields_added += 1
+                        current_field_value = ""
+                        player_count_in_field = 0
+
+                    # Adiciona a linha ao campo atual
+                    current_field_value += line
+                    player_count_in_field += 1
+
+                # Adiciona o último campo pendente
+                if current_field_value:
+                    start_rank = total_players_with_score - player_count_in_field + 1
+                    field_name = f"{field_name_base} ({start_rank} - {total_players_with_score})"
+                    # Verifica se precisa de novo embed para o último campo
+                    if len(current_embed.fields) >= MAX_FIELDS_PER_EMBED:
+                         embed_index += 1
+                         current_embed = discord.Embed(title=f"{embed_title} (Página {embed_index + 1})", color=discord.Color.gold())
+                         if clan.badge: current_embed.set_thumbnail(url=clan.badge.url)
+                         embeds_to_send.append(current_embed)
+                    current_embed.add_field(name=field_name, value=current_field_value, inline=False)
 
 
             # --- Envio ---
@@ -341,7 +365,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"): # Nome corrigido
                     emb_to_send.timestamp = datetime.datetime.now(self.bot.timezone)
                     emb_to_send.set_footer(text=f"ClashGenius | Página {i + 1}/{len(embeds_to_send)}")
                     await ctx.send(embed=emb_to_send)
-                    if len(embeds_to_send) > 1: await asyncio.sleep(0.5)
+                    if len(embeds_to_send) > 1: await asyncio.sleep(0.5) # <<< USA asyncio importado
             else:
                  # Envia para o canal configurado
                  # Adiciona timestamp e rodapé
@@ -371,3 +395,4 @@ async def setup(bot: commands.Bot):
         await bot.add_cog(ClanGamesCog(bot))
     else:
         logger.warning("Cog 'ClanGamesCog' não carregado (ID do canal ou DB não configurado).")
+
