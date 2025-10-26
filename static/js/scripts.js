@@ -877,6 +877,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const noteText = m.note || 'Clique para editar...';
             const notePriority = m.note_priority || 'none';
 
+            // *** NOVO: Formata a data da última guerra (se existir) ***
+            let lastWarDateFormatted = 'N/A';
+            if (m.last_war_date) {
+                try {
+                    const date = new Date(m.last_war_date);
+                    // Formata para dd/mm/aaaa
+                    lastWarDateFormatted = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                } catch (e) {
+                    console.warn(`Data inválida de última guerra para ${m.name}: ${m.last_war_date}`);
+                    lastWarDateFormatted = 'Inválida';
+                }
+            }
+            const lastWarHtml = `<span class="member-last-war">Última Guerra: ${lastWarDateFormatted}</span>`;
+            // *** FIM NOVO ***
+
             return `
             <div class="member-card ${watchlistClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
                 <div class="member-card-header" data-player-tag="${m.tag || ''}">
@@ -890,6 +905,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="member-card-stats">
                     <span>🎁 Doadas: ${m.donations || 0}</span>
                     <span>📥 Recebidas: ${m.received || 0}</span>
+                    ${lastWarHtml} <!-- *** NOVO: Adiciona a data da última guerra *** -->
                 </div>
                 <div class="member-card-note">
                     <div class="note-container note-priority-${notePriority}">
@@ -1006,12 +1022,37 @@ document.addEventListener('DOMContentLoaded', () => {
         setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar perfil do membro...</p>');
         memberProfileModal.style.display = 'block';
 
-        const profileData = await fetchData(`player_profile/${encodeURIComponent(playerTag)}`);
+        // *** ATUALIZAÇÃO: Busca os dados completos do membro, que agora incluem a data da guerra ***
+        const membersData = await fetchData('members');
+        let profileData = null;
+        if (membersData && !membersData.error && membersData.members) {
+            profileData = membersData.members.find(m => m.tag === playerTag);
+        }
+
+        // Se não encontrou nos membros (pode ter saído), busca pela API individual
+        if (!profileData) {
+            profileData = await fetchData(`player_profile/${encodeURIComponent(playerTag)}`);
+        }
+        // *** FIM ATUALIZAÇÃO ***
 
         if (!profileData || profileData.error) {
             setHtml(memberProfileContent, `<p class="message-box">${profileData?.error || 'Erro ao carregar perfil.'}</p>`);
             return;
         }
+
+        // *** NOVO: Formata a data da última guerra para exibição ***
+        let lastWarDateFormatted = 'N/A';
+        if (profileData.last_war_date) {
+            try {
+                const date = new Date(profileData.last_war_date);
+                lastWarDateFormatted = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            } catch (e) {
+                console.warn(`Data inválida de última guerra para ${profileData.name}: ${profileData.last_war_date}`);
+                lastWarDateFormatted = 'Inválida';
+            }
+        }
+        const lastWarHtml = `<div class="profile-stat-card"><h4>Última Guerra</h4><p>${lastWarDateFormatted}</p></div>`;
+        // *** FIM NOVO ***
 
         const heroesHtml = profileData.heroes?.map(hero => `
             <div class="hero-item">
@@ -1035,6 +1076,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies || 0}</p></div>
                     <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations || 0}</p></div>
                     <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received || 0}</p></div>
+                    ${lastWarHtml} <!-- *** NOVO: Adiciona o card da última guerra aqui *** -->
                 </div>
                 ${cwlStatusHtml}
             </div>`;
