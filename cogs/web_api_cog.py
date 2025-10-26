@@ -107,7 +107,7 @@ class WebApiCog(commands.Cog, name="Web API"):
                 all_attacks_data.append({
                     "order": getattr(attack, 'order', 0),
                     "attacker_clan_tag": getattr(getattr(attacker, 'clan', None), 'tag', None),
-                    "attacker_tag": getattr(attacker, 'tag', getattr(attack, 'attacker_tag', '?')),
+                    "attacker_tag": getattr(attacker, 'tag', getattr(attack, 'attacker_tag', '?')), # Salva a tag do atacante
                     "attacker_name": getattr(attacker, 'name', getattr(attack, 'attacker_tag', '?')),
                     "attacker_townhall": getattr(attacker, 'town_hall', '?'),
                     "defender_name": getattr(defender, 'name', getattr(attack, 'defender_tag', '?')),
@@ -206,10 +206,35 @@ class WebApiCog(commands.Cog, name="Web API"):
              logger.error("WatchlistCog não carregado em fetch_clan_members_for_web.")
              # Não define como None, apenas loga
 
+        # *** NOVO: Busca as últimas datas de guerra para todos de uma vez ***
+        last_war_dates = {}
+        if self.db:
+            try:
+                # Agrega para encontrar a data mais recente por jogador que participou
+                pipeline = [
+                    {"$unwind": "$our_clan_members_in_war"},
+                    {"$sort": {"war_data.end_time_iso": DESCENDING}},
+                    {"$group": {
+                        "_id": "$our_clan_members_in_war.tag",
+                        "last_war_date": {"$first": "$war_data.end_time_iso"}
+                    }}
+                ]
+                results = await self.db.war_history.aggregate(pipeline).to_list(length=None)
+                last_war_dates = {item["_id"]: item["last_war_date"] for item in results}
+                logger.info(f"Encontradas últimas datas de guerra para {len(last_war_dates)} jogadores.")
+            except Exception as e:
+                logger.error(f"Erro ao buscar últimas datas de guerra: {e}")
+        # *** FIM NOVO ***
+
+
         for member in clan.members:
             note_data = player_notes.get(member.tag, {})
             # Verifica se watchlist_cog existe antes de chamar
             watchlist_entry = await watchlist_cog.is_on_watchlist(member.tag) if watchlist_cog else None
+
+            # *** NOVO: Adiciona a data da última guerra ***
+            last_war_date_iso = last_war_dates.get(member.tag)
+            # *** FIM NOVO ***
 
             members_list.append({
                 "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
@@ -221,7 +246,8 @@ class WebApiCog(commands.Cog, name="Web API"):
                 "cwl_status": note_data.get("cwl_status", "active"),
                 "isOnWatchlist": bool(watchlist_entry),
                 "watchlistReason": watchlist_entry.get('reason', None) if watchlist_entry else None,
-                "watchlistDetails": watchlist_entry.get('details', None) if watchlist_entry else None
+                "watchlistDetails": watchlist_entry.get('details', None) if watchlist_entry else None,
+                "last_war_date": last_war_date_iso # *** NOVO *** Adiciona a data (ou None)
             })
         role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
         sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
