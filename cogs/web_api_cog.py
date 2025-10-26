@@ -208,7 +208,8 @@ class WebApiCog(commands.Cog, name="Web API"):
 
         # *** NOVO: Busca as últimas datas de guerra para todos de uma vez ***
         last_war_dates = {}
-        if self.db:
+        # *** CORREÇÃO: Usar 'is not None' para verificar o DB ***
+        if self.db is not None:
             try:
                 # Agrega para encontrar a data mais recente por jogador que participou
                 pipeline = [
@@ -254,7 +255,7 @@ class WebApiCog(commands.Cog, name="Web API"):
         return {"clan_name": clan.name, "members": sorted_members, "version": self.bot.bot_version}
 
     async def fetch_missed_attacks_history_for_web(self):
-        # (Código mantido igual)
+        # *** CORREÇÃO: Usar 'is not None' para verificar o DB ***
         if self.db is None: return {"error": "Histórico indisponível (DB não conectado)."}
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã para o histórico."}
@@ -291,7 +292,7 @@ class WebApiCog(commands.Cog, name="Web API"):
         return {"clan_name": clan.name, "wars_with_missed_attacks": wars_with_missed_attacks}
 
     async def fetch_war_log_for_web(self):
-        # (Código mantido igual)
+        # *** CORREÇÃO: Usar 'is not None' para verificar o DB ***
         if self.db is None: return {"error": "Histórico indisponível (DB não conectado)."}
         log_cursor = self.db.war_history.find({}, {"war_data": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(50)
         entries = []
@@ -354,7 +355,7 @@ class WebApiCog(commands.Cog, name="Web API"):
 
 
     async def fetch_highlights_for_web(self):
-        # (Código mantido igual)
+        # *** CORREÇÃO: Usar 'is not None' para verificar o DB ***
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
         if not clan: return {"error": "Não foi possível carregar destaques."}
         top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]]
@@ -385,3 +386,4 @@ class WebApiCog(commands.Cog, name="Web API"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WebApiCog(bot))
+
