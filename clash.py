@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 
 import discord
 from discord.ext import commands
-import coc
+import coc # <<< GARANTIR QUE coc ESTÁ IMPORTADO DIRETAMENTE
 import pytz
 from dotenv import load_dotenv
 import motor.motor_asyncio
@@ -219,7 +219,8 @@ class ClashGeniusBot(commands.Bot):
                 logger.info(">>> Login coc.Client BEM-SUCEDIDO. <<<")
                 self.coc_client_ready.set(); logger.info("Evento coc_client_ready definido.")
                 return
-            except coc.errors.LoginError as e: logger.error(f"### ERRO LOGIN CoC (Tentativa {login_attempts}) ###: {e}"); break
+            # *** CORREÇÃO: Usar coc.LoginError diretamente ***
+            except coc.LoginError as e: logger.error(f"### ERRO LOGIN CoC (Tentativa {login_attempts}) ###: {e}"); break
             except asyncio.TimeoutError: logger.error(f"### TIMEOUT LOGIN CoC (Tentativa {login_attempts}) ###: API não respondeu em 45s.")
             except Exception as e: logger.error(f"### ERRO INESPERADO login CoC (Tentativa {login_attempts}) ###: {e}", exc_info=True)
             if login_attempts < max_attempts: logger.info(f"Aguardando {retry_delay}s..."); await asyncio.sleep(retry_delay)
@@ -279,7 +280,8 @@ class ClashGeniusBot(commands.Bot):
             logger.debug(f"Clã {tag} obtido e cacheado.")
             return clan_data
         except coc.errors.NotFound: logger.warning(f"Clã {tag} não encontrado."); return None
-        except coc.errors.LoginError: logger.error("get_clan_data: Erro de login CoC ao buscar clã."); return None
+        # *** CORREÇÃO: Usar coc.LoginError diretamente ***
+        except coc.LoginError: logger.error("get_clan_data: Erro de login CoC ao buscar clã."); return None
         except Exception as e: logger.error(f"Erro ao obter clã {tag}: {e}", exc_info=True); return None
 
 # --- Servidor Web ---
@@ -335,7 +337,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             else:
                  logger.debug(f"Dados '{key}' obtidos (forçado, sem cache).")
             return web.json_response(data, dumps=lambda v: json.dumps(v, default=str))
-        except coc.errors.LoginError:
+        # *** CORREÇÃO: Usar coc.LoginError diretamente ***
+        except coc.LoginError:
             logger.error(f"Erro de login CoC no handler para '{key}'.")
             bot_instance.coc_client_ready.clear(); bot_instance.api_client = None; asyncio.create_task(bot_instance.coc_login_task())
             return web.json_response({"error": "Erro de autenticação com a API CoC. Tentando reconectar..."}, status=503)
@@ -407,7 +410,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             plan = war_advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
             return web.json_response(plan)
         except (coc.NotFound, coc.PrivateWarLog): return web.json_response({"success": False, "error": "Nenhuma guerra ativa ou log privado."}, status=404)
-        except coc.errors.LoginError: return web.json_response({"success": False, "error": "Erro de login com API CoC."}, status=503)
+        # *** CORREÇÃO: Usar coc.LoginError diretamente ***
+        except coc.LoginError: return web.json_response({"success": False, "error": "Erro de login com API CoC."}, status=503)
         except Exception as e: logger.error(f"Erro /api/war_advisor_plan: {e}", exc_info=True); return web.json_response({"success": False, "error": "Erro interno ao gerar plano."}, status=500)
     async def api_coc_status_handler(r):
         # (Mantido igual)
@@ -596,4 +600,3 @@ if __name__ == "__main__":
     try: asyncio.run(main())
     except KeyboardInterrupt: logger.info("Programa interrompido pelo usuário (KeyboardInterrupt).")
     except Exception as e: logger.critical(f"### ERRO FATAL NÃO TRATADO no nível do asyncio.run() ###: {e}", exc_info=True)
-
