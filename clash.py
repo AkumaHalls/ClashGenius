@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.20-Fix-DB-Check-and-JS-Comments
+# Versão 20.2.20-Fix
 
 import os
 import logging
@@ -68,7 +68,7 @@ COLEADER_ROLE_ID = int(os.getenv("COLEADER_ROLE_ID", 0))
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
 # --- Fim Variáveis de Ambiente ---
 
-BOT_VERSION = "20.2.20-Fix-DB-Check-and-JS-Comments" # Atualiza a versão
+BOT_VERSION = "20.2.20-Fix" # Atualiza a versão
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
