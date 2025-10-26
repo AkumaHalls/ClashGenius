@@ -5,8 +5,9 @@ from discord.ext import commands
 from discord import app_commands
 from pymongo import DESCENDING
 import coc
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List # <<< ADICIONADO List
 import datetime
+import json # Import json for dumps default
 
 logger = logging.getLogger("admin_cog")
 
@@ -16,21 +17,37 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
+        # Referências de cogs são obtidas "just-in-time"
 
+    # ... (sync_commands, get_api_status, get_diagnostics, get_settings, update_settings, get_db_viewer_data, send_announcement, clear_web_cache - MANTIDOS IGUAIS) ...
     async def sync_commands(self, scope: str, guild: Optional[discord.Guild] = None) -> Dict[str, Any]:
         """Lógica centralizada para sincronizar comandos de barra."""
         target_guild = guild if scope == 'guild' else None
         scope_name = f"o servidor '{guild.name}'" if target_guild else "globalmente"
         logger.info(f"Sincronização iniciada para o escopo: {scope_name}")
         try:
-            self.bot.tree.clear_commands(guild=target_guild)
-            await self.bot.tree.sync(guild=target_guild)
-            
+            # Limpa comandos antigos antes de sincronizar
+            # Para limpar globalmente, não passe 'guild'
+            if scope == 'global':
+                 self.bot.tree.clear_commands(guild=None)
+                 await self.bot.tree.sync()
+                 logger.info("Comandos globais limpos.")
+            # Para limpar no servidor específico
+            elif target_guild:
+                 self.bot.tree.clear_commands(guild=target_guild)
+                 await self.bot.tree.sync(guild=target_guild)
+                 logger.info(f"Comandos limpos no servidor {target_guild.name}.")
+
+            # Sincroniza os comandos atuais
             synced = await self.bot.tree.sync(guild=target_guild)
-            
+
             message = f"Sincronizados {len(synced)} comandos com sucesso no escopo '{scope}'."
             logger.info(message)
             return {"status": "success", "message": message}
+        except discord.errors.Forbidden as e:
+             message = f"Falha ao sincronizar: Permissão negada no escopo '{scope}'. Verifique as permissões do bot. Erro: {e}"
+             logger.error(message)
+             return {"status": "error", "message": message}
         except Exception as e:
             message = f"Falha ao sincronizar comandos no escopo '{scope}': {e}"
             logger.error(message, exc_info=True)
@@ -38,98 +55,216 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
 
     async def get_api_status(self) -> Dict[str, Any]:
         """Verifica o status da API da Supercell."""
+        if not self.bot.api_client:
+             # Se o cliente nem existe, é um erro interno do bot ou falha grave no login
+             logger.error("get_api_status: Tentativa de verificar status sem api_client.")
+             return {"status": "error", "message": "Erro interno: Cliente CoC não inicializado."}
         try:
-            await self.bot.api_client.get_clan(self.bot.clan_tag)
+            # Tenta uma chamada leve à API para verificar a conexão e autenticação
+            await self.bot.api_client.get_clan(self.bot.clan_tag) # Usar tag do clã configurada
             return {"status": "ok", "message": "API do Clash of Clans operacional."}
         except coc.errors.Maintenance:
+            logger.warning("API CoC está em manutenção.")
             return {"status": "maintenance", "message": "A API do Clash of Clans está em manutenção. Tente novamente mais tarde."}
+        except coc.errors.LoginError: # Trata erro de login aqui também
+             logger.error("Erro de autenticação com a API CoC.")
+             # Tentar relogar pode causar loops, melhor sinalizar o erro
+             # self.bot.coc_client_ready.clear()
+             # self.bot.api_client = None
+             # asyncio.create_task(self.bot.coc_login_task())
+             return {"status": "error", "message": "Erro de autenticação com a API CoC. Verifique as credenciais."}
+        except coc.errors.NotFound:
+             logger.error(f"Erro ao verificar status: Clã {self.bot.clan_tag} não encontrado. Verifique CLAN_TAG.")
+             return {"status": "error", "message": f"Erro de configuração: Clã {self.bot.clan_tag} não encontrado."}
         except Exception as e:
-            return {"status": "error", "message": f"Erro de conexão com a API: Acesso temporariamente indisponível. ({type(e).__name__})"}
+            # Captura outros erros de conexão ou inesperados
+            logger.error(f"Erro inesperado ao verificar status da API: {type(e).__name__} - {e}", exc_info=False) # Log mais conciso
+            return {"status": "error", "message": f"Erro de conexão com a API: Acesso temporariamente indisponível."}
 
     async def get_diagnostics(self) -> Dict[str, Any]:
         """Coleta dados de diagnóstico do bot."""
         api_status = await self.get_api_status()
-        # CORREÇÃO AQUI: Acessa o buffer diretamente, pois já são strings formatadas
-        recent_logs = self.bot.log_handler.buffer
+        # Garante que log_handler existe
+        recent_logs = getattr(self.bot, 'log_handler', None)
+        log_buffer = recent_logs.buffer if recent_logs else ["Log handler não encontrado."]
         return {
             "api_status": api_status,
-            "recent_logs": recent_logs
+            "recent_logs": log_buffer
         }
 
     async def get_settings(self) -> Dict[str, Any]:
-        if self.db is None:
-            return {"error": "Banco de dados não configurado."}
-        
-        settings = await self.db.system_config.find_one({"_id": "bot_settings"})
+        """Obtém as configurações atuais do bot, mesclando com defaults."""
         defaults = {
-            "channel_id": self.bot.channel_id,
-            "post_war_analysis_channel_id": self.bot.post_war_analysis_channel_id,
-            "clan_games_channel_id": self.bot.clan_games_channel_id,
-            "cwl_planner_channel_id": self.bot.cwl_planner_channel_id,
+            "channel_id": getattr(self.bot, 'channel_id', 0),
+            "post_war_analysis_channel_id": getattr(self.bot, 'post_war_analysis_channel_id', 0),
+            "clan_games_channel_id": getattr(self.bot, 'clan_games_channel_id', 0),
+            "cwl_planner_channel_id": getattr(self.bot, 'cwl_planner_channel_id', 0),
             "donations_channel_id": getattr(self.bot, 'donations_channel_id', 0),
-            "role_id_1star_alert": self.bot.role_id_1star_alert,
-            "role_id_missed_attack": self.bot.role_id_missed_attack,
-            "maintenance_message": self.bot.maintenance_message
+            "watchlist_alert_channel_id": getattr(self.bot, 'watchlist_alert_channel_id', getattr(self.bot, 'channel_id', 0)),
+            "role_id_1star_alert": getattr(self.bot, 'role_id_1star_alert', 0),
+            "role_id_missed_attack": getattr(self.bot, 'role_id_missed_attack', 0),
+            "leader_role_id": getattr(self.bot, 'leader_role_id', 0),
+            "coleader_role_id": getattr(self.bot, 'coleader_role_id', 0),
+            "maintenance_message": getattr(self.bot, 'maintenance_message', "Manutenção!"),
+            "auto_add_watchlist_enabled": getattr(self.bot, 'auto_add_watchlist_enabled', True)
         }
-        if not settings:
+        if self.db is None:
+            logger.warning("DB não disponível, retornando configurações default.")
             return defaults
-        for key, value in defaults.items():
-            settings.setdefault(key, value)
-        return settings
+
+        try:
+            settings = await self.db.system_config.find_one({"_id": "bot_settings"})
+            if not settings:
+                logger.warning("Documento 'bot_settings' não encontrado, usando defaults.")
+                return defaults
+
+            # Mescla defaults com settings do DB
+            merged_settings = defaults.copy()
+            merged_settings.update(settings) # Atualiza com valores do DB
+            merged_settings.pop('_id', None) # Remove ID interno
+            return merged_settings
+        except Exception as e:
+            logger.error(f"Erro ao buscar settings do DB: {e}", exc_info=True)
+            return defaults # Retorna defaults em caso de erro
 
     async def update_settings(self, new_settings: Dict[str, Any]) -> Dict[str, Any]:
-        if self.db is None:
-            return {"error": "Banco de dados não configurado."}
+        """Atualiza as configurações no bot e no banco de dados."""
+        if self.db is None: return {"status": "error", "message": "Banco de dados não configurado."}
+        update_data = {}
+        successful_updates = {}
         for key, value in new_settings.items():
             try:
-                processed_value = int(value) if "id" in key and value else value
+                processed_value = value
+                # Converte IDs/Roles para int se forem strings numéricas
+                if isinstance(value, str) and ("_id" in key or "channel_id" in key) and value.isdigit():
+                    processed_value = int(value)
+                # Converte flag booleana
+                elif key == "auto_add_watchlist_enabled":
+                     processed_value = str(value).lower() in ['true', 'on', '1', 'yes']
+
+                # Atualiza o atributo no bot se ele existir
                 if hasattr(self.bot, key):
                     setattr(self.bot, key, processed_value)
-            except (ValueError, TypeError):
-                 if hasattr(self.bot, key):
-                    setattr(self.bot, key, value) 
-        await self.db.system_config.update_one(
-            {"_id": "bot_settings"},
-            {"$set": new_settings},
-            upsert=True
-        )
-        logger.info(f"Configurações do bot atualizadas via painel admin: {new_settings}")
-        return {"status": "success", "message": "Configurações salvas."}
+                    successful_updates[key] = processed_value # Guarda o valor processado
+                else:
+                     logger.warning(f"Tentativa de atualizar setting inexistente no bot: '{key}'")
+
+                # Adiciona ao dict para salvar no DB (sempre salva, mesmo que não exista no bot)
+                update_data[key] = processed_value
+
+            except (ValueError, TypeError) as e:
+                 logger.warning(f"Erro ao processar setting '{key}' com valor '{value}': {e}. Usando valor original.")
+                 # Tenta salvar o valor original se a conversão falhar
+                 if hasattr(self.bot, key): setattr(self.bot, key, value)
+                 update_data[key] = value
+
+        try:
+            await self.db.system_config.update_one( {"_id": "bot_settings"}, {"$set": update_data}, upsert=True)
+            logger.info(f"Configurações do bot atualizadas via painel admin: {successful_updates}")
+            return {"status": "success", "message": "Configurações salvas."}
+        except Exception as e:
+            logger.error(f"Erro ao salvar settings no DB: {e}", exc_info=True)
+            return {"status": "error", "message": "Erro ao salvar configurações no banco de dados."}
+
 
     async def get_db_viewer_data(self) -> Dict[str, Any]:
-        if self.db is None:
-            return {"error": "Banco de dados não configurado."}
-        wars_cursor = self.db.war_history.find({}, {"war_data.opponent_name": 1, "war_data.end_time_iso": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(5)
-        last_wars = [{"opponent": w.get("war_data", {}).get("opponent_name", "N/A"), "end_time": w.get("war_data", {}).get("end_time_iso", "N/A"),"id": w.get("_id", "N/A")} async for w in wars_cursor]
-        notes_cursor = self.db.player_notes.find({}).sort([("$natural", -1)]).limit(5)
-        last_notes = [{"player_tag": n.get("_id", "N/A"),"note": n.get("text", ""),"priority": n.get("priority", "none")} async for n in notes_cursor]
-        return {"last_wars": last_wars, "last_notes": last_notes}
-    
-    async def send_announcement(self, channel_id_str: str, message: str) -> Dict[str, Any]:
-        if not channel_id_str or not message:
-            return {"status": "error", "message": "ID do canal e mensagem são obrigatórios."}
+        """Busca os últimos registros de guerras e notas para o painel admin."""
+        if self.db is None: return {"error": "Banco de dados não configurado."}
         try:
-            channel_id = int(channel_id_str)
-            channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
+             # Busca últimas guerras, tratando ausência de campos
+             wars_cursor = self.db.war_history.find(
+                 {},
+                 {"war_data.opponent_name": 1, "war_data.end_time_iso": 1, "_id": 1}
+             ).sort("war_data.end_time_iso", DESCENDING).limit(5)
+             last_wars = [
+                 {"opponent": w.get("war_data", {}).get("opponent_name", "N/A"),
+                  "end_time": w.get("war_data", {}).get("end_time_iso"), # Deixa como ISO para JS formatar
+                  "id": w.get("_id")}
+                 async for w in wars_cursor if w.get("_id") # Garante que tem ID
+             ]
+
+             # Busca últimas notas
+             notes_cursor = self.db.player_notes.find({}).sort([("$natural", -1)]).limit(5)
+             last_notes = [
+                 {"player_tag": n.get("_id"),
+                  "note": n.get("text", ""),
+                  "priority": n.get("priority", "none")}
+                 async for n in notes_cursor if n.get("_id") # Garante que tem ID (_id é a tag)
+             ]
+             return {"last_wars": last_wars, "last_notes": last_notes}
+        except Exception as e:
+             logger.error(f"Erro ao buscar dados para DB viewer: {e}", exc_info=True)
+             return {"error": "Erro ao buscar dados do banco."}
+
+    async def send_announcement(self, channel_id_str: str, message: str) -> Dict[str, Any]:
+        # (Código mantido igual)
+        if not channel_id_str or not message: return {"status": "error", "message": "ID do canal e mensagem são obrigatórios."}
+        try:
+            channel_id = int(channel_id_str); channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
             embed = discord.Embed(title="📢 Anúncio do Administrador",description=message,color=discord.Color.orange(),timestamp=datetime.datetime.now(self.bot.timezone))
             embed.set_footer(text=f"Enviado via Painel Clash Genius v{self.bot.bot_version}")
             await channel.send(embed=embed)
             logger.info(f"Anúncio enviado para o canal {channel_id} via painel.")
             return {"status": "success", "message": "Anúncio enviado com sucesso!"}
-        except ValueError:
-            return {"status": "error", "message": "O ID do canal deve ser um número."}
-        except (discord.NotFound, discord.Forbidden):
-            return {"status": "error", "message": "Não foi possível encontrar ou enviar mensagem para o canal."}
-        except Exception as e:
-            logger.error(f"Erro ao enviar anúncio: {e}", exc_info=True)
-            return {"status": "error", "message": f"Erro interno: {e}"}
+        except ValueError: return {"status": "error", "message": "O ID do canal deve ser um número."}
+        except (discord.NotFound, discord.Forbidden): return {"status": "error", "message": "Canal não encontrado ou sem permissão."}
+        except Exception as e: logger.error(f"Erro ao enviar anúncio: {e}", exc_info=True); return {"status": "error", "message": f"Erro interno: {e}"}
 
     async def clear_web_cache(self, cache_key: str) -> Dict[str, Any]:
-        if cache_key in self.bot.web_api_cache:
-            self.bot.web_api_cache.pop(cache_key)
-            logger.info(f"Cache da web para '{cache_key}' limpo via painel.")
-            return {"status": "success", "message": f"Cache '{cache_key}' foi limpo."}
+        # (Código mantido igual)
+        if cache_key == 'all': self.bot.web_api_cache.clear(); logger.info("Cache web limpo via painel."); return {"status": "success", "message": "Todo o cache da web foi limpo."}
+        elif cache_key in self.bot.web_api_cache: self.bot.web_api_cache.pop(cache_key); logger.info(f"Cache '{cache_key}' limpo via painel."); return {"status": "success", "message": f"Cache '{cache_key}' foi limpo."}
         return {"status": "not_found", "message": f"Cache '{cache_key}' não encontrado."}
+
+    # --- Funções para interagir com WatchlistCog (chamadas pela API web) ---
+    async def get_watchlist_admin(self) -> List[Dict[str, Any]]: # <<< CORRIGIDO: Retorna List[Dict] ou Dict com erro
+        watchlist_cog = self.bot.get_cog("Lista de Observação")
+        if not watchlist_cog:
+            logger.error("get_watchlist_admin: Watchlist Cog não carregada.")
+            return {"error": "Watchlist Cog não carregada."} # Retorna dict de erro
+
+        try:
+            watchlist_data = await watchlist_cog.get_full_watchlist()
+            # <<< ADICIONADO: Converte datetime para string ISO >>>
+            processed_data = []
+            for player in watchlist_data:
+                if 'date_added' in player and isinstance(player['date_added'], datetime.datetime):
+                    player['date_added'] = player['date_added'].isoformat() # Converte para string
+                processed_data.append(player)
+            return processed_data
+        except Exception as e:
+            logger.error(f"Erro ao buscar/processar watchlist: {e}", exc_info=True)
+            return {"error": "Erro interno ao buscar watchlist."} # Retorna dict de erro
+
+
+    async def add_to_watchlist_admin(self, player_tag: str, player_name: str, reason: str, details: Optional[str] = None) -> bool:
+        # <<< CORRIGIDO: Retorna bool como esperado pelas rotas >>>
+        watchlist_cog = self.bot.get_cog("Lista de Observação")
+        if not watchlist_cog:
+            logger.error("add_to_watchlist_admin: Watchlist Cog não carregada.")
+            return False # Indica falha
+        try:
+             # Chama a função do cog e retorna seu resultado (True/False)
+             return await watchlist_cog.add_to_watchlist(player_tag, player_name, reason, details)
+        except Exception as e:
+             logger.error(f"Erro ao chamar add_to_watchlist: {e}", exc_info=True)
+             return False # Indica falha
+
+
+    async def remove_from_watchlist_admin(self, player_tag: str) -> bool:
+        # <<< CORRIGIDO: Retorna bool como esperado pelas rotas >>>
+        watchlist_cog = self.bot.get_cog("Lista de Observação")
+        if not watchlist_cog:
+            logger.error("remove_from_watchlist_admin: Watchlist Cog não carregada.")
+            return False # Indica falha
+        try:
+            # Chama a função do cog e retorna seu resultado (True/False)
+            return await watchlist_cog.remove_from_watchlist(player_tag)
+        except Exception as e:
+             logger.error(f"Erro ao chamar remove_from_watchlist: {e}", exc_info=True)
+             return False # Indica falha
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))
+
