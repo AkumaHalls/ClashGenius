@@ -889,8 +889,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     lastWarDateFormatted = 'Inválida';
                 }
             }
-            const lastWarHtml = `<span class="member-last-war">Última Guerra: ${lastWarDateFormatted}</span>`;
-            // *** FIM NOVO ***
+            // *** AJUSTE: Usa span com title para o tooltip ***
+            const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">⚔️ ${lastWarDateFormatted}</span>`;
+            // *** FIM AJUSTE ***
 
             return `
             <div class="member-card ${watchlistClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
@@ -1051,8 +1052,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 lastWarDateFormatted = 'Inválida';
             }
         }
-        const lastWarHtml = `<div class="profile-stat-card"><h4>Última Guerra</h4><p>${lastWarDateFormatted}</p></div>`;
-        // *** FIM NOVO ***
+        // *** AJUSTE: Usa span com title para o tooltip ***
+        const lastWarHtml = `
+            <div class="profile-stat-card">
+                <h4>Última Guerra</h4>
+                <p title="Esta é a data da última guerra conhecida no histórico">⚔️ ${lastWarDateFormatted}</p>
+            </div>`;
+        // *** FIM AJUSTE ***
 
         const heroesHtml = profileData.heroes?.map(hero => `
             <div class="hero-item">
@@ -1306,3 +1312,4 @@ document.addEventListener('DOMContentLoaded', () => {
     checkApiMaintenance(); // Check immediately
     setInterval(checkApiMaintenance, 20000); // Check every 20 seconds
 });
+
