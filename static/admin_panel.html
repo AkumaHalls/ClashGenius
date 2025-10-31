@@ -129,6 +129,31 @@
         }
         /* <<< FIM CSS >>> */
 
+        /* <<< INÍCIO CSS: Estilo Watchlist >>> */
+        #admin-watchlist .table-container-admin {
+            max-height: 450px; /* Aumenta a altura de 200px para 450px */
+        }
+        #admin-watchlist table {
+            font-size: 0.95em; /* Aumenta a fonte de 0.85em para 0.95em */
+        }
+        /* Filtros da Watchlist */
+        .watchlist-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: rgba(74, 85, 104, 0.1);
+            border-radius: var(--border-radius-base);
+        }
+        .watchlist-filters input[type="text"] {
+            flex-grow: 1;
+            min-width: 200px;
+            /* Reutiliza a classe 'admin-input' mas remove a margem de baixo */
+            margin-bottom: 0; 
+        }
+        /* <<< FIM CSS >>> */
+
     </style>
 </head>
 <body class="admin-page">
@@ -344,7 +369,16 @@
                             <button type="submit" class="control-btn">Adicionar à Lista</button>
                             <p id="watchlist-add-feedback" class="feedback-text"></p>
                         </form>
+                        
                         <h4 style="margin-top: 25px;">Jogadores na Lista</h4>
+                        
+                        <!-- <<< INÍCIO DA ALTERAÇÃO (Filtros Watchlist) >>> -->
+                        <div class="watchlist-filters">
+                            <input type="text" id="watchlist-filter-name" class="admin-input" placeholder="Filtrar por Nome...">
+                            <input type="text" id="watchlist-filter-tag" class="admin-input" placeholder="Filtrar por Tag...">
+                        </div>
+                        <!-- <<< FIM DA ALTERAÇÃO >>> -->
+
                          <div class="table-container-admin">
                             <table id="admin-watchlist-table">
                                 <thead><tr><th>Nome</th><th>Tag</th><th>Motivo</th><th>Detalhes</th><th>Data Adição</th><th>Ação</th></tr></thead>
@@ -420,4 +454,5 @@
     <script src="/static/js/admin.js"></script>
 </body>
 </html>
+
 
