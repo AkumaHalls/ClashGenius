@@ -128,6 +128,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (input.type === 'checkbox') {
                      input.checked = !!data[key]; // Generic checkbox handling
                 } else {
+                   // A API (get_settings) agora envia IDs como string,
+                   // então apenas definimos o valor diretamente.
                    input.value = data[key] !== null && data[key] !== undefined ? data[key] : ''; // Handle null/undefined
                 }
             }
@@ -480,20 +482,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const settings = {};
             // Process form data, converting relevant fields
             for (const [key, value] of formData.entries()) {
-                 if (key === "auto_add_watchlist_enabled") {
+                
+                // <<< INÍCIO DA ALTERAÇÃO (submit settings) >>>
+                if (key === "auto_add_watchlist_enabled") {
                     settings[key] = value === 'true'; // Convert select string to boolean
-                } else if (key.includes('_id') && value.match(/^\d+$/)) {
-                     // Converte apenas se for número e tiver ID no nome
-                     settings[key] = parseInt(value, 10);
-                 } else if (value.match(/^\d+$/) && !key.includes('message')) {
-                      // Converte outros campos numéricos (exceto mensagem)
-                      // Adiciona verificação para não converter strings vazias
-                      if (value !== '') settings[key] = parseInt(value, 10);
-                      else settings[key] = null; // Ou envia null se estava vazio
-                 }
-                 else {
+                
+                } else if ((key.includes('_id') || key.includes('channel_id')) && value.match(/^\d+$/)) {
+                    // **NÃO** usa parseInt(). Envia como string para preservar precisão.
+                    // O backend Python (update_settings) já espera por isso e converterá para int.
+                    settings[key] = value;
+                
+                } else if (value.match(/^\d+$/) && !key.includes('message')) {
+                     // Converte outros campos numéricos (exceto mensagem e IDs)
+                     if (value !== '') settings[key] = parseInt(value, 10);
+                     else settings[key] = null; 
+                
+                } else {
                      settings[key] = value;
-                 }
+                }
+                // <<< FIM DA ALTERAÇÃO (submit settings) >>>
             }
 
             displayFeedback(settingsFeedback, 'Salvando...');
@@ -504,6 +511,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify(settings)
                 });
                 displayFeedback(settingsFeedback, response.message || 'Configurações salvas.');
+                
+                // <<< NOVO: Recarrega os dados para mostrar o valor salvo (como string) >>>
+                if (response.status === 'success') {
+                    const reloadedSettings = await fetchAdminAPI('settings');
+                    populateSettingsForm(reloadedSettings);
+                }
+                // <<< FIM NOVO >>>
+
             } catch(error) { /* Error handled by fetchAdminAPI */ }
         });
     }
@@ -561,4 +576,3 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDataForCurrentTab(); // Carrega dados para a aba ativa ao iniciar
 
 });
-
