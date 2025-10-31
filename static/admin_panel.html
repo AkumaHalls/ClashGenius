@@ -57,6 +57,36 @@
              margin-bottom: 15px;
         }
 
+        /* <<< INÍCIO CSS: Estilos para o Nome do Canal/Cargo >>> */
+        .setting-id-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .setting-id-wrapper .settings-input {
+            flex-grow: 1; /* Input toma o espaço */
+            margin-bottom: 0; /* Remove margem do input */
+            /* Garante que o input de texto (para IDs) pareça um input de texto */
+            font-family: monospace; 
+        }
+        .setting-id-name {
+            flex-shrink: 0; /* Não encolhe */
+            font-size: 0.9em;
+            color: var(--color-text-secondary);
+            background-color: rgba(0,0,0,0.2);
+            padding: 8px 12px; /* Aumenta o padding para alinhar com o input */
+            border-radius: var(--border-radius-base);
+            white-space: nowrap;
+            max-width: 200px; /* Evita que nomes longos quebrem o layout */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border: 1px solid var(--color-border);
+            box-sizing: border-box; /* Garante que o padding não quebre o layout */
+            height: 39px; /* Altura fixa para alinhar com o input */
+            line-height: 21px; /* Ajusta o texto verticalmente */
+        }
+        /* <<< FIM CSS >>> */
+
     </style>
 </head>
 <body class="admin-page">
@@ -126,46 +156,79 @@
                         <form id="settings-form">
                             <h4>Canais e Cargos (IDs Numéricos)</h4>
                             <div class="form-grid">
+                                
+                                <!-- <<< INÍCIO ALTERAÇÃO HTML: Adiciona wrapper e span para Nomes >>> -->
                                 <div class="form-group">
                                     <label for="channel_id">Canal Logs Principal</label>
-                                    <input type="text" id="channel_id" name="channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="channel_id" name="channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="channel_id_name">...</span>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="post_war_analysis_channel_id">Canal Análise Pós-Guerra</label>
-                                    <input type="text" id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="post_war_analysis_channel_id_name">...</span>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="clan_games_channel_id">Canal Jogos do Clã</label>
-                                    <input type="text" id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="clan_games_channel_id_name">...</span>
+                                    </div>
                                 </div>
                                  <div class="form-group">
                                     <label for="cwl_planner_channel_id">Canal Planejador CWL</label>
-                                    <input type="text" id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="cwl_planner_channel_id_name">...</span>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="donations_channel_id">Canal Rel. Doações</label>
-                                    <input type="text" id="donations_channel_id" name="donations_channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="donations_channel_id" name="donations_channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="donations_channel_id_name">...</span>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                      <label for="watchlist_alert_channel_id">Canal Alerta Watchlist</label>
-                                     <input type="text" id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input">
+                                     <div class="setting-id-wrapper">
+                                         <input type="text" id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input">
+                                         <span class="setting-id-name" id="watchlist_alert_channel_id_name">...</span>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="role_id_1star_alert">Cargo Alerta 1 Estrela</label>
-                                    <input type="text" id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input">
+                                        <span class="setting-id-name" id="role_id_1star_alert_name">...</span>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="role_id_missed_attack">Cargo Ataque Perdido</label>
-                                    <input type="text" id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input">
+                                        <span class="setting-id-name" id="role_id_missed_attack_name">...</span>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="leader_role_id">Cargo Líder (Watchlist)</label>
-                                    <input type="text" id="leader_role_id" name="leader_role_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="leader_role_id" name="leader_role_id" class="settings-input">
+                                        <span class="setting-id-name" id="leader_role_id_name">...</span>
+                                    </div>
                                 </div>
                                  <div class="form-group">
                                     <label for="coleader_role_id">Cargo Co-líder (Watchlist)</label>
-                                    <input type="text" id="coleader_role_id" name="coleader_role_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="coleader_role_id" name="coleader_role_id" class="settings-input">
+                                        <span class="setting-id-name" id="coleader_role_id_name">...</span>
+                                    </div>
                                 </div>
+                                <!-- <<< FIM ALTERAÇÃO HTML >>> -->
                             </div>
                             <h4>Outras Configurações</h4>
                              <div class="form-group">
@@ -288,4 +351,3 @@
     <script src="/static/js/admin.js"></script>
 </body>
 </html>
-
