@@ -117,24 +117,43 @@ document.addEventListener('DOMContentLoaded', () => {
         if(recentLogsBox) recentLogsBox.textContent = Array.isArray(recent_logs) && recent_logs.length > 0 ? recent_logs.join('\n') : 'Nenhum log recente.'; // Verifica se é array
     }
 
+    // <<< INÍCIO DA ALTERAÇÃO (populateSettingsForm) >>>
     function populateSettingsForm(data) {
         if (!data || data.error || !settingsForm) return;
+
         for (const key in data) {
-            const input = document.getElementById(key);
-            if (input) {
-                // Handle boolean specifically for select/checkbox
-                if (key === "auto_add_watchlist_enabled" && input.tagName === 'SELECT') {
-                    input.value = data[key] ? 'true' : 'false';
-                } else if (input.type === 'checkbox') {
-                     input.checked = !!data[key]; // Generic checkbox handling
-                } else {
-                   // A API (get_settings) agora envia IDs como string,
-                   // então apenas definimos o valor diretamente.
-                   input.value = data[key] !== null && data[key] !== undefined ? data[key] : ''; // Handle null/undefined
+            const value = data[key];
+
+            if (value && typeof value === 'object' && value.id !== undefined) {
+                // É um objeto de ID (ex: channel_id: {id: "123", name: "#logs"})
+                const input = document.getElementById(key);
+                const nameSpan = document.getElementById(key + '_name'); // Ex: channel_id_name
+                
+                if (input) {
+                    input.value = value.id; // Coloca o ID no input
+                }
+                if (nameSpan) {
+                    nameSpan.textContent = value.name; // Coloca o nome no span
+                    nameSpan.title = value.name; // Adiciona tooltip para nomes longos
+                }
+            } else {
+                // É um valor normal (ex: maintenance_message ou auto_add_watchlist_enabled)
+                const input = document.getElementById(key);
+                if (input) {
+                    if (key === "auto_add_watchlist_enabled" && input.tagName === 'SELECT') {
+                        // O valor já vem como "true" ou "false" (string)
+                        input.value = value;
+                    } else if (input.type === 'checkbox') {
+                         input.checked = (value === 'true' || value === true);
+                    } else {
+                       // Valor normal (string, ex: maintenance_message)
+                       input.value = value !== null && value !== undefined ? value : '';
+                    }
                 }
             }
         }
     }
+    // <<< FIM DA ALTERAÇÃO (populateSettingsForm) >>>
 
 
     function updateDbViewer(data) {
@@ -576,3 +595,4 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDataForCurrentTab(); // Carrega dados para a aba ativa ao iniciar
 
 });
+
