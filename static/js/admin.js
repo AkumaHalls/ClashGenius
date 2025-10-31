@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const watchlistTableBody = document.querySelector('#admin-watchlist-table tbody');
     const watchlistAddFeedback = document.getElementById('watchlist-add-feedback');
     const watchlistListFeedback = document.getElementById('watchlist-list-feedback');
+    // <<< INÍCIO DA ALTERAÇÃO (Seletores Filtro) >>>
+    const watchlistFilterName = document.getElementById('watchlist-filter-name');
+    const watchlistFilterTag = document.getElementById('watchlist-filter-tag');
+    // <<< FIM DA ALTERAÇÃO >>>
 
     // Seletores para Navegação por Abas
     const navLinks = document.querySelectorAll('.admin-nav .nav-link');
@@ -223,7 +227,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Watchlist Functions --- (sem alterações)
+    // --- Watchlist Functions ---
+    // <<< INÍCIO DA ALTERAÇÃO (Função de Filtro Watchlist) >>>
+    function applyWatchlistFilter() {
+        if (!watchlistTableBody) return; // Aborta se a tabela não existir
+
+        const filterName = watchlistFilterName ? watchlistFilterName.value.toLowerCase() : '';
+        const filterTag = watchlistFilterTag ? watchlistFilterTag.value.toLowerCase() : '';
+
+        const rows = watchlistTableBody.querySelectorAll('tr');
+
+        rows.forEach(row => {
+            // Pega o conteúdo das células Nome (índice 0) e Tag (índice 1)
+            const cellName = row.cells[0] ? row.cells[0].textContent.toLowerCase() : '';
+            const cellTag = row.cells[1] ? row.cells[1].textContent.toLowerCase() : '';
+
+            // Mostra a linha apenas se ambas as condições passarem
+            const nameMatch = cellName.includes(filterName);
+            const tagMatch = cellTag.includes(filterTag);
+
+            if (nameMatch && tagMatch) {
+                row.style.display = ''; // Mostra a linha (default)
+            } else {
+                row.style.display = 'none'; // Esconde a linha
+            }
+        });
+    }
+    // <<< FIM DA ALTERAÇÃO >>>
+
     async function loadWatchlist() {
         if (!watchlistTableBody) return;
         watchlistTableBody.innerHTML = '<tr><td colspan="6"><div class="loading-spinner" style="margin: 10px auto; width: 20px; height: 20px;"></div></td></tr>'; // Add spinner
@@ -263,6 +294,11 @@ document.addEventListener('DOMContentLoaded', () => {
             watchlistTableBody.querySelectorAll('.admin-remove-btn').forEach(btn => {
                 btn.addEventListener('click', handleRemoveWatchlist);
             });
+
+            // <<< INÍCIO DA ALTERAÇÃO (Re-aplicar filtro) >>>
+            applyWatchlistFilter();
+            // <<< FIM DA ALTERAÇÃO >>>
+
         } catch (error) {
              // Erro já tratado por fetchAdminAPI, apenas atualiza a tabela
              watchlistTableBody.innerHTML = '<tr><td colspan="6" class="error-text">Erro ao carregar a lista. Verifique a consola.</td></tr>';
@@ -587,12 +623,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (addWatchlistForm) {
+             if (addWatchlistForm) {
         addWatchlistForm.addEventListener('submit', handleAddWatchlist);
     }
+
+    // <<< INÍCIO DA ALTERAÇÃO (Listeners Filtro Watchlist) >>>
+    if (watchlistFilterName) {
+        watchlistFilterName.addEventListener('input', applyWatchlistFilter);
+    }
+    if (watchlistFilterTag) {
+        watchlistFilterTag.addEventListener('input', applyWatchlistFilter);
+    }
+    // <<< FIM DA ALTERAÇÃO >>>
+
 
     // --- Carregamento Inicial ---
     loadDataForCurrentTab(); // Carrega dados para a aba ativa ao iniciar
 
 });
+
 
