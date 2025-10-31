@@ -448,7 +448,14 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not session.get('admin'): logger.warning(f"Acesso não autorizado à API Admin: {request.path}"); return web.json_response({"status":"unauthorized", "message": "Acesso negado."}, status=403)
         return await handler(request)
     async def api_admin_diagnostics(r): return web.json_response(await admin_cog.get_diagnostics())
-    async def api_admin_get_settings(r): return web.json_response(await admin_cog.get_settings())
+    
+    # <<< INÍCIO DA ALTERAÇÃO (api_admin_get_settings) >>>
+    async def api_admin_get_settings(r): 
+        session = await get_session(r) # Pega a sessão do request
+        # Passa a sessão para o cog poder encontrar o Guild (servidor)
+        return web.json_response(await admin_cog.get_settings(session))
+    # <<< FIM DA ALTERAÇÃO (api_admin_get_settings) >>>
+
     async def api_admin_update_settings(r): return web.json_response(await admin_cog.update_settings(await r.json()))
     async def api_admin_db_viewer(r): return web.json_response(await admin_cog.get_db_viewer_data(), dumps=lambda v: json.dumps(v, default=str))
     async def api_admin_get_watchlist(r): return web.json_response(await admin_cog.get_watchlist_admin()) # A função get_watchlist_admin foi corrigida para retornar serializável
