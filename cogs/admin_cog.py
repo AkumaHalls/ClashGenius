@@ -110,22 +110,50 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         }
         if self.db is None:
             logger.warning("DB não disponível, retornando configurações default.")
+            # <<< INÍCIO DA ALTERAÇÃO 1 (get_settings) >>>
+            # Converte IDs para string mesmo nos defaults se o DB não estiver disponível
+            for key in list(defaults.keys()):
+                if ("_id" in key or "channel_id" in key) and isinstance(defaults[key], (int, float)):
+                    defaults[key] = str(defaults[key])
+            # <<< FIM DA ALTERAÇÃO 1 (get_settings) >>>
             return defaults
 
         try:
             settings = await self.db.system_config.find_one({"_id": "bot_settings"})
             if not settings:
                 logger.warning("Documento 'bot_settings' não encontrado, usando defaults.")
+                # <<< INÍCIO DA ALTERAÇÃO 2 (get_settings) >>>
+                # Converte IDs para string nos defaults se o doc não for encontrado
+                for key in list(defaults.keys()):
+                    if ("_id" in key or "channel_id" in key) and isinstance(defaults[key], (int, float)):
+                        defaults[key] = str(defaults[key])
+                # <<< FIM DA ALTERAÇÃO 2 (get_settings) >>>
                 return defaults
 
             # Mescla defaults com settings do DB
             merged_settings = defaults.copy()
             merged_settings.update(settings) # Atualiza com valores do DB
             merged_settings.pop('_id', None) # Remove ID interno
+
+            # <<< INÍCIO DA ALTERAÇÃO 3 (get_settings) >>>
+            # Converte todos os IDs para string ANTES de enviar ao Javascript
+            # para evitar problemas de precisão com números grandes (Number.MAX_SAFE_INTEGER)
+            for key in list(merged_settings.keys()): # Usa list() para permitir modificação
+                # Converte IDs (int/float), mas pula booleanos e mensagens
+                if ("_id" in key or "channel_id" in key) and isinstance(merged_settings[key], (int, float)):
+                    merged_settings[key] = str(merged_settings[key])
+            # <<< FIM DA ALTERAÇÃO 3 (get_settings) >>>
+
             return merged_settings
         except Exception as e:
             logger.error(f"Erro ao buscar settings do DB: {e}", exc_info=True)
-            return defaults # Retorna defaults em caso de erro
+            # <<< INÍCIO DA ALTERAÇÃO 4 (get_settings) >>>
+            # Converte IDs para string nos defaults em caso de erro
+            for key in list(defaults.keys()):
+                if ("_id" in key or "channel_id" in key) and isinstance(defaults[key], (int, float)):
+                    defaults[key] = str(defaults[key])
+            # <<< FIM DA ALTERAÇÃO 4 (get_settings) >>>
+            return defaults # Retorna defaults convertidos em caso de erro
 
     async def update_settings(self, new_settings: Dict[str, Any]) -> Dict[str, Any]:
         """Atualiza as configurações no bot e no banco de dados."""
@@ -135,9 +163,19 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         for key, value in new_settings.items():
             try:
                 processed_value = value
-                # Converte IDs/Roles para int se forem strings numéricas
+                
+                # <<< INÍCIO DA ALTERAÇÃO (update_settings) >>>
+                # O Javascript agora envia IDs como STRING para preservar a precisão.
+                # O Python DEVE converter essa string para int antes de salvar no DB
+                # e de atualizar o atributo do bot (que espera int).
                 if isinstance(value, str) and ("_id" in key or "channel_id" in key) and value.isdigit():
-                    processed_value = int(value)
+                    try:
+                        processed_value = int(value) # Converte a string longa para int (Python suporta)
+                    except ValueError:
+                         logger.warning(f"Valor de ID inválido '{value}' para '{key}'. Ignorando conversão.")
+                         processed_value = value # Mantém como string se falhar (improvável)
+                # <<< FIM DA ALTERAÇÃO (update_settings) >>>
+                
                 # Converte flag booleana
                 elif key == "auto_add_watchlist_enabled":
                      processed_value = str(value).lower() in ['true', 'on', '1', 'yes']
@@ -267,4 +305,3 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))
-
