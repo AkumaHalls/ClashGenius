@@ -363,6 +363,37 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         except ConnectionError as e: logger.error(f"Erro ao salvar nota (DB não conectado?): {e}"); return web.json_response({"error": "Erro de conexão com o banco de dados."}, status=500)
         except Exception as e: logger.error(f"Erro ao salvar nota: {e}", exc_info=True); return web.json_response({"error": "Erro interno ao salvar nota."}, status=500)
 
+    # <<< INÍCIO DA CORREÇÃO: Adiciona o handler para o status da CWL >>>
+    async def api_update_cwl_status_handler(request):
+        """Handler para atualizar o status CWL de um jogador."""
+        player_tag = request.match_info.get('player_tag')
+        if not player_tag:
+            return web.json_response({"error": "Player tag is required."}, status=400)
+        
+        try:
+            data = await request.json()
+            status = data.get('status')
+            if status not in ['active', 'backup']:
+                return web.json_response({"error": "Invalid status. Must be 'active' or 'backup'."}, status=400)
+            
+            # db_cog foi obtido no início de setup_web_server
+            if not db_cog:
+                 logger.error("api_update_cwl_status_handler: Database Cog not found.")
+                 return web.json_response({"error": "Internal server error (DB Cog missing)."}, status=500)
+            
+            # Chama a função no cog de banco de dados
+            await db_cog.update_player_cwl_status(player_tag, status)
+            
+            # Limpa o cache de membros para que o painel seja atualizado
+            bot_instance.web_api_cache.pop('members', None)
+            
+            return web.json_response({"success": True, "message": f"Status for {player_tag} updated to {status}."})
+        
+        except Exception as e:
+            logger.error(f"Error in api_update_cwl_status_handler for {player_tag}: {e}", exc_info=True)
+            return web.json_response({"error": "Internal server error while updating status."}, status=500)
+    # <<< FIM DA CORREÇÃO >>>
+
     async def api_historic_war_handler(request):
         # <<< CORRIGIDO: Usa 'is not None' para checar o DB >>>
         if bot_instance.db is None:
@@ -434,6 +465,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/current_war_details", api_current_war_details_handler); app.router.add_get("/api/missed_attacks_history", api_missed_attacks_history_handler);
     app.router.add_get("/api/war_log", api_war_log_handler); app.router.add_get("/api/cwl_info", api_cwl_info_handler);
     app.router.add_get("/api/highlights", api_highlights_handler); app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler);
+    
+    # <<< INÍCIO DA CORREÇÃO: Adiciona a rota para o status da CWL >>>
+    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_update_cwl_status_handler)
+    # <<< FIM DA CORREÇÃO >>>
+    
     app.router.add_get("/api/war_history/{war_id:.*}", api_historic_war_handler); app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler);
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler); app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler);
     app.router.add_get("/api/coc_status", api_coc_status_handler); app.router.add_get("/api/status", admin_get_status_handler);
