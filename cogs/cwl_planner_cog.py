@@ -169,6 +169,17 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         current_roster = active_pool[:roster_size]
         current_active_bench = deque(active_pool[roster_size:]) # Usa deque para fila
         current_backup_bench = deque(backup_pool) # Usa deque para fila
+        
+        # *** CORREÇÃO (BUG 3): Se não houver ativos suficientes, preenche com backups ***
+        needed_for_roster_1 = roster_size - len(current_roster)
+        if needed_for_roster_1 > 0:
+            logger.warning(f"CWL Dia 1: Faltam {needed_for_roster_1} 'Ativos'. Preenchendo com 'Backups'.")
+            for _ in range(needed_for_roster_1):
+                if current_backup_bench:
+                    current_roster.append(current_backup_bench.popleft())
+                else:
+                    logger.error("CWL Dia 1: Faltam jogadores 'Ativos' e não há 'Backups' suficientes!")
+                    break # Para se o banco de backup também estiver vazio
 
         # Incrementa dias jogados para o Dia 1
         for p in current_roster:
@@ -281,13 +292,13 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             # Carrega o estado do dia ANTERIOR (ou Dia 1 se for o Dia 1)
             last_valid_day = max(1, current_day - 1)
             past_schedule = [d for d in plan_doc['schedule'] if d['day'] <= last_valid_day]
-            last_state = past_schedule[-1] # Pega o último estado válido (ex: Dia 2)
+            last_state = past_schedule[-1] # Pega o último estado válido (ex: Dia 1)
 
             # --- Verifica Roster e Banco por Leavers ---
             roster_substitutions = []
             final_roster_pool = []
             
-            # --- INÍCIO DA CORREÇÃO DE MIGRAÇÃO (v2) ---
+            # --- INÍCIO DA CORREÇÃO DE MIGRAÇÃO (v3) ---
             # Converte o roster do dia anterior para o novo formato, se necessário
             current_roster_pool = []
             for p_data in last_state['active_roster']:
@@ -299,16 +310,18 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             
             # Converte os bancos também (com .get para segurança)
             current_active_bench = deque()
-            for p_data in last_state.get('active_bench', []): # .get com fallback
+            # *** CORREÇÃO (BUG 1): Usa .get() para evitar KeyError em 'active_bench' ***
+            for p_data in last_state.get('active_bench', []): 
                  if 'player' in p_data: current_active_bench.append(p_data)
-                 elif p_data: # Evita erro se for None
+                 elif p_data: 
                      logger.warning("Formato antigo detectado em active_bench. Convertendo...")
-                     current_active_bench.append({'player': p_data, 'days_played': p_data.get('days_played', 0)}) # Tenta buscar 'days_played' antigo
+                     current_active_bench.append({'player': p_data, 'days_played': p_data.get('days_played', 0)})
                  else:
-                     logger.error("Erro ao atualizar: 'active_bench' continha entrada 'None'.") # Log do erro específico
+                     logger.error("Erro ao atualizar: 'active_bench' continha entrada 'None'.") 
 
             current_backup_bench = deque()
-            for p_data in last_state.get('backup_bench', []): # .get com fallback
+            # *** CORREÇÃO (BUG 1): Usa .get() para evitar KeyError em 'backup_bench' ***
+            for p_data in last_state.get('backup_bench', []): 
                  if 'player' in p_data: current_backup_bench.append(p_data)
                  elif p_data:
                      logger.warning("Formato antigo detectado em backup_bench. Convertendo...")
@@ -319,14 +332,11 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             logger.info(f"Pools convertidos/verificados. Roster: {len(current_roster_pool)}, B.Ativo: {len(current_active_bench)}, B.Backup: {len(current_backup_bench)}")
             # --- FIM DA CORREÇÃO DE MIGRAÇÃO ---
             
-            # --- INÍCIO DA CORREÇÃO (14/7 dias) ---
-            # ZERA a contagem de 'days_played' para o que era no fim do dia anterior
-            # (necessário caso a task tenha corrido várias vezes no dia anterior)
-            logger.info(f"Resetando contagem de dias para o final do Dia {last_valid_day}.")
-            for p in current_roster_pool: p['days_played'] = last_valid_day
-            for p in current_active_bench: p['days_played'] = p.get('days_played', 0) # Mantém dias de quem estava no banco
-            for p in current_backup_bench: p['days_played'] = p.get('days_played', 0)
-            # --- FIM DA CORREÇÃO (14/7 dias) ---
+            # --- INÍCIO DA CORREÇÃO (BUG 2 - 13/7 dias) ---
+            # *** REMOVIDA LINHA COM BUG: for p in current_roster_pool: p['days_played'] = last_valid_day ***
+            # Os 'days_played' já estão corretos (1 para roster, 0 para banco) após a migração/leitura.
+            logger.info(f"Contagem de dias do Roster (Dia {last_valid_day}) preservada (ex: {current_roster_pool[0]['days_played'] if current_roster_pool else 'N/A'}).")
+            # --- FIM DA CORREÇÃO (BUG 2) ---
 
             # 1. Verifica Roster principal (agora p_entry está no formato correto)
             for p_entry in current_roster_pool:
@@ -359,17 +369,14 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             new_future_schedule = []
             num_to_rotate = 5 if team_size == 30 else 3 # Usa o team_size detetado
             
-            # Define o roster atual (já corrigido de leavers)
             current_roster = final_roster_pool
 
             for day in range(current_day, 8):
                 substitutions = []
                 
-                # Adiciona substituições de emergência (leavers) no dia atual
                 if day == current_day:
                     substitutions.extend(roster_substitutions)
 
-                # --- Lógica de Rotação Justa (igual à _generate_new) ---
                 roster_sorted = sorted(current_roster, key=lambda p: p['days_played'], reverse=True)
                 
                 players_to_sit = roster_sorted[:num_to_rotate]
@@ -402,7 +409,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                             "reason": f"Rotação justa (Saiu: {player_out['days_played']} dias | Entrou: {player_in['days_played']} dias)"
                         })
                     else:
-                        new_roster.append(player_out) # Mantém no roster se não há substituto
+                        new_roster.append(player_out) 
 
                 # Incrementa dias jogados para os jogadores do roster ATUAL (dia 'day')
                 for p in new_roster:
@@ -421,6 +428,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             # --- Monta o resultado final ---
             final_schedule = past_schedule + new_future_schedule
             
+            # Recalcula o placar final com base no estado do *último dia*
             all_players_pool = final_schedule[-1]['active_roster'] + final_schedule[-1]['active_bench'] + final_schedule[-1]['backup_bench']
             participation_score = [
                 {"player": p['player'], "days_played": p['days_played']}
@@ -437,7 +445,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 "warning": plan_doc.get('warning') # Mantém aviso antigo se houver
             }
 
-        except KeyError as e: # Captura o erro 'active_bench'
+        except KeyError as e: 
              logger.error(f"Erro de Chave (KeyError) ao ATUALIZAR plano de CWL: {e}. Provavelmente dados antigos/corrompidos. Gerando novo plano.", exc_info=True)
              return {"error": f"Erro ao atualizar: {e}. Recarregue a página para gerar um novo plano."} # Retorna erro
         except Exception as e:
@@ -465,20 +473,18 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
              if plan_doc:
                  logger.info(f"CWL Dia {current_day}. Retornando plano final salvo.")
                  
-                 # --- Adiciona Migração aqui também para visualização final ---
                  try:
-                     all_players_pool = plan_doc['schedule'][-1]['active_roster'] + plan_doc['schedule'][-1]['active_bench'] + plan_doc['schedule'][-1]['backup_bench']
+                     all_players_pool = plan_doc['schedule'][-1]['active_roster'] + plan_doc['schedule'][-1].get('active_bench', []) + plan_doc['schedule'][-1].get('backup_bench', [])
                      participation_score = []
                      for p_data in all_players_pool:
-                         player_info = p_data.get('player', p_data) # Pega 'player' ou o 'root'
-                         days_played = p_data.get('days_played', 7) # Default para 7 no fim
+                         player_info = p_data.get('player', p_data) 
+                         days_played = p_data.get('days_played', 7) 
                          participation_score.append({"player": player_info, "days_played": days_played})
                      participation_score.sort(key=lambda x: x['days_played'], reverse=True)
                  except Exception as e:
                      logger.error(f"Erro ao migrar placar final: {e}")
                      participation_score = []
-                 # --- Fim Migração ---
-
+                 
                  return {
                      "current_day": current_day,
                      "schedule": plan_doc['schedule'],
@@ -504,7 +510,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                     is_old_format = True
                     logger.warning(f"Plano malformado ou vazio detectado para {season} ({e}). Gerando um novo plano.")
             
-            # Verifica também se o team_size mudou (ex: 15v15 -> 30v30)
             is_wrong_size = False
             if plan_doc and not is_old_format:
                  try:
@@ -513,7 +518,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                          is_wrong_size = True
                          logger.warning(f"Mudança no tamanho da CWL detectada! (Salvo: {saved_size}v{saved_size}, Atual: {team_size}v{team_size}). Gerando novo plano.")
                  except Exception:
-                     pass # Deixa passar, o 'is_old_format' vai pegar
+                     pass 
 
             if plan_doc is None or is_old_format or is_wrong_size:
                 logger.info(f"Gerando NOVO plano de CWL ({team_size}v{team_size}) para a temporada {season}...")
@@ -541,12 +546,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 plan_data = await self._update_existing_plan(plan_doc, current_day, team_size)
                 
                 if "error" in plan_data: 
-                    # Se a atualização falhar (ex: 'active_bench'), força a geração de um novo plano
                     logger.error(f"Falha ao ATUALIZAR o plano ({plan_data['error']}). Forçando geração de NOVO plano.")
-                    # Deleta o plano antigo corrompido
                     await self.cwl_plan_collection.delete_one({"_id": season})
-                    # Chama a função principal de novo (recursivo, mas seguro)
-                    return await self.generate_rotation_plan()
+                    return await self.generate_rotation_plan() # Chama de novo
 
                 await self.cwl_plan_collection.update_one(
                     {"_id": season},
@@ -627,17 +629,14 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             color=discord.Color.blue()
         )
         
-        # --- INÍCIO DA CORREÇÃO (v2) ---
         roster_list = []
-        # Ordena o roster por CV para exibição (mais forte primeiro)
         sorted_roster_for_display = sorted(current_day_plan["active_roster"], key=lambda p: p['player']['town_hall'], reverse=True)
         
         for i, p_entry in enumerate(sorted_roster_for_display):
-            player_data = p_entry.get('player') # Já sabemos que está no formato novo
+            player_data = p_entry.get('player') 
             roster_list.append(f"`{i+1:02d}.` {player_data.get('name', 'N/A')} (CV{player_data.get('town_hall', '?')})")
         
         roster_str = "\n".join(roster_list)
-        # --- FIM DA CORREÇÃO (v2) ---
 
         embed.add_field(name=f"⚔️ Escalação Ativa ({len(roster_list)}v{len(roster_list)})", value=roster_str or "N/A", inline=False)
 
