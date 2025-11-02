@@ -46,6 +46,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
             active_war = None
             day_number = -1
+            active_war_tag = None # <<< ADICIONADO: Variável para guardar o war_tag
             
             for i, round_war_tags in enumerate(cwl_group.rounds):
                 for war_tag in round_war_tags:
@@ -57,6 +58,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                             if war.state == 'inWar':
                                 active_war = war
                                 day_number = i + 1
+                                active_war_tag = war_tag # <<< ADICIONADO: Guarda o war_tag
                                 break
                     except coc.NotFound:
                         continue
@@ -67,7 +69,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 return {
                     "active_war": active_war,
                     "day_number": day_number,
-                    "season": cwl_group.season
+                    "season": cwl_group.season,
+                    "war_tag": active_war_tag # <<< ADICIONADO: Retorna o war_tag
                 }
             
             logger.warning("CWL state é 'inWar' mas nenhuma guerra ativa foi encontrada.")
@@ -359,11 +362,16 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             active_war = info['active_war']
             day_number = info['day_number']
             season = info['season']
-            active_war_tag_str = active_war.tag # Já temos a guerra, só pegar a tag
+            active_war_tag_str = info['war_tag'] # <<< CORRIGIDO: Usa o 'war_tag' retornado por info
+
+            # Verificação de segurança caso 'war_tag' não seja retornado
+            if not active_war_tag_str:
+                 logger.error("cwl_monitoring_task: _get_current_cwl_war_info não retornou um 'war_tag'.")
+                 return
 
             logger.info(f"Guerra ativa encontrada: Dia {day_number} vs {active_war.opponent.name}.")
             await self.post_daily_plan_if_needed(active_war, active_war_tag_str, season, day_number)
-            await self.check_and_alert_inactivity(active_war)
+            await self.check_and_alert_inactivity(active_war, active_war_tag_str) # <<< MODIFICADO: Passa o war_tag_str
 
         except Exception as e:
             logger.error(f"Erro na tarefa de monitorização da CWL: {e}", exc_info=True)
@@ -423,7 +431,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         self.posted_daily_plans.add(war_tag_id)
         logger.info(f"Plano para o Dia {day_number} enviado e tag {war_tag_id} adicionada ao cache.")
 
-    async def check_and_alert_inactivity(self, war: coc.ClanWar):
+    async def check_and_alert_inactivity(self, war: coc.ClanWar, war_tag_id: str): # <<< MODIFICADO: Recebe war_tag_id
         time_left = war.end_time.seconds_until
         if not (15 * 60 < time_left < 4 * 3600): return
 
@@ -432,7 +440,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
         if not inactive_members: return
 
-        alert_id = f"{war.tag}-inactivity"
+        alert_id = f"{war_tag_id}-inactivity" # <<< CORRIGIDO: Usa war_tag_id
         if alert_id in self.posted_inactivity_alerts: return
             
         logger.warning(f"Detectando inatividade na CWL. {len(inactive_members)} membros ainda não atacaram.")
