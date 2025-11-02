@@ -128,18 +128,16 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
          """Cria a estrutura de dados padrão para um jogador no plano."""
          return {"player": player_data, "days_played": 0}
 
-    async def _generate_new_7_day_plan(self, team_size: int) -> Dict[str, Any]:
+    async def _generate_new_7_day_plan(self, team_size: int, active_war: coc.ClanWar) -> Dict[str, Any]:
         """
         NOVA LÓGICA (O "CÉREBRO"): Gera um plano de 7 dias com rotação justa.
+        MODIFICADO: Agora usa a 'active_war' (guerra do Dia 1) como ponto de partida.
         """
         cwl_members = await self.get_cwl_members_for_planning()
         if cwl_members is None:
             return {"error": "Não foi possível buscar os membros inscritos na CWL. O clã está em uma liga de guerra?"}
 
-        # Usa o team_size detetado
         roster_size = team_size 
-        if len(cwl_members) < roster_size:
-            return {"error": f"Não há membros suficientes ({len(cwl_members)}) na lista da CWL para um plano de {roster_size}v{roster_size}."}
         
         clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
         current_member_tags = {m.tag for m in clan.members}
@@ -147,46 +145,64 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         db_cog = self.bot.get_cog("Banco de Dados")
         player_statuses = await db_cog.load_player_notes_from_db() if db_cog else {}
         
-        active_pool = []
-        backup_pool = []
+        # --- LÓGICA MODIFICADA: Baseia-se na guerra ativa ---
         
-        for member in cwl_members:
-            if member['tag'] in current_member_tags: # Só planeia para quem está no clã
-                status = player_statuses.get(member['tag'], {}).get('cwl_status', 'active')
-                player_entry = self._get_player_pool_entry(member)
-                if status == 'active':
-                    active_pool.append(player_entry)
-                else:
-                    backup_pool.append(player_entry)
+        # 1. Pega o roster REAL da guerra ativa
+        our_clan_in_war = active_war.clan if active_war.clan.tag == self.bot.clan_tag else active_war.opponent
+        actual_roster_tags = {m.tag for m in our_clan_in_war.members}
+        
+        logger.info(f"Roster real da guerra Dia 1 detectado com {len(actual_roster_tags)} membros.")
 
-        # Ordena as pools: Ativos por CV (mais fraco primeiro para rotação justa), Backups (mais forte primeiro)
-        active_pool.sort(key=lambda p: p['player']['town_hall'])
-        backup_pool.sort(key=lambda p: p['player']['town_hall'], reverse=True)
-        
-        schedule = []
+        # 2. Constrói os pools (roster, banco ativo, banco backup)
+        current_roster = []
+        current_active_bench = deque()
+        current_backup_bench = deque()
         warning = None # V4: Adiciona a variável de aviso
+
+        all_cwl_players_pool = []
+        for member in cwl_members:
+            # Só planeia para quem está no clã
+            if member['tag'] in current_member_tags:
+                all_cwl_players_pool.append(self._get_player_pool_entry(member))
+        
+        if len(actual_roster_tags) < roster_size:
+            warning = f"Aviso Dia 1: Roster real ({len(actual_roster_tags)}) é MENOR que o tamanho da guerra ({team_size}). O plano pode ficar inconsistente."
+            logger.warning(warning)
+        elif len(actual_roster_tags) > roster_size:
+             warning = f"Aviso Dia 1: Roster real ({len(actual_roster_tags)}) é MAIOR que o tamanho da guerra ({team_size}). Usando roster real."
+             logger.warning(warning)
+
+
+        for p_entry in all_cwl_players_pool:
+            player_tag = p_entry['player']['tag']
+            
+            if player_tag in actual_roster_tags:
+                # Este jogador está no roster ATUAL do Dia 1
+                current_roster.append(p_entry)
+            else:
+                # Este jogador está no BANCO
+                status = player_statuses.get(player_tag, {}).get('cwl_status', 'active')
+                if status == 'active':
+                    current_active_bench.append(p_entry)
+                else:
+                    current_backup_bench.append(p_entry)
+                    
+        # Ordena os bancos para a rotação (Ativos: mais fracos primeiro | Backups: mais fortes primeiro)
+        current_active_bench = deque(sorted(current_active_bench, key=lambda p: p['player']['town_hall']))
+        current_backup_bench = deque(sorted(current_backup_bench, key=lambda p: p['player']['town_hall'], reverse=True))
+
+        logger.info(f"Plano Dia 1 (Baseado na Realidade): {len(current_roster)} no roster, {len(current_active_bench)} no banco ativo, {len(current_backup_bench)} no banco backup.")
+        
+        # --- Fim da Lógica Modificada ---
         
         # --- Dia 1: Definição Inicial ---
-        current_roster = active_pool[:roster_size]
-        current_active_bench = deque(active_pool[roster_size:]) # Usa deque para fila
-        current_backup_bench = deque(backup_pool) # Usa deque para fila
+        # (Bloco de 'needed_for_roster_1' removido, pois agora usamos o roster real)
         
-        needed_for_roster_1 = roster_size - len(current_roster)
-        if needed_for_roster_1 > 0:
-            # V4 (BUG 4): Define a mensagem de aviso se backups forem puxados
-            warning = f"Aviso Dia 1: Faltam {needed_for_roster_1} 'Ativos'. {needed_for_roster_1} 'Backups' foram escalados."
-            logger.warning(warning)
-            for _ in range(needed_for_roster_1):
-                if current_backup_bench:
-                    current_roster.append(current_backup_bench.popleft())
-                else:
-                    logger.error("CWL Dia 1: Faltam jogadores 'Ativos' e não há 'Backups' suficientes!")
-                    break # Para se o banco de backup também estiver vazio
-
         # Incrementa dias jogados para o Dia 1
         for p in current_roster:
             p['days_played'] += 1
 
+        schedule = []
         schedule.append({
             "day": 1,
             "active_roster": current_roster,
@@ -445,6 +461,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         season = info['season']
         current_day = info['day_number']
         team_size = info['team_size'] # Pega o team_size
+        active_war = info['active_war'] # Pega a guerra ativa
         
         if current_day == 8:
              plan_doc = await self.cwl_plan_collection.find_one({"_id": season})
@@ -503,8 +520,14 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                      pass 
 
             if plan_doc is None or is_old_format or is_wrong_size:
-                logger.info(f"Gerando NOVO plano de CWL ({team_size}v{team_size}) para a temporada {season}...")
-                plan_data = await self._generate_new_7_day_plan(team_size) # Passa o team_size
+                # --- ALTERAÇÃO PRINCIPAL AQUI ---
+                if not active_war:
+                    logger.error(f"Gerando NOVO plano para {season}, mas a guerra do Dia {current_day} não foi encontrada. O plano não pode ser criado.")
+                    return {"error": f"Erro crítico: Não foi possível encontrar a guerra ativa do Dia {current_day} para gerar o plano inicial."}
+                
+                logger.info(f"Gerando NOVO plano de CWL ({team_size}v{team_size}) para a temporada {season} baseado na guerra ATIVA...")
+                plan_data = await self._generate_new_7_day_plan(team_size, active_war) # Passa a guerra ativa
+                # --- FIM DA ALTERAÇÃO ---
                 
                 if "error" in plan_data: return plan_data
                 
@@ -713,4 +736,3 @@ async def setup(bot: commands.Bot):
         await bot.add_cog(CwlPlannerCog(bot))
     else:
         logger.warning("Cog 'CwlPlannerCog' não carregado (ID do canal ou DB não configurado).")
-
