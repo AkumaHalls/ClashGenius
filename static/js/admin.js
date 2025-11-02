@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const watchlistTableBody = document.querySelector('#admin-watchlist-table tbody');
     const watchlistAddFeedback = document.getElementById('watchlist-add-feedback');
     const watchlistListFeedback = document.getElementById('watchlist-list-feedback');
+    // <<< INÍCIO DA ALTERAÇÃO (Seletores Filtro) >>>
+    const watchlistFilterName = document.getElementById('watchlist-filter-name');
+    const watchlistFilterTag = document.getElementById('watchlist-filter-tag');
+    // <<< FIM DA ALTERAÇÃO >>>
 
     // Seletores para Navegação por Abas
     const navLinks = document.querySelectorAll('.admin-nav .nav-link');
@@ -117,22 +121,43 @@ document.addEventListener('DOMContentLoaded', () => {
         if(recentLogsBox) recentLogsBox.textContent = Array.isArray(recent_logs) && recent_logs.length > 0 ? recent_logs.join('\n') : 'Nenhum log recente.'; // Verifica se é array
     }
 
+    // <<< INÍCIO DA ALTERAÇÃO (populateSettingsForm) >>>
     function populateSettingsForm(data) {
         if (!data || data.error || !settingsForm) return;
+
         for (const key in data) {
-            const input = document.getElementById(key);
-            if (input) {
-                // Handle boolean specifically for select/checkbox
-                if (key === "auto_add_watchlist_enabled" && input.tagName === 'SELECT') {
-                    input.value = data[key] ? 'true' : 'false';
-                } else if (input.type === 'checkbox') {
-                     input.checked = !!data[key]; // Generic checkbox handling
-                } else {
-                   input.value = data[key] !== null && data[key] !== undefined ? data[key] : ''; // Handle null/undefined
+            const value = data[key];
+
+            if (value && typeof value === 'object' && value.id !== undefined) {
+                // É um objeto de ID (ex: channel_id: {id: "123", name: "#logs"})
+                const input = document.getElementById(key);
+                const nameSpan = document.getElementById(key + '_name'); // Ex: channel_id_name
+                
+                if (input) {
+                    input.value = value.id; // Coloca o ID no input
+                }
+                if (nameSpan) {
+                    nameSpan.textContent = value.name; // Coloca o nome no span
+                    nameSpan.title = value.name; // Adiciona tooltip para nomes longos
+                }
+            } else {
+                // É um valor normal (ex: maintenance_message ou auto_add_watchlist_enabled)
+                const input = document.getElementById(key);
+                if (input) {
+                    if (key === "auto_add_watchlist_enabled" && input.tagName === 'SELECT') {
+                        // O valor já vem como "true" ou "false" (string)
+                        input.value = value;
+                    } else if (input.type === 'checkbox') {
+                         input.checked = (value === 'true' || value === true);
+                    } else {
+                       // Valor normal (string, ex: maintenance_message)
+                       input.value = value !== null && value !== undefined ? value : '';
+                    }
                 }
             }
         }
     }
+    // <<< FIM DA ALTERAÇÃO (populateSettingsForm) >>>
 
 
     function updateDbViewer(data) {
@@ -202,7 +227,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Watchlist Functions --- (sem alterações)
+    // --- Watchlist Functions ---
+    // <<< INÍCIO DA ALTERAÇÃO (Função de Filtro Watchlist) >>>
+    function applyWatchlistFilter() {
+        if (!watchlistTableBody) return; // Aborta se a tabela não existir
+
+        const filterName = watchlistFilterName ? watchlistFilterName.value.toLowerCase() : '';
+        const filterTag = watchlistFilterTag ? watchlistFilterTag.value.toLowerCase() : '';
+
+        const rows = watchlistTableBody.querySelectorAll('tr');
+
+        rows.forEach(row => {
+            // Pega o conteúdo das células Nome (índice 0) e Tag (índice 1)
+            const cellName = row.cells[0] ? row.cells[0].textContent.toLowerCase() : '';
+            const cellTag = row.cells[1] ? row.cells[1].textContent.toLowerCase() : '';
+
+            // Mostra a linha apenas se ambas as condições passarem
+            const nameMatch = cellName.includes(filterName);
+            const tagMatch = cellTag.includes(filterTag);
+
+            if (nameMatch && tagMatch) {
+                row.style.display = ''; // Mostra a linha (default)
+            } else {
+                row.style.display = 'none'; // Esconde a linha
+            }
+        });
+    }
+    // <<< FIM DA ALTERAÇÃO >>>
+
     async function loadWatchlist() {
         if (!watchlistTableBody) return;
         watchlistTableBody.innerHTML = '<tr><td colspan="6"><div class="loading-spinner" style="margin: 10px auto; width: 20px; height: 20px;"></div></td></tr>'; // Add spinner
@@ -242,6 +294,11 @@ document.addEventListener('DOMContentLoaded', () => {
             watchlistTableBody.querySelectorAll('.admin-remove-btn').forEach(btn => {
                 btn.addEventListener('click', handleRemoveWatchlist);
             });
+
+            // <<< INÍCIO DA ALTERAÇÃO (Re-aplicar filtro) >>>
+            applyWatchlistFilter();
+            // <<< FIM DA ALTERAÇÃO >>>
+
         } catch (error) {
              // Erro já tratado por fetchAdminAPI, apenas atualiza a tabela
              watchlistTableBody.innerHTML = '<tr><td colspan="6" class="error-text">Erro ao carregar a lista. Verifique a consola.</td></tr>';
@@ -480,20 +537,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const settings = {};
             // Process form data, converting relevant fields
             for (const [key, value] of formData.entries()) {
-                 if (key === "auto_add_watchlist_enabled") {
+                
+                // <<< INÍCIO DA ALTERAÇÃO (submit settings) >>>
+                if (key === "auto_add_watchlist_enabled") {
                     settings[key] = value === 'true'; // Convert select string to boolean
-                } else if (key.includes('_id') && value.match(/^\d+$/)) {
-                     // Converte apenas se for número e tiver ID no nome
-                     settings[key] = parseInt(value, 10);
-                 } else if (value.match(/^\d+$/) && !key.includes('message')) {
-                      // Converte outros campos numéricos (exceto mensagem)
-                      // Adiciona verificação para não converter strings vazias
-                      if (value !== '') settings[key] = parseInt(value, 10);
-                      else settings[key] = null; // Ou envia null se estava vazio
-                 }
-                 else {
+                
+                } else if ((key.includes('_id') || key.includes('channel_id')) && value.match(/^\d+$/)) {
+                    // **NÃO** usa parseInt(). Envia como string para preservar precisão.
+                    // O backend Python (update_settings) já espera por isso e converterá para int.
+                    settings[key] = value;
+                
+                } else if (value.match(/^\d+$/) && !key.includes('message')) {
+                     // Converte outros campos numéricos (exceto mensagem e IDs)
+                     if (value !== '') settings[key] = parseInt(value, 10);
+                     else settings[key] = null; 
+                
+                } else {
                      settings[key] = value;
-                 }
+                }
+                // <<< FIM DA ALTERAÇÃO (submit settings) >>>
             }
 
             displayFeedback(settingsFeedback, 'Salvando...');
@@ -504,6 +566,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify(settings)
                 });
                 displayFeedback(settingsFeedback, response.message || 'Configurações salvas.');
+                
+                // <<< NOVO: Recarrega os dados para mostrar o valor salvo (como string) >>>
+                if (response.status === 'success') {
+                    const reloadedSettings = await fetchAdminAPI('settings');
+                    populateSettingsForm(reloadedSettings);
+                }
+                // <<< FIM NOVO >>>
+
             } catch(error) { /* Error handled by fetchAdminAPI */ }
         });
     }
@@ -553,12 +623,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (addWatchlistForm) {
+             if (addWatchlistForm) {
         addWatchlistForm.addEventListener('submit', handleAddWatchlist);
     }
+
+    // <<< INÍCIO DA ALTERAÇÃO (Listeners Filtro Watchlist) >>>
+    if (watchlistFilterName) {
+        watchlistFilterName.addEventListener('input', applyWatchlistFilter);
+    }
+    if (watchlistFilterTag) {
+        watchlistFilterTag.addEventListener('input', applyWatchlistFilter);
+    }
+    // <<< FIM DA ALTERAÇÃO >>>
+
 
     // --- Carregamento Inicial ---
     loadDataForCurrentTab(); // Carrega dados para a aba ativa ao iniciar
 
 });
+
 

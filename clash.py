@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.20-Fix
+# Versão 20.2.20-Fix1
 
 import os
 import logging
@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 
 import discord
 from discord.ext import commands
-import coc
+import coc # <<< GARANTIR QUE coc ESTÁ IMPORTADO DIRETAMENTE
 import pytz
 from dotenv import load_dotenv
 import motor.motor_asyncio
@@ -219,7 +219,8 @@ class ClashGeniusBot(commands.Bot):
                 logger.info(">>> Login coc.Client BEM-SUCEDIDO. <<<")
                 self.coc_client_ready.set(); logger.info("Evento coc_client_ready definido.")
                 return
-            except coc.errors.LoginError as e: logger.error(f"### ERRO LOGIN CoC (Tentativa {login_attempts}) ###: {e}"); break
+            # *** CORREÇÃO: Usar coc.LoginError diretamente ***
+            except coc.LoginError as e: logger.error(f"### ERRO LOGIN CoC (Tentativa {login_attempts}) ###: {e}"); break
             except asyncio.TimeoutError: logger.error(f"### TIMEOUT LOGIN CoC (Tentativa {login_attempts}) ###: API não respondeu em 45s.")
             except Exception as e: logger.error(f"### ERRO INESPERADO login CoC (Tentativa {login_attempts}) ###: {e}", exc_info=True)
             if login_attempts < max_attempts: logger.info(f"Aguardando {retry_delay}s..."); await asyncio.sleep(retry_delay)
@@ -279,7 +280,8 @@ class ClashGeniusBot(commands.Bot):
             logger.debug(f"Clã {tag} obtido e cacheado.")
             return clan_data
         except coc.errors.NotFound: logger.warning(f"Clã {tag} não encontrado."); return None
-        except coc.errors.LoginError: logger.error("get_clan_data: Erro de login CoC ao buscar clã."); return None
+        # *** CORREÇÃO: Usar coc.LoginError diretamente ***
+        except coc.LoginError: logger.error("get_clan_data: Erro de login CoC ao buscar clã."); return None
         except Exception as e: logger.error(f"Erro ao obter clã {tag}: {e}", exc_info=True); return None
 
 # --- Servidor Web ---
@@ -335,7 +337,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             else:
                  logger.debug(f"Dados '{key}' obtidos (forçado, sem cache).")
             return web.json_response(data, dumps=lambda v: json.dumps(v, default=str))
-        except coc.errors.LoginError:
+        # *** CORREÇÃO: Usar coc.LoginError diretamente ***
+        except coc.LoginError:
             logger.error(f"Erro de login CoC no handler para '{key}'.")
             bot_instance.coc_client_ready.clear(); bot_instance.api_client = None; asyncio.create_task(bot_instance.coc_login_task())
             return web.json_response({"error": "Erro de autenticação com a API CoC. Tentando reconectar..."}, status=503)
@@ -359,6 +362,37 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             bot_instance.web_api_cache.pop('members', None); return web.Response(status=204)
         except ConnectionError as e: logger.error(f"Erro ao salvar nota (DB não conectado?): {e}"); return web.json_response({"error": "Erro de conexão com o banco de dados."}, status=500)
         except Exception as e: logger.error(f"Erro ao salvar nota: {e}", exc_info=True); return web.json_response({"error": "Erro interno ao salvar nota."}, status=500)
+
+    # <<< INÍCIO DA CORREÇÃO: Adiciona o handler para o status da CWL >>>
+    async def api_update_cwl_status_handler(request):
+        """Handler para atualizar o status CWL de um jogador."""
+        player_tag = request.match_info.get('player_tag')
+        if not player_tag:
+            return web.json_response({"error": "Player tag is required."}, status=400)
+        
+        try:
+            data = await request.json()
+            status = data.get('status')
+            if status not in ['active', 'backup']:
+                return web.json_response({"error": "Invalid status. Must be 'active' or 'backup'."}, status=400)
+            
+            # db_cog foi obtido no início de setup_web_server
+            if not db_cog:
+                 logger.error("api_update_cwl_status_handler: Database Cog not found.")
+                 return web.json_response({"error": "Internal server error (DB Cog missing)."}, status=500)
+            
+            # Chama a função no cog de banco de dados
+            await db_cog.update_player_cwl_status(player_tag, status)
+            
+            # Limpa o cache de membros para que o painel seja atualizado
+            bot_instance.web_api_cache.pop('members', None)
+            
+            return web.json_response({"success": True, "message": f"Status for {player_tag} updated to {status}."})
+        
+        except Exception as e:
+            logger.error(f"Error in api_update_cwl_status_handler for {player_tag}: {e}", exc_info=True)
+            return web.json_response({"error": "Internal server error while updating status."}, status=500)
+    # <<< FIM DA CORREÇÃO >>>
 
     async def api_historic_war_handler(request):
         # <<< CORRIGIDO: Usa 'is not None' para checar o DB >>>
@@ -407,7 +441,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             plan = war_advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
             return web.json_response(plan)
         except (coc.NotFound, coc.PrivateWarLog): return web.json_response({"success": False, "error": "Nenhuma guerra ativa ou log privado."}, status=404)
-        except coc.errors.LoginError: return web.json_response({"success": False, "error": "Erro de login com API CoC."}, status=503)
+        # *** CORREÇÃO: Usar coc.LoginError diretamente ***
+        except coc.LoginError: return web.json_response({"success": False, "error": "Erro de login com API CoC."}, status=503)
         except Exception as e: logger.error(f"Erro /api/war_advisor_plan: {e}", exc_info=True); return web.json_response({"success": False, "error": "Erro interno ao gerar plano."}, status=500)
     async def api_coc_status_handler(r):
         # (Mantido igual)
@@ -430,6 +465,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/current_war_details", api_current_war_details_handler); app.router.add_get("/api/missed_attacks_history", api_missed_attacks_history_handler);
     app.router.add_get("/api/war_log", api_war_log_handler); app.router.add_get("/api/cwl_info", api_cwl_info_handler);
     app.router.add_get("/api/highlights", api_highlights_handler); app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler);
+    
+    # <<< INÍCIO DA CORREÇÃO: Adiciona a rota para o status da CWL >>>
+    app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_update_cwl_status_handler)
+    # <<< FIM DA CORREÇÃO >>>
+    
     app.router.add_get("/api/war_history/{war_id:.*}", api_historic_war_handler); app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler);
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler); app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler);
     app.router.add_get("/api/coc_status", api_coc_status_handler); app.router.add_get("/api/status", admin_get_status_handler);
@@ -444,7 +484,14 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not session.get('admin'): logger.warning(f"Acesso não autorizado à API Admin: {request.path}"); return web.json_response({"status":"unauthorized", "message": "Acesso negado."}, status=403)
         return await handler(request)
     async def api_admin_diagnostics(r): return web.json_response(await admin_cog.get_diagnostics())
-    async def api_admin_get_settings(r): return web.json_response(await admin_cog.get_settings())
+    
+    # <<< INÍCIO DA ALTERAÇÃO (api_admin_get_settings) >>>
+    async def api_admin_get_settings(r): 
+        session = await get_session(r) # Pega a sessão do request
+        # Passa a sessão para o cog poder encontrar o Guild (servidor)
+        return web.json_response(await admin_cog.get_settings(session))
+    # <<< FIM DA ALTERAÇÃO (api_admin_get_settings) >>>
+
     async def api_admin_update_settings(r): return web.json_response(await admin_cog.update_settings(await r.json()))
     async def api_admin_db_viewer(r): return web.json_response(await admin_cog.get_db_viewer_data(), dumps=lambda v: json.dumps(v, default=str))
     async def api_admin_get_watchlist(r): return web.json_response(await admin_cog.get_watchlist_admin()) # A função get_watchlist_admin foi corrigida para retornar serializável
@@ -596,4 +643,3 @@ if __name__ == "__main__":
     try: asyncio.run(main())
     except KeyboardInterrupt: logger.info("Programa interrompido pelo usuário (KeyboardInterrupt).")
     except Exception as e: logger.critical(f"### ERRO FATAL NÃO TRATADO no nível do asyncio.run() ###: {e}", exc_info=True)
-

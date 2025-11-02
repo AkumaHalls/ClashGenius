@@ -92,8 +92,25 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "recent_logs": log_buffer
         }
 
-    async def get_settings(self) -> Dict[str, Any]:
-        """Obtém as configurações atuais do bot, mesclando com defaults."""
+    # <<< INÍCIO DA ALTERAÇÃO (get_settings) >>>
+    async def get_settings(self, session: Dict[str, Any]) -> Dict[str, Any]:
+        """Obtém as configurações atuais do bot, mesclando com defaults e buscando nomes de canais/cargos."""
+        
+        # 1. Tenta obter o Guild (servidor) a partir da sessão do usuário
+        guild_id_str = session.get('guild_id')
+        guild = None
+        if guild_id_str:
+            try:
+                guild = self.bot.get_guild(int(guild_id_str))
+            except (ValueError, TypeError):
+                logger.warning(f"get_settings: guild_id inválido na sessão: {guild_id_str}")
+        if not guild and guild_id_str:
+            logger.warning(f"get_settings: Não foi possível encontrar o Guild (servidor) ID: {guild_id_str}. Nomes de cargos não serão carregados.")
+        elif not guild_id_str:
+            logger.warning("get_settings: Usuário não logou com ID do Servidor. Nomes de cargos não serão carregados.")
+
+
+        # 2. Define os valores default (como números)
         defaults = {
             "channel_id": getattr(self.bot, 'channel_id', 0),
             "post_war_analysis_channel_id": getattr(self.bot, 'post_war_analysis_channel_id', 0),
@@ -108,24 +125,72 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "maintenance_message": getattr(self.bot, 'maintenance_message', "Manutenção!"),
             "auto_add_watchlist_enabled": getattr(self.bot, 'auto_add_watchlist_enabled', True)
         }
-        if self.db is None:
-            logger.warning("DB não disponível, retornando configurações default.")
-            return defaults
 
-        try:
-            settings = await self.db.system_config.find_one({"_id": "bot_settings"})
-            if not settings:
-                logger.warning("Documento 'bot_settings' não encontrado, usando defaults.")
-                return defaults
+        # 3. Busca configurações do DB
+        merged_settings = defaults.copy() # Começa com os defaults
+        if self.db is not None:
+            try:
+                settings_from_db = await self.db.system_config.find_one({"_id": "bot_settings"})
+                if settings_from_db:
+                    merged_settings.update(settings_from_db) # Sobrescreve defaults com valores do DB
+                else:
+                    logger.warning("Documento 'bot_settings' não encontrado, usando defaults.")
+            except Exception as e:
+                logger.error(f"Erro ao buscar settings do DB: {e}", exc_info=True)
+        else:
+             logger.warning("DB não disponível, retornando configurações default.")
 
-            # Mescla defaults com settings do DB
-            merged_settings = defaults.copy()
-            merged_settings.update(settings) # Atualiza com valores do DB
-            merged_settings.pop('_id', None) # Remove ID interno
-            return merged_settings
-        except Exception as e:
-            logger.error(f"Erro ao buscar settings do DB: {e}", exc_info=True)
-            return defaults # Retorna defaults em caso de erro
+        merged_settings.pop('_id', None) # Remove ID interno
+
+        # 4. Prepara o dicionário final com nomes
+        settings_with_names = {}
+
+        for key, value in merged_settings.items():
+            # Se for um ID de canal ou cargo...
+            if ("_id" in key or "channel_id" in key) and isinstance(value, (int, float, str)):
+                id_str = str(value)
+                id_int = 0
+                try:
+                    id_int = int(id_str)
+                except (ValueError, TypeError):
+                    pass # Mantém 0 se não for um ID válido
+                
+                if id_int == 0:
+                    settings_with_names[key] = {"id": id_str, "name": "Nenhum"}
+                    continue
+
+                item_name = "Não encontrado"
+                
+                # Tenta buscar
+                if "channel_id" in key:
+                    channel = self.bot.get_channel(id_int)
+                    if channel:
+                        item_name = f"#{channel.name}"
+                
+                elif "role_id" in key:
+                    role = None
+                    if guild: # Só busca cargos se o guild foi encontrado
+                        role = guild.get_role(id_int)
+                    if role:
+                        item_name = f"@{role.name}"
+                    elif guild:
+                        item_name = "Cargo não encontrado"
+                    else:
+                        item_name = "Sem Info do Servidor"
+                
+                # Armazena o ID (como string) e o nome
+                settings_with_names[key] = {"id": id_str, "name": item_name}
+
+            # Converte booleano para string para o select (HTML)
+            elif key == "auto_add_watchlist_enabled":
+                settings_with_names[key] = "true" if value else "false"
+            
+            # Mantém outros valores (como maintenance_message)
+            else:
+                settings_with_names[key] = value
+
+        return settings_with_names
+    # <<< FIM DA ALTERAÇÃO (get_settings) >>>
 
     async def update_settings(self, new_settings: Dict[str, Any]) -> Dict[str, Any]:
         """Atualiza as configurações no bot e no banco de dados."""
@@ -135,9 +200,17 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         for key, value in new_settings.items():
             try:
                 processed_value = value
-                # Converte IDs/Roles para int se forem strings numéricas
+                
+                # O Javascript agora envia IDs como STRING para preservar a precisão.
+                # O Python DEVE converter essa string para int antes de salvar no DB
+                # e de atualizar o atributo do bot (que espera int).
                 if isinstance(value, str) and ("_id" in key or "channel_id" in key) and value.isdigit():
-                    processed_value = int(value)
+                    try:
+                        processed_value = int(value) # Converte a string longa para int (Python suporta)
+                    except ValueError:
+                         logger.warning(f"Valor de ID inválido '{value}' para '{key}'. Ignorando conversão.")
+                         processed_value = value # Mantém como string se falhar (improvável)
+                
                 # Converte flag booleana
                 elif key == "auto_add_watchlist_enabled":
                      processed_value = str(value).lower() in ['true', 'on', '1', 'yes']

@@ -57,6 +57,103 @@
              margin-bottom: 15px;
         }
 
+        /* <<< INÍCIO CSS: Layout Corrigido para Nomes de Canais/Cargos >>> */
+        
+        /* Define o grid com 3 colunas: Label, ID Input, Name Span */
+        #settings-form .form-grid {
+            display: grid;
+            /* Colunas: 
+               1. (Label): Tamanho automático
+               2. (ID Input): 1 fração do espaço (flexível)
+               3. (Name Span): 1 fração do espaço (flexível)
+            */
+            grid-template-columns: auto 1fr 1fr;
+            gap: 10px 15px; /* 10px vertical, 15px horizontal */
+            align-items: center; /* Alinha verticalmente label, input e span */
+        }
+
+        /* Faz a Label ocupar a primeira coluna */
+        .form-group label {
+            grid-column: 1 / 2;
+            margin-bottom: 0; /* Remove margem que estava no .form-group */
+            text-align: right; /* Alinha a label à direita para ficar perto do input */
+            padding-right: 10px; /* Espaço entre label e input */
+            font-size: 0.9em;
+            color: var(--color-text-secondary);
+        }
+
+        /* Faz o Input de ID ocupar a segunda coluna */
+        .form-group .settings-input {
+            grid-column: 2 / 3;
+            margin-bottom: 0; /* Remove margem */
+            font-family: monospace;
+        }
+        
+        /* Faz o Span de Nome ocupar a terceira coluna */
+        .form-group .setting-id-name {
+            grid-column: 3 / 4;
+            font-size: 0.9em;
+            color: var(--color-text-secondary);
+            background-color: rgba(0,0,0,0.2);
+            padding: 8px 12px;
+            border-radius: var(--border-radius-base);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border: 1px solid var(--color-border);
+            box-sizing: border-box;
+            height: 39px; /* Altura fixa para alinhar com o input */
+            line-height: 21px; /* Ajusta o texto verticalmente */
+        }
+
+        /* Faz campos que não têm nome (como maintenance_message) ocupar o grid todo */
+        .form-group.full-width {
+            grid-column: 1 / -1; /* Ocupa todas as 3 colunas */
+        }
+        .form-group.full-width label {
+            grid-column: 1 / -1;
+            text-align: left; /* Alinha à esquerda */
+            padding-right: 0;
+            margin-bottom: 5px; /* Adiciona margem de volta */
+        }
+        .form-group.full-width .settings-textarea,
+        .form-group.full-width .settings-input {
+            grid-column: 1 / -1;
+            margin-bottom: 0; /* Remove margem */
+        }
+
+        /* Remove o wrapper flex que eu tinha adicionado antes */
+        .setting-id-wrapper {
+             /* Não é mais display: flex, agora é parte do grid */
+             display: contents; /* Faz o wrapper "desaparecer" e seus filhos entrarem no grid */
+        }
+        /* <<< FIM CSS >>> */
+
+        /* <<< INÍCIO CSS: Estilo Watchlist >>> */
+        #admin-watchlist .table-container-admin {
+            max-height: 450px; /* Aumenta a altura de 200px para 450px */
+        }
+        #admin-watchlist table {
+            font-size: 0.95em; /* Aumenta a fonte de 0.85em para 0.95em */
+        }
+        /* Filtros da Watchlist */
+        .watchlist-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: rgba(74, 85, 104, 0.1);
+            border-radius: var(--border-radius-base);
+        }
+        .watchlist-filters input[type="text"] {
+            flex-grow: 1;
+            min-width: 200px;
+            /* Reutiliza a classe 'admin-input' mas remove a margem de baixo */
+            margin-bottom: 0; 
+        }
+        /* <<< FIM CSS >>> */
+
     </style>
 </head>
 <body class="admin-page">
@@ -125,60 +222,120 @@
                         <h3>Gerenciamento de Configurações</h3>
                         <form id="settings-form">
                             <h4>Canais e Cargos (IDs Numéricos)</h4>
+                            
+                            <!-- <<< INÍCIO ALTERAÇÃO HTML: Reestrutura o grid >>> -->
                             <div class="form-grid">
+                                
+                                <!-- Canal Logs Principal -->
                                 <div class="form-group">
                                     <label for="channel_id">Canal Logs Principal</label>
-                                    <input type="text" id="channel_id" name="channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper"> <!-- Este wrapper agora é display: contents -->
+                                        <input type="text" id="channel_id" name="channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="channel_id_name">...</span>
+                                    </div>
                                 </div>
+                                
+                                <!-- Canal Análise Pós-Guerra -->
                                 <div class="form-group">
                                     <label for="post_war_analysis_channel_id">Canal Análise Pós-Guerra</label>
-                                    <input type="text" id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="post_war_analysis_channel_id_name">...</span>
+                                    </div>
                                 </div>
+                                
+                                <!-- Canal Jogos do Clã -->
                                 <div class="form-group">
                                     <label for="clan_games_channel_id">Canal Jogos do Clã</label>
-                                    <input type="text" id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="clan_games_channel_id_name">...</span>
+                                    </div>
                                 </div>
+                                
+                                <!-- Canal Planejador CWL -->
                                  <div class="form-group">
                                     <label for="cwl_planner_channel_id">Canal Planejador CWL</label>
-                                    <input type="text" id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="cwl_planner_channel_id_name">...</span>
+                                    </div>
                                 </div>
+                                
+                                <!-- Canal Rel. Doações -->
                                 <div class="form-group">
                                     <label for="donations_channel_id">Canal Rel. Doações</label>
-                                    <input type="text" id="donations_channel_id" name="donations_channel_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="donations_channel_id" name="donations_channel_id" class="settings-input">
+                                        <span class="setting-id-name" id="donations_channel_id_name">...</span>
+                                    </div>
                                 </div>
+                                
+                                <!-- Canal Alerta Watchlist -->
                                 <div class="form-group">
                                      <label for="watchlist_alert_channel_id">Canal Alerta Watchlist</label>
-                                     <input type="text" id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input">
+                                     <div class="setting-id-wrapper">
+                                         <input type="text" id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input">
+                                         <span class="setting-id-name" id="watchlist_alert_channel_id_name">...</span>
+                                    </div>
                                 </div>
+                                
+                                <!-- Cargo Alerta 1 Estrela -->
                                 <div class="form-group">
                                     <label for="role_id_1star_alert">Cargo Alerta 1 Estrela</label>
-                                    <input type="text" id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input">
+                                        <span class="setting-id-name" id="role_id_1star_alert_name">...</span>
+                                    </div>
                                 </div>
+                                
+                                <!-- Cargo Ataque Perdido -->
                                 <div class="form-group">
                                     <label for="role_id_missed_attack">Cargo Ataque Perdido</label>
-                                    <input type="text" id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input">
+                                        <span class="setting-id-name" id="role_id_missed_attack_name">...</span>
+                                    </div>
                                 </div>
+                                
+                                <!-- Cargo Líder (Watchlist) -->
                                 <div class="form-group">
                                     <label for="leader_role_id">Cargo Líder (Watchlist)</label>
-                                    <input type="text" id="leader_role_id" name="leader_role_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="leader_role_id" name="leader_role_id" class="settings-input">
+                                        <span class="setting-id-name" id="leader_role_id_name">...</span>
+                                    </div>
                                 </div>
+                                
+                                <!-- Cargo Co-líder (Watchlist) -->
                                  <div class="form-group">
                                     <label for="coleader_role_id">Cargo Co-líder (Watchlist)</label>
-                                    <input type="text" id="coleader_role_id" name="coleader_role_id" class="settings-input">
+                                    <div class="setting-id-wrapper">
+                                        <input type="text" id="coleader_role_id" name="coleader_role_id" class="settings-input">
+                                        <span class="setting-id-name" id="coleader_role_id_name">...</span>
+                                    </div>
                                 </div>
+
+                                <!-- Mensagem de Manutenção (full-width) -->
+                                <div class="form-group full-width">
+                                    <label for="maintenance_message">Mensagem de Manutenção</label>
+                                    <textarea id="maintenance_message" name="maintenance_message" rows="3" class="settings-textarea"></textarea>
+                                </div>
+                                
+                                <!-- Watchlist Auto-add (full-width) -->
+                                 <div class="form-group full-width">
+                                    <label for="auto_add_watchlist_enabled">Adicionar Automaticamente à Watchlist (Ataques Perdidos)</label>
+                                    <select id="auto_add_watchlist_enabled" name="auto_add_watchlist_enabled" class="settings-input" style="width: auto;"> <!-- Estilo para não ocupar 100% -->
+                                        <option value="true">Sim</option>
+                                        <option value="false">Não</option>
+                                    </select>
+                                 </div>
                             </div>
+                            <!-- <<< FIM ALTERAÇÃO HTML >>> -->
+                            
                             <h4>Outras Configurações</h4>
-                             <div class="form-group">
-                                <label for="maintenance_message">Mensagem de Manutenção</label>
-                                <textarea id="maintenance_message" name="maintenance_message" rows="3" class="settings-textarea"></textarea>
-                            </div>
-                             <div class="form-group">
-                                <label for="auto_add_watchlist_enabled">Adicionar Automaticamente à Watchlist (Ataques Perdidos)</label>
-                                <select id="auto_add_watchlist_enabled" name="auto_add_watchlist_enabled" class="settings-input">
-                                    <option value="true">Sim</option>
-                                    <option value="false">Não</option>
-                                </select>
-                             </div>
+                            <!-- Campos movidos para dentro do grid acima -->
+                             
                             <button type="submit" class="control-btn">Salvar Configurações</button>
                             <p id="settings-feedback" class="feedback-text"></p>
                         </form>
@@ -191,28 +348,37 @@
                         <h3>Gerenciar Lista de Observação (Watchlist)</h3>
                         <form id="admin-add-watchlist-form">
                             <h4>Adicionar Jogador</h4>
-                            <div class="form-grid">
-                                <div class="form-group">
+                            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;"> <!-- Aplica grid de 3 colunas aqui também -->
+                                <div class="form-group" style="grid-column: 1 / 2;">
                                     <label for="watchlist-player-tag">Tag do Jogador</label>
                                     <input type="text" id="watchlist-player-tag" name="player_tag" class="admin-input" required placeholder="#ABC123XYZ">
                                 </div>
-                                 <div class="form-group">
+                                 <div class="form-group" style="grid-column: 2 / 3;">
                                     <label for="watchlist-player-name">Nome (Opcional)</label>
                                     <input type="text" id="watchlist-player-name" name="player_name" class="admin-input" placeholder="Buscará se vazio">
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" style="grid-column: 3 / 4;">
                                     <label for="watchlist-reason">Motivo</label>
                                     <input type="text" id="watchlist-reason" name="reason" class="admin-input" required placeholder="Ex: Não atacou na guerra">
                                 </div>
                             </div>
-                             <div class="form-group">
+                             <div class="form-group full-width"> <!-- Usa full-width para detalhes -->
                                 <label for="watchlist-details">Detalhes (Opcional)</label>
                                 <textarea id="watchlist-details" name="details" rows="2" class="admin-textarea" placeholder="Ex: Guerra vs Tropa XYZ em 15/10/2025"></textarea>
                             </div>
                             <button type="submit" class="control-btn">Adicionar à Lista</button>
                             <p id="watchlist-add-feedback" class="feedback-text"></p>
                         </form>
+                        
                         <h4 style="margin-top: 25px;">Jogadores na Lista</h4>
+                        
+                        <!-- <<< INÍCIO DA ALTERAÇÃO (Filtros Watchlist) >>> -->
+                        <div class="watchlist-filters">
+                            <input type="text" id="watchlist-filter-name" class="admin-input" placeholder="Filtrar por Nome...">
+                            <input type="text" id="watchlist-filter-tag" class="admin-input" placeholder="Filtrar por Tag...">
+                        </div>
+                        <!-- <<< FIM DA ALTERAÇÃO >>> -->
+
                          <div class="table-container-admin">
                             <table id="admin-watchlist-table">
                                 <thead><tr><th>Nome</th><th>Tag</th><th>Motivo</th><th>Detalhes</th><th>Data Adição</th><th>Ação</th></tr></thead>
@@ -288,4 +454,5 @@
     <script src="/static/js/admin.js"></script>
 </body>
 </html>
+
 
