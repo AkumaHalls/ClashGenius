@@ -128,6 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Handle non-OK responses first
             if (!response.ok) {
+                // *** CORREÇÃO HTTP 405: Adiciona log específico ***
+                if (response.status === 405) {
+                    console.error(`Erro 405 (Método Não Permitido) para ${endpoint}. O JS usou ${options.method || 'GET'}?`);
+                }
                 const errorData = await response.json().catch(() => ({ error: `Erro HTTP ${response.status}` }));
                 const errorMessage = errorData.error || errorData.message || `Falha ao carregar ${endpoint}.`;
 
@@ -859,6 +863,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!data || data.error || data.status === "NotInCwl") {
             if (noCwlMessageEl) {
                 noCwlMessageEl.style.display = 'block';
+                // *** CORREÇÃO HTTP 405: Mostra o erro da API se existir ***
                 setText(noCwlMessageEl, data?.error || data?.message || "O clã não está em CWL no momento.");
             }
             if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
@@ -1333,13 +1338,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error("Erro inicial ao carregar dados do clã, parando carregamento:", clanData.error);
                 return; // Stop further loading if essential clan data failed initially
             }
-
+            
+            // *** CORREÇÃO HTTP 405: Mudar cwl/generate_plan de GET para POST ***
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
                 warLogData, cwlInfoData, highlightsData, warAdvisorData
             ] = await Promise.all([
                 fetchData('members'), fetchData('current_war_details'), fetchData('missed_attacks_history'),
-                fetchData('war_log'), fetchData('cwl/generate_plan'), // *** CORREÇÃO: Chamada API da CWL movida para aqui ***
+                fetchData('war_log'), 
+                fetchData('cwl/generate_plan', { method: 'POST' }), // *** ESTA É A CORREÇÃO ***
                 fetchData('highlights'), fetchData('war_advisor_plan')
             ]);
 
