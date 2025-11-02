@@ -752,14 +752,29 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleGenerateCwlPlan() {
         // (Código mantido igual)
         if (!generateCwlPlanBtn) return;
-        generateCwlPlanBtn.disabled = true; generateCwlPlanBtn.textContent = 'A gerar...';
+        generateCwlPlanBtn.disabled = true; generateCwlPlanBtn.textContent = 'A gerar/atualizar...'; // Texto atualizado
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block';
         setHtml(cwlPlanContentEl, '<div class="loading-spinner" style="margin: 20px auto;"></div>');
 
         const data = await fetchData('cwl/generate_plan', { method: 'POST' });
 
-        generateCwlPlanBtn.disabled = false; generateCwlPlanBtn.textContent = 'Gerar Plano de Rotação';
+        generateCwlPlanBtn.disabled = false; generateCwlPlanBtn.textContent = 'Gerar/Atualizar Plano de Rotação'; // Texto atualizado
         const tabsContainer = document.getElementById('cwlPlanDaysTabs'); // Get tabs container
+        
+        // ***** INÍCIO DA MODIFICAÇÃO *****
+        // Procura o novo elemento de aviso
+        const cwlPlanWarningEl = document.getElementById('cwlPlanWarning'); 
+        
+        if (data.warning) {
+            // Exibe o aviso se ele existir na resposta
+            setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
+            cwlPlanWarningEl.style.display = 'block';
+        } else if (cwlPlanWarningEl) {
+            // Esconde o aviso se não houver
+            cwlPlanWarningEl.style.display = 'none';
+        }
+        // ***** FIM DA MODIFICAÇÃO *****
+
 
         if (!data || data.error) {
             setHtml(cwlPlanContentEl, `<p class="message-box">${data?.error || 'Erro ao gerar plano.'}</p>`);
@@ -1312,4 +1327,3 @@ document.addEventListener('DOMContentLoaded', () => {
     checkApiMaintenance(); // Check immediately
     setInterval(checkApiMaintenance, 20000); // Check every 20 seconds
 });
-
