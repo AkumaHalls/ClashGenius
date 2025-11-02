@@ -248,7 +248,7 @@
                         maximizando a participação e a performance do clã.
                     </p>
                     <button id="generateCwlPlanBtn" class="control-btn">
-                        Gerar Plano de Rotação
+                        Gerar/Atualizar Plano de Rotação
                         <span class="tooltip-text">Disponível apenas durante a CWL.</span>
                     </button>
                     <div id="cwlPlanResult" class="cwl-plan-result" style="display: none;">
@@ -258,6 +258,11 @@
                         </div>
                         <div class="cwl-plan-content" id="cwlPlanContent">
                         </div>
+                    </div>
+
+                    <!-- Bloco de Alerta Adicionado -->
+                    <div id="cwlPlanWarning" class="inactivity-alert" style="display: none; background-color: rgba(236, 201, 75, 0.2); border-color: var(--color-warning); color: var(--color-warning);">
+                        <!-- O conteúdo será inserido pelo JavaScript -->
                     </div>
 
                     <div id="cwlInactivityAlert" class="inactivity-alert" style="display: none;">
