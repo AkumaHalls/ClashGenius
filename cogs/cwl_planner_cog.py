@@ -84,7 +84,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                         war = await self.bot.api_client.get_league_war(war_tag)
                         if war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag:
                             team_size = war.team_size
-                            wars_by_state[war.state].append((war, i + 1, war_tag))
+                            # <<< INÍCIO DA CORREÇÃO >>>
+                            wars_by_state[str(war.state)].append((war, i + 1, war_tag))
+                            # <<< FIM DA CORREÇÃO >>>
                     except coc.NotFound:
                         continue
             
@@ -660,11 +662,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         fields = []
         
         if changes["players_left"]:
-            # <<< INÍCIO DA CORREÇÃO >>>
-            # O erro estava aqui. A string "
-            # " estava em uma linha separada, quebrando a sintaxe do Python.
             players_list = "\n".join([
-            # <<< FIM DA CORREÇÃO >>>
                 f"• **{p['name']}** (CV{p['town_hall']}) - Tag: `{p['tag']}`"
                 for p in changes["players_left"]
             ])
