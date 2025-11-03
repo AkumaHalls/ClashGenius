@@ -971,32 +971,77 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             timestamp=datetime.datetime.now(pytz.utc)
         )
         
-        roster_list = []
+        # <<< INÍCIO DA CORREÇÃO (BLOCO 1 - Roster) >>>
+        roster_lines = []
         sorted_roster_for_display = sorted(current_day_plan["active_roster"], key=lambda p: p['player']['town_hall'], reverse=True)
         
         for i, p_entry in enumerate(sorted_roster_for_display):
             player_data = p_entry.get('player') 
             days = p_entry.get('days_played', 0)
-            roster_list.append(f"`{i+1:02d}.` {player_data.get('name', 'N/A')} (CV{player_data.get('town_hall', '?')}) - {days} dias")
+            # Adiciona \n para que o len() seja preciso
+            roster_lines.append(f"`{i+1:02d}.` {player_data.get('name', 'N/A')} (CV{player_data.get('town_hall', '?')}) - {days} dias\n")
         
-        roster_str = "\n".join(roster_list)
+        total_players = len(roster_lines)
+        base_field_name = f"⚔️ Escalação Ativa ({total_players}v{total_players})"
+        current_field_value = ""
+        field_counter = 1
 
-        embed.add_field(
-            name=f"⚔️ Escalação Ativa ({len(roster_list)}v{len(roster_list)})", 
-            value=roster_str or "N/A", 
-            inline=False
-        )
+        for line in roster_lines:
+            if len(current_field_value) + len(line) > 1024:
+                # Campo cheio, adiciona ao embed
+                field_name = f"{base_field_name} (Parte {field_counter})"
+                embed.add_field(name=field_name, value=current_field_value, inline=False)
+                current_field_value = line # Começa novo campo
+                field_counter += 1
+            else:
+                current_field_value += line
 
+        # Adiciona o último campo (ou o único)
+        if current_field_value:
+            field_name = base_field_name
+            if field_counter > 1: # Se quebrou em partes
+                field_name = f"{base_field_name} (Parte {field_counter})"
+            embed.add_field(name=field_name, value=current_field_value, inline=False)
+        elif not roster_lines:
+            embed.add_field(name=base_field_name, value="N/A", inline=False) # Caso de roster vazio
+        # <<< FIM DA CORREÇÃO (BLOCO 1) >>>
+        
+
+        # <<< INÍCIO DA CORREÇÃO (BLOCO 2 - Substituições) >>>
         if current_day_plan["substitutions"]:
-            subs_str = ""
+            subs_lines = []
             for sub in current_day_plan["substitutions"]:
-                subs_str += f"🔴 **Sai:** {sub['out']['name']} (CV{sub['out']['town_hall']})\n"
-                subs_str += f"🟢 **Entra:** {sub['in']['name']} (CV{sub['in']['town_hall']})\n"
-                subs_str += f"_*{sub['reason']}_*\n"
-            embed.add_field(name="🔄 Alterações na Equipa", value=subs_str.strip(), inline=False)
-        else:
+                # Cada substituição é um bloco de 3 linhas
+                subs_lines.append(
+                    f"🔴 **Sai:** {sub['out']['name']} (CV{sub['out']['town_hall']})\n"
+                    f"🟢 **Entra:** {sub['in']['name']} (CV{sub['in']['town_hall']})\n"
+                    f"_*{sub['reason']}_*\n\n" # Adiciona espaço extra
+                )
+
+            current_field_value = ""
+            field_counter = 1
+            base_field_name = "🔄 Alterações na Equipa"
+            
+            for line in subs_lines:
+                if len(current_field_value) + len(line) > 1024:
+                    field_name = f"{base_field_name} (Parte {field_counter})"
+                    embed.add_field(name=field_name, value=current_field_value, inline=False)
+                    current_field_value = line
+                    field_counter += 1
+                else:
+                    current_field_value += line
+
+            # Adiciona o último campo (ou o único campo)
+            if current_field_value:
+                field_name = base_field_name
+                if field_counter > 1:
+                    field_name = f"{base_field_name} (Parte {field_counter})"
+                embed.add_field(name=field_name, value=current_field_value, inline=False)
+        
+        else: # No substitutions
             default_message = "Manter a escalação do dia anterior." if day_number > 1 else "Escalação inicial definida. Vamos com tudo!"
             embed.add_field(name="🔄 Alterações na Equipa", value=default_message, inline=False)
+        # <<< FIM DA CORREÇÃO (BLOCO 2) >>>
         
         # NOVO: Mostra banco ativo
         if current_day_plan.get("active_bench"):
