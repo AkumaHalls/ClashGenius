@@ -85,7 +85,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                         if war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag:
                             team_size = war.team_size
                             # <<< INÍCIO DA CORREÇÃO >>>
-                            wars_by_state[str(war.state)].append((war, i + 1, war_tag))
+                            # Usar .value para obter a string 'inWar', 'preparation', ou 'warEnded'
+                            wars_by_state[war.state.value].append((war, i + 1, war_tag))
                             # <<< FIM DA CORREÇÃO >>>
                     except coc.NotFound:
                         continue
