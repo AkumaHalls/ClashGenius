@@ -660,8 +660,11 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         fields = []
         
         if changes["players_left"]:
-            players_list = "
-".join([
+            # <<< INÍCIO DA CORREÇÃO >>>
+            # O erro estava aqui. A string "
+            # " estava em uma linha separada, quebrando a sintaxe do Python.
+            players_list = "\n".join([
+            # <<< FIM DA CORREÇÃO >>>
                 f"• **{p['name']}** (CV{p['town_hall']}) - Tag: `{p['tag']}`"
                 for p in changes["players_left"]
             ])
@@ -672,10 +675,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             })
         
         if changes["emergency_substitutions"]:
-            subs_list = "
-".join([
-                f"**Dia {sub['day']}:** {sub['out']['name']} → {sub['in']['name']}
-└ Motivo: {sub['reason']}"
+            subs_list = "\n".join([
+                f"**Dia {sub['day']}:** {sub['out']['name']} → {sub['in']['name']}\n└ Motivo: {sub['reason']}"
                 for sub in changes["emergency_substitutions"]
             ])
             fields.append({
@@ -685,8 +686,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             })
         
         if changes["status_changes"]:
-            status_list = "
-".join([
+            status_list = "\n".join([
                 f"• **{sc['player']['name']}** (Dia {sc['day']}): {sc['from']} → {sc['to']}"
                 for sc in changes["status_changes"]
             ])
@@ -870,8 +870,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                         description="Os seguintes jogadores saíram do clã. O plano será recalculado automaticamente.",
                         fields=[{
                             "name": "Jogadores que Saíram",
-                            "value": "
-".join([f"• **{p['name']}** (CV{p['town_hall']}) - `{p['tag']}`" for p in players_info]),
+                            "value": "\n".join([f"• **{p['name']}** (CV{p['town_hall']}) - `{p['tag']}`" for p in players_info]),
                             "inline": False
                         }]
                     )
@@ -916,8 +915,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         fields = []
         
         if validation["missing_players"]:
-            players_list = "
-".join([
+            players_list = "\n".join([
                 f"• **{p['name']}** (CV{p['town_hall']})"
                 for p in validation["missing_players"]
             ])
@@ -928,8 +926,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             })
         
         if validation["unexpected_players"]:
-            players_list = "
-".join([
+            players_list = "\n".join([
                 f"• **{p['name']}** (CV{p['town_hall']})"
                 for p in validation["unexpected_players"]
             ])
@@ -983,8 +980,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             days = p_entry.get('days_played', 0)
             roster_list.append(f"`{i+1:02d}.` {player_data.get('name', 'N/A')} (CV{player_data.get('town_hall', '?')}) - {days} dias")
         
-        roster_str = "
-".join(roster_list)
+        roster_str = "\n".join(roster_list)
 
         embed.add_field(
             name=f"⚔️ Escalação Ativa ({len(roster_list)}v{len(roster_list)})", 
@@ -995,12 +991,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         if current_day_plan["substitutions"]:
             subs_str = ""
             for sub in current_day_plan["substitutions"]:
-                subs_str += f"🔴 **Sai:** {sub['out']['name']} (CV{sub['out']['town_hall']})
-"
-                subs_str += f"🟢 **Entra:** {sub['in']['name']} (CV{sub['in']['town_hall']})
-"
-                subs_str += f"_*{sub['reason']}_*
-"
+                subs_str += f"🔴 **Sai:** {sub['out']['name']} (CV{sub['out']['town_hall']})\n"
+                subs_str += f"🟢 **Entra:** {sub['in']['name']} (CV{sub['in']['town_hall']})\n"
+                subs_str += f"_*{sub['reason']}_*\n"
             embed.add_field(name="🔄 Alterações na Equipa", value=subs_str.strip(), inline=False)
         else:
             default_message = "Manter a escalação do dia anterior." if day_number > 1 else "Escalação inicial definida. Vamos com tudo!"
@@ -1014,8 +1007,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             if bench_list:
                 embed.add_field(
                     name=f"🪑 Banco Ativo (Próximos {len(bench_list)})",
-                    value="
-".join(bench_list),
+                    value="\n".join(bench_list),
                     inline=True
                 )
         
@@ -1069,8 +1061,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             color=discord.Color.red(),
             timestamp=datetime.datetime.now(pytz.utc)
         )
-        inactive_str = "
-".join([f"**{m.name}** (CV{m.town_hall}) - {len(m.attacks)}/{war.attacks_per_member} ataques" for m in inactive_members])
+        inactive_str = "\n".join([f"**{m.name}** (CV{m.town_hall}) - {len(m.attacks)}/{war.attacks_per_member} ataques" for m in inactive_members])
         embed.add_field(name=f"⏰ Jogadores com Ataques Pendentes ({len(inactive_members)})", value=inactive_str, inline=False)
         embed.set_footer(text="É crucial que todos os ataques sejam feitos!")
         
@@ -1122,8 +1113,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             
             embed = discord.Embed(
                 title=f"📊 Status do Plano de CWL",
-                description=f"**Temporada:** {season}
-**Dia Atual:** {current_day}/7",
+                description=f"**Temporada:** {season}\n**Dia Atual:** {current_day}/7",
                 color=discord.Color.green(),
                 timestamp=datetime.datetime.now(pytz.utc)
             )
@@ -1133,15 +1123,13 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             if future_days:
                 next_day = future_days[0]
                 if next_day['substitutions']:
-                    subs_preview = "
-".join([
+                    subs_preview = "\n".join([
                         f"• {sub['out']['name']} → {sub['in']['name']}"
                         for sub in next_day['substitutions'][:3]
                     ])
                     embed.add_field(
                         name=f"🔄 Próximas Alterações (Dia {next_day['day']})",
-                        value=subs_preview + ("
-..." if len(next_day['substitutions']) > 3 else ""),
+                        value=subs_preview + ("\n..." if len(next_day['substitutions']) > 3 else ""),
                         inline=False
                     )
             
@@ -1150,10 +1138,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             if current_plan:
                 embed.add_field(
                     name="📈 Estatísticas",
-                    value=f"**Roster Ativo:** {len(current_plan['active_roster'])}
-"
-                          f"**Banco Ativo:** {len(current_plan.get('active_bench', []))}
-"
+                    value=f"**Roster Ativo:** {len(current_plan['active_roster'])}\n"
+                          f"**Banco Ativo:** {len(current_plan.get('active_bench', []))}\n"
                           f"**Banco Backup:** {len(current_plan.get('backup_bench', []))}",
                     inline=True
                 )
