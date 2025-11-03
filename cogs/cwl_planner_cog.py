@@ -277,7 +277,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 "backup_bench": list(current_backup_bench)
             })
         
-        all_players_pool = active_pool + backup_pool
+        all_players_pool = current_roster + list(current_active_bench) + list(current_backup_bench)
         participation_score = [
             {"player": p['player'], "days_played": p['days_played']}
             for p in all_players_pool
@@ -294,10 +294,10 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     async def _update_existing_plan(self, plan_doc: Dict[str, Any], current_day: int, team_size: int) -> Dict[str, Any]:
         """
-        V4 - LÓGICA DE "RESET": Recalcula o futuro (Dias 2-7) a partir do Dia 1
-        para corrigir o bug de dias acumulados (38/7).
+        V4.2 - LÓGICA DE "RESET" E REVALIDAÇÃO DIÁRIA: Recalcula o futuro (Dias 2-7)
+        a partir do Dia 1 E revalida o status/presença dos membros no início de cada dia simulado.
         """
-        logger.info(f"Atualizando plano (v4 - Reset) (Dia Atual: {current_day})...")
+        logger.info(f"Atualizando plano (v4.2 - Reset e Revalidação Diária) (Dia Atual: {current_day})...")
         
         try:
             clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
@@ -340,34 +340,82 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
             for day in range(2, 8):
                 
-                # A. Substituições de Emergência (Leavers)
+                # --- INÍCIO DA MODIFICAÇÃO (V4.2) ---
+                # Revalida TODOS os pools (roster, banco ativo, banco backup)
+                # no início de CADA dia simulado.
+                
+                logger.debug(f"V4.2 Dia {day}: Revalidando pools (Membros: {len(current_member_tags)}, Statuses: {len(player_statuses)})")
+                
                 final_roster_pool = []
                 roster_substitutions_this_day = []
                 
+                # 1. Valida Roster Atual
                 for p_entry in current_roster:
-                    if p_entry['player']['tag'] in current_member_tags:
-                        final_roster_pool.append(p_entry) # OK
-                    else:
-                        # LEAVER! Tenta substituir
+                    player_tag = p_entry['player']['tag']
+                    
+                    if player_tag not in current_member_tags:
+                        logger.warning(f"V4.2 Dia {day}: {p_entry['player']['name']} (Roster) saiu. Tentando substituir...")
                         replacement = None
-                        if current_active_bench:
-                            replacement = current_active_bench.popleft()
-                        elif current_backup_bench:
-                            replacement = current_backup_bench.popleft()
-                            if not warning: warning = f"Aviso Dia {day}: {replacement['player']['name']} (Backup) entrou no lugar de um jogador que saiu."
+                        if current_active_bench: replacement = current_active_bench.popleft()
+                        elif current_backup_bench: replacement = current_backup_bench.popleft()
                         
                         if replacement:
                             final_roster_pool.append(replacement)
-                            roster_substitutions_this_day.append({
-                                "out": p_entry['player'], "in": replacement['player'],
-                                "reason": f"Subst. Emergência (Dia {day}): {p_entry['player']['name']} saiu."
-                            })
+                            roster_substitutions_this_day.append({ "out": p_entry['player'], "in": replacement['player'], "reason": f"Subst. Emergência (Dia {day}): {p_entry['player']['name']} saiu." })
                         else:
-                            final_roster_pool.append(p_entry) # Mantém o leaver se não há substituto
+                            logger.error(f"V4.2 Dia {day}: Sem substituto para {p_entry['player']['name']} (que saiu).")
+                        continue
+
+                    current_status = player_statuses.get(player_tag, {}).get('cwl_status', 'active')
+                    if current_status == 'backup':
+                        logger.info(f"V4.2 Dia {day}: {p_entry['player']['name']} (Roster) mudou para 'Backup'. Movendo para banco.")
+                        current_backup_bench.append(p_entry) # Adiciona ao banco de backup
+                        
+                        # Tenta substituir
+                        replacement = None
+                        if current_active_bench: replacement = current_active_bench.popleft()
+                        
+                        if replacement:
+                            final_roster_pool.append(replacement)
+                            roster_substitutions_this_day.append({ "out": p_entry['player'], "in": replacement['player'], "reason": f"Subst. Status (Dia {day}): {p_entry['player']['name']} foi para 'Backup'." })
+                        else:
+                             logger.error(f"V4.2 Dia {day}: Sem substituto para {p_entry['player']['name']} (que foi para Backup). Roster ficará com menos 1.")
+                        continue
+                        
+                    final_roster_pool.append(p_entry) # OK, continua no roster
                 
-                current_active_bench = deque([p for p in current_active_bench if p['player']['tag'] in current_member_tags])
-                current_backup_bench = deque([p for p in current_backup_bench if p['player']['tag'] in current_member_tags])
-                current_roster = final_roster_pool # Roster atualizado pós-leavers
+                # 2. Valida Bancos (recria-os do zero)
+                validated_active_bench = deque()
+                validated_backup_bench = deque()
+                
+                # Adiciona os do banco ativo
+                for p_entry in current_active_bench:
+                    player_tag = p_entry['player']['tag']
+                    if player_tag not in current_member_tags: continue # Leaver
+                    
+                    current_status = player_statuses.get(player_tag, {}).get('cwl_status', 'active')
+                    if current_status == 'active': validated_active_bench.append(p_entry)
+                    else: validated_backup_bench.append(p_entry) # Mudou para backup
+                
+                # Adiciona os do banco backup
+                for p_entry in current_backup_bench:
+                    player_tag = p_entry['player']['tag']
+                    if player_tag not in current_member_tags: continue # Leaver
+                    
+                    # Se um jogador em backup for movido para 'ativo' pelo usuário
+                    current_status = player_statuses.get(player_tag, {}).get('cwl_status', 'active')
+                    if current_status == 'active': validated_active_bench.append(p_entry) # Mudou para ativo
+                    else: validated_backup_bench.append(p_entry)
+                
+                # 3. Define os pools atualizados para este dia
+                current_roster = final_roster_pool
+                # Re-ordena os bancos
+                current_active_bench = deque(sorted(validated_active_bench, key=lambda p: p['player']['town_hall']))
+                current_backup_bench = deque(sorted(validated_backup_bench, key=lambda p: p['player']['town_hall'], reverse=True))
+                
+                logger.debug(f"V4.2 Dia {day}: Pools revalidados. Roster: {len(current_roster)}, B.Ativo: {len(current_active_bench)}, B.Backup: {len(current_backup_bench)}")
+                # --- FIM DA MODIFICAÇÃO (V4.2) ---
+
 
                 # B. Rotação Justa (Lógica idêntica a _generate_new_7_day_plan)
                 substitutions = list(roster_substitutions_this_day)
@@ -429,7 +477,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             ]
             participation_score.sort(key=lambda x: x['days_played'], reverse=True)
 
-            logger.info("Recálculo completo do plano (v4) concluído.")
+            logger.info("Recálculo completo do plano (v4.2) concluído.")
             return {
                 "schedule": new_schedule,
                 "participation_score": participation_score,
@@ -440,10 +488,10 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
         except KeyError as e:
             # V4 (BUG 1/3): Se a migração falhar (ex: 'active_roster' não existe no Dia 1)
-            logger.error(f"Erro de Chave (KeyError) ao ATUALIZAR plano de CWL (v4): {e}. Forçando recriação.", exc_info=True)
+            logger.error(f"Erro de Chave (KeyError) ao ATUALIZAR plano de CWL (v4.2): {e}. Forçando recriação.", exc_info=True)
             return {"error": "MIGRATION_FAILED"} # Erro especial
         except Exception as e:
-            logger.error(f"Erro crítico ao ATUALIZAR plano de CWL (v4): {e}", exc_info=True)
+            logger.error(f"Erro crítico ao ATUALIZAR plano de CWL (v4.2): {e}", exc_info=True)
             return {"error": f"Erro ao atualizar: {e}"}
 
 
@@ -548,18 +596,18 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 return plan_data
             
             else:
-                logger.info(f"Carregando e atualizando plano existente (v4 - Reset) para {season} (Dia {current_day}, {team_size}v{team_size})...")
-                # V4: Chama a nova lógica de 'Reset'
+                logger.info(f"Carregando e atualizando plano existente (v4.2 - Reset e Revalidação) para {season} (Dia {current_day}, {team_size}v{team_size})...")
+                # V4.2: Chama a nova lógica de 'Reset e Revalidação'
                 plan_data = await self._update_existing_plan(plan_doc, current_day, team_size)
                 
                 # V4 (BUG 1/3): Se a atualização/migração falhar, apaga o plano e recria do zero
                 if "error" in plan_data and plan_data["error"] == "MIGRATION_FAILED": 
-                    logger.error(f"Falha na migração/atualização (v4) do plano {season}. Forçando geração de NOVO plano.")
+                    logger.error(f"Falha na migração/atualização (v4.2) do plano {season}. Forçando geração de NOVO plano.")
                     await self.cwl_plan_collection.delete_one({"_id": season}) # Deleta o plano antigo
                     # Chama a si mesmo de novo (recursivo), mas agora plan_doc será None
                     return await self.generate_rotation_plan() 
                 elif "error" in plan_data:
-                    logger.error(f"Erro não-migratório ao atualizar (v4): {plan_data['error']}")
+                    logger.error(f"Erro não-migratório ao atualizar (v4.2): {plan_data['error']}")
                     return plan_data # Retorna o erro normal
 
                 # Salva o plano recalculado
@@ -574,7 +622,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                         "last_updated": datetime.datetime.now(pytz.utc)
                     }}
                 )
-                logger.info(f"Plano (v4) para {season} atualizado no DB.")
+                logger.info(f"Plano (v4.2) para {season} atualizado no DB.")
                 plan_data["current_day"] = current_day 
                 return plan_data
 
