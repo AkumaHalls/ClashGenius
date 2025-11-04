@@ -387,7 +387,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             "starting_day": starting_day  # NOVO: Marca de onde começou o plano
         }
 
-    # <<< INÍCIO DA CORREÇÃO (FUNÇÃO _update_existing_plan REESCRITA) >>>
+    # <<< INÍCIO DA CORREÇÃO (FUNÇÃO _update_existing_plan REESCRITA E CORRIGIDA) >>>
     async def _update_existing_plan(self, plan_doc: Dict[str, Any], current_day: int, team_size: int, active_war: coc.ClanWar) -> Dict[str, Any]:
         """
         MELHORADO: Recalcula o futuro (Dias atuais até 7) com validação robusta.
@@ -572,8 +572,40 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 current_active_bench = deque(sorted(validated_active_bench, key=lambda p: p['player']['town_hall']))
                 current_backup_bench = deque(sorted(validated_backup_bench, key=lambda p: p['player']['town_hall'], reverse=True))
 
+                # <<< INÍCIO DA NOVA CORREÇÃO: Preenche o roster se estiver abaixo de team_size >>>
+                players_needed_to_fill = team_size - len(current_roster)
+                if players_needed_to_fill > 0:
+                    logger.warning(f"Dia {day}: Roster com {len(current_roster)}/{team_size} jogadores. Preenchendo com {players_needed_to_fill} do banco...")
+                    
+                    # (roster_substitutions_this_day já foi iniciada acima)
+                    
+                    for _ in range(players_needed_to_fill):
+                        replacement = None
+                        if current_active_bench:
+                            replacement = current_active_bench.popleft()
+                        elif current_backup_bench:
+                            replacement = current_backup_bench.popleft()
+                        
+                        if replacement:
+                            current_roster.append(replacement) # Adiciona o substituto ao roster
+                            # Adiciona uma "substituição" especial para logar o preenchimento
+                            fill_sub_data = {
+                                "out": {"name": "(Vaga Vazia)", "town_hall": "?"}, 
+                                "in": replacement['player'], 
+                                "reason": f"Preenchendo vaga (Dia {day})"
+                            }
+                            roster_substitutions_this_day.append(fill_sub_data)
+                            critical_changes["emergency_substitutions"].append({ "day": day, **fill_sub_data })
+                        else:
+                            # Se não há ninguém nos bancos, loga um erro
+                            logger.error(f"Dia {day}: IMPOSSÍVEL preencher vaga. Não há jogadores no banco.")
+                            if not warning: warning = f"🚨 CRÍTICO: Faltam jogadores no Dia {day} e não há banco!"
+                            break # Para de tentar preencher se o banco acabar
+                # <<< FIM DA NOVA CORREÇÃO >>>
+
+
                 # Rotação justa (agora aplica a todos os dias futuros)
-                substitutions = list(roster_substitutions_this_day)
+                substitutions = list(roster_substitutions_this_day) # Agora 'substitutions' já contém os 'fill_substitutions'
                 
                 roster_sorted = sorted(current_roster, key=lambda p: p['days_played'], reverse=True)
                 players_to_sit = roster_sorted[:num_to_rotate]
