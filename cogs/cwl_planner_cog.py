@@ -84,10 +84,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                         war = await self.bot.api_client.get_league_war(war_tag)
                         if war.clan.tag == self.bot.clan_tag or war.opponent.tag == self.bot.clan_tag:
                             team_size = war.team_size
-                            # <<< INÍCIO DA CORREÇÃO >>>
                             # Usar .value para obter a string 'inWar', 'preparation', ou 'warEnded'
                             wars_by_state[war.state.value].append((war, i + 1, war_tag))
-                            # <<< FIM DA CORREÇÃO >>>
                     except coc.NotFound:
                         continue
             
@@ -389,12 +387,13 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             "starting_day": starting_day  # NOVO: Marca de onde começou o plano
         }
 
-    async def _update_existing_plan(self, plan_doc: Dict[str, Any], current_day: int, team_size: int) -> Dict[str, Any]:
+    # <<< INÍCIO DA CORREÇÃO (FUNÇÃO _update_existing_plan REESCRITA) >>>
+    async def _update_existing_plan(self, plan_doc: Dict[str, Any], current_day: int, team_size: int, active_war: coc.ClanWar) -> Dict[str, Any]:
         """
         MELHORADO: Recalcula o futuro (Dias atuais até 7) com validação robusta.
-        Agora detecta e reporta mudanças críticas no roster.
+        AGORA USA O ROSTER ATIVO DA API para o dia atual.
         """
-        logger.info(f"Atualizando plano (Dia Atual: {current_day})...")
+        logger.info(f"Atualizando plano (Dia Atual: {current_day}) usando roster real da API...")
         
         try:
             clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
@@ -402,133 +401,141 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             db_cog = self.bot.get_cog("Banco de Dados")
             player_statuses = await db_cog.load_player_notes_from_db() if db_cog else {}
 
-            # NOVO: Detecta mudanças críticas antes de recalcular
-            critical_changes = {
-                "players_left": [],
-                "status_changes": [],
-                "emergency_substitutions": []
-            }
+            critical_changes = { "players_left": [], "status_changes": [], "emergency_substitutions": [] }
 
-            # Carrega o estado base (Dia 1)
-            base_state_doc = next((d for d in plan_doc['schedule'] if d['day'] == 1), None)
-            if not base_state_doc:
-                raise KeyError("Plano salvo não contém o Dia 1. Forçando recriação.")
-
-            # Migra/normaliza dados
-            current_roster = []
-            for p_data in base_state_doc.get('active_roster', []):
-                p_entry = {'player': p_data, 'days_played': 1} if 'player' not in p_data else p_data.copy()
-                p_entry['days_played'] = 1
-                current_roster.append(p_entry)
-
-            current_active_bench = deque()
-            for p_data in base_state_doc.get('active_bench', []):
-                p_entry = {'player': p_data, 'days_played': 0} if 'player' not in p_data else p_data.copy()
-                p_entry['days_played'] = 0
-                current_active_bench.append(p_entry)
-
-            current_backup_bench = deque()
-            for p_data in base_state_doc.get('backup_bench', []):
-                p_entry = {'player': p_data, 'days_played': 0} if 'player' not in p_data else p_data.copy()
-                p_entry['days_played'] = 0
-                current_backup_bench.append(p_entry)
-
-            # Simula do Dia 2 até o Dia atual para acumular days_played corretamente
-            num_to_rotate = 5 if team_size == 30 else 3
+            # --- INÍCIO DA NOVA LÓGICA (Baseada em _generate_new_7_day_plan) ---
             
-            for simulate_day in range(2, current_day + 1):
-                # Incrementa days_played para quem está no roster
-                for p in current_roster:
-                    p['days_played'] += 1
-                
-                # Simula rotação básica (sem substituições reais, só para manter contador)
-                if simulate_day < current_day:  # Não roda no dia atual, só até o anterior
-                    roster_sorted = sorted(current_roster, key=lambda p: p['days_played'], reverse=True)
-                    players_to_sit = roster_sorted[:num_to_rotate]
-                    
-                    for _ in range(num_to_rotate):
-                        if current_active_bench:
-                            current_active_bench.popleft()
-                    
-                    for player_out in players_to_sit:
-                        current_active_bench.append(player_out)
+            # 1. Pega o roster REAL da guerra ativa (Dia atual)
+            if not active_war:
+                 raise ValueError("Active war object is required for update.")
+            our_clan_in_war = active_war.clan if active_war.clan.tag == self.bot.clan_tag else active_war.opponent
+            actual_roster_tags = {m.tag for m in our_clan_in_war.members}
+            
+            # 2. Pega todos os membros inscritos (do DB ou da API)
+            all_cwl_players_pool = []
+            if plan_doc['schedule'] and plan_doc['schedule'][0]['day'] == 1:
+                logger.debug("Usando pool de jogadores do Dia 1 salvo.")
+                base_state_doc = plan_doc['schedule'][0]
+                all_players_data = (base_state_doc.get('active_roster', []) + 
+                                   base_state_doc.get('active_bench', []) + 
+                                   base_state_doc.get('backup_bench', []))
+                for p_entry in all_players_data:
+                    # Normaliza: garante que temos um dict de jogador, não {'player': {...}}
+                    player_info = p_entry.get('player', p_entry)
+                    all_cwl_players_pool.append(player_info)
+            else:
+                logger.warning("Dia 1 não encontrado no plano salvo, buscando pool de jogadores na API.")
+                cwl_members_api = await self.get_cwl_members_for_planning()
+                if cwl_members_api is None:
+                    return {"error": "Não foi possível buscar os membros inscritos na CWL para a atualização."}
+                all_cwl_players_pool = cwl_members_api
+            
+            # 3. Constrói os pools para o DIA ATUAL (current_day)
+            current_roster = []
+            current_active_bench = deque()
+            current_backup_bench = deque()
+            warning = plan_doc.get('warning') # Mantém aviso antigo
 
-            logger.info(f"Simulação até Dia {current_day} concluída. Recalculando do Dia {current_day} até 7...")
+            # Filtra membros que saíram do clã
+            all_cwl_players_pool_entries = [self._get_player_pool_entry(p) for p in all_cwl_players_pool if p['tag'] in current_member_tags]
+
+            # 4. Acumula 'days_played' do plano salvo (histórico)
+            participation_map = {} # {tag: days_played}
+            for day_num in range(1, current_day): # Itera pelos dias PASSADOS
+                past_day_plan = next((d for d in plan_doc['schedule'] if d['day'] == day_num), None)
+                if past_day_plan:
+                    for p_entry in past_day_plan.get('active_roster', []):
+                        tag = p_entry.get('player', p_entry).get('tag')
+                        if tag:
+                            participation_map[tag] = participation_map.get(tag, 0) + 1
+
+            # 5. Distribui jogadores nos pools do dia ATUAL
+            for p_entry in all_cwl_players_pool_entries:
+                player_tag = p_entry['player']['tag']
+                
+                # Define os dias jogados com base no histórico real
+                p_entry['days_played'] = participation_map.get(player_tag, 0)
+
+                if player_tag in actual_roster_tags:
+                    current_roster.append(p_entry)
+                else:
+                    status = player_statuses.get(player_tag, {}).get('cwl_status', 'active')
+                    if status == 'active':
+                        current_active_bench.append(p_entry)
+                    else:
+                        current_backup_bench.append(p_entry)
+
+            # Ordena os bancos
+            current_active_bench = deque(sorted(current_active_bench, key=lambda p: p['player']['town_hall']))
+            current_backup_bench = deque(sorted(current_backup_bench, key=lambda p: p['player']['town_hall'], reverse=True))
+
+            logger.info(f"Pools (Dia {current_day}): {len(current_roster)} roster, {len(current_active_bench)} banco ativo, {len(current_backup_bench)} banco backup.")
+
+            # --- FIM DA NOVA LÓGICA ---
 
             # Agora recalcula do dia atual até o dia 7
-            new_schedule = plan_doc['schedule'][:current_day]  # Mantém histórico
-            warning = plan_doc.get('warning')
+            # FIX 1: Pegar o histórico REAL até o dia ANTERIOR
+            new_schedule = plan_doc['schedule'][:current_day - 1] # Mantém histórico (CORRIGIDO)
+            
+            # Incrementa 'days_played' para o roster ATUAL (Dia 2)
+            for p in current_roster:
+                 p['days_played'] += 1
+            
+            # Adiciona o Dia ATUAL (current_day) à schedule
+            new_schedule.append({
+                "day": current_day,
+                "active_roster": [p.copy() for p in current_roster],
+                "substitutions": [], # Substituições de emergência/status serão tratadas no próximo loop (dia 3+)
+                "active_bench": [p.copy() for p in current_active_bench],
+                "backup_bench": [p.copy() for p in current_backup_bench]
+            })
 
-            for day in range(current_day, 8):
+            num_to_rotate = 5 if team_size == 30 else 3
+
+            # Inicia o loop de recálculo a partir do DIA SEGUINTE
+            for day in range(current_day + 1, 8):
                 logger.debug(f"Processando Dia {day}...")
                 
-                # Revalida pools
+                # Revalida pools (ex: quem saiu do clã, quem mudou status)
                 final_roster_pool = []
                 roster_substitutions_this_day = []
                 
-                # Valida Roster
+                # Valida Roster do dia anterior
                 for p_entry in current_roster:
                     player_tag = p_entry['player']['tag']
                     player_name = p_entry['player']['name']
                     
-                    # Jogador saiu do clã
                     if player_tag not in current_member_tags:
                         logger.warning(f"Dia {day}: {player_name} saiu do clã! Substituindo...")
-                        
-                        # NOVO: Adiciona ao relatório de mudanças críticas
                         if player_tag not in self.reported_leavers:
                             critical_changes["players_left"].append(p_entry['player'])
                             self.reported_leavers.add(player_tag)
                         
                         replacement = None
-                        if current_active_bench: 
-                            replacement = current_active_bench.popleft()
-                        elif current_backup_bench: 
-                            replacement = current_backup_bench.popleft()
+                        if current_active_bench: replacement = current_active_bench.popleft()
+                        elif current_backup_bench: replacement = current_backup_bench.popleft()
                         
                         if replacement:
                             final_roster_pool.append(replacement)
-                            critical_changes["emergency_substitutions"].append({
-                                "day": day,
-                                "out": p_entry['player'],
-                                "in": replacement['player'],
-                                "reason": "Jogador saiu do clã"
-                            })
-                            roster_substitutions_this_day.append({
-                                "out": p_entry['player'], 
-                                "in": replacement['player'], 
-                                "reason": f"🚨 EMERGÊNCIA (Dia {day}): {player_name} saiu do clã"
-                            })
+                            critical_changes["emergency_substitutions"].append({ "day": day, "out": p_entry['player'], "in": replacement['player'], "reason": "Jogador saiu do clã" })
+                            roster_substitutions_this_day.append({ "out": p_entry['player'], "in": replacement['player'], "reason": f"🚨 EMERGÊNCIA (Dia {day}): {player_name} saiu do clã" })
                         else:
                             logger.error(f"Dia {day}: SEM SUBSTITUTO para {player_name}!")
-                            if not warning:
-                                warning = f"🚨 CRÍTICO: Faltam jogadores no Dia {day}!"
+                            if not warning: warning = f"🚨 CRÍTICO: Faltam jogadores no Dia {day}!"
                         continue
 
-                    # Mudança de status
                     current_status = player_statuses.get(player_tag, {}).get('cwl_status', 'active')
                     if current_status == 'backup':
                         logger.info(f"Dia {day}: {player_name} mudou para 'Backup'. Movendo...")
                         current_backup_bench.append(p_entry)
-                        
-                        critical_changes["status_changes"].append({
-                            "player": p_entry['player'],
-                            "from": "active",
-                            "to": "backup",
-                            "day": day
-                        })
+                        critical_changes["status_changes"].append({ "player": p_entry['player'], "from": "active", "to": "backup", "day": day })
                         
                         replacement = None
-                        if current_active_bench: 
-                            replacement = current_active_bench.popleft()
+                        if current_active_bench: replacement = current_active_bench.popleft()
                         
                         if replacement:
                             final_roster_pool.append(replacement)
-                            roster_substitutions_this_day.append({
-                                "out": p_entry['player'], 
-                                "in": replacement['player'], 
-                                "reason": f"Mudança de Status (Dia {day}): {player_name} → Backup"
-                            })
+                            roster_substitutions_this_day.append({ "out": p_entry['player'], "in": replacement['player'], "reason": f"Mudança de Status (Dia {day}): {player_name} → Backup" })
                         else:
                             logger.error(f"Dia {day}: Sem substituto para {player_name} (mudou para Backup).")
                         continue
@@ -546,12 +553,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                             critical_changes["players_left"].append(p_entry['player'])
                             self.reported_leavers.add(player_tag)
                         continue
-                    
                     current_status = player_statuses.get(player_tag, {}).get('cwl_status', 'active')
-                    if current_status == 'active': 
-                        validated_active_bench.append(p_entry)
-                    else: 
-                        validated_backup_bench.append(p_entry)
+                    if current_status == 'active': validated_active_bench.append(p_entry)
+                    else: validated_backup_bench.append(p_entry)
                 
                 for p_entry in current_backup_bench:
                     player_tag = p_entry['player']['tag']
@@ -560,61 +564,57 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                             critical_changes["players_left"].append(p_entry['player'])
                             self.reported_leavers.add(player_tag)
                         continue
-                    
                     current_status = player_statuses.get(player_tag, {}).get('cwl_status', 'active')
-                    if current_status == 'active': 
-                        validated_active_bench.append(p_entry)
-                    else: 
-                        validated_backup_bench.append(p_entry)
+                    if current_status == 'active': validated_active_bench.append(p_entry)
+                    else: validated_backup_bench.append(p_entry)
                 
                 current_roster = final_roster_pool
                 current_active_bench = deque(sorted(validated_active_bench, key=lambda p: p['player']['town_hall']))
                 current_backup_bench = deque(sorted(validated_backup_bench, key=lambda p: p['player']['town_hall'], reverse=True))
 
-                # Rotação justa (se não for o dia atual de atualização)
+                # Rotação justa (agora aplica a todos os dias futuros)
                 substitutions = list(roster_substitutions_this_day)
                 
-                if day > current_day:  # Só faz rotação programada nos dias futuros
-                    roster_sorted = sorted(current_roster, key=lambda p: p['days_played'], reverse=True)
-                    players_to_sit = roster_sorted[:num_to_rotate]
-                    players_to_play = []
+                roster_sorted = sorted(current_roster, key=lambda p: p['days_played'], reverse=True)
+                players_to_sit = roster_sorted[:num_to_rotate]
+                players_to_play = []
 
-                    for _ in range(num_to_rotate):
-                        if current_active_bench:
-                            players_to_play.append(current_active_bench.popleft())
-                    
-                    needed = num_to_rotate - len(players_to_play)
-                    if needed > 0:
-                        if not warning: 
-                            warning = f"⚠️ Aviso Dia {day}: Banco de 'Ativos' vazio. 'Backups' na rotação."
-                        for _ in range(needed):
-                            if current_backup_bench:
-                                players_to_play.append(current_backup_bench.popleft())
-                    
-                    new_roster = [p for p in current_roster if p not in players_to_sit]
-                    
-                    for i in range(len(players_to_sit)):
-                        player_out = players_to_sit[i]
-                        if i < len(players_to_play):
-                            player_in = players_to_play[i]
-                            new_roster.append(player_in)
-                            
-                            status_out = player_statuses.get(player_out['player']['tag'], {}).get('cwl_status', 'active')
-                            if status_out == 'active': 
-                                current_active_bench.append(player_out)
-                            else: 
-                                current_backup_bench.append(player_out)
+                for _ in range(num_to_rotate):
+                    if current_active_bench:
+                        players_to_play.append(current_active_bench.popleft())
+                
+                needed = num_to_rotate - len(players_to_play)
+                if needed > 0:
+                    if not warning: 
+                        warning = f"⚠️ Aviso Dia {day}: Banco de 'Ativos' vazio. 'Backups' na rotação."
+                    for _ in range(needed):
+                        if current_backup_bench:
+                            players_to_play.append(current_backup_bench.popleft())
+                
+                new_roster = [p for p in current_roster if p not in players_to_sit]
+                
+                for i in range(len(players_to_sit)):
+                    player_out = players_to_sit[i]
+                    if i < len(players_to_play):
+                        player_in = players_to_play[i]
+                        new_roster.append(player_in)
+                        
+                        status_out = player_statuses.get(player_out['player']['tag'], {}).get('cwl_status', 'active')
+                        if status_out == 'active': 
+                            current_active_bench.append(player_out)
+                        else: 
+                            current_backup_bench.append(player_out)
 
-                            substitutions.append({
-                                "out": player_out['player'], 
-                                "in": player_in['player'],
-                                "reason": f"Rotação justa (Saiu: {player_out['days_played']}d | Entrou: {player_in['days_played']}d)"
-                            })
-                        else:
-                            new_roster.append(player_out)
-                    
-                    current_roster = new_roster
-
+                        substitutions.append({
+                            "out": player_out['player'], 
+                            "in": player_in['player'],
+                            "reason": f"Rotação justa (Saiu: {player_out['days_played']}d | Entrou: {player_in['days_played']}d)"
+                        })
+                    else:
+                        new_roster.append(player_out)
+                
+                current_roster = new_roster
+                
                 # Incrementa days_played
                 for p in current_roster:
                     p['days_played'] += 1
@@ -630,13 +630,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
             # Gera placar final
             all_players_pool = current_roster + list(current_active_bench) + list(current_backup_bench)
-            participation_score = [
-                {"player": p['player'], "days_played": p['days_played']}
-                for p in all_players_pool
-            ]
+            participation_score = [ {"player": p['player'], "days_played": p['days_played']} for p in all_players_pool ]
             participation_score.sort(key=lambda x: x['days_played'], reverse=True)
 
-            # NOVO: Envia alerta se houver mudanças críticas
             if any([critical_changes["players_left"], critical_changes["emergency_substitutions"], critical_changes["status_changes"]]):
                 await self._send_critical_changes_alert(critical_changes, current_day)
 
@@ -647,7 +643,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 "active_bench_final": list(current_active_bench),
                 "backup_bench_final": list(current_backup_bench),
                 "warning": warning,
-                "critical_changes": critical_changes  # NOVO: Retorna as mudanças
+                "critical_changes": critical_changes
             }
 
         except KeyError as e:
@@ -656,6 +652,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         except Exception as e:
             logger.error(f"Erro crítico ao ATUALIZAR plano: {e}", exc_info=True)
             return {"error": f"Erro ao atualizar: {e}"}
+    # <<< FIM DA CORREÇÃO (FUNÇÃO _update_existing_plan REESCRITA) >>>
 
     # NOVO: Método para enviar alerta de mudanças críticas
     async def _send_critical_changes_alert(self, changes: Dict[str, Any], current_day: int):
@@ -805,7 +802,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             # Se existe plano válido -> ATUALIZA
             else:
                 logger.info(f"Atualizando plano existente para {season} (Dia {current_day})...")
-                plan_data = await self._update_existing_plan(plan_doc, current_day, team_size)
+                # <<< INÍCIO DA CORREÇÃO (Passa active_war para a função de update) >>>
+                plan_data = await self._update_existing_plan(plan_doc, current_day, team_size, active_war)
+                # <<< FIM DA CORREÇÃO >>>
                 
                 # Se falhou a migração, apaga e recria
                 if "error" in plan_data and plan_data["error"] == "MIGRATION_FAILED": 
