@@ -729,7 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(textArea);
     }
 
-    // ##### INÍCIO DAS NOVAS FUNÇÕES DO "CÉREBRO CWL" #####
+    // ##### INÍCIO DAS NOVAS FUNÇÕES DO "CÉREBRO CWL" (CORRIGIDAS) #####
 
     /**
      * Preenche os quadros de "Visão Geral" (Placar de Participação e Banco de Reservas).
@@ -738,17 +738,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cwlOverviewContainerEl) return;
 
         const score = planData.participation_score || [];
-        const activeBench = planData.active_bench_final || [];
-        const backupBench = planData.backup_bench_final || [];
-
-        // Quadro 1: Placar de Participação
-        // *** CORREÇÃO: Muda o título para "(Todos)" ***
-        let placarHtml = '<h4>📊 Placar de Participação (Todos)</h4><div class="cwl-overview-list">';
-        // Filtro removido, agora mostra todos
-        const activePlayersScore = score; 
         
-        if (activePlayersScore.length > 0) {
-             placarHtml += activePlayersScore.map(p => 
+        // --- CORREÇÃO: Esta seção agora mostrará APENAS o placar final ---
+        let placarHtml = '<h4>📊 Placar de Participação (Final)</h4>'; // Renomeia para "Final"
+        placarHtml += '<div class="cwl-overview-list-bench">'; // Reutiliza a classe de lista
+        
+        if (score.length > 0) {
+             placarHtml += score.map(p => 
+                // Mostra o placar final
                 `<p>${p.player.name} (CV${p.player.town_hall}): <strong>${p.days_played} / 7 dias</strong></p>`
              ).join('');
         } else {
@@ -756,34 +753,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         placarHtml += '</div>';
 
-        // Quadro 2: Banco de Reservas
-        let bancoHtml = '<h4><span class="ai-indicator"></span>Banco de Reservas (Fila)</h4>';
-        bancoHtml += '<div class="cwl-overview-list-bench">';
-        if (activeBench.length > 0) {
-            bancoHtml += '<h5>Ativos (Próximos a entrar):</h5>';
-            // CORREÇÃO: Ordena o banco por dias jogados (do menor para o maior)
-            bancoHtml += activeBench
-                .sort((a, b) => a.days_played - b.days_played)
-                .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
-                .join('');
-        }
-        if (backupBench.length > 0) {
-            bancoHtml += '<h5>Backups (Emergência):</h5>';
-             // CORREÇÃO: Ordena o banco por dias jogados (do menor para o maior)
-            bancoHtml += backupBench
-                .sort((a, b) => a.days_played - b.days_played)
-                .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
-                .join('');
-        }
-         if (activeBench.length === 0 && backupBench.length === 0) {
-             bancoHtml += '<p>Nenhum jogador no banco.</p>';
-         }
-        bancoHtml += '</div>';
-
+        // Remove o grid de 2 colunas e o bancoHtml
         setHtml(cwlOverviewContainerEl, `
-            <div class="cwl-overview-card">${placarHtml}</div>
-            <div class="cwl-overview-card">${bancoHtml}</div>
+            <div class="cwl-overview-card" style="grid-column: 1 / -1;">${placarHtml}</div>
         `);
+        
+        // Aplica o CSS de 1 coluna
+        cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
     }
 
     /**
@@ -811,7 +787,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Substituições
+            // --- Substituições (Código existente) ---
             let planHtml = `<h4>Alterações na Equipa</h4>`;
             planHtml += dayData.substitutions?.length > 0
                 ? dayData.substitutions.map(sub => `
@@ -822,7 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`).join('')
                 : `<p>${day == 1 ? 'Escalação inicial.' : 'Manter a escalação do dia anterior.'}</p>`;
 
-            // Escalação Ativa
+            // --- Escalação Ativa (Código existente) ---
             const roster = dayData.active_roster || [];
             planHtml += `<h4>⚔️ Escalação Ativa (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
             
@@ -835,7 +811,35 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>${i + 1}.</span>${p.player.name || '?'} (CV${p.player.town_hall || '?'}) - ${p.days_played}d
                     </div>`).join('')
                 : '<p>Nenhum jogador na escalação.</p>';
-            planHtml += `</div>`;
+            planHtml += `</div>`; // Fim do .roster-grid
+            
+            // --- INÍCIO DA CORREÇÃO: Adiciona o Banco de Reservas do dia ---
+            const activeBench = dayData.active_bench || [];
+            const backupBench = dayData.backup_bench || [];
+
+            planHtml += `<h4 style="margin-top: 20px;"><span class="ai-indicator"></span>Banco de Reservas (Dia ${day})</h4>`;
+            planHtml += '<div class="cwl-overview-card" style="background-color: rgba(0,0,0,0.1);">'; // Reutiliza o estilo
+            planHtml += '<div class="cwl-overview-list-bench">'; // Reutiliza o estilo
+
+            if (activeBench.length > 0) {
+                planHtml += '<h5>Ativos (Próximos a entrar):</h5>';
+                planHtml += activeBench
+                    .sort((a, b) => a.days_played - b.days_played) // Ordena por dias jogados
+                    .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
+                    .join('');
+            }
+            if (backupBench.length > 0) {
+                planHtml += '<h5 style="margin-top: 10px;">Backups (Emergência):</h5>';
+                planHtml += backupBench
+                    .sort((a, b) => a.days_played - b.days_played) // Ordena por dias jogados
+                    .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
+                    .join('');
+            }
+            if (activeBench.length === 0 && backupBench.length === 0) {
+                 planHtml += '<p>Nenhum jogador no banco para este dia.</p>';
+            }
+            planHtml += '</div></div>';
+            // --- FIM DA CORREÇÃO ---
             
             setHtml(cwlPlanContentEl, planHtml);
         };
@@ -986,8 +990,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="member-card-stats">
                     <span>🎁 Doadas: ${m.donations || 0}</span>
                     <span>📥 Recebidas: ${m.received || 0}</span>
-                    ${lastWarHtml} <!-- *** NOVO: Adiciona a data da última guerra *** -->
-                </div>
+                    ${lastWarHtml} </div>
                 <div class="member-card-note">
                     <div class="note-container note-priority-${notePriority}">
                         <span class="note-text">${noteText}</span>
@@ -1001,7 +1004,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 </div>
-                <!-- NOVO: Adiciona a seleção de status da CWL -->
                 <div class="member-cwl-status" data-player-tag="${m.tag || ''}">
                     <label>CWL:</label>
                     <div class="cwl-status-selector">
@@ -1193,8 +1195,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies || 0}</p></div>
                     <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations || 0}</p></div>
                     <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received || 0}</p></div>
-                    ${lastWarHtml} <!-- *** NOVO: Adiciona o card da última guerra aqui *** -->
-                </div>
+                    ${lastWarHtml} </div>
                 ${cwlStatusHtml}
             </div>`;
 
@@ -1427,4 +1428,3 @@ document.addEventListener('DOMContentLoaded', () => {
     checkApiMaintenance(); // Check immediately
     setInterval(checkApiMaintenance, 20000); // Check every 20 seconds
 });
-
