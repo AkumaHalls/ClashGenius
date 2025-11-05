@@ -1963,7 +1963,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 .cwl-overview-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr; /* CORREÇÃO: Mudar de '1fr 1fr' para '1fr' */
     gap: 15px;
 }
 .cwl-overview-card {
@@ -2024,5 +2024,26 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .cwl-overview-grid {
         grid-template-columns: 1fr;
     }
+}
+/* <<< FIM DA MUDANÇA >>> */
+
+/* <<< INÍCIO DA MUDANÇA (CSS do Banco de Reservas dentro da aba) >>> */
+.cwl-overview-list-bench {
+    font-size: 0.9em;
+    max-height: 250px; /* Altura máxima para o banco dentro da aba */
+    overflow-y: auto;
+}
+.cwl-overview-list-bench h5 {
+    margin: 0 0 8px 0;
+    font-size: 1em;
+    font-weight: 500;
+    color: var(--color-text-main);
+    border-bottom: 1px solid var(--color-divider);
+    padding-bottom: 5px;
+}
+.cwl-overview-list-bench p {
+    margin: 0 0 5px 0;
+    padding: 4px;
+    color: var(--color-text-secondary);
 }
 /* <<< FIM DA MUDANÇA >>> */
