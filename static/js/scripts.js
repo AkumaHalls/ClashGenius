@@ -111,6 +111,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const navLinks = document.querySelectorAll('.nav-link');
     const contentSections = document.querySelectorAll('.content-section');
     let isFirstLoad = true;
+    
+    // <<< INÍCIO DA MUDANÇA (1/3) >>>
+    // Variável global para sabermos se o usuário é admin
+    let userIsAdmin = false;
+    // <<< FIM DA MUDANÇA (1/3) >>>
 
     const historicWarModal = document.getElementById('historicWarModal');
     const historicWarDetailContent = document.getElementById('historicWarDetailContent');
@@ -1020,6 +1025,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function attachMemberEventListeners() {
+        // <<< INÍCIO DA MUDANÇA (3/3) >>>
+        // Se o usuário não for admin, não anexa NENHUM listener de edição.
+        if (!userIsAdmin) {
+            console.log("Usuário não é admin. Listeners de edição da aba 'Membros' desativados.");
+            
+            // Remove os cursores 'pointer' para que não pareçam clicáveis
+            document.querySelectorAll('.note-text, .priority-btn, .cwl-status-btn').forEach(el => {
+                if (el) el.style.cursor = 'default';
+            });
+            
+            // Ainda anexa o listener para abrir o perfil (que é "somente leitura")
+            membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
+                 header.replaceWith(header.cloneNode(true)); // Limpa listeners antigos
+                 header = membersGridEl.querySelector(`.member-card-header[data-player-tag="${header.dataset.playerTag}"]`); // Pega a nova referência
+                 if(header) header.addEventListener('click', () => openMemberProfileModal(header.dataset.playerTag));
+            });
+            return; // Sai da função
+        }
+        
+        console.log("Usuário é admin. Anexando listeners de edição da aba 'Membros'.");
+        // <<< FIM DA MUDANÇA (3/3) >>>
+    
         // Remove existing listeners before adding new ones to prevent duplicates
         membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
             header.replaceWith(header.cloneNode(true)); // Simple way to remove listeners
@@ -1180,14 +1207,25 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`).join('');
         const leagueImageHtml = profileData.league_icon ? `<div class="profile-league-container"><img src="${profileData.league_icon}" alt="${profileData.league || '?'}" class="profile-league-image"></div>` : '';
         const cwlStatus = profileData.cwl_status || 'active';
-        const cwlStatusHtml = `
+        
+        // Esconde o seletor de status da CWL se o usuário não for admin
+        const cwlStatusHtml = userIsAdmin ? `
             <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}">
                 <label>Status na CWL:</label>
                 <div class="cwl-status-selector">
                     <button class="cwl-status-btn ${cwlStatus === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
                     <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
                 </div>
-            </div>`;
+            </div>` : `
+             <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}">
+                <label>Status na CWL:</label>
+                <div class="cwl-status-selector">
+                    <button class="cwl-status-btn ${cwlStatus === 'active' ? 'active' : ''}" data-status="active" style="cursor: default;">Ativo</button>
+                    <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup" style="cursor: default;">Backup</button>
+                </div>
+            </div>
+            `;
+            
         const statsGridHtml = `
             <div class="profile-details-container">
                 <div class="profile-stats-grid">
@@ -1215,26 +1253,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 <canvas id="trophyChart"></canvas>
             </div>`);
 
-        memberProfileContent.querySelectorAll('.cwl-status-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                if (btn.classList.contains('active')) return;
-                const selector = e.target.closest('.cwl-status-selector');
-                const playerTag = e.target.closest('.member-cwl-status')?.dataset.playerTag;
-                const newStatus = e.target.dataset.status;
-                if (!playerTag || !newStatus) return;
+        // Só anexa o listener de edição do modal se for admin
+        if(userIsAdmin) {
+            memberProfileContent.querySelectorAll('.cwl-status-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (btn.classList.contains('active')) return;
+                    const selector = e.target.closest('.cwl-status-selector');
+                    const playerTag = e.target.closest('.member-cwl-status')?.dataset.playerTag;
+                    const newStatus = e.target.dataset.status;
+                    if (!playerTag || !newStatus) return;
 
-                selector?.querySelector('.active')?.classList.remove('active'); // Add null checks
-                e.target.classList.add('active');
-                const success = await setPlayerCwlStatus(playerTag, newStatus);
-                if (!success) {
-                    alert('Erro ao salvar o status. Tente novamente.');
-                    e.target.classList.remove('active');
-                    selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); // Add null checks
-                }
-                // Refresh member list in background after status change
-                fetchData('members').then(populateMembersList);
+                    selector?.querySelector('.active')?.classList.remove('active'); // Add null checks
+                    e.target.classList.add('active');
+                    const success = await setPlayerCwlStatus(playerTag, newStatus);
+                    if (!success) {
+                        alert('Erro ao salvar o status. Tente novamente.');
+                        e.target.classList.remove('active');
+                        selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); // Add null checks
+                    }
+                    // Refresh member list in background after status change
+                    fetchData('members').then(populateMembersList);
+                });
             });
-        });
+        }
 
         if (memberTrophyChart) memberTrophyChart.destroy();
         const trophyCanvas = document.getElementById('trophyChart');
@@ -1328,7 +1369,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAllData() {
         try {
-            const statusData = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true }).catch(() => ({ maintenance_mode: true }));
+            // <<< INÍCIO DA MUDANÇA (2/3) >>>
+            // O endpoint /api/status retorna { "is_admin": true/false }
+            const statusData = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true, is_admin: false }).catch(() => ({ maintenance_mode: true, is_admin: false }));
+            
+            // Armazena o status de admin globalmente
+            userIsAdmin = statusData.is_admin || false; 
+            // <<< FIM DA MUDANÇA (2/3) >>>
+
             // No need to redirect here, backend handles it in /painel handler
 
             const clanData = await fetchData('clan');
