@@ -1612,10 +1612,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     cursor: not-allowed;
     pointer-events: all !important;
 }
-.control-btn.disabled:hover {
-    background-color: var(--color-border);
-}
-
 .control-btn.disabled::before {
     content: '🔒';
     margin-right: 8px;
@@ -1953,3 +1949,101 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-priority-text-dark);
 }
 
+/* <<< INÍCIO DA MUDANÇA (Melhorias 3 e 4) >>> */
+.cwl-plan-overview {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-divider);
+}
+.cwl-plan-overview h4 {
+    text-align: center;
+    font-size: 1.3em;
+    margin-bottom: 15px;
+    justify-content: center;
+}
+.cwl-overview-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* CORREÇÃO: Mudar de '1fr 1fr' para '1fr' */
+    gap: 15px;
+}
+.cwl-overview-card {
+    background-color: rgba(0,0,0,0.2);
+    border-radius: var(--border-radius-base);
+    padding: 15px;
+    border-top: 3px solid var(--color-border-light);
+}
+.cwl-overview-card h5 {
+    margin: 0 0 10px 0;
+    font-size: 1em;
+    font-weight: 500;
+    color: var(--color-text-main);
+    border-bottom: 1px solid var(--color-divider);
+    padding-bottom: 8px;
+}
+.cwl-overview-card .overview-content {
+    font-size: 0.9em;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.cwl-overview-card .overview-content ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.cwl-overview-card .overview-content li {
+    padding: 4px 0;
+    color: var(--color-text-secondary);
+    display: flex;
+    justify-content: space-between;
+}
+/* Alinha o placar */
+.cwl-overview-card .overview-content li strong {
+    color: var(--color-text-main);
+    width: 60px; /* Largura fixa para "X / 7" */
+    display: inline-block;
+    flex-shrink: 0;
+}
+.cwl-overview-card .overview-content li .player-name {
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+    padding-left: 5px;
+}
+.cwl-overview-card .overview-content .bank-queue-active {
+    color: var(--color-success);
+    font-weight: 500;
+}
+.cwl-overview-card .overview-content .bank-queue-backup {
+    color: var(--color-warning);
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .cwl-overview-grid {
+        grid-template-columns: 1fr;
+    }
+}
+/* <<< FIM DA MUDANÇA >>> */
+
+/* <<< INÍCIO DA MUDANÇA (CSS do Banco de Reservas dentro da aba) >>> */
+.cwl-overview-list-bench {
+    font-size: 0.9em;
+    max-height: 250px; /* Altura máxima para o banco dentro da aba */
+    overflow-y: auto;
+}
+.cwl-overview-list-bench h5 {
+    margin: 0 0 8px 0;
+    font-size: 1em;
+    font-weight: 500;
+    color: var(--color-text-main);
+    border-bottom: 1px solid var(--color-divider);
+    padding-bottom: 5px;
+}
+.cwl-overview-list-bench p {
+    margin: 0 0 5px 0;
+    padding: 4px;
+    color: var(--color-text-secondary);
+}
+/* <<< FIM DA MUDANÇA >>> */

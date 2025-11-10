@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.20-Fix1
+# Versão 20.2.20-Fix
 
 import os
 import logging

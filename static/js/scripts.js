@@ -84,13 +84,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const cwlRoundsInfoEl = document.getElementById('cwlRoundsInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
 
+    // --- NOVOS ELEMENTOS DO "CÉREBRO CWL" ---
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
-    const generateCwlPlanBtn = document.getElementById('generateCwlPlanBtn');
     const cwlPlanResultEl = document.getElementById('cwlPlanResult');
-    // const cwlPlanSpinner = document.getElementById('cwlPlanSpinner'); // Spinner added directly in HTML now
     const cwlPlanContentEl = document.getElementById('cwlPlanContent');
     const cwlInactivityAlertEl = document.getElementById('cwlInactivityAlert');
     const cwlInactivityTextEl = document.getElementById('cwlInactivityText');
+    const cwlOverviewContainerEl = document.getElementById('cwlOverviewContainer'); // Visão Geral (Placar/Banco)
+    const cwlPlanDaysTabsEl = document.getElementById('cwlPlanDaysTabs'); // Abas 7 dias
+    const cwlPlanWarningEl = document.getElementById('cwlPlanWarning'); // Aviso IA
+    // Botão de gerar plano foi removido do HTML, esta referência não é mais necessária
+    // const generateCwlPlanBtn = document.getElementById('generateCwlPlanBtn'); 
 
     const warLogLimitEl = document.getElementById('warLogLimit');
     const warLogTableBodyEl = document.getElementById('warLogTableBody');
@@ -124,6 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Handle non-OK responses first
             if (!response.ok) {
+                // *** CORREÇÃO HTTP 405: Adiciona log específico ***
+                if (response.status === 405) {
+                    console.error(`Erro 405 (Método Não Permitido) para ${endpoint}. O JS usou ${options.method || 'GET'}?`);
+                }
                 const errorData = await response.json().catch(() => ({ error: `Erro HTTP ${response.status}` }));
                 const errorMessage = errorData.error || errorData.message || `Falha ao carregar ${endpoint}.`;
 
@@ -721,101 +729,177 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(textArea);
     }
 
-    function populateCwlInfo(data) {
-        // (Código mantido igual)
+    // ##### INÍCIO DAS NOVAS FUNÇÕES DO "CÉREBRO CWL" (CORRIGIDAS) #####
+
+    /**
+     * Preenche os quadros de "Visão Geral" (Placar de Participação e Banco de Reservas).
+     */
+    function populateCwlOverview(planData) {
+        if (!cwlOverviewContainerEl) return;
+
+        const score = planData.participation_score || [];
+        
+        // --- CORREÇÃO: Esta seção agora mostrará APENAS o placar final ---
+        let placarHtml = '<h4>📊 Placar de Participação (Final)</h4>'; // Renomeia para "Final"
+        placarHtml += '<div class="cwl-overview-list-bench">'; // Reutiliza a classe de lista
+        
+        if (score.length > 0) {
+             placarHtml += score.map(p => 
+                // Mostra o placar final
+                `<p>${p.player.name} (CV${p.player.town_hall}): <strong>${p.days_played} / 7 dias</strong></p>`
+             ).join('');
+        } else {
+            placarHtml += '<p>Nenhum jogador "Ativo" encontrado.</p>';
+        }
+        placarHtml += '</div>';
+
+        // Remove o grid de 2 colunas e o bancoHtml
+        setHtml(cwlOverviewContainerEl, `
+            <div class="cwl-overview-card" style="grid-column: 1 / -1;">${placarHtml}</div>
+        `);
+        
+        // Aplica o CSS de 1 coluna
+        cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
+    }
+
+    /**
+     * Preenche as abas dos 7 dias e o conteúdo do dia selecionado.
+     */
+    function populateCwlSchedule(planData) {
+        if (!cwlPlanDaysTabsEl || !cwlPlanContentEl) return;
+
+        const schedule = planData.schedule || [];
+        const currentDay = planData.current_day || 1;
+
+        // 1. Gera as Abas dos 7 Dias
+        const tabsHtml = schedule.map(dayPlan => {
+            const day = dayPlan.day;
+            const isActive = day === currentDay;
+            return `<button class="cwl-plan-day-tab ${isActive ? 'active' : ''}" data-day="${day}">Dia ${day}</button>`;
+        }).join('');
+        setHtml(cwlPlanDaysTabsEl, tabsHtml);
+
+        // 2. Função para Renderizar o Conteúdo de um Dia
+        const renderDayPlan = (day) => {
+            const dayData = schedule.find(d => d.day == day);
+            if (!dayData) {
+                setHtml(cwlPlanContentEl, `<p class="message-box">Plano para o dia ${day} não encontrado.</p>`);
+                return;
+            }
+
+            // --- Substituições (Código existente) ---
+            let planHtml = `<h4>Alterações na Equipa</h4>`;
+            planHtml += dayData.substitutions?.length > 0
+                ? dayData.substitutions.map(sub => `
+                    <div class="substitution-card">
+                        <p>🔴 <strong>Sai:</strong> ${sub.out?.name || '?'} (CV${sub.out?.town_hall || '?'})</p>
+                        <p>🟢 <strong>Entra:</strong> ${sub.in?.name || '?'} (CV${sub.in?.town_hall || '?'})</p>
+                        <p class="reason"><em>IA: ${sub.reason || '-'}</em></p>
+                    </div>`).join('')
+                : `<p>${day == 1 ? 'Escalação inicial.' : 'Manter a escalação do dia anterior.'}</p>`;
+
+            // --- Escalação Ativa (Código existente) ---
+            const roster = dayData.active_roster || [];
+            planHtml += `<h4>⚔️ Escalação Ativa (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
+            
+            // Ordena a escalação por CV (mais forte primeiro) para exibição
+            const sortedRoster = [...roster].sort((a, b) => b.player.town_hall - a.player.town_hall);
+
+            planHtml += sortedRoster.length > 0
+                ? sortedRoster.map((p, i) => `
+                    <div class="roster-player">
+                        <span>${i + 1}.</span>${p.player.name || '?'} (CV${p.player.town_hall || '?'}) - ${p.days_played}d
+                    </div>`).join('')
+                : '<p>Nenhum jogador na escalação.</p>';
+            planHtml += `</div>`; // Fim do .roster-grid
+            
+            // --- INÍCIO DA CORREÇÃO: Adiciona o Banco de Reservas do dia ---
+            const activeBench = dayData.active_bench || [];
+            const backupBench = dayData.backup_bench || [];
+
+            planHtml += `<h4 style="margin-top: 20px;"><span class="ai-indicator"></span>Banco de Reservas (Dia ${day})</h4>`;
+            planHtml += '<div class="cwl-overview-card" style="background-color: rgba(0,0,0,0.1);">'; // Reutiliza o estilo
+            planHtml += '<div class="cwl-overview-list-bench">'; // Reutiliza o estilo
+
+            if (activeBench.length > 0) {
+                planHtml += '<h5>Ativos (Próximos a entrar):</h5>';
+                planHtml += activeBench
+                    .sort((a, b) => a.days_played - b.days_played) // Ordena por dias jogados
+                    .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
+                    .join('');
+            }
+            if (backupBench.length > 0) {
+                planHtml += '<h5 style="margin-top: 10px;">Backups (Emergência):</h5>';
+                planHtml += backupBench
+                    .sort((a, b) => a.days_played - b.days_played) // Ordena por dias jogados
+                    .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
+                    .join('');
+            }
+            if (activeBench.length === 0 && backupBench.length === 0) {
+                 planHtml += '<p>Nenhum jogador no banco para este dia.</p>';
+            }
+            planHtml += '</div></div>';
+            // --- FIM DA CORREÇÃO ---
+            
+            setHtml(cwlPlanContentEl, planHtml);
+        };
+
+        // 3. Renderiza o dia atual (ou dia 1 se a CWL tiver terminado)
+        renderDayPlan(currentDay <= 7 ? currentDay : 1);
+
+        // 4. Adiciona Listeners às Abas
+        cwlPlanDaysTabsEl.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                cwlPlanDaysTabsEl.querySelector('.cwl-plan-day-tab.active')?.classList.remove('active');
+                tab.classList.add('active');
+                renderDayPlan(tab.dataset.day);
+            });
+        });
+    }
+
+    /**
+     * Função principal que é chamada pela API para preencher toda a seção CWL.
+     */
+    async function populateCwlData(data) {
         if (cwlPlannerSectionEl) cwlPlannerSectionEl.style.display = 'block';
 
+        // 1. Trata erros ou CWL inativa
         if (!data || data.error || data.status === "NotInCwl") {
-            if(noCwlMessageEl) { noCwlMessageEl.style.display = 'block'; setText(noCwlMessageEl, data?.message || data?.error || "O clã não está em CWL no momento."); }
-            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
-            if(generateCwlPlanBtn) { generateCwlPlanBtn.disabled = true; generateCwlPlanBtn.classList.add('disabled'); }
-        } else {
-            if(noCwlMessageEl) noCwlMessageEl.style.display = 'none';
-            if(cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block';
-            setText(cwlSeasonEl, data.season);
-            setText(cwlGroupStateEl, data.state);
-            setHtml(cwlGroupClansEl, data.clans_in_group?.map(c => `<p><img src="${c.badge_url || DEFAULT_BADGE_URL}" alt="Emblema ${c.name || '?'}"> <strong>${c.name || '?'}</strong> (${c.tag || '#?'}) Nv ${c.level || '?'}</p>`).join('') || '<p>Nenhum clã no grupo.</p>');
-            setHtml(cwlRoundsInfoEl, data.rounds?.map(r => `
-                <div class="cwl-round">
-                    <h4>Rodada ${r.round_number || '?'}</h4>
-                    ${r.wars?.map(w => w.error ? `<p class="cwl-war-entry">Guerra: ${w.error}</p>` : `<p class="cwl-war-entry">
-                        <strong><img src="${w.clan_badge_url || DEFAULT_BADGE_URL}" class="cwl-war-badge"> ${w.clan_name || '?'}</strong> ${w.clan_stars ?? '?'}⭐ vs ${w.opponent_stars ?? '?'}⭐ <strong><img src="${w.opponent_badge_url || DEFAULT_BADGE_URL}" class="cwl-war-badge"> ${w.opponent_name || '?'}</strong>
-                        <br><small>${w.time_key || 'Estado'}: ${w.time_value || (w.state_description || '?')}</small></p>`).join('') || "<p>Nenhuma guerra nesta rodada.</p>"}
-                </div>`).join('') || "Nenhuma info de rodada.");
-            if(generateCwlPlanBtn) { generateCwlPlanBtn.disabled = false; generateCwlPlanBtn.classList.remove('disabled'); }
-            // checkCwlInactivity(); // Inactivity check needs backend logic
-            // setInterval(checkCwlInactivity, 60000);
+            if (noCwlMessageEl) {
+                noCwlMessageEl.style.display = 'block';
+                // *** CORREÇÃO HTTP 405: Mostra o erro da API se existir ***
+                setText(noCwlMessageEl, data?.error || data?.message || "O clã não está em CWL no momento.");
+            }
+            if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
+            if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; // Esconde a área do plano
+            return;
         }
-    }
 
+        // 2. Se a CWL está ativa, esconde a mensagem de "não está em cwl"
+        if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
+        if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; // Mostra a área do plano
 
-    async function handleGenerateCwlPlan() {
-        // (Código mantido igual)
-        if (!generateCwlPlanBtn) return;
-        generateCwlPlanBtn.disabled = true; generateCwlPlanBtn.textContent = 'A gerar...';
-        if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block';
-        setHtml(cwlPlanContentEl, '<div class="loading-spinner" style="margin: 20px auto;"></div>');
-
-        const data = await fetchData('cwl/generate_plan', { method: 'POST' });
-
-        generateCwlPlanBtn.disabled = false; generateCwlPlanBtn.textContent = 'Gerar Plano de Rotação';
-        const tabsContainer = document.getElementById('cwlPlanDaysTabs'); // Get tabs container
-
-        if (!data || data.error) {
-            setHtml(cwlPlanContentEl, `<p class="message-box">${data?.error || 'Erro ao gerar plano.'}</p>`);
-            if(tabsContainer) tabsContainer.innerHTML = '';
-        } else {
-            const tabsHtml = data.schedule?.map((dayPlan, index) =>
-                `<button class="cwl-plan-day-tab ${index === 0 ? 'active' : ''}" data-day="${dayPlan.day || (index + 1)}">Dia ${dayPlan.day || (index + 1)}</button>`
-            ).join('');
-            if(tabsContainer) tabsContainer.innerHTML = tabsHtml || '';
-
-            const renderDayPlan = (day) => {
-                const dayData = data.schedule?.find(d => d.day == day);
-                if (!dayData) { setHtml(cwlPlanContentEl, `<p class="message-box">Plano para o dia ${day} não encontrado.</p>`); return; }
-
-                let planHtml = `<h4>Alterações na Equipa</h4>`;
-                planHtml += dayData.substitutions?.length > 0 ? dayData.substitutions.map(sub => `<div class="substitution-card"><p>🔴 <strong>Sai:</strong> ${sub.out?.name || '?'} (CV${sub.out?.town_hall || '?'})</p><p>🟢 <strong>Entra:</strong> ${sub.in?.name || '?'} (CV${sub.in?.town_hall || '?'})</p><p class="reason"><em>IA: ${sub.reason || '-'}</em></p></div>`).join('') : `<p>${day == 1 ? 'Escalação inicial.' : 'Manter a escalação do dia anterior.'}</p>`;
-
-                planHtml += `<h4>⚔️ Escalação Ativa</h4><div class="roster-grid">`;
-                planHtml += dayData.active_roster?.map((p, i) => `<div class="roster-player"><span>${i+1}.</span>${p.name || '?'} (CV${p.town_hall || '?'})</div>`).join('') || '<p>Nenhum jogador na escalação.</p>';
-                planHtml += `</div>`;
-                setHtml(cwlPlanContentEl, planHtml);
-            };
-
-            renderDayPlan(1); // Render day 1 initially
-
-            tabsContainer?.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
-                tab.addEventListener('click', () => {
-                    tabsContainer.querySelector('.cwl-plan-day-tab.active')?.classList.remove('active'); // Add null check
-                    tab.classList.add('active');
-                    renderDayPlan(tab.dataset.day);
-                });
-            });
+        // 3. Preenche o aviso da IA, se houver
+        if (data.warning) {
+            setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
+            cwlPlanWarningEl.style.display = 'block';
+        } else if (cwlPlanWarningEl) {
+            cwlPlanWarningEl.style.display = 'none';
         }
+
+        // 4. Preenche os novos quadros da "Visão Geral"
+        populateCwlOverview(data);
+
+        // 5. Preenche as abas e o conteúdo dos 7 dias
+        populateCwlSchedule(data);
+
+        // (O código antigo de preenchimento de cwlActiveInfoEl, cwlGroupClansEl, etc. foi removido
+        // pois a nova interface do "Cérebro" não o utiliza mais.)
     }
 
-
-    // async function checkCwlInactivity() { // Needs backend support
-    //     // const data = await fetchData('cwl/inactivity_check');
-    //     // const data = {}; // Placeholder
-    //     // if (data && data.alert) {
-    //     //     const { inactive_players, time_remaining, best_substitute } = data.alert;
-    //     //     let alertText = `<strong>${inactive_players.map(p => p.name).join(', ')}</strong> ainda não atacou(aram)! Faltam ${time_remaining} horas.`;
-    //     //     if (best_substitute) {
-    //     //         alertText += `<br>A IA sugere a substituição imediata por <strong>${best_substitute.name}</strong> para não afetar a próxima rodada.`;
-    //     //     }
-    //     //     setHtml(cwlInactivityTextEl, alertText);
-    //     //     if(cwlInactivityAlertEl) cwlInactivityAlertEl.style.display = 'block';
-    //     // } else {
-    //     //     if(cwlInactivityAlertEl) cwlInactivityAlertEl.style.display = 'none';
-    //     // }
-    // }
+    // ##### FIM DAS NOVAS FUNÇÕES DO "CÉREBRO CWL" #####
 
 
-    if (generateCwlPlanBtn) {
-        generateCwlPlanBtn.addEventListener('click', handleGenerateCwlPlan);
-    }
 
     function populateWarLog(data) {
         setText(warLogLimitEl, data?.log?.length || '0');
@@ -906,8 +990,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="member-card-stats">
                     <span>🎁 Doadas: ${m.donations || 0}</span>
                     <span>📥 Recebidas: ${m.received || 0}</span>
-                    ${lastWarHtml} <!-- *** NOVO: Adiciona a data da última guerra *** -->
-                </div>
+                    ${lastWarHtml} </div>
                 <div class="member-card-note">
                     <div class="note-container note-priority-${notePriority}">
                         <span class="note-text">${noteText}</span>
@@ -919,6 +1002,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </button>
                             `).join('')}
                         </div>
+                    </div>
+                </div>
+                <div class="member-cwl-status" data-player-tag="${m.tag || ''}">
+                    <label>CWL:</label>
+                    <div class="cwl-status-selector">
+                        <button class="cwl-status-btn ${m.cwl_status === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
+                        <button class="cwl-status-btn ${m.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
                     </div>
                 </div>
             </div>`;
@@ -941,6 +1031,10 @@ document.addEventListener('DOMContentLoaded', () => {
             input.replaceWith(input.cloneNode(true));
         });
         membersGridEl?.querySelectorAll('.priority-btn').forEach(btn => {
+            btn.replaceWith(btn.cloneNode(true));
+        });
+        // Remove listeners for cwl status buttons
+        membersGridEl?.querySelectorAll('.cwl-status-btn').forEach(btn => {
             btn.replaceWith(btn.cloneNode(true));
         });
 
@@ -983,6 +1077,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 container?.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 if(playerTag) savePlayerNote(playerTag, text, newPriority);
+            });
+        });
+        // Add listeners for cwl status buttons
+        membersGridEl?.querySelectorAll('.cwl-status-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                if (btn.classList.contains('active')) return;
+                const selector = e.target.closest('.cwl-status-selector');
+                const playerTag = e.target.closest('.member-cwl-status')?.dataset.playerTag;
+                const newStatus = e.target.dataset.status;
+                if (!playerTag || !newStatus) return;
+
+                selector?.querySelector('.active')?.classList.remove('active'); // Add null checks
+                e.target.classList.add('active');
+                const success = await setPlayerCwlStatus(playerTag, newStatus);
+                if (!success) {
+                    alert('Erro ao salvar o status. Tente novamente.');
+                    e.target.classList.remove('active');
+                    selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); // Add null checks
+                }
             });
         });
     }
@@ -1082,8 +1195,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies || 0}</p></div>
                     <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations || 0}</p></div>
                     <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received || 0}</p></div>
-                    ${lastWarHtml} <!-- *** NOVO: Adiciona o card da última guerra aqui *** -->
-                </div>
+                    ${lastWarHtml} </div>
                 ${cwlStatusHtml}
             </div>`;
 
@@ -1227,13 +1339,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error("Erro inicial ao carregar dados do clã, parando carregamento:", clanData.error);
                 return; // Stop further loading if essential clan data failed initially
             }
-
+            
+            // *** CORREÇÃO HTTP 405: Mudar cwl/generate_plan de GET para POST ***
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
                 warLogData, cwlInfoData, highlightsData, warAdvisorData
             ] = await Promise.all([
                 fetchData('members'), fetchData('current_war_details'), fetchData('missed_attacks_history'),
-                fetchData('war_log'), fetchData('cwl_info'), fetchData('highlights'), fetchData('war_advisor_plan')
+                fetchData('war_log'), 
+                fetchData('cwl/generate_plan', { method: 'POST' }), // *** ESTA É A CORREÇÃO ***
+                fetchData('highlights'), fetchData('war_advisor_plan')
             ]);
 
             // Populate sections, checking for errors in each response
@@ -1242,7 +1357,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); else console.error("Erro ao carregar plano da IA:", warAdvisorData?.error);
             if (missedAttacksData && !missedAttacksData.error) populateMissedAttacksHistory(missedAttacksData); else console.error("Erro ao carregar histórico de ataques perdidos:", missedAttacksData?.error);
             if (warLogData && !warLogData.error) populateWarLog(warLogData); else console.error("Erro ao carregar log de guerra:", warLogData?.error);
-            if (cwlInfoData) populateCwlInfo(cwlInfoData); else console.error("Erro ao carregar informações da CWL:", cwlInfoData?.error); // CWL info can have expected 'error' like 'not in CWL'
+            // *** CORREÇÃO: Chama a nova função principal da CWL ***
+            if (cwlInfoData) populateCwlData(cwlInfoData); else console.error("Erro ao carregar informações da CWL:", cwlInfoData?.error); 
             if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); else console.error("Erro ao carregar destaques:", highlightsData?.error);
 
             updateLastUpdated();
@@ -1312,4 +1428,3 @@ document.addEventListener('DOMContentLoaded', () => {
     checkApiMaintenance(); // Check immediately
     setInterval(checkApiMaintenance, 20000); // Check every 20 seconds
 });
-
