@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
-    const cwlStatusTextEl = document.getElementById('cwlStatusText'); // Keep reference if needed elsewhere
+    const cwlStatusTextEl = document.getElementById('cwlStatusText'); // <-- Elemento que estava travado
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
     const cwlSeasonEl = document.getElementById('cwlSeason');
     const cwlGroupStateEl = document.getElementById('cwlGroupState');
@@ -111,11 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const navLinks = document.querySelectorAll('.nav-link');
     const contentSections = document.querySelectorAll('.content-section');
     let isFirstLoad = true;
-    
-    // <<< INÍCIO DA MUDANÇA (1/3) >>>
-    // Variável global para sabermos se o usuário é admin
-    let userIsAdmin = false;
-    // <<< FIM DA MUDANÇA (1/3) >>>
+    let userIsAdmin = false; // <<< ADICIONADO para controle de acesso
 
     const historicWarModal = document.getElementById('historicWarModal');
     const historicWarDetailContent = document.getElementById('historicWarDetailContent');
@@ -268,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newLink = document.querySelector(`.nav-link[data-section="${newSectionId}"]`);
         newLink?.classList.add('active-nav-link'); // Add null check
 
-        // Store the new active section and update the current ID
+        // Store the new active section and update the new ID
         localStorage.setItem('activeSection', newSectionId);
         currentActiveSectionId = newSectionId;
     }
@@ -877,12 +873,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
             if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; // Esconde a área do plano
+            
+            // <<< CORREÇÃO BUG "Carregando..." >>>
+            setText(cwlStatusTextEl, "Não está em CWL");
+            // <<< FIM CORREÇÃO >>>
             return;
         }
 
         // 2. Se a CWL está ativa, esconde a mensagem de "não está em cwl"
         if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; // Mostra a área do plano
+
+        // <<< CORREÇÃO BUG "Carregando..." >>>
+        if (data.current_day >= 8) {
+            setText(cwlStatusTextEl, "Finalizada");
+        } else if (data.current_day >= 1) {
+            setText(cwlStatusTextEl, `Em Guerra (Dia ${data.current_day})`);
+        } else {
+            setText(cwlStatusTextEl, "Em Preparação"); // Fallback
+        }
+        // <<< FIM CORREÇÃO >>>
 
         // 3. Preenche o aviso da IA, se houver
         if (data.warning) {
@@ -1025,28 +1035,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function attachMemberEventListeners() {
-        // <<< INÍCIO DA MUDANÇA (3/3) >>>
-        // Se o usuário não for admin, não anexa NENHUM listener de edição.
+        // <<< ADICIONADO: Bloqueia a função se não for admin >>>
         if (!userIsAdmin) {
-            console.log("Usuário não é admin. Listeners de edição da aba 'Membros' desativados.");
-            
-            // Remove os cursores 'pointer' para que não pareçam clicáveis
-            document.querySelectorAll('.note-text, .priority-btn, .cwl-status-btn').forEach(el => {
-                if (el) el.style.cursor = 'default';
-            });
-            
-            // Ainda anexa o listener para abrir o perfil (que é "somente leitura")
-            membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
-                 header.replaceWith(header.cloneNode(true)); // Limpa listeners antigos
-                 header = membersGridEl.querySelector(`.member-card-header[data-player-tag="${header.dataset.playerTag}"]`); // Pega a nova referência
-                 if(header) header.addEventListener('click', () => openMemberProfileModal(header.dataset.playerTag));
-            });
-            return; // Sai da função
+            console.log("Modo Somente Leitura: Listeners de edição de membros desativados.");
+            return;
         }
-        
-        console.log("Usuário é admin. Anexando listeners de edição da aba 'Membros'.");
-        // <<< FIM DA MUDANÇA (3/3) >>>
-    
+        console.log("Modo Admin: Listeners de edição de membros ATIVADOS.");
+        // <<< FIM ADIÇÃO >>>
+
         // Remove existing listeners before adding new ones to prevent duplicates
         membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
             header.replaceWith(header.cloneNode(true)); // Simple way to remove listeners
@@ -1207,8 +1203,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`).join('');
         const leagueImageHtml = profileData.league_icon ? `<div class="profile-league-container"><img src="${profileData.league_icon}" alt="${profileData.league || '?'}" class="profile-league-image"></div>` : '';
         const cwlStatus = profileData.cwl_status || 'active';
-        
-        // Esconde o seletor de status da CWL se o usuário não for admin
+        // <<< ADICIONADO: Esconde botões de status CWL se não for admin >>>
         const cwlStatusHtml = userIsAdmin ? `
             <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}">
                 <label>Status na CWL:</label>
@@ -1217,15 +1212,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
                 </div>
             </div>` : `
-             <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}">
+             <div class="member-cwl-status">
                 <label>Status na CWL:</label>
-                <div class="cwl-status-selector">
-                    <button class="cwl-status-btn ${cwlStatus === 'active' ? 'active' : ''}" data-status="active" style="cursor: default;">Ativo</button>
-                    <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup" style="cursor: default;">Backup</button>
-                </div>
-            </div>
+                <span class="cwl-status-readonly status-${cwlStatus}">${cwlStatus === 'active' ? 'Ativo' : 'Backup'}</span>
+             </div>
             `;
-            
+        // <<< FIM ADIÇÃO >>>
+
         const statsGridHtml = `
             <div class="profile-details-container">
                 <div class="profile-stats-grid">
@@ -1253,8 +1246,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <canvas id="trophyChart"></canvas>
             </div>`);
 
-        // Só anexa o listener de edição do modal se for admin
-        if(userIsAdmin) {
+        // <<< ADICIONADO: Só anexa listener de CWL se for admin >>>
+        if (userIsAdmin) {
             memberProfileContent.querySelectorAll('.cwl-status-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     if (btn.classList.contains('active')) return;
@@ -1276,6 +1269,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
         }
+        // <<< FIM ADIÇÃO >>>
+
 
         if (memberTrophyChart) memberTrophyChart.destroy();
         const trophyCanvas = document.getElementById('trophyChart');
@@ -1369,13 +1364,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAllData() {
         try {
-            // <<< INÍCIO DA MUDANÇA (2/3) >>>
-            // O endpoint /api/status retorna { "is_admin": true/false }
+            // <<< ADICIONADO: Busca o status E o status de admin >>>
             const statusData = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true, is_admin: false }).catch(() => ({ maintenance_mode: true, is_admin: false }));
-            
-            // Armazena o status de admin globalmente
-            userIsAdmin = statusData.is_admin || false; 
-            // <<< FIM DA MUDANÇA (2/3) >>>
+            userIsAdmin = statusData.is_admin || false; // Salva o status de admin
+            console.log(`Status Admin: ${userIsAdmin}`); // Log
+            // <<< FIM ADIÇÃO >>>
 
             // No need to redirect here, backend handles it in /painel handler
 
