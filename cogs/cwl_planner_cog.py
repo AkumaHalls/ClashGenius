@@ -170,7 +170,8 @@ class RotationEngine:
 class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # self.api_client removido daqui para evitar referência None na inicialização
+        # self.api_client foi REMOVIDO daqui para evitar referência None na inicialização.
+        # Todos os métodos agora usam self.bot.api_client com verificações de segurança.
         self.db = bot.db
         self.cwl_plan_collection = self.db.cwl_plan if self.db is not None else None
         self.cwl_state_collection = self.db.cwl_state if self.db is not None else None
@@ -503,8 +504,11 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             plan_data['fairness_validation'] = fairness_check
             
             if not fairness_check['is_fair']:
+                # CORRIGIDO: Garante que 'warning' seja string antes de concatenar (trata None)
+                current_warning = plan_data.get('warning') or ""
+                
                 plan_data['warning'] = (
-                    plan_data.get('warning', '') + 
+                    current_warning + 
                     f"\n⚠️ {len(fairness_check['underserved_players'])} jogadores podem ficar sub-representados."
                 ).strip()
             
@@ -1101,10 +1105,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             )
         
         await ctx.send(embed=embed)
-
-
-# Import necessário que estava faltando
-import asyncio
 
 
 async def setup(bot: commands.Bot):
