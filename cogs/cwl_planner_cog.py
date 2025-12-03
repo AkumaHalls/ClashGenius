@@ -503,13 +503,15 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             plan_data['fairness_validation'] = fairness_check
             
             if not fairness_check['is_fair']:
-                # CORREÇÃO AQUI: Garante que 'warning' seja string antes de concatenar (trata None)
+                # === CORREÇÃO CRÍTICA APLICADA AQUI ===
+                # Garante que current_warning seja uma string vazia se for None, evitando TypeError na concatenação
                 current_warning = plan_data.get('warning') or ""
                 
                 plan_data['warning'] = (
                     current_warning + 
                     f"\n⚠️ {len(fairness_check['underserved_players'])} jogadores podem ficar sub-representados."
                 ).strip()
+                # ========================================
             
             # Persiste no banco
             await self.cwl_plan_collection.update_one(
@@ -1104,6 +1106,10 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             )
         
         await ctx.send(embed=embed)
+
+
+# Import necessário que estava faltando
+import asyncio
 
 
 async def setup(bot: commands.Bot):
