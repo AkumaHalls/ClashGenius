@@ -9,6 +9,7 @@ from collections import defaultdict
 import datetime
 import pytz
 import math
+import asyncio
 
 logger = logging.getLogger("cwl_planner_cog")
 
@@ -169,7 +170,7 @@ class RotationEngine:
 class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.api_client: coc.Client = self.bot.api_client
+        # self.api_client removido daqui para evitar referência None na inicialização
         self.db = bot.db
         self.cwl_plan_collection = self.db.cwl_plan if self.db is not None else None
         self.cwl_state_collection = self.db.cwl_state if self.db is not None else None
@@ -214,7 +215,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         try:
             await self.cwl_state_collection.update_one(
                 {"_id": "cog_state"},
-                {"\$set": {
+                {"$set": {
                     "posted_daily_plans": list(self.posted_daily_plans),
                     "posted_inactivity_alerts": list(self.posted_inactivity_alerts),
                     "last_known_members": list(self.last_known_members),
@@ -249,8 +250,12 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     async def _get_current_cwl_war_info(self) -> Optional[Dict[str, Any]]:
         """Busca informações detalhadas sobre o estado atual da CWL com cache."""
+        if not self.bot.api_client:
+            logger.warning("API Client não está pronto em _get_current_cwl_war_info")
+            return None
+
         try:
-            cwl_group = await self.api_client.get_league_group(self.bot.clan_tag)
+            cwl_group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
             
             if not cwl_group or cwl_group.state == "notInWar":
                 return None
@@ -268,7 +273,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                         continue
                     
                     try:
-                        war = await self.api_client.get_league_war(war_tag)
+                        war = await self.bot.api_client.get_league_war(war_tag)
                         
                         # Verifica se nosso clã está nessa guerra
                         is_our_war = (
@@ -325,10 +330,13 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         
         Retorna: (lista de jogadores válidos, tags dos membros atuais do clã)
         """
+        if not self.bot.api_client:
+            return [], set()
+
         try:
             # Busca paralela para reduzir janela de race condition
-            cwl_group_task = self.api_client.get_league_group(self.bot.clan_tag)
-            clan_task = self.api_client.get_clan(self.bot.clan_tag)
+            cwl_group_task = self.bot.api_client.get_league_group(self.bot.clan_tag)
+            clan_task = self.bot.api_client.get_clan(self.bot.clan_tag)
             
             cwl_group, clan = await asyncio.gather(cwl_group_task, clan_task)
             
@@ -503,7 +511,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             # Persiste no banco
             await self.cwl_plan_collection.update_one(
                 {"_id": season},
-                {"\$set": {
+                {"$set": {
                     "schedule": plan_data['schedule'],
                     "participation_score": plan_data.get('participation_score', []),
                     "warning": plan_data.get('warning'),
@@ -674,6 +682,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     async def _send_critical_changes_alert(self, changes: Dict[str, Any], current_day: int):
         """Envia alerta sobre mudanças críticas no roster."""
+        if not self.bot.api_client: return
+
         fields = []
         
         if changes.get("players_left"):
@@ -681,7 +691,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             player_names = []
             for tag in changes["players_left"]:
                 try:
-                    player = await self.api_client.get_player(tag)
+                    player = await self.bot.api_client.get_player(tag)
                     player_names.append(f"• **{player.name}** ({tag})")
                 except:
                     player_names.append(f"• {tag}")
@@ -761,8 +771,10 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     async def _check_roster_changes(self):
         """Detecta e alerta sobre mudanças no roster do clã."""
+        if not self.bot.api_client: return
+
         try:
-            clan = await self.api_client.get_clan(self.bot.clan_tag)
+            clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
             current_members = {m.tag for m in clan.members}
             
             if not self.last_known_members:
@@ -781,7 +793,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                         players_info = []
                         for tag in new_leavers:
                             try:
-                                player = await self.api_client.get_player(tag)
+                                player = await self.bot.api_client.get_player(tag)
                                 players_info.append({"name": player.name, "tag": tag})
                             except:
                                 players_info.append({"name": "Desconhecido", "tag": tag})
