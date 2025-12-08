@@ -227,6 +227,7 @@ class FatigueFactor(DecisionFactor):
         if p.consecutive_days_played >= 4: return -0.8
         if p.consecutive_days_played >= 3: return -0.4
         if p.consecutive_days_rested >= 2: return 0.6
+        if p.consecutive_days_rested >= 1: return 0.3
         return 0.0
     @property
     def weight(self): return 0.15
@@ -234,7 +235,8 @@ class FatigueFactor(DecisionFactor):
     def name(self): return "Fatigue"
 
 class ReliabilityFactor(DecisionFactor):
-    def evaluate(self, p, ctx) -> float: return (p.metrics.reliability_score - 0.5) * 2
+    def evaluate(self, p, ctx) -> float:
+        return (p.metrics.reliability_score - 0.5) * 2
     @property
     def weight(self): return 0.20
     @property
@@ -256,45 +258,51 @@ class IntelligentRotationEngine:
     def __init__(self, team_size: int, total_days: int = 7):
         self.team_size = team_size
         self.total_days = total_days
-        self.factors = [FairnessFactor(), StrengthFactor(), FatigueFactor(), ReliabilityFactor(), UrgencyFactor()]
+        self.decision_factors = [FairnessFactor(), StrengthFactor(), FatigueFactor(), ReliabilityFactor(), UrgencyFactor()]
     
-    def _get_weights(self, strategy: RotationStrategy) -> Dict[str, float]:
-        w = {f.name: f.weight for f in self.factors}
-        if strategy == RotationStrategy.AGGRESSIVE: w.update({"Strength": 0.5, "Fairness": 0.1, "Reliability": 0.25})
-        elif strategy == RotationStrategy.FAIR: w.update({"Fairness": 0.45, "Urgency": 0.2, "Strength": 0.15})
-        elif strategy == RotationStrategy.SURVIVAL: w.update({"Reliability": 0.4, "Strength": 0.35, "Fatigue": 0.05})
-        total = sum(w.values())
-        return {k: v/total for k, v in w.items()}
+    def _adjust_weights_for_strategy(self, strategy: RotationStrategy) -> Dict[str, float]:
+        base = {f.name: f.weight for f in self.decision_factors}
+        if strategy == RotationStrategy.AGGRESSIVE:
+            base.update({"Strength": 0.50, "Fairness": 0.10, "Reliability": 0.25})
+        elif strategy == RotationStrategy.FAIR:
+            base.update({"Fairness": 0.45, "Urgency": 0.20, "Strength": 0.15})
+        elif strategy == RotationStrategy.SURVIVAL:
+            base.update({"Reliability": 0.40, "Strength": 0.35, "Fatigue": 0.05})
+        total = sum(base.values())
+        return {k: v/total for k, v in base.items()}
     
     def calc_score(self, p: CWLPlayer, ctx: Dict, strat: RotationStrategy) -> Tuple[float, Dict]:
-        w = self._get_weights(strat)
+        weights = self._adjust_weights_for_strategy(strat)
         breakdown = {}
         total = 0.0
-        for f in self.factors:
+        for f in self.decision_factors:
             score = f.evaluate(p, ctx)
-            weighted = score * w.get(f.name, f.weight)
-            breakdown[f.name] = {"raw": score, "weight": w.get(f.name), "weighted": weighted}
+            weighted = score * weights.get(f.name, f.weight)
+            breakdown[f.name] = {"raw": score, "weight": weights.get(f.name), "weighted": weighted}
             total += weighted
         if p.forced_inclusion: total += 10.0
         if p.forced_exclusion: total -= 10.0
         return total, breakdown
-
-    def get_strategy(self, state: SeasonState, day: int, opp: Optional[OpponentAnalysis]) -> RotationStrategy:
-        rem = self.total_days - day + 1
-        if rem <= 2: return RotationStrategy.FAIR
-        if state.context == WarContext.LOSING and state.relegation_zone: return RotationStrategy.AGGRESSIVE
-        if state.context == WarContext.COMPETITIVE:
-            if opp and opp.threat_level in ["high", "extreme"]: return RotationStrategy.AGGRESSIVE
+    
+    def determine_optimal_strategy(self, season_state: SeasonState, current_day: int, opponent: Optional[OpponentAnalysis]) -> RotationStrategy:
+        remaining = self.total_days - current_day + 1
+        ctx = season_state.context
+        if remaining <= 2: return RotationStrategy.FAIR
+        if ctx == WarContext.LOSING and season_state.relegation_zone: return RotationStrategy.AGGRESSIVE
+        if ctx == WarContext.COMPETITIVE:
+            if opponent and opponent.threat_level in ["high", "extreme"]: return RotationStrategy.AGGRESSIVE
             return RotationStrategy.BALANCED
-        if state.context == WarContext.WINNING and rem >= 4: return RotationStrategy.FAIR
+        if ctx == WarContext.COMFORTABLE: return RotationStrategy.FAIR
+        if ctx == WarContext.WINNING and remaining >= 4: return RotationStrategy.FAIR
         return RotationStrategy.BALANCED
-
-    def calculate_rotation(self, roster, active_bench, backup_bench, day, strategy, season_state=None) -> Tuple[List, List, List]:
+    
+    def calculate_rotation(self, roster: List[CWLPlayer], active_bench: List[CWLPlayer], backup_bench: List[CWLPlayer], current_day: int, strategy: RotationStrategy, season_state: Optional[SeasonState] = None) -> Tuple[List[CWLPlayer], List[Dict[str, Any]], List[str]]:
         warnings = []
+        remaining = self.total_days - current_day + 1
         available = [p for p in roster + active_bench if not p.forced_exclusion]
         all_p = available + backup_bench
         ctx = {
-            "total_days": self.total_days, "current_day": day, "days_remaining": self.total_days - day + 1,
+            "total_days": self.total_days, "current_day": current_day, "days_remaining": remaining,
             "total_players": len(all_p), "team_size": self.team_size,
             "max_th": max((p.town_hall for p in all_p), default=17), "min_games_target": max(1, int(self.total_days * 0.4))
         }
@@ -324,14 +332,23 @@ class IntelligentRotationEngine:
                 new_bench.remove(high_on_bench[i]); new_bench.append(low_in_roster[i])
         
         old_tags = {p.tag for p in roster}
+        new_tags = {p.tag for p in new_roster}
+        
+        players_out = [p for p in roster if p.tag not in new_tags]
+        players_in = [p for p in new_roster if p.tag not in old_tags]
+        
+        # Sort for better matching
+        players_out.sort(key=lambda p: -p.days_played)
+        players_in.sort(key=lambda p: p.days_played)
+
         subs = []
-        p_in = [p for p in new_roster if p.tag not in old_tags]
-        p_out = [p for p in roster if p.tag not in {x.tag for x in new_roster}]
-        
-        p_in.sort(key=lambda p: p.town_hall, reverse=True)
-        p_out.sort(key=lambda p: p.town_hall, reverse=True)
-        
-        for pi, po in zip(p_in, p_out):
+        for po, pi in zip(players_out, players_in):
+            _, out_bd = self.calc_score(po, ctx, strategy)
+            _, in_bd = self.calc_score(pi, ctx, strategy)
+            reasons = []
+            for f in ["Fairness", "Fatigue", "Urgency"]:
+                # Simplificação para não acessar dicionário complexo
+                pass
             subs.append({"out": po.to_dict(), "in": pi.to_dict(), "reason": "Rotação Estratégica", "score_diff": 0})
             
         if len(new_roster) < self.team_size:
@@ -344,13 +361,17 @@ class IntelligentRotationEngine:
             
         return new_roster, subs, warnings
 
-    def get_contingency(self, roster, bench, day) -> List[Dict]:
-        cont = []
-        bench_s = sorted(bench, key=lambda p: (-p.town_hall, p.days_played))
-        for r in roster:
-            subs = [p for p in bench_s if abs(p.town_hall - r.town_hall) <= 1]
-            if subs: cont.append({"if_unavailable": r.to_dict(), "replace_with": subs[0].to_dict(), "priority": "high" if r.town_hall >= 15 else "normal"})
-        return cont
+    def generate_contingency_plan(self, roster: List[CWLPlayer], bench: List[CWLPlayer], current_day: int) -> List[Dict[str, Any]]:
+        contingencies = []
+        bench_sorted = sorted(bench, key=lambda p: (-p.town_hall, p.days_played))
+        for rp in roster:
+            subs = [p for p in bench_sorted if abs(p.town_hall - rp.town_hall) <= 1]
+            if subs:
+                contingencies.append({
+                    "if_unavailable": rp.to_dict(), "replace_with": subs[0].to_dict(),
+                    "th_diff": subs[0].town_hall - rp.town_hall, "priority": "high" if rp.town_hall >= 15 else "normal"
+                })
+        return contingencies
 
     def predict_issues(self, schedule, all_players) -> List[Dict]:
         issues = []
@@ -384,18 +405,25 @@ class OpponentAnalyzer:
 
 class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     def __init__(self, bot: commands.Bot):
-        self.bot = bot; self.db = bot.db
+        self.bot = bot
+        self.db = bot.db
         self.cwl_plan_collection = self.db.cwl_plan if self.db is not None else None
         self.cwl_state_collection = self.db.cwl_state if self.db is not None else None
-        self.metrics_collection = self.db.player_metrics if self.db is not None else None
+        self.player_metrics_collection = self.db.player_metrics if self.db is not None else None
         
-        self.engine: Optional[IntelligentRotationEngine] = None
-        self.analyzer: Optional[OpponentAnalyzer] = None
+        self.rotation_engine: Optional[IntelligentRotationEngine] = None
+        self.opponent_analyzer: Optional[OpponentAnalyzer] = None
         
-        self.daily_posted = set(); self.alerts_posted = set()
-        self.last_members = set(); self.leavers = set()
-        self.season_state = None
-        self.config = {"auto_strat": True}
+        self.posted_daily_plans: Set[str] = set()
+        self.posted_inactivity_alerts: Set[str] = set()
+        self.last_known_members: Set[str] = set()
+        self.reported_leavers: Set[str] = set()
+        self.season_state: Optional[SeasonState] = None
+        
+        self.config = {
+            "min_participation_percent": 0.3, "max_consecutive_days": 5,
+            "alert_hours_before_end": 4, "auto_adjust_strategy": True
+        }
 
     async def cog_load(self):
         await self._load_state()
@@ -408,29 +436,46 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         self.metrics_task.cancel()
 
     async def _init_logic(self, size):
-        self.engine = IntelligentRotationEngine(size)
-        if self.bot.api_client: self.analyzer = OpponentAnalyzer(self.bot.api_client)
+        self.rotation_engine = IntelligentRotationEngine(size)
+        if self.bot.api_client:
+            self.opponent_analyzer = OpponentAnalyzer(self.bot.api_client)
 
     async def _load_state(self):
         if self.cwl_state_collection is None: return
         try:
             s = await self.cwl_state_collection.find_one({"_id": "cog_state"})
             if s:
-                self.daily_posted = set(s.get("daily", []))
-                self.alerts_posted = set(s.get("alerts", []))
-                self.leavers = set(s.get("leavers", []))
-                if s.get("season"): self.season_state = SeasonState(**s.get("season"))
-        except Exception: pass
+                self.posted_daily_plans = set(s.get("posted_daily_plans", []))
+                self.posted_inactivity_alerts = set(s.get("posted_inactivity_alerts", []))
+                self.last_known_members = set(s.get("last_known_members", []))
+                self.reported_leavers = set(s.get("reported_leavers", []))
+                if s.get("season_state"):
+                    self.season_state = SeasonState(**s.get("season_state"))
+                logger.info("Estado persistente carregado com sucesso.")
+            self._cache_initialized = True
+        except Exception as e:
+            logger.error(f"Erro ao carregar estado persistente: {e}")
 
     async def _save_state(self):
         if self.cwl_state_collection is None: return
         try:
-            data = {"daily": list(self.daily_posted), "alerts": list(self.alerts_posted), "leavers": list(self.leavers)}
-            if self.season_state: data["season"] = asdict(self.season_state)
-            # Sanitiza antes de salvar
-            clean_data = sanitize_for_mongo(data)
-            await self.cwl_state_collection.update_one({"_id": "cog_state"}, {"$set": clean_data}, upsert=True)
-        except Exception: pass
+            state_data = {
+                "posted_daily_plans": list(self.posted_daily_plans),
+                "posted_inactivity_alerts": list(self.posted_inactivity_alerts),
+                "last_known_members": list(self.last_known_members),
+                "reported_leavers": list(self.reported_leavers),
+                "updated_at": datetime.datetime.now(pytz.utc)
+            }
+            if self.season_state:
+                state_data["season_state"] = asdict(self.season_state)
+            
+            await self.cwl_state_collection.update_one(
+                {"_id": "cog_state"},
+                {"$set": sanitize_for_mongo(state_data)},
+                upsert=True
+            )
+        except Exception as e:
+            logger.error(f"Erro ao salvar estado persistente: {e}")
 
     async def _fetch_pool(self, active_war: Optional[coc.ClanWar] = None) -> Tuple[List[CWLPlayer], Set[str]]:
         if not self.bot.api_client: return [], set()
@@ -497,7 +542,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             p.days_played = h["days"]
             if p.tag in war_tags:
                 p.days_played = max(p.days_played, day)
-                p.consecutive_days_played = h["cons"] + 1 if h["last"] == day - 1 else 1
                 p.consecutive_days_rested = 0
                 roster.append(p)
             else:
@@ -506,8 +550,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 else: backup.append(p)
         return roster, active, backup
 
-    # ALIAS para compatibilidade
+    # ALIAS NECESSÁRIO PARA O CLASH.PY
     async def generate_rotation_plan(self) -> Dict[str, Any]:
+        """Alias para compatibilidade com clash.py"""
         return await self.generate_plan()
 
     async def generate_plan(self) -> Dict:
@@ -554,17 +599,21 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 for _ in range(needed):
                     roster.append(CWLPlayer(tag="#UNKNOWN", name="Desconhecido", town_hall=1, status=PlayerStatus.ACTIVE))
 
-            strat = self.engine.get_strategy(SeasonState(), day, None) if self.config['auto_strat'] else RotationStrategy.BALANCED
+            strat = self.rotation_engine.determine_optimal_strategy(
+                self.season_state or SeasonState(), day, None
+            ) if self.config['auto_adjust_strategy'] else RotationStrategy.BALANCED
             
             schedule = []
-            cont = self.engine.get_contingency(roster, active+backup, day)
+            cont = self.rotation_engine.generate_contingency_plan(roster, active+backup, day)
+            # USANDO SANITIZE
             schedule.append(sanitize_for_mongo(DayPlan(day, roster.copy(), [], active, backup, strat, None, 1.0, [], cont).to_dict()))
             
             curr_r, curr_a, curr_b = roster.copy(), active.copy(), backup.copy()
             for d in range(day+1, 8):
-                new_r, subs, warns = self.engine.calculate_rotation(curr_r, curr_a, curr_b, d, strat)
+                new_r, subs, warns = self.rotation_engine.calculate_rotation(curr_r, curr_a, curr_b, d, strat)
                 for p in new_r: p.days_played += 1
                 curr_r = new_r
+                # USANDO SANITIZE
                 schedule.append(sanitize_for_mongo(DayPlan(d, new_r, subs, curr_a, curr_b, strat, None, 0.8, warns).to_dict()))
             
             data = {
@@ -590,7 +639,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
     @tasks.loop(hours=1)
     async def metrics_task(self):
-        pass # Simplificado para evitar erros
+        pass
 
     @monitor_task.before_loop
     async def before_monitor_task(self):
