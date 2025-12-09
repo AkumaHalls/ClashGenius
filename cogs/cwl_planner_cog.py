@@ -9,6 +9,7 @@ from collections import defaultdict
 from enum import Enum, auto
 import datetime
 import pytz
+import asyncio  # <--- ADICIONADO: Essencial para _fetch_pool
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger("cwl_planner_cog")
@@ -219,7 +220,7 @@ class UrgencyFactor(DecisionFactor):
         needed = ctx["min_games_target"] - p.days_played
         if needed <= 0: return -0.3
         if needed >= ctx["days_remaining"]: return 1.0
-        return needed / max(1, ctx["days_remaining"]) # Evita divisão por zero
+        return needed / max(1, ctx["days_remaining"])
     @property
     def weight(self): return 0.10
     @property
@@ -296,7 +297,6 @@ class IntelligentRotationEngine:
         
         if high_th < min(5, self.team_size // 3):
             warnings.append(f"⚠️ Poucos CVs altos ({high_th}) no roster")
-            # Lógica simplificada de troca para evitar complexidade excessiva
             high_on_bench = sorted([p for p in new_bench if p.town_hall >= max_th - 1], key=lambda x: x.days_played)
             low_in_roster = sorted([p for p in new_roster if p.town_hall < max_th - 1], key=lambda p: p.town_hall)
             swaps = min(len(high_on_bench), len(low_in_roster), min(5, self.team_size // 3) - high_th)
@@ -313,7 +313,6 @@ class IntelligentRotationEngine:
         players_in = [p for p in new_roster if p.tag not in old_tags]
         
         subs = []
-        # CORREÇÃO: Removido loop 'pass' e adicionado lógica direta
         for po, pi in zip(players_out, players_in):
             subs.append({"out": po.to_dict(), "in": pi.to_dict(), "reason": "Rotação Automática (IA)", "score_diff": 0})
             
@@ -511,7 +510,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             
             if not war: return {"error": "Sem guerra"}
 
-            # === CORREÇÃO CRÍTICA AQUI ===
+            # === CORREÇÃO CRÍTICA AQUI: Retorna dados completos no fim da temporada ===
             if day >= 8: 
                 saved_plan = await self.cwl_plan_collection.find_one({"_id": group.season})
                 if saved_plan:
@@ -525,7 +524,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                         "warning": "Temporada finalizada."
                     }
                 return {"finished": True, "error": "CWL finalizada, plano não encontrado."}
-            # =============================
+            # =========================================================================
 
             players, _ = await self._fetch_pool(war)
             if not players: return {"error": "Sem players"}
