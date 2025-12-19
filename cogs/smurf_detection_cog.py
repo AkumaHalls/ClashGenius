@@ -19,473 +19,288 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         self.bot = bot
         self.db = bot.db
         
-        # Pesos para o sistema de pontuação
+        # Pesos Recalibrados para evitar Falsos Positivos em Líderes/Ativos
         self.weights = {
-            'db_link': 100,              # Vínculo confirmado no banco = 100% certeza
-            'name_exact': 50,            # Nomes muito similares
-            'name_high': 35,             # Nomes similares
-            'name_moderate': 20,         # Nomes moderadamente similares
-            'donation_pattern': 25,      # Padrão de doações similar
-            'rush_pattern': 20,          # Ambos rushados de forma similar
-            'activity_sync': 15,         # Atividade sincronizada suspeita
-            'clan_history': 18,          # Histórico de clãs similar
-            'hero_neglect': 15,          # Padrão de heróis negligenciados
-            'war_pattern': 12,           # Padrão de guerra similar
-            'trophy_manipulation': 10,   # Manipulação de troféus
-            'builder_neglect': 8,        # Base do construtor negligenciada
+            'db_link': 100,              # 100% Certeza (Vínculo interno)
+            'name_exact': 60,            # Nomes idênticos ou Variações claras (Rei -> Rei v2)
+            'name_high': 40,             # Nomes muito similares
+            'feeder_behavior': 35,       # Comportamento clássico de doador (Doa muito, ataca nada)
+            'hero_rush': 25,             # Heróis muito baixos para o CV (Melhor indicador que estrelas)
+            'war_stars_rush': 10,        # Estrelas baixas (Peso reduzido drasticamente)
+            'activity_sync': 15,         # Troféus/Atividade idêntica
         }
 
-    # ==================== NORMALIZAÇÃO E SIMILARIDADE ====================
-    
+    # ==================== UTILITÁRIOS ====================
+
+    def _get_hero_levels(self, player: coc.Player) -> Tuple[int, int]:
+        """Retorna (Soma dos Níveis dos Heróis, Média dos Níveis)."""
+        total_levels = 0
+        count = 0
+        for hero in player.heroes:
+            if hero.is_home_base: # Ignora heróis da base do construtor
+                total_levels += hero.level
+                count += 1
+        return total_levels, (total_levels / count if count > 0 else 0)
+
     def _normalize_name(self, name: str) -> str:
-        """Normalização avançada de nomes para comparação."""
+        """Limpeza agressiva de nome para comparação."""
         name = name.lower().strip()
-        name = re.sub(r'[^\w\s]', '', name) # Remove emojis e caracteres especiais
-        
-        ignore_patterns = [
-            r'\bmini\b', r'\bsec\b', r'\bconta\b', r'\bjr\b', r'\bsr\b',
-            r'\bv[0-9]\b', r'\b2\b', r'\b3\b', r'\bbr\b', r'\bpl\b',
-            r'\bclash\b', r'\bth\d+\b', r'\bcv\d+\b', r'\balt\b',
-            r'\bmain\b', r'\bprincipal\b', r'\bsmurf\b', r'\bfeeder\b',
-            r'\bdonador\b', r'\bdoa\b', r'\bwar\b', r'\bguerra\b'
-        ]
-        
-        for pattern in ignore_patterns:
-            name = re.sub(pattern, '', name)
-        
-        name = re.sub(r'[0-9_\-\s]', '', name) # Remove espaços, números e underscores
-        return name
+        # Remove sufixos comuns de contas secundárias
+        subs = [r'\bmini\b', r'\bsec\b', r'\bconta\b', r'\bjr\b', r'\bv\d+\b', r'\b2\b', r'\b3\b', r'\bsmurf\b', r'\balt\b']
+        for s in subs:
+            name = re.sub(s, '', name)
+        return re.sub(r'[^\w]', '', name) # Remove tudo que não for letra/número
+
+    # ==================== ANÁLISES ====================
 
     def check_name_similarity(self, name1: str, name2: str) -> Dict[str, float]:
-        """Análise avançada de similaridade com múltiplas métricas."""
-        raw_score = difflib.SequenceMatcher(None, name1.lower(), name2.lower()).ratio()
+        """Comparação de nomes com proteção para nomes curtos."""
+        n1_clean = self._normalize_name(name1)
+        n2_clean = self._normalize_name(name2)
         
-        n1 = self._normalize_name(name1)
-        n2 = self._normalize_name(name2)
-        
-        if not n1 or not n2:
-            normalized_score = 0.0
-        else:
-            normalized_score = difflib.SequenceMatcher(None, n1, n2).ratio()
-        
-        bonus = 0.0
-        if n1 and n2:
-            if n1 in n2 or n2 in n1:
-                bonus = 0.15
-            base1 = re.sub(r'\d+$', '', n1)
-            base2 = re.sub(r'\d+$', '', n2)
-            if base1 and base2 and base1 == base2:
-                bonus = 0.25
-        
-        final_score = min(1.0, max(raw_score, normalized_score) + bonus)
-        
-        return {
-            'score': final_score,
-            'normalized_score': normalized_score,
-            'raw_score': raw_score,
-            'bonus': bonus
-        }
+        # Proteção para nomes curtos (Ex: "Gui" e "Luiz" não devem bater)
+        if len(n1_clean) < 4 or len(n2_clean) < 4:
+            # Se for curto, exige correspondência EXATA ou contida (Ex: "Rei" em "Rei v2")
+            if n1_clean == n2_clean:
+                return {'score': 1.0, 'type': 'exact'}
+            if (n1_clean in n2_clean or n2_clean in n1_clean) and abs(len(n1_clean) - len(n2_clean)) <= 3:
+                 return {'score': 0.9, 'type': 'contained'}
+            return {'score': 0.0, 'type': 'none'}
 
-    # ==================== ANÁLISE DE BANCO DE DADOS ====================
-    
+        # Para nomes longos, usa SequenceMatcher
+        ratio = difflib.SequenceMatcher(None, n1_clean, n2_clean).ratio()
+        return {'score': ratio, 'type': 'ratio'}
+
+    def analyze_hero_rush(self, player: coc.Player) -> Dict:
+        """
+        Analisa se os heróis estão muito abaixo do esperado para o CV.
+        Isso é o maior indicador de conta secundária feita às pressas.
+        """
+        total, avg = self._get_hero_levels(player)
+        th = player.town_hall
+        
+        # Média mínima esperada de heróis por CV (Conservador)
+        # CV16 espera média 70+, CV15 média 60+, etc.
+        min_avg_map = {
+            16: 65, 15: 55, 14: 45, 13: 35, 12: 25, 11: 15, 10: 10
+        }
+        
+        if th in min_avg_map:
+            expected = min_avg_map[th]
+            if avg < expected:
+                diff = expected - avg
+                # Se a média dos heróis for 20 níveis abaixo do esperado
+                if diff > 20: 
+                    return {'score': self.weights['hero_rush'], 'details': [f"Heróis muito fracos (Média {int(avg)} vs Esperado {expected}+)"]}
+                elif diff > 10:
+                    return {'score': 15, 'details': [f"Heróis fracos (Média {int(avg)})"]}
+        
+        return {'score': 0, 'details': []}
+
+    def analyze_war_stars_legacy(self, player: coc.Player) -> Dict:
+        """
+        Analisa estrelas, mas com peso MUITO menor.
+        Líderes e jogadores antigos podem ter poucas estrelas se farmaram muito.
+        """
+        th = player.town_hall
+        stars = player.war_stars
+        
+        # CV alto com MENOS de 200 estrelas é suspeito. 
+        # Mas CV16 com 600 estrelas é NORMAL para quem não foca em guerra.
+        if th >= 14 and stars < 200:
+             return {'score': self.weights['war_stars_rush'], 'details': [f"Baixa exp. de guerra ({stars} ⭐)"]}
+        elif th >= 11 and stars < 50:
+             return {'score': self.weights['war_stars_rush'], 'details': [f"Conta nova/sem guerra ({stars} ⭐)"]}
+             
+        return {'score': 0, 'details': []}
+
+    def analyze_feeder_behavior(self, player: coc.Player) -> Dict:
+        """Detecta contas usadas apenas para doar (Feeders)."""
+        donations = player.donations
+        attacks = player.attack_wins
+        
+        # Ratio Doação/Ataque. Se doa 1000 e ataca 0, é feeder.
+        if donations > 500:
+            if attacks == 0:
+                return {'score': self.weights['feeder_behavior'], 'details': [f"Feeder Puro: {donations} doações, 0 ataques"]}
+            ratio = donations / attacks
+            if ratio > 50: # Ex: 1000 doações e 20 ataques = ratio 50
+                 return {'score': 20, 'details': [f"Comportamento de Doador ({int(ratio)}:1 doação/ataque)"]}
+        
+        return {'score': 0, 'details': []}
+
     async def get_confirmed_links(self, member_tags: List[str]) -> Dict[int, List[str]]:
-        """Busca vínculos confirmados no banco de dados."""
-        if self.db is None: return {}
+        """Busca vínculos no DB."""
+        if not self.db: return {}
         duplicates = defaultdict(list)
         try:
             cursor = self.db.users.find({"player_tag": {"$in": member_tags}})
             discord_map = defaultdict(set)
             async for doc in cursor:
-                d_id = doc.get("discord_id")
-                tag = doc.get("player_tag")
-                if d_id and tag: discord_map[d_id].add(tag)
+                if doc.get("discord_id") and doc.get("player_tag"):
+                    discord_map[doc.get("discord_id")].add(doc.get("player_tag"))
             for d_id, tags in discord_map.items():
                 if len(tags) > 1: duplicates[d_id] = list(tags)
-        except Exception as e:
-            logger.error(f"Erro ao buscar vínculos no DB: {e}", exc_info=True)
+        except Exception as e: logger.error(f"Erro DB: {e}")
         return duplicates
 
-    # ==================== ANÁLISES INDIVIDUAIS ====================
-    
-    def analyze_rush_pattern(self, member: coc.Player) -> Dict:
-        score = 0
-        details = []
-        th = member.town_hall
-        stars = getattr(member, 'war_stars', 0)
-        
-        expected_stars = {7: 50, 8: 100, 9: 150, 10: 250, 11: 400, 12: 600, 13: 850, 14: 1100, 15: 1400, 16: 1700}
-        
-        if th in expected_stars:
-            expected = expected_stars[th]
-            deficit = expected - stars
-            if deficit > expected * 0.7:
-                score = 20
-                details.append(f"Severamente rushado: {stars}/{expected} ⭐ esperadas")
-            elif deficit > expected * 0.5:
-                score = 15
-                details.append(f"Muito rushado: {stars}/{expected} ⭐ esperadas")
-            elif deficit > expected * 0.3:
-                score = 10
-                details.append(f"Rushado: {stars}/{expected} ⭐ esperadas")
-        return {'score': score, 'details': details}
+    # ==================== LÓGICA PRINCIPAL ====================
 
-    def analyze_donation_pattern(self, member: coc.Player) -> Dict:
-        score = 0
-        details = []
-        donations = member.donations
-        received = member.received
-        attacks = getattr(member, 'attack_wins', 0)
-        
-        if donations > 1000:
-            if attacks < 10:
-                score = 25
-                details.append(f"Feeder extremo: {donations} doações, apenas {attacks} vitórias")
-            elif attacks < 50:
-                score = 18
-                details.append(f"Padrão feeder: {donations} doações, {attacks} vitórias")
-        
-        if received > 0:
-            ratio = donations / received
-            if ratio > 10:
-                score += 8
-                details.append(f"Proporção anormal doação/recebimento: {ratio:.1f}:1")
-        elif donations > 500:
-            score += 10
-            details.append(f"Doa {donations} mas nunca recebe tropas")
-        return {'score': score, 'details': details}
-
-    def analyze_builder_base(self, member: coc.Player) -> Dict:
-        score = 0
-        details = []
-        try:
-            th = member.town_hall
-            bh = member.builder_hall if hasattr(member, 'builder_hall') else 0
-            if bh > 0:
-                gap = th - bh
-                if gap >= 7:
-                    score = 8
-                    details.append(f"BB muito negligenciada: CV{th} vs BH{bh}")
-                elif gap >= 5:
-                    score = 5
-                    details.append(f"BB negligenciada: CV{th} vs BH{bh}")
-        except: pass
-        return {'score': score, 'details': details}
-
-    def analyze_trophy_pattern(self, member: coc.Player) -> Dict:
-        score = 0
-        details = []
-        trophies = member.trophies
-        th = member.town_hall
-        expected_min = {10: 1800, 11: 2200, 12: 2600, 13: 3000, 14: 3400, 15: 3800, 16: 4200}
-        
-        if th in expected_min:
-            if trophies < expected_min[th] * 0.5:
-                score = 10
-                details.append(f"Troféus muito baixos: {trophies} (CV{th})")
-            elif trophies < expected_min[th] * 0.7:
-                score = 5
-                details.append(f"Troféus baixos: {trophies} (CV{th})")
-        return {'score': score, 'details': details}
-
-    def analyze_war_pattern(self, member: coc.Player) -> Dict:
-        score = 0
-        details = []
-        try:
-            opted_in = getattr(member, 'war_opted_in', None)
-            if opted_in is False:
-                if member.donations > 500:
-                    score = 12
-                    details.append("Fora de guerra mas doa muito (possível feeder)")
-        except: pass
-        return {'score': score, 'details': details}
-
-    def analyze_account_depth(self, member: coc.Player) -> Dict:
-        total_score = 0
-        all_details = []
-        analyses = {}
-        
-        rush = self.analyze_rush_pattern(member)
-        donation = self.analyze_donation_pattern(member)
-        builder = self.analyze_builder_base(member)
-        trophy = self.analyze_trophy_pattern(member)
-        war = self.analyze_war_pattern(member)
-        
-        for name, analysis in [('rush', rush), ('donation', donation), ('builder', builder), ('trophy', trophy), ('war', war)]:
-            analyses[name] = analysis
-            total_score += analysis['score']
-            all_details.extend(analysis['details'])
-        
-        return {'total_score': total_score, 'details': all_details, 'analyses': analyses}
-
-    # ==================== ANÁLISE COMPARATIVA ====================
-    
-    def compare_activity_patterns(self, m1: coc.Player, m2: coc.Player) -> Dict:
-        score = 0
-        details = []
-        try:
-            if m1.donations > 100 and m2.donations > 100:
-                r1 = m1.donations / (m1.received + 1)
-                r2 = m2.donations / (m2.received + 1)
-                if abs(r1 - r2) < 1.0:
-                    score += 15
-                    details.append(f"Padrão de doação similar: {r1:.1f} vs {r2:.1f}")
-        except: pass
-        
-        trophy_diff = abs(m1.trophies - m2.trophies)
-        if trophy_diff < 200:
-            score += 8
-            details.append(f"Troféus sincronizados: {m1.trophies} vs {m2.trophies}")
-        return {'score': score, 'details': details}
-
-    # ==================== SISTEMA DE PONTUAÇÃO ====================
-    
-    def calculate_confidence(self, total_points: float) -> Tuple[str, str, discord.Color]:
-        if total_points >= 80: return ("ALTÍSSIMA", "🔴", discord.Color.red())
-        elif total_points >= 60: return ("ALTA", "🟠", discord.Color.orange())
-        elif total_points >= 40: return ("MÉDIA", "🟡", discord.Color.gold())
-        elif total_points >= 25: return ("BAIXA", "🟢", discord.Color.green())
-        else: return ("MÍNIMA", "⚪", discord.Color.light_gray())
-
-    async def analyze_pair(self, m1: coc.Player, m2: coc.Player, confirmed_links: Dict) -> Optional[Dict]:
-        total_score = 0
-        evidence = []
-        
-        db_linked = False
-        for d_id, tags in confirmed_links.items():
-            if m1.tag in tags and m2.tag in tags:
-                db_linked = True
-                total_score += self.weights['db_link']
-                evidence.append("✅ **CONFIRMADO**: Vinculadas ao mesmo Discord ID no banco")
-                break
-        
-        if not db_linked:
-            name_sim = self.check_name_similarity(m1.name, m2.name)
-            if name_sim['score'] >= 0.85:
-                total_score += self.weights['name_exact']
-                evidence.append(f"📝 Nomes muito similares: **{name_sim['score']*100:.1f}%** de correspondência")
-            elif name_sim['score'] >= 0.70:
-                total_score += self.weights['name_high']
-                evidence.append(f"📝 Nomes similares: **{name_sim['score']*100:.1f}%**")
-            elif name_sim['score'] >= 0.55:
-                total_score += self.weights['name_moderate']
-                evidence.append(f"📝 Nomes moderadamente similares: **{name_sim['score']*100:.1f}%**")
-        
-        activity = self.compare_activity_patterns(m1, m2)
-        if activity['score'] > 0:
-            total_score += activity['score']
-            evidence.extend([f"⚡ {d}" for d in activity['details']])
-        
-        rush1 = self.analyze_rush_pattern(m1)
-        rush2 = self.analyze_rush_pattern(m2)
-        if rush1['score'] >= 10 and rush2['score'] >= 10:
-            total_score += self.weights['rush_pattern']
-            evidence.append(f"🚀 Ambos com padrão rushado similar")
-        
-        if total_score >= 20 or db_linked:
-            return {'m1': m1, 'm2': m2, 'score': total_score, 'evidence': evidence, 'db_linked': db_linked}
-        return None
-
-    # ==================== UTILITÁRIOS DE EMBED ====================
-
-    def split_text_to_chunks(self, text: str, max_len: int = 1000) -> List[str]:
-        """Divide um texto longo em partes menores respeitando quebras de linha."""
-        if len(text) <= max_len:
-            return [text]
-        
-        chunks = []
-        current_chunk = ""
-        
-        for line in text.split('\n'):
-            if len(current_chunk) + len(line) + 1 > max_len:
-                chunks.append(current_chunk)
-                current_chunk = line + "\n"
-            else:
-                current_chunk += line + "\n"
-        
-        if current_chunk:
-            chunks.append(current_chunk)
-        return chunks
-
-    async def send_split_report(self, interaction: discord.Interaction, sections: List[Tuple[str, str]], title: str):
-        """
-        Gerencia o envio de múltiplos embeds se o conteúdo exceder os limites.
-        sections: Lista de tuplas (Titulo do Campo, Conteúdo do Campo)
-        """
-        embeds = []
-        current_embed = discord.Embed(
-            title=title,
-            description="Relatório gerado pela IA do Clash Genius.",
-            color=discord.Color.dark_purple(),
-            timestamp=datetime.datetime.now()
-        )
-        
-        # Controle de limites do Discord (6000 chars total, 25 fields, 1024 chars por field value)
-        current_total_chars = len(current_embed.title or "") + len(current_embed.description or "")
-        field_count = 0
-
-        for section_title, section_content in sections:
-            if not section_content: continue
-
-            # Se o conteúdo for muito grande, divide em chunks de 1024
-            chunks = self.split_text_to_chunks(section_content, 1024)
-            
-            for i, chunk in enumerate(chunks):
-                # Verifica se precisamos de um novo embed
-                if current_total_chars + len(chunk) + len(section_title) > 5500 or field_count >= 24:
-                    embeds.append(current_embed)
-                    current_embed = discord.Embed(
-                        title=f"{title} (Continuação)",
-                        color=discord.Color.dark_purple(),
-                        timestamp=datetime.datetime.now()
-                    )
-                    current_total_chars = len(current_embed.title)
-                    field_count = 0
-
-                field_name = section_title if i == 0 else f"{section_title} (Cont.)"
-                current_embed.add_field(name=field_name, value=chunk, inline=False)
-                
-                current_total_chars += len(field_name) + len(chunk)
-                field_count += 1
-        
-        embeds.append(current_embed)
-
-        # Envia os embeds
-        if embeds:
-            await interaction.followup.send(embed=embeds[0])
-            for e in embeds[1:]:
-                await interaction.followup.send(embed=e)
-        else:
-            await interaction.followup.send("Nenhum dado para exibir.")
-
-
-    # ==================== COMANDO PRINCIPAL ====================
-    
-    @app_commands.command(name="smurfs", description="🕵️ IA Avançada: Análise multicamada para detecção de contas secundárias")
+    @app_commands.command(name="smurfs", description="🕵️ IA Precisa: Detecção de contas secundárias (Versão Líder).")
     async def slash_analyze_smurfs(self, interaction: discord.Interaction):
-        """Comando principal de análise."""
         
-        if interaction.user.id != interaction.guild.owner_id:
-            user_roles = [r.id for r in interaction.user.roles]
-            allowed = False
-            if hasattr(self.bot, 'leader_role_id') and self.bot.leader_role_id in user_roles: allowed = True
-            if hasattr(self.bot, 'coleader_role_id') and self.bot.coleader_role_id in user_roles: allowed = True
-            if interaction.user.guild_permissions.administrator: allowed = True
-            
-            if not allowed:
-                await interaction.response.send_message("❌ Apenas Líderes, Co-Líderes e Administradores.", ephemeral=True)
-                return
+        # 1. Permissão: Só para a chefia
+        user_roles = [r.id for r in interaction.user.roles]
+        is_boss = (interaction.user.id == interaction.guild.owner_id) or \
+                  (interaction.user.guild_permissions.administrator) or \
+                  (self.bot.leader_role_id in user_roles) or \
+                  (self.bot.coleader_role_id in user_roles)
+        
+        if not is_boss:
+            await interaction.response.send_message("❌ Acesso negado. Ferramenta exclusiva para Liderança.", ephemeral=True)
+            return
 
         await interaction.response.defer(thinking=True)
 
         try:
+            # 2. Coleta de Dados
             clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
             if not clan:
-                await interaction.followup.send("❌ Erro ao obter dados do clã.")
+                await interaction.followup.send("❌ Erro ao ler dados do clã.")
                 return
 
             member_tags = [m.tag for m in clan.members]
-            members = []
+            players = []
             
-            # Busca players completos para ter acesso a war_stars, etc.
-            try:
-                async for player in self.bot.api_client.get_players(member_tags):
-                    members.append(player)
-            except Exception as e:
-                logger.error(f"Erro ao buscar detalhes completos: {e}")
-                await interaction.followup.send("❌ Erro ao buscar detalhes profundos dos jogadores.")
-                return
-
-            if not members:
-                 await interaction.followup.send("❌ Nenhum jogador encontrado.")
-                 return
+            # Fetch completo para pegar heróis e estrelas
+            async for p in self.bot.api_client.get_players(member_tags):
+                players.append(p)
 
             confirmed_links = await self.get_confirmed_links(member_tags)
-            
-            # Análise Individual
-            individual_suspects = []
-            for member in members:
-                analysis = self.analyze_account_depth(member)
-                if analysis['total_score'] >= 30:
-                    level, emoji, _ = self.calculate_confidence(analysis['total_score'])
-                    individual_suspects.append({
-                        'member': member, 'score': analysis['total_score'],
-                        'level': level, 'emoji': emoji, 'details': analysis['details']
+
+            # 3. Processamento
+            pairs_found = []
+            individuals_flagged = []
+            processed_pairs = set()
+
+            # --- Análise de Pares (Nome e Vínculo) ---
+            for i in range(len(players)):
+                p1 = players[i]
+                
+                # Análise Individual (Focada em Heróis e Doação)
+                ind_score = 0
+                ind_reasons = []
+                
+                # Checa Heróis (Peso alto)
+                h_an = self.analyze_hero_rush(p1)
+                if h_an['score'] > 0:
+                    ind_score += h_an['score']
+                    ind_reasons.extend(h_an['details'])
+                
+                # Checa Feeder (Peso alto)
+                f_an = self.analyze_feeder_behavior(p1)
+                if f_an['score'] > 0:
+                    ind_score += f_an['score']
+                    ind_reasons.extend(f_an['details'])
+
+                # Checa Estrelas (Peso baixo - Apenas informativo se < 50)
+                s_an = self.analyze_war_stars_legacy(p1)
+                if s_an['score'] > 0:
+                    ind_score += s_an['score']
+                    ind_reasons.extend(s_an['details'])
+
+                # Só reporta individualmente se tiver pontuação relevante (> 30)
+                # Isso evita flagar líderes CV16 com muitas estrelas mas heróis bons
+                if ind_score >= 30:
+                    individuals_flagged.append({
+                        'player': p1, 'score': ind_score, 'reasons': ind_reasons
                     })
-            individual_suspects.sort(key=lambda x: x['score'], reverse=True)
-            
-            # Análise de Pares
-            pair_suspects = []
-            processed = set()
-            for i in range(len(members)):
-                for j in range(i + 1, len(members)):
-                    m1, m2 = members[i], members[j]
-                    pair_id = tuple(sorted([m1.tag, m2.tag]))
-                    if pair_id in processed: continue
+
+                # Comparação de Pares
+                for j in range(i + 1, len(players)):
+                    p2 = players[j]
+                    pair_id = tuple(sorted([p1.tag, p2.tag]))
+                    if pair_id in processed_pairs: continue
+
+                    pair_score = 0
+                    pair_evidence = []
+
+                    # Verifica DB
+                    is_linked_db = False
+                    for d_id, tags in confirmed_links.items():
+                        if p1.tag in tags and p2.tag in tags:
+                            pair_score = 100
+                            pair_evidence.append("🔗 Vínculo confirmado (Banco de Dados)")
+                            is_linked_db = True
+                            break
                     
-                    result = await self.analyze_pair(m1, m2, confirmed_links)
-                    if result:
-                        level, emoji, _ = self.calculate_confidence(result['score'])
-                        result['level'] = level
-                        result['emoji'] = emoji
-                        pair_suspects.append(result)
-                        processed.add(pair_id)
-            pair_suspects.sort(key=lambda x: x['score'], reverse=True)
-            
-            # Preparando strings para o relatório (Sem limites de quantidade!)
-            sections = []
+                    if not is_linked_db:
+                        # Verifica Nome
+                        name_check = self.check_name_similarity(p1.name, p2.name)
+                        if name_check['score'] >= 0.85: # Exige 85% de similaridade
+                            pair_score += self.weights['name_exact']
+                            pair_evidence.append(f"🔡 Nomes quase idênticos ({int(name_check['score']*100)}%)")
+                        elif name_check['score'] >= 0.70 and name_check['type'] != 'none':
+                            pair_score += self.weights['name_high']
+                            pair_evidence.append(f"🔡 Nomes similares")
 
-            # 1. Confirmados
-            if confirmed_links:
+                    if pair_score >= 40:
+                        pairs_found.append({
+                            'p1': p1, 'p2': p2, 'score': pair_score, 'evidence': pair_evidence
+                        })
+                        processed_pairs.add(pair_id)
+
+            # 4. Geração do Relatório (Ordenado)
+            pairs_found.sort(key=lambda x: x['score'], reverse=True)
+            individuals_flagged.sort(key=lambda x: x['score'], reverse=True)
+
+            embed = discord.Embed(
+                title="🛡️ Relatório de Segurança: Smurfs & Secundárias",
+                description=f"Análise focada em **Heróis** e **Padrões de Doação**.\nIgnorando falsos positivos baseados apenas em estrelas.",
+                color=discord.Color.dark_red(),
+                timestamp=datetime.datetime.now()
+            )
+
+            has_content = False
+
+            # Seção 1: Vínculos Claros (Pares)
+            if pairs_found:
+                has_content = True
                 text = ""
-                for d_id, tags in confirmed_links.items():
-                    user_obj = self.bot.get_user(d_id)
-                    user_name = user_obj.name if user_obj else f"ID: {d_id}"
-                    accounts = []
-                    for tag in tags:
-                        m = next((p for p in members if p.tag == tag), None)
-                        if m: accounts.append(f"**{m.name}**")
-                        else: accounts.append(tag)
-                    text += f"🔴 **{user_name}**: {' + '.join(accounts)}\n"
-                sections.append(("✅ CONFIRMADO (Banco de Dados)", text))
+                count = 0
+                for p in pairs_found:
+                    if count >= 10: break # Limite visual
+                    p1, p2 = p['p1'], p['p2']
+                    emoji = "🔴" if p['score'] >= 80 else "🟠"
+                    text += f"{emoji} **{p1.name}** ↔️ **{p2.name}**\n"
+                    text += f"└ {', '.join(p['evidence'])}\n"
+                    count += 1
+                embed.add_field(name="👥 Contas Vinculadas / Nomes Iguais", value=text, inline=False)
 
-            # 2. Pares Alta Probabilidade
-            high_conf = [p for p in pair_suspects if p['score'] >= 60]
-            if high_conf:
+            # Seção 2: Contas Feeder / Rushadas (Suspeita Individual)
+            if individuals_flagged:
+                has_content = True
                 text = ""
-                for p in high_conf:
-                    m1, m2 = p['m1'], p['m2']
-                    text += f"{p['emoji']} **{m1.name}** ↔️ **{m2.name}** ({p['level']})\n"
-                    text += f"└ {p['evidence'][0] if p['evidence'] else 'Padrões suspeitos'}\n"
-                sections.append(("🔥 Pares: Alta Probabilidade", text))
+                count = 0
+                for item in individuals_flagged:
+                    if count >= 10: break
+                    p = item['player']
+                    reasons = ", ".join(item['reasons'])
+                    # Formatação clean
+                    text += f"⚠️ **{p.name}** (CV{p.town_hall})\n"
+                    text += f"└ {reasons}\n"
+                    count += 1
+                embed.add_field(name="🤖 Comportamento de Smurf/Feeder Detectado", value=text, inline=False)
 
-            # 3. Individuais Suspeitos
-            if individual_suspects:
-                text = ""
-                for s in individual_suspects:
-                    m = s['member']
-                    text += f"{s['emoji']} **{m.name}** (CV{m.town_hall}) - {s['level']}\n"
-                    if s['details']: text += f"└ {s['details'][0]}\n"
-                sections.append(("📊 Comportamento Suspeito (Individual)", text))
+            if not has_content:
+                embed.description = "✅ **Nenhuma conta suspeita detectada.**\nTodos os membros parecem ter contas principais ou estão dentro dos padrões normais."
+                embed.color = discord.Color.green()
 
-            # 4. Pares Moderados
-            moderate = [p for p in pair_suspects if 30 <= p['score'] < 60]
-            if moderate:
-                text = ""
-                for p in moderate:
-                    text += f"{p['emoji']} **{p['m1'].name}** ↔️ **{p['m2'].name}** ({p['score']:.0f} pts)\n"
-                sections.append(("🟡 Pares: Suspeita Moderada", text))
-
-            if not sections:
-                embed = discord.Embed(title="Relatório Limpo", description="✅ Nenhuma anomalia detectada.", color=discord.Color.green())
-                await interaction.followup.send(embed=embed)
-            else:
-                await self.send_split_report(interaction, sections, "🕵️ Relatório Detalhado de Smurfs")
-            
-            logger.info(f"Análise de smurfs concluída.")
+            await interaction.followup.send(embed=embed)
 
         except Exception as e:
-            logger.error(f"Erro crítico no slash_analyze_smurfs: {e}", exc_info=True)
-            await interaction.followup.send("❌ Ocorreu um erro interno.")
+            logger.error(f"Erro em slash_analyze_smurfs: {e}", exc_info=True)
+            await interaction.followup.send("❌ Erro interno na análise.")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SmurfDetectionCog(bot))
