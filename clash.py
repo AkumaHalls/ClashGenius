@@ -24,7 +24,6 @@ import json
 from war_predictor import WarPredictionSystemV3
 
 # --- Configuração de Logging ---
-# (Mantido igual)
 class MemoryLogHandler(logging.Handler):
     def __init__(self, capacity=50):
         super().__init__()
@@ -44,7 +43,6 @@ logger = logging.getLogger("clash_genius_bot")
 # --- Fim Configuração de Logging ---
 
 # --- Carregamento de Variáveis de Ambiente ---
-# (Mantido igual)
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 COC_EMAIL = os.getenv("COC_EMAIL")
@@ -114,7 +112,6 @@ class ClashGeniusBot(commands.Bot):
         logger.info(f"Instância ClashGeniusBot v{self.bot_version} criada.")
 
     async def setup_hook(self) -> None:
-        # (Mantido igual à versão anterior)
         logger.info("### Iniciando setup_hook ###")
         try:
             # --- Conexão DB ---
@@ -149,7 +146,8 @@ class ClashGeniusBot(commands.Bot):
 
             # --- Carregamento de Cogs ---
             logger.info("--- Iniciando carregamento de Cogs ---")
-            cog_files = [ 'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog', 'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog', 'slash_cog', 'watchlist_cog' ]
+            # <<< MODIFICADO: ADICIONADO smurf_detection_cog NA LISTA >>>
+            cog_files = [ 'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog', 'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog', 'slash_cog', 'watchlist_cog', 'smurf_detection_cog' ]
             loaded_cogs_count = 0
             for cog_name in cog_files:
                 try:
@@ -174,7 +172,6 @@ class ClashGeniusBot(commands.Bot):
 
 
     async def load_initial_state_from_db(self):
-        # (Mantido igual à versão anterior)
         if self.db is None: logger.warning("load_initial_state_from_db sem conexão DB."); return
         logger.info("Carregando estado inicial do DB...")
         try:
@@ -208,7 +205,6 @@ class ClashGeniusBot(commands.Bot):
 
 
     async def coc_login_task(self):
-        # (Mantido igual à versão anterior)
         logger.info("Iniciando tarefa de login coc_login_task...")
         login_attempts = 0; max_attempts = 5; retry_delay = 15
         while login_attempts < max_attempts:
@@ -230,7 +226,6 @@ class ClashGeniusBot(commands.Bot):
 
 
     async def on_ready(self):
-        # (Mantido igual à versão anterior)
         logger.info("on_ready: Aguardando setup_hook terminar...")
         await self._setup_hook_done.wait()
         logger.info("on_ready: setup_hook terminado.")
@@ -246,7 +241,6 @@ class ClashGeniusBot(commands.Bot):
 
 
     async def close(self):
-        # (Mantido igual à versão anterior)
         logger.info("Iniciando desligamento...")
         # Adiciona parada do web server se ele foi iniciado
         if hasattr(self, '_web_runner'):
@@ -260,7 +254,6 @@ class ClashGeniusBot(commands.Bot):
         logger.info("Bot desligado.")
 
     async def get_clan_data_with_cache(self, tag: str) -> Optional[coc.Clan]:
-        # (Mantido igual à versão anterior)
         try:
             await asyncio.wait_for(self.coc_client_ready.wait(), timeout=45.0)
         except asyncio.TimeoutError:
@@ -286,7 +279,6 @@ class ClashGeniusBot(commands.Bot):
 
 # --- Servidor Web ---
 async def setup_web_server(bot_instance: ClashGeniusBot):
-    # (Mantido igual à versão anterior, exceto a correção do erro do DB)
     logger.info("setup_web_server: Aguardando fim do setup_hook...")
     await bot_instance._setup_hook_done.wait()
     logger.info("setup_web_server: setup_hook terminado. Iniciando configuração do servidor web...")
@@ -312,7 +304,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
     # --- Handlers API ---
     async def handle_web_response(request, key, func, *args, **kwargs):
-        # (Mantido igual à versão anterior)
         now = datetime.datetime.now(); cache_entry = bot_instance.web_api_cache.get(key)
         force_call = kwargs.get('force_api_call', False)
         if not bot_instance.coc_client_ready.is_set():
@@ -355,7 +346,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_info_handler(r): return await handle_web_response(r, 'cwl', web_api_cog.fetch_cwl_info_for_web)
     async def api_highlights_handler(r): return await handle_web_response(r, 'highlights', web_api_cog.fetch_highlights_for_web)
     async def api_save_player_note_handler(request):
-        # (Mantido igual)
         player_tag = coc.utils.correct_tag(request.match_info['player_tag']); data = await request.json()
         try:
             await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
@@ -363,7 +353,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         except ConnectionError as e: logger.error(f"Erro ao salvar nota (DB não conectado?): {e}"); return web.json_response({"error": "Erro de conexão com o banco de dados."}, status=500)
         except Exception as e: logger.error(f"Erro ao salvar nota: {e}", exc_info=True); return web.json_response({"error": "Erro interno ao salvar nota."}, status=500)
 
-    # <<< INÍCIO DA CORREÇÃO: Adiciona o handler para o status da CWL >>>
     async def api_update_cwl_status_handler(request):
         """Handler para atualizar o status CWL de um jogador."""
         player_tag = request.match_info.get('player_tag')
@@ -392,10 +381,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         except Exception as e:
             logger.error(f"Error in api_update_cwl_status_handler for {player_tag}: {e}", exc_info=True)
             return web.json_response({"error": "Internal server error while updating status."}, status=500)
-    # <<< FIM DA CORREÇÃO >>>
 
     async def api_historic_war_handler(request):
-        # <<< CORRIGIDO: Usa 'is not None' para checar o DB >>>
         if bot_instance.db is None:
              logger.error("api_historic_war_handler: Banco de dados não configurado.")
              return web.json_response({"error": "Banco de dados não configurado."}, status=503)
@@ -403,14 +390,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         try:
             war_doc = await bot_instance.db.war_history.find_one({"_id": war_id})
             if war_doc:
-                # Converte ObjectId e datetime para string antes de serializar
                 def default_serializer(obj):
                     if isinstance(obj, (datetime.datetime, datetime.date)):
                         return obj.isoformat()
-                    # Adicione aqui outras conversões se necessário (ex: ObjectId)
-                    # from bson import ObjectId
-                    # if isinstance(obj, ObjectId):
-                    #     return str(obj)
                     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
                 return web.json_response(war_doc, dumps=lambda v: json.dumps(v, default=default_serializer))
@@ -422,17 +404,14 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
 
     async def api_member_profile_handler(request):
-        # (Mantido igual)
         if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client: return web.json_response({"error": "API CoC temporariamente indisponível."}, status=503)
         player_tag = coc.utils.correct_tag(request.match_info['player_tag']); profile_data = await profile_cog.fetch_player_profile_data(player_tag)
         return web.json_response(profile_data, status=404 if "error" in profile_data else 200)
     async def api_cwl_generate_plan_handler(request):
-        # (Mantido igual)
         if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client: return web.json_response({"error": "API CoC temporariamente indisponível."}, status=503)
         bot_instance.web_api_cache.pop('cwl_plan', None); plan = await cwl_cog.generate_rotation_plan()
         return web.json_response(plan)
     async def api_war_advisor_plan_handler(request):
-        # (Mantido igual)
         if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client: return web.json_response({"success": False, "error": "API CoC temporariamente indisponível."}, status=503)
         try:
             war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag, ignore_cache=True)
@@ -445,30 +424,24 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         except coc.LoginError: return web.json_response({"success": False, "error": "Erro de login com API CoC."}, status=503)
         except Exception as e: logger.error(f"Erro /api/war_advisor_plan: {e}", exc_info=True); return web.json_response({"success": False, "error": "Erro interno ao gerar plano."}, status=500)
     async def api_coc_status_handler(r):
-        # (Mantido igual)
         if not admin_cog: return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
         if not bot_instance.coc_client_ready.is_set(): return web.json_response({"status": "maintenance", "message": "Bot iniciando (Aguardando API CoC)..."}, status=200)
         if not bot_instance.api_client: return web.json_response({"status": "error", "message": "Falha na conexão com a API CoC."}, status=503)
         return web.json_response(await admin_cog.get_api_status())
     async def api_maintenance_message(r):
-        # (Mantido igual)
          return web.json_response({"message": bot_instance.maintenance_message})
     async def admin_get_status_handler(r):
-        # (Mantido igual)
         session=await get_session(r); is_admin=session.get('admin',False)
         return web.json_response({"status":"ok","maintenance_mode":bot_instance.maintenance_mode,"version":BOT_VERSION,"is_admin":is_admin})
 
     # --- Rotas API Principal ---
-    # (Registro mantido igual)
     logger.info("Registrando rotas API principal...");
     app.router.add_get("/api/clan", api_clan_handler); app.router.add_get("/api/members", api_members_handler);
     app.router.add_get("/api/current_war_details", api_current_war_details_handler); app.router.add_get("/api/missed_attacks_history", api_missed_attacks_history_handler);
     app.router.add_get("/api/war_log", api_war_log_handler); app.router.add_get("/api/cwl_info", api_cwl_info_handler);
     app.router.add_get("/api/highlights", api_highlights_handler); app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler);
     
-    # <<< INÍCIO DA CORREÇÃO: Adiciona a rota para o status da CWL >>>
     app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_update_cwl_status_handler)
-    # <<< FIM DA CORREÇÃO >>>
     
     app.router.add_get("/api/war_history/{war_id:.*}", api_historic_war_handler); app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler);
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler); app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler);
@@ -477,7 +450,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
 
     # --- Middleware Admin e Rotas Admin ---
-    # (Mantidos iguais à versão anterior)
     @web.middleware
     async def admin_auth_middleware(request, handler):
         session=await get_session(request)
@@ -485,16 +457,13 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         return await handler(request)
     async def api_admin_diagnostics(r): return web.json_response(await admin_cog.get_diagnostics())
     
-    # <<< INÍCIO DA ALTERAÇÃO (api_admin_get_settings) >>>
     async def api_admin_get_settings(r): 
         session = await get_session(r) # Pega a sessão do request
-        # Passa a sessão para o cog poder encontrar o Guild (servidor)
         return web.json_response(await admin_cog.get_settings(session))
-    # <<< FIM DA ALTERAÇÃO (api_admin_get_settings) >>>
 
     async def api_admin_update_settings(r): return web.json_response(await admin_cog.update_settings(await r.json()))
     async def api_admin_db_viewer(r): return web.json_response(await admin_cog.get_db_viewer_data(), dumps=lambda v: json.dumps(v, default=str))
-    async def api_admin_get_watchlist(r): return web.json_response(await admin_cog.get_watchlist_admin()) # A função get_watchlist_admin foi corrigida para retornar serializável
+    async def api_admin_get_watchlist(r): return web.json_response(await admin_cog.get_watchlist_admin()) 
     async def api_admin_add_watchlist(r):
         data=await r.json(); tag=data.get('player_tag'); name=data.get('player_name'); reason=data.get('reason'); details=data.get('details')
         if not tag or not reason: return web.json_response({"status":"error","message":"Tag e motivo obrigatórios."}, status=400)
@@ -544,7 +513,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
 
     # --- Handlers Páginas/Auth ---
-    # (Mantidos iguais à versão anterior)
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
     async def admin_panel_page(r):
@@ -581,7 +549,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         return web.FileResponse(os.path.join(static_dir, "maintenance.html"))
 
     # --- Rotas Páginas/Static ---
-    # (Registro mantido igual)
     logger.info("Registrando rotas páginas/static...");
     app.router.add_static('/static/', path=static_dir, name='static');
     app.router.add_get("/", lambda r: web.HTTPFound('/painel')); app.router.add_get("/painel", painel_handler);
@@ -592,7 +559,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
 
     # --- Sessão e Start Servidor ---
-    # (Mantido igual à versão anterior)
     logger.info("Configurando sessão web...");
     try:
         try: secret_key_bytes = FERNET_KEY.encode(); secret_key_decoded = base64.urlsafe_b64decode(secret_key_bytes)
@@ -622,7 +588,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
 
 async def main():
-    # (Mantido igual à versão anterior)
     intents = discord.Intents.default(); intents.message_content = True; intents.members = True; intents.guilds = True
     bot = ClashGeniusBot(command_prefix="!", intents=intents)
     try:
@@ -638,7 +603,6 @@ async def main():
         logger.info("Processo finalizado.")
 
 if __name__ == "__main__":
-    # (Mantido igual à versão anterior)
     logger.info("="*10 + f" INICIANDO ClashGeniusBot v{BOT_VERSION} " + "="*10)
     try: asyncio.run(main())
     except KeyboardInterrupt: logger.info("Programa interrompido pelo usuário (KeyboardInterrupt).")
