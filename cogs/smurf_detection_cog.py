@@ -19,7 +19,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         self.bot = bot
         self.db = bot.db
         
-        # Pesos para o sistema de pontuação
+        # Pesos para o sistema de pontuação (ajustáveis conforme necessário)
         self.weights = {
             'db_link': 100,              # Vínculo confirmado no banco = 100% certeza
             'name_exact': 50,            # Nomes muito similares
@@ -134,13 +134,14 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
     # ==================== ANÁLISES INDIVIDUAIS ====================
     
-    def analyze_rush_pattern(self, member: coc.ClanMember) -> Dict:
+    def analyze_rush_pattern(self, member: coc.Player) -> Dict:
         """Detecta padrão de conta rushada."""
         score = 0
         details = []
         
         th = member.town_hall
-        stars = member.war_stars
+        # Agora usando o objeto Player, war_stars deve existir
+        stars = getattr(member, 'war_stars', 0)
         
         # Expectativa base de estrelas por TH (conservador)
         expected_stars = {
@@ -164,14 +165,15 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         
         return {'score': score, 'details': details}
 
-    def analyze_donation_pattern(self, member: coc.ClanMember) -> Dict:
+    def analyze_donation_pattern(self, member: coc.Player) -> Dict:
         """Detecta padrão de conta feeder/doadora."""
         score = 0
         details = []
         
         donations = member.donations
         received = member.received
-        attacks = member.attack_wins
+        # attack_wins só existe no objeto Player completo
+        attacks = getattr(member, 'attack_wins', 0)
         
         # Padrão feeder clássico: muitas doações, pouco ataque
         if donations > 1000:
@@ -194,13 +196,14 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         
         return {'score': score, 'details': details}
 
-    def analyze_builder_base(self, member: coc.ClanMember) -> Dict:
+    def analyze_builder_base(self, member: coc.Player) -> Dict:
         """Analisa negligência da Base do Construtor."""
         score = 0
         details = []
         
         try:
             th = member.town_hall
+            # builder_hall existe no objeto Player completo
             bh = member.builder_hall if hasattr(member, 'builder_hall') else 0
             
             if bh > 0:
@@ -217,7 +220,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         
         return {'score': score, 'details': details}
 
-    def analyze_trophy_pattern(self, member: coc.ClanMember) -> Dict:
+    def analyze_trophy_pattern(self, member: coc.Player) -> Dict:
         """Detecta manipulação de troféus."""
         score = 0
         details = []
@@ -241,15 +244,18 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         
         return {'score': score, 'details': details}
 
-    def analyze_war_pattern(self, member: coc.ClanMember) -> Dict:
+    def analyze_war_pattern(self, member: coc.Player) -> Dict:
         """Analisa padrão de participação em guerras."""
         score = 0
         details = []
         
         try:
             # Tenta usar war_preference se disponível (coc.py), senão fallback
-            pref = getattr(member, 'war_preference', None)
-            if pref and str(pref) == 'out':
+            # Normalmente no coc.py é war_opted_in (bool) ou war_preference (str 'in'/'out')
+            opted_in = getattr(member, 'war_opted_in', None)
+            
+            # Se for False (está fora), analisa
+            if opted_in is False:
                  # Não participa de guerras mas tem conta no clã pode ser smurf de doação
                 if member.donations > 500:
                     score = 12
@@ -259,7 +265,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         
         return {'score': score, 'details': details}
 
-    def analyze_account_depth(self, member: coc.ClanMember) -> Dict:
+    def analyze_account_depth(self, member: coc.Player) -> Dict:
         """Análise completa e agregada da conta."""
         total_score = 0
         all_details = []
@@ -289,7 +295,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
     # ==================== ANÁLISE COMPARATIVA ====================
     
-    def compare_activity_patterns(self, m1: coc.ClanMember, m2: coc.ClanMember) -> Dict:
+    def compare_activity_patterns(self, m1: coc.Player, m2: coc.Player) -> Dict:
         """Compara padrões de atividade entre duas contas."""
         score = 0
         details = []
@@ -332,7 +338,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         else:
             return ("MÍNIMA", "⚪", discord.Color.light_gray())
 
-    async def analyze_pair(self, m1: coc.ClanMember, m2: coc.ClanMember, 
+    async def analyze_pair(self, m1: coc.Player, m2: coc.Player, 
                            confirmed_links: Dict) -> Optional[Dict]:
         """
         Análise completa entre duas contas.
@@ -420,15 +426,32 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         await interaction.response.defer(thinking=True)
 
         try:
-            # Obtém dados do clã
+            # Obtém dados básicos do clã para pegar as tags
             clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
             if not clan:
                 await interaction.followup.send("❌ Erro ao obter dados do clã.")
                 return
 
-            members = list(clan.members)
-            member_tags = [m.tag for m in members]
+            member_tags = [m.tag for m in clan.members]
             
+            # --- MODIFICAÇÃO IMPORTANTE: BUSCA DADOS COMPLETOS ---
+            # O objeto ClanMember não tem war_stars, então buscamos objetos Player completos
+            members = []
+            try:
+                # get_players retorna um AsyncIterator na versão moderna do coc.py
+                async for player in self.bot.api_client.get_players(member_tags):
+                    members.append(player)
+            except Exception as e:
+                logger.error(f"Erro ao buscar detalhes completos dos jogadores: {e}")
+                # Fallback: Tenta continuar com o que tem, mas avisa no log
+                # Se falhar totalmente, aborta
+                await interaction.followup.send("❌ Erro ao buscar detalhes profundos dos jogadores (API). Tente novamente mais tarde.")
+                return
+
+            if not members:
+                 await interaction.followup.send("❌ Nenhum jogador encontrado para análise.")
+                 return
+
             # ===== FASE 1: ANÁLISE DE VÍNCULOS NO BANCO =====
             confirmed_links = await self.get_confirmed_links(member_tags)
             
@@ -496,9 +519,12 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     
                     accounts = []
                     for tag in tags:
-                        m = clan.get_member(tag)
+                        # Busca o jogador na lista 'members' já carregada para evitar nova chamada
+                        m = next((p for p in members if p.tag == tag), None)
                         if m:
                             accounts.append(f"**{m.name}** (CV{m.town_hall})")
+                        else:
+                            accounts.append(f"Tag: {tag}")
                     
                     text += f"🔴 **{user_name}**\n└ {' + '.join(accounts)}\n\n"
                 
