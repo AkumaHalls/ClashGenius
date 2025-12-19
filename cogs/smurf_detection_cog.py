@@ -131,7 +131,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
     async def get_confirmed_links(self, member_tags: List[str]) -> Dict[int, List[str]]:
         """Busca vínculos no DB."""
-        if not self.db: return {}
+        if self.db is None: return {}
         duplicates = defaultdict(list)
         try:
             cursor = self.db.users.find({"player_tag": {"$in": member_tags}})
