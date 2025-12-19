@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 import difflib
 import coc
+import datetime # <--- Adicionado o import que faltava
 
 logger = logging.getLogger("smurf_detection_cog")
 
