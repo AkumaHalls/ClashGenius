@@ -6,13 +6,13 @@ from discord.ext import commands, tasks
 import coc
 import pytz
 import datetime
-from typing import Optional, List # Adicionado List
-import math # Adicionado math
-import asyncio # <<< ADICIONADO IMPORT
+from typing import Optional, List
+import math
+import asyncio
 
 logger = logging.getLogger("clan_games_cog")
 
-class ClanGamesCog(commands.Cog, name="Jogos do Clã"): # Nome corrigido
+class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
     """Cog para gerenciar todas as funcionalidades dos Jogos do Clã."""
 
     def __init__(self, bot: commands.Bot):
@@ -48,7 +48,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"): # Nome corrigido
             if embeds: # Se for uma lista de embeds
                 for emb in embeds:
                     await channel.send(embed=emb)
-                    await asyncio.sleep(0.5) # Pequeno delay entre embeds <<< USA asyncio importado
+                    await asyncio.sleep(0.5) # Pequeno delay entre embeds
             elif embed: # Se for um único embed
                 await channel.send(embed=embed)
             elif message: # Se for apenas texto
@@ -249,19 +249,13 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"): # Nome corrigido
             # Processa membros que entraram DEPOIS do snapshot e pontuaram
             for member in clan.members:
                 if member.tag not in processed_tags:
-                    try:
-                        player = await self.bot.api_client.get_player(member.tag)
-                        current_achievement = player.get_achievement("Games Champion")
-                        current_points_value = current_achievement.value if current_achievement else 0
-                        # Como não temos snapshot, o score é o valor atual (assume que começou do 0)
-                        if current_points_value > 0:
-                             score = current_points_value # Score é o total, pois não há 'initial'
-                             player_scores.append({"name": member.name + " *", "score": score, "tag": member.tag}) # Marca com *
-                             total_points += score
-                    except coc.NotFound:
-                         logger.warning(f"Jogador {member.name} ({member.tag}) (entrou depois) não encontrado na API.")
-                    except Exception as e:
-                         logger.error(f"Erro ao processar jogador {member.name} ({member.tag}) que entrou depois: {e}")
+                    # CORREÇÃO: Usa clan_games_points (pontos da temporada atual) em vez do achievement (histórico total).
+                    # Isso evita o bug de mostrar 40k+ pontos para quem entrou depois do snapshot.
+                    score = getattr(member, "clan_games_points", 0)
+                    
+                    if score > 0:
+                        player_scores.append({"name": member.name + " *", "score": score, "tag": member.tag}) # Marca com *
+                        total_points += score
 
 
             player_scores.sort(key=lambda x: x["score"], reverse=True)
@@ -395,4 +389,3 @@ async def setup(bot: commands.Bot):
         await bot.add_cog(ClanGamesCog(bot))
     else:
         logger.warning("Cog 'ClanGamesCog' não carregado (ID do canal ou DB não configurado).")
-
