@@ -17,18 +17,16 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         self.events_client = coc.EventsClient()
         self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
 
-        # Registra os handlers de eventos usando a sintaxe de decorador correta
+        # Registra os handlers de eventos
         self._add_event_listeners()
 
     def _add_event_listeners(self):
         """Aplica os decoradores de evento aos métodos de handle."""
 
-        # ---> NOVO: Listener para membro entrando movido para cá <---
         @self.events_client.event
         @coc.ClanEvents.member_join()
         async def on_clan_member_join(member, clan):
             await self.handle_clan_member_join(member, clan)
-        # ---> FIM NOVO <---
 
         @self.events_client.event
         @coc.ClanEvents.member_leave()
@@ -70,12 +68,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         """Função segura para logar o cliente de eventos após o bot estar pronto."""
         await self.bot.wait_until_ready()
         try:
-            # ---> MODIFICADO: Adiciona clan E war events <---
             self.events_client.add_clan_updates(self.bot.clan_tag)
-            # Adiciona war events se necessário (pode já estar a ser feito pela task)
-            # self.events_client.add_war_updates(self.bot.clan_tag)
-            # ---> FIM MODIFICADO <---
-
             await self.events_client.login(self.bot.coc_email, self.bot.coc_password)
             logger.info("Cliente de eventos (EventsClient) logado e escutando.")
         except Exception as e:
@@ -88,6 +81,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             await self.events_client.close()
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
+        """Envia embeds de log de forma segura, evitando crash por Rate Limit (429)."""
         channel_id_to_use = target_channel_id or self.bot.channel_id
         if not channel_id_to_use: return
         try:
@@ -95,70 +89,66 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             now_in_timezone = datetime.datetime.now(self.bot.timezone)
             embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {now_in_timezone.strftime('%d/%m/%Y %H:%M')}")
             embed_to_log.timestamp = now_in_timezone
-            await channel.send(content=content, embed=embed_to_log)
+            
+            # --- PROTEÇÃO ANTI-SPAM / RATE LIMIT ---
+            try:
+                await channel.send(content=content, embed=embed_to_log)
+            except discord.errors.HTTPException as e:
+                if e.status == 429:
+                    # Se tomar Rate Limit, APENAS LOGA e desiste dessa mensagem.
+                    # Tentar de novo (retry) em logs automáticos é perigoso e pode banir o IP.
+                    logger.warning(f"Rate Limit (429) no canal de logs {channel_id_to_use}. Mensagem ignorada para proteção.")
+                    return
+                else:
+                    logger.error(f"Erro HTTP ao enviar log: {e}")
+            # ---------------------------------------
+
         except Exception as e:
             logger.error(f"Erro ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
     # --- FUNÇÕES QUE RESPONDEM AOS EVENTOS ---
 
-    # ---> NOVO: Handler para membro entrando <---
     async def handle_clan_member_join(self, member, clan):
-        # Ignora eventos de outros clãs ou se o bot estiver em manutenção
         if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag:
             return
 
-        logger.info(f"Evento member_join DETECTADO em EventsCog para {member.name} ({member.tag}).")
+        logger.info(f"Evento member_join DETECTADO para {member.name} ({member.tag}).")
 
-        # Chama o WatchlistCog para verificar e alertar
         watchlist_cog = self.bot.get_cog("Lista de Observação")
         if watchlist_cog:
-            logger.info(f"Chamando watchlist_cog.check_and_alert_on_join para {member.tag}")
             await watchlist_cog.check_and_alert_on_join(member)
-        else:
-            logger.error("WatchlistCog não encontrado em handle_clan_member_join.")
 
-        # Log de entrada normal (opcional, pode remover se não quiser duplicar)
         embed = discord.Embed(title="➡️ Membro Entrou no Clã", description=f"**{member.name}** ({member.tag}) entrou no clã.", color=discord.Color.dark_green())
         embed.add_field(name="CV", value=member.town_hall, inline=True)
         if hasattr(member, 'league') and member.league and hasattr(member.league, 'name'):
             embed.add_field(name="Liga", value=member.league.name, inline=True)
         await self._send_log_embed(embed)
-    # ---> FIM NOVO <---
 
     async def handle_clan_member_leave(self, member, clan):
-        # Ignora eventos de outros clãs ou se o bot estiver em manutenção
         if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
         embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** ({member.tag}) saiu do clã.", color=discord.Color.dark_grey())
         embed.add_field(name="CV", value=member.town_hall, inline=True)
-        # Correção: Aceder ao role via member, não clan
         role_name = member.role.name.capitalize() if member.role and hasattr(member.role, 'name') else "N/A"
         embed.add_field(name="Cargo", value=role_name, inline=True)
         await self._send_log_embed(embed)
 
-
     async def on_war_attack(self, attack, war):
         if self.bot.maintenance_mode: return
         try:
-            # Pequena otimização: buscar membros uma vez
             attacker = war.get_member(attack.attacker_tag)
             defender = war.get_member(attack.defender_tag)
 
-            # Se atacante ou defensor não for encontrado na guerra atual (pode acontecer em CWL), ignora
-            if not attacker or not defender:
-                 logger.warning(f"Ataque {attack.order} ignorado: Atacante ({attack.attacker_tag}) ou Defensor ({attack.defender_tag}) não encontrado na guerra atual.")
-                 return
+            if not attacker or not defender: return
 
             is_our_attack = attacker.clan.tag == self.bot.clan_tag
             war_type = "CWL" if war.is_cwl else "Guerra"
             stars_str = "⭐" * attack.stars + "⚫" * (3 - attack.stars)
 
-            # Garante que temos map_position antes de formatar
             attacker_map_pos = f"{attacker.map_position:02d}" if hasattr(attacker, 'map_position') else "??"
             defender_map_pos = f"{defender.map_position:02d}" if hasattr(defender, 'map_position') else "??"
 
             attacker_str = f"`{attacker_map_pos}` **{attacker.name}** (CV{attacker.town_hall})"
             defender_str = f"`{defender_map_pos}` **{defender.name}** (CV{defender.town_hall})"
-
 
             if is_our_attack:
                 embed = discord.Embed(title=f"⚔️ Ataque Realizado ({war_type})", description=f"{attacker.clan.name}", color=discord.Color.blue())
@@ -167,7 +157,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                 if war.opponent.badge: embed.set_thumbnail(url=war.opponent.badge.url)
                 await self._send_log_embed(embed)
 
-                # Alerta de ataque fraco
                 if attack.stars <= 1:
                     alert_embed = discord.Embed(title=f"⚠️ Ataque fora do padrão!", description=f"**{attacker.clan.name}**\n⚔️ **Ataque Realizado ({war_type})**", color=discord.Color.red())
                     alert_embed.add_field(name="Detalhes", value=f"{attacker_str} atacou {defender_str}", inline=False)
@@ -175,24 +164,21 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                     if war.opponent.badge: alert_embed.set_thumbnail(url=war.opponent.badge.url)
                     role_mention = f"<@&{self.bot.role_id_1star_alert}>" if self.bot.role_id_1star_alert else ""
                     await self._send_log_embed(alert_embed, content=f"{role_mention} Atenção ao ataque fora do padrão!")
-            else: # É uma defesa
+            else:
                 embed = discord.Embed(title=f"🛡️ Defesa Recebida ({war_type})", description=f"{defender.clan.name}", color=discord.Color.orange())
                 embed.add_field(name="Detalhes", value=f"{defender_str} foi atacado por {attacker_str}", inline=False)
                 embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
-                # Usa o badge do nosso clã na defesa
                 if hasattr(war, 'clan') and war.clan and hasattr(war.clan, 'badge') and war.clan.badge:
                      embed.set_thumbnail(url=war.clan.badge.url)
                 await self._send_log_embed(embed)
         except Exception as e:
             logger.error(f"Erro em on_war_attack: {e}", exc_info=True)
 
-
     async def handle_clan_member_role_change(self, old_member, new_member):
         if self.bot.maintenance_mode: return
-        # Verifica se o cargo realmente mudou
         old_role = old_member.role.name.capitalize() if old_member.role and hasattr(old_member.role, 'name') else "N/A"
         new_role = new_member.role.name.capitalize() if new_member.role and hasattr(new_member.role, 'name') else "N/A"
-        if old_role == new_role: return # Ignora se não houve mudança
+        if old_role == new_role: return
 
         embed = discord.Embed(title="✨ Mudança de Cargo", description=f"O cargo de **{new_member.name}** foi alterado.", color=discord.Color.purple())
         embed.add_field(name="Cargo Antigo", value=old_role, inline=True)
@@ -202,7 +188,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
     async def handle_clan_member_trophies_change(self, old_member, new_member):
         if self.bot.maintenance_mode: return
         diff = new_member.trophies - old_member.trophies
-        if abs(diff) < 5: return # Ignora pequenas mudanças
+        if abs(diff) < 5: return
         action = "ganhou" if diff > 0 else "perdeu"
         color = discord.Color.green() if diff > 0 else discord.Color.red()
         emoji = "🏆" if diff > 0 else "💔"
@@ -211,12 +197,11 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     async def handle_clan_member_league_change(self, old_member, new_member):
         if self.bot.maintenance_mode: return
-        # Verifica se a liga realmente mudou
         old_league = old_member.league.name if old_member.league and hasattr(old_member.league, 'name') else "N/A"
         new_league = new_member.league.name if new_member.league and hasattr(new_member.league, 'name') else "N/A"
-        if old_league == new_league: return # Ignora se não houve mudança
+        if old_league == new_league: return
 
-        embed = discord.Embed(title="🛡️ Mudança de Liga", description=f"**{new_member.name}** mudou de liga!", color=0x6E2C00) # Cor marrom
+        embed = discord.Embed(title="🛡️ Mudança de Liga", description=f"**{new_member.name}** mudou de liga!", color=0x6E2C00)
         embed.add_field(name="Liga Anterior", value=old_league, inline=True)
         embed.add_field(name="Nova Liga", value=new_league, inline=True)
         if hasattr(new_member.league, 'icon') and hasattr(new_member.league.icon, 'medium'):
@@ -227,7 +212,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         if self.bot.maintenance_mode: return
         diff = new_member.donations - old_member.donations
         if diff <= 0: return
-        embed = discord.Embed(description=f"🎁 **{new_member.name}** doou **{diff}** tropas (Total: {new_member.donations}).", color=0xf1c40f) # Amarelo Dourado
+        embed = discord.Embed(description=f"🎁 **{new_member.name}** doou **{diff}** tropas (Total: {new_member.donations}).", color=0xf1c40f)
         if new_member.clan and new_member.clan.badge:
              embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
         await self._send_log_embed(embed)
@@ -236,74 +221,52 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         if self.bot.maintenance_mode: return
         diff = new_member.received - old_member.received
         if diff <= 0: return
-        embed = discord.Embed(description=f"📥 **{new_member.name}** recebeu **{diff}** tropas (Total: {new_member.received}).", color=0x3498db) # Azul Claro
+        embed = discord.Embed(description=f"📥 **{new_member.name}** recebeu **{diff}** tropas (Total: {new_member.received}).", color=0x3498db)
         if new_member.clan and new_member.clan.badge:
              embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
         await self._send_log_embed(embed)
 
-    # --- TASKS ---
     @tasks.loop(seconds=30)
     async def check_new_attack_task(self):
-        # Evita rodar se o cliente principal ainda não estiver pronto
         if not self.bot.coc_client_ready.is_set() or not self.bot.api_client:
-            logger.debug("check_new_attack_task: Cliente CoC principal não pronto. Pulando.")
             return
         try:
             war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             if not war or war.state != 'inWar':
-                # Se a guerra acabou ou não existe, limpa o cache
                 if self.war_attack_cache["war_end_time"] is not None:
-                    logger.info("Guerra não está ativa ('inWar'). Resetando cache de ataques.")
                     self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
                 return
 
             current_war_end_time = war.end_time.time if war.end_time else None
 
-            # Verifica se é uma nova guerra (comparando tempo de fim)
             if self.war_attack_cache["war_end_time"] != current_war_end_time:
-                # Nova guerra detectada, reinicia o cache com os ataques já existentes
-                logger.info(f"Nova guerra detectada (end_time: {current_war_end_time}). Resetando cache de ataques.")
                 self.war_attack_cache = {"war_end_time": current_war_end_time, "processed_attacks": set()}
-                # Adiciona ataques já existentes ao cache inicial
                 if hasattr(war, 'attacks'):
                     for attack in war.attacks:
                         if attack and hasattr(attack, 'order'):
                             self.war_attack_cache["processed_attacks"].add(attack.order)
-                logger.info(f"Cache inicializado com {len(self.war_attack_cache['processed_attacks'])} ataques existentes.")
-                return # Não processa mais nada nesta iteração para evitar duplicados no início
+                return
 
-            # Verifica ataques que estão na guerra mas não no cache
             new_attacks = []
             if hasattr(war, 'attacks'):
                 for attack in war.attacks:
-                    # Garante que 'attack' e 'attack.order' existem antes de verificar
                     if attack and hasattr(attack, 'order') and attack.order not in self.war_attack_cache["processed_attacks"]:
                         new_attacks.append(attack)
 
             if new_attacks:
-                logger.info(f"Detectados {len(new_attacks)} novos ataques.")
-                # Ordena para processar na ordem correta
                 for attack in sorted(new_attacks, key=lambda a: a.order):
-                    # Adiciona ao cache ANTES de processar para evitar condição de corrida
                     self.war_attack_cache["processed_attacks"].add(attack.order)
-                    # Chama o handler de ataque
                     await self.on_war_attack(attack, war)
-            else:
-                logger.debug("Nenhum ataque novo detectado.")
 
         except (coc.PrivateWarLog, coc.NotFound):
-            # Se não há guerra ativa, reseta o cache
             if self.war_attack_cache["war_end_time"] is not None:
-                logger.info("Guerra não encontrada ou log privado. Resetando cache de ataques.")
                 self.war_attack_cache = {"war_end_time": None, "processed_attacks": set()}
         except Exception as e:
             logger.error(f"Erro na task de novos ataques: {e}", exc_info=True)
 
-
     @check_new_attack_task.before_loop
     async def before_check_new_attack_task(self):
         await self.bot.wait_until_ready()
-        # Não precisa esperar coc_client_ready aqui, já é verificado no início da task
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EventsCog(bot))
