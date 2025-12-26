@@ -7,300 +7,228 @@ import difflib
 import coc
 import datetime
 from collections import defaultdict
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Any
 import re
+import asyncio
 
 logger = logging.getLogger("smurf_detection_cog")
 
 class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
-    """Sistema avançado de IA para detecção de contas secundárias com análise multicamada."""
+    """
+    Sistema reformulado de detecção de contas secundárias (Smurfs).
+    Foca em Identidade (Nomes, Vínculos DB) e Maturidade (Conquistas de Longo Prazo),
+    ignorando se a vila é rushada ou não.
+    """
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
+        self.CONFIDENCE_THRESHOLD = 70  # Mostra apenas suspeitas com >70% de chance
+
+    # ==================== ANÁLISE DE MATURIDADE ====================
+
+    def _get_account_maturity_metrics(self, player: coc.Player) -> Dict[str, Any]:
+        """
+        Extrai métricas que indicam a 'idade real' da conta, impossíveis de comprar com gemas.
+        """
+        # 1. Obstáculos Removidos (Nice and Tidy)
+        # Uma conta principal de 5 anos tem >4000 obstáculos. Um smurf de 1 ano tem <500.
+        obstacles = 0
+        achievement = player.get_achievement(name="Nice and Tidy")
+        if achievement:
+            obstacles = achievement.value
+
+        # 2. Estrelas de Guerra (War Hero)
+        war_stars = player.war_stars
+
+        # 3. Doações Totais (Friend in Need)
+        donations_total = 0
+        fin_ach = player.get_achievement(name="Friend in Need")
+        if fin_ach:
+            donations_total = fin_ach.value
+
+        # Pontuação de "Main Account" (0 a 100)
+        # Baseado empiricamente em contas ativas
+        score = 0
+        score += min(obstacles / 2000, 1.0) * 40  # 40% do peso
+        score += min(war_stars / 1000, 1.0) * 30  # 30% do peso
+        score += min(donations_total / 50000, 1.0) * 30 # 30% do peso
         
-        # Pesos Recalibrados para evitar Falsos Positivos em Líderes/Ativos
-        self.weights = {
-            'db_link': 100,              # 100% Certeza (Vínculo interno)
-            'name_exact': 60,            # Nomes idênticos ou Variações claras (Rei -> Rei v2)
-            'name_high': 40,             # Nomes muito similares
-            'feeder_behavior': 35,       # Comportamento clássico de doador (Doa muito, ataca nada)
-            'hero_rush': 25,             # Heróis muito baixos para o CV (Melhor indicador que estrelas)
-            'war_stars_rush': 10,        # Estrelas baixas (Peso reduzido drasticamente)
-            'activity_sync': 15,         # Troféus/Atividade idêntica
+        return {
+            "score": int(score * 100),
+            "obstacles": obstacles,
+            "stars": war_stars,
+            "is_likely_smurf": (score * 100) < 25 and player.town_hall >= 11
         }
 
-    # ==================== UTILITÁRIOS ====================
-
-    def _get_hero_levels(self, player: coc.Player) -> Tuple[int, int]:
-        """Retorna (Soma dos Níveis dos Heróis, Média dos Níveis)."""
-        total_levels = 0
-        count = 0
-        for hero in player.heroes:
-            if hero.is_home_base: # Ignora heróis da base do construtor
-                total_levels += hero.level
-                count += 1
-        return total_levels, (total_levels / count if count > 0 else 0)
+    # ==================== ANÁLISE DE IDENTIDADE ====================
 
     def _normalize_name(self, name: str) -> str:
-        """Limpeza agressiva de nome para comparação."""
-        name = name.lower().strip()
-        # Remove sufixos comuns de contas secundárias
-        subs = [r'\bmini\b', r'\bsec\b', r'\bconta\b', r'\bjr\b', r'\bv\d+\b', r'\b2\b', r'\b3\b', r'\bsmurf\b', r'\balt\b']
+        """Limpa o nome para encontrar a raiz da identidade."""
+        n = name.lower().strip()
+        # Remove sufixos comuns de smurf
+        subs = [
+            r'\bmini\b', r'\bsec\b', r'\bconta\b', r'\bjr\b', 
+            r'\bv\d+\b', r'\b2\b', r'\b3\b', r'\bsmurf\b', r'\balt\b', 
+            r'\byt\b', r'\bpro\b', r'\bclash\b'
+        ]
         for s in subs:
-            name = re.sub(s, '', name)
-        return re.sub(r'[^\w]', '', name) # Remove tudo que não for letra/número
+            n = re.sub(s, '', n)
+        # Remove caracteres especiais e números soltos no fim
+        n = re.sub(r'[^\w]', '', n)
+        n = re.sub(r'\d+$', '', n)
+        return n
 
-    # ==================== ANÁLISES ====================
-
-    def check_name_similarity(self, name1: str, name2: str) -> Dict[str, float]:
-        """Comparação de nomes com proteção para nomes curtos."""
-        n1_clean = self._normalize_name(name1)
-        n2_clean = self._normalize_name(name2)
+    def _calculate_name_similarity(self, name1: str, name2: str) -> int:
+        n1 = self._normalize_name(name1)
+        n2 = self._normalize_name(name2)
         
-        # Proteção para nomes curtos (Ex: "Gui" e "Luiz" não devem bater)
-        if len(n1_clean) < 4 or len(n2_clean) < 4:
-            # Se for curto, exige correspondência EXATA ou contida (Ex: "Rei" em "Rei v2")
-            if n1_clean == n2_clean:
-                return {'score': 1.0, 'type': 'exact'}
-            if (n1_clean in n2_clean or n2_clean in n1_clean) and abs(len(n1_clean) - len(n2_clean)) <= 3:
-                 return {'score': 0.9, 'type': 'contained'}
-            return {'score': 0.0, 'type': 'none'}
-
-        # Para nomes longos, usa SequenceMatcher
-        ratio = difflib.SequenceMatcher(None, n1_clean, n2_clean).ratio()
-        return {'score': ratio, 'type': 'ratio'}
-
-    def analyze_hero_rush(self, player: coc.Player) -> Dict:
-        """
-        Analisa se os heróis estão muito abaixo do esperado para o CV.
-        Isso é o maior indicador de conta secundária feita às pressas.
-        """
-        total, avg = self._get_hero_levels(player)
-        th = player.town_hall
+        if not n1 or not n2: return 0
         
-        # Média mínima esperada de heróis por CV (Conservador)
-        # CV16 espera média 70+, CV15 média 60+, etc.
-        min_avg_map = {
-            16: 65, 15: 55, 14: 45, 13: 35, 12: 25, 11: 15, 10: 10
-        }
+        # Identidade Exata após limpeza (Ex: "João" e "João Mini")
+        if n1 == n2: return 95
         
-        if th in min_avg_map:
-            expected = min_avg_map[th]
-            if avg < expected:
-                diff = expected - avg
-                # Se a média dos heróis for 20 níveis abaixo do esperado
-                if diff > 20: 
-                    return {'score': self.weights['hero_rush'], 'details': [f"Heróis muito fracos (Média {int(avg)} vs Esperado {expected}+)"]}
-                elif diff > 10:
-                    return {'score': 15, 'details': [f"Heróis fracos (Média {int(avg)})"]}
-        
-        return {'score': 0, 'details': []}
+        # Inclusão (Ex: "Dark" e "DarkSoldier")
+        if (len(n1) > 3 and n1 in n2) or (len(n2) > 3 and n2 in n1):
+            return 85
+            
+        # Similaridade Difusa (Levenshtein)
+        return int(difflib.SequenceMatcher(None, n1, n2).ratio() * 100)
 
-    def analyze_war_stars_legacy(self, player: coc.Player) -> Dict:
-        """
-        Analisa estrelas, mas com peso MUITO menor.
-        Líderes e jogadores antigos podem ter poucas estrelas se farmaram muito.
-        """
-        th = player.town_hall
-        stars = player.war_stars
-        
-        # CV alto com MENOS de 200 estrelas é suspeito. 
-        # Mas CV16 com 600 estrelas é NORMAL para quem não foca em guerra.
-        if th >= 14 and stars < 200:
-             return {'score': self.weights['war_stars_rush'], 'details': [f"Baixa exp. de guerra ({stars} ⭐)"]}
-        elif th >= 11 and stars < 50:
-             return {'score': self.weights['war_stars_rush'], 'details': [f"Conta nova/sem guerra ({stars} ⭐)"]}
-             
-        return {'score': 0, 'details': []}
+    # ==================== COMANDO ====================
 
-    def analyze_feeder_behavior(self, player: coc.Player) -> Dict:
-        """Detecta contas usadas apenas para doar (Feeders)."""
-        donations = player.donations
-        attacks = player.attack_wins
-        
-        # Ratio Doação/Ataque. Se doa 1000 e ataca 0, é feeder.
-        if donations > 500:
-            if attacks == 0:
-                return {'score': self.weights['feeder_behavior'], 'details': [f"Feeder Puro: {donations} doações, 0 ataques"]}
-            ratio = donations / attacks
-            if ratio > 50: # Ex: 1000 doações e 20 ataques = ratio 50
-                 return {'score': 20, 'details': [f"Comportamento de Doador ({int(ratio)}:1 doação/ataque)"]}
-        
-        return {'score': 0, 'details': []}
-
-    async def get_confirmed_links(self, member_tags: List[str]) -> Dict[int, List[str]]:
-        """Busca vínculos no DB."""
-        if self.db is None: return {}
-        duplicates = defaultdict(list)
-        try:
-            cursor = self.db.users.find({"player_tag": {"$in": member_tags}})
-            discord_map = defaultdict(set)
-            async for doc in cursor:
-                if doc.get("discord_id") and doc.get("player_tag"):
-                    discord_map[doc.get("discord_id")].add(doc.get("player_tag"))
-            for d_id, tags in discord_map.items():
-                if len(tags) > 1: duplicates[d_id] = list(tags)
-        except Exception as e: logger.error(f"Erro DB: {e}")
-        return duplicates
-
-    # ==================== LÓGICA PRINCIPAL ====================
-
-    @app_commands.command(name="smurfs", description="🕵️ IA Precisa: Detecção de contas secundárias (Versão Líder).")
+    @app_commands.command(name="smurfs", description="🕵️ IA Sherlock: Detecta multicontas via identidade e histórico.")
     async def slash_analyze_smurfs(self, interaction: discord.Interaction):
         
-        # 1. Permissão: Só para a chefia
+        # 1. Permissão: Só Liderança
         user_roles = [r.id for r in interaction.user.roles]
-        is_boss = (interaction.user.id == interaction.guild.owner_id) or \
-                  (interaction.user.guild_permissions.administrator) or \
-                  (self.bot.leader_role_id in user_roles) or \
-                  (self.bot.coleader_role_id in user_roles)
+        is_allowed = (interaction.user.guild_permissions.administrator) or \
+                     (self.bot.leader_role_id in user_roles) or \
+                     (self.bot.coleader_role_id in user_roles)
         
-        if not is_boss:
-            await interaction.response.send_message("❌ Acesso negado. Ferramenta exclusiva para Liderança.", ephemeral=True)
+        if not is_allowed:
+            await interaction.response.send_message("❌ Acesso exclusivo para Liderança.", ephemeral=True)
             return
 
         await interaction.response.defer(thinking=True)
 
         try:
-            # 2. Coleta de Dados
             clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
             if not clan:
                 await interaction.followup.send("❌ Erro ao ler dados do clã.")
                 return
 
             member_tags = [m.tag for m in clan.members]
-            players = []
             
-            # Fetch completo para pegar heróis e estrelas
+            # Fetch players detalhados (necessário para Achievements)
+            players_full = []
             async for p in self.bot.api_client.get_players(member_tags):
-                players.append(p)
+                players_full.append(p)
 
-            confirmed_links = await self.get_confirmed_links(member_tags)
+            # Mapa de donos confirmados pelo DB
+            db_owners = defaultdict(list)
+            if self.db is not None:
+                cursor = self.db.users.find({"player_tag": {"$in": member_tags}})
+                async for doc in cursor:
+                    if doc.get("discord_id"):
+                        db_owners[doc.get("discord_id")].append(doc.get("player_tag"))
 
-            # 3. Processamento
-            pairs_found = []
-            individuals_flagged = []
-            processed_pairs = set()
+            detected_groups = []
+            processed_tags = set()
 
-            # --- Análise de Pares (Nome e Vínculo) ---
-            for i in range(len(players)):
-                p1 = players[i]
-                
-                # Análise Individual (Focada em Heróis e Doação)
-                ind_score = 0
-                ind_reasons = []
-                
-                # Checa Heróis (Peso alto)
-                h_an = self.analyze_hero_rush(p1)
-                if h_an['score'] > 0:
-                    ind_score += h_an['score']
-                    ind_reasons.extend(h_an['details'])
-                
-                # Checa Feeder (Peso alto)
-                f_an = self.analyze_feeder_behavior(p1)
-                if f_an['score'] > 0:
-                    ind_score += f_an['score']
-                    ind_reasons.extend(f_an['details'])
+            # --- PASSO 1: Vínculos Confirmados (DB) ---
+            for d_id, tags in db_owners.items():
+                if len(tags) > 1:
+                    group = [p for p in players_full if p.tag in tags]
+                    # Ordena por maturidade (provável Main primeiro)
+                    group.sort(key=lambda x: self._get_account_maturity_metrics(x)['score'], reverse=True)
+                    
+                    detected_groups.append({
+                        "type": "CONFIRMADO (Registro)",
+                        "confidence": 100,
+                        "members": group,
+                        "reason": f"Mesmo Discord ID (<@{d_id}>)"
+                    })
+                    for p in group: processed_tags.add(p.tag)
 
-                # Checa Estrelas (Peso baixo - Apenas informativo se < 50)
-                s_an = self.analyze_war_stars_legacy(p1)
-                if s_an['score'] > 0:
-                    ind_score += s_an['score']
-                    ind_reasons.extend(s_an['details'])
+            # --- PASSO 2: Análise Heurística (Nomes + Maturidade) ---
+            # Filtra quem já foi processado
+            candidates = [p for p in players_full if p.tag not in processed_tags]
+            # Ordena por "Score de Main" decrescente
+            candidates.sort(key=lambda x: self._get_account_maturity_metrics(x)['score'], reverse=True)
 
-                # Só reporta individualmente se tiver pontuação relevante (> 30)
-                # Isso evita flagar líderes CV16 com muitas estrelas mas heróis bons
-                if ind_score >= 30:
-                    individuals_flagged.append({
-                        'player': p1, 'score': ind_score, 'reasons': ind_reasons
+            for i in range(len(candidates)):
+                p1 = candidates[i]
+                if p1.tag in processed_tags: continue
+
+                possible_smurfs = []
+                p1_metrics = self._get_account_maturity_metrics(p1)
+
+                for j in range(i + 1, len(candidates)):
+                    p2 = candidates[j]
+                    if p2.tag in processed_tags: continue
+
+                    similarity = self._calculate_name_similarity(p1.name, p2.name)
+                    p2_metrics = self._get_account_maturity_metrics(p2)
+
+                    # Apenas agrupa se houver alta similaridade de nome
+                    if similarity >= 80:
+                        # Se os nomes são iguais, verifica se a maturidade é diferente
+                        # (Geralmente Main tem score 80+ e Smurf tem score <30)
+                        maturity_diff = abs(p1_metrics['score'] - p2_metrics['score'])
+                        
+                        confidence = similarity
+                        # Se a diferença de maturidade for alta, aumenta a confiança de ser Main+Smurf
+                        if maturity_diff > 40: confidence += 10
+                        
+                        if confidence >= self.CONFIDENCE_THRESHOLD:
+                            possible_smurfs.append(p2)
+                            processed_tags.add(p2.tag)
+
+                if possible_smurfs:
+                    processed_tags.add(p1.tag)
+                    group = [p1] + possible_smurfs
+                    detected_groups.append({
+                        "type": "SUSPEITA (IA)",
+                        "confidence": 85, # Média estimada
+                        "members": group,
+                        "reason": "Padrão de Nome + Disparidade de Conquistas"
                     })
 
-                # Comparação de Pares
-                for j in range(i + 1, len(players)):
-                    p2 = players[j]
-                    pair_id = tuple(sorted([p1.tag, p2.tag]))
-                    if pair_id in processed_pairs: continue
-
-                    pair_score = 0
-                    pair_evidence = []
-
-                    # Verifica DB
-                    is_linked_db = False
-                    for d_id, tags in confirmed_links.items():
-                        if p1.tag in tags and p2.tag in tags:
-                            pair_score = 100
-                            pair_evidence.append("🔗 Vínculo confirmado (Banco de Dados)")
-                            is_linked_db = True
-                            break
-                    
-                    if not is_linked_db:
-                        # Verifica Nome
-                        name_check = self.check_name_similarity(p1.name, p2.name)
-                        if name_check['score'] >= 0.85: # Exige 85% de similaridade
-                            pair_score += self.weights['name_exact']
-                            pair_evidence.append(f"🔡 Nomes quase idênticos ({int(name_check['score']*100)}%)")
-                        elif name_check['score'] >= 0.70 and name_check['type'] != 'none':
-                            pair_score += self.weights['name_high']
-                            pair_evidence.append(f"🔡 Nomes similares")
-
-                    if pair_score >= 40:
-                        pairs_found.append({
-                            'p1': p1, 'p2': p2, 'score': pair_score, 'evidence': pair_evidence
-                        })
-                        processed_pairs.add(pair_id)
-
-            # 4. Geração do Relatório (Ordenado)
-            pairs_found.sort(key=lambda x: x['score'], reverse=True)
-            individuals_flagged.sort(key=lambda x: x['score'], reverse=True)
+            # Geração do Embed
+            if not detected_groups:
+                await interaction.followup.send("✅ Nenhuma multiconta detectada fora do normal.")
+                return
 
             embed = discord.Embed(
-                title="🛡️ Relatório de Segurança: Smurfs & Secundárias",
-                description=f"Análise focada em **Heróis** e **Padrões de Doação**.\nIgnorando falsos positivos baseados apenas em estrelas.",
-                color=discord.Color.dark_red(),
+                title="🕵️ Relatório de Identidade e Smurfs",
+                description="Análise baseada em **Vínculos de Registro** e **Maturidade da Conta** (Obstáculos/Estrelas).\n*Mostrando provável Main 👑 e suas secundárias.*",
+                color=discord.Color.gold(),
                 timestamp=datetime.datetime.now()
             )
 
-            has_content = False
+            for group in detected_groups:
+                main_acc = group['members'][0]
+                others = group['members'][1:]
+                
+                m_metrics = self._get_account_maturity_metrics(main_acc)
+                main_desc = f"👑 **{main_acc.name}** (CV{main_acc.town_hall}) - *{m_metrics['obstacles']} Obs. Removidos*"
+                
+                others_desc = []
+                for smurf in others:
+                    s_metrics = self._get_account_maturity_metrics(smurf)
+                    others_desc.append(f"└ 👶 **{smurf.name}** (CV{smurf.town_hall}) - *{s_metrics['obstacles']} Obs.*")
 
-            # Seção 1: Vínculos Claros (Pares)
-            if pairs_found:
-                has_content = True
-                text = ""
-                count = 0
-                for p in pairs_found:
-                    if count >= 10: break # Limite visual
-                    p1, p2 = p['p1'], p['p2']
-                    emoji = "🔴" if p['score'] >= 80 else "🟠"
-                    text += f"{emoji} **{p1.name}** ↔️ **{p2.name}**\n"
-                    text += f"└ {', '.join(p['evidence'])}\n"
-                    count += 1
-                embed.add_field(name="👥 Contas Vinculadas / Nomes Iguais", value=text, inline=False)
-
-            # Seção 2: Contas Feeder / Rushadas (Suspeita Individual)
-            if individuals_flagged:
-                has_content = True
-                text = ""
-                count = 0
-                for item in individuals_flagged:
-                    if count >= 10: break
-                    p = item['player']
-                    reasons = ", ".join(item['reasons'])
-                    # Formatação clean
-                    text += f"⚠️ **{p.name}** (CV{p.town_hall})\n"
-                    text += f"└ {reasons}\n"
-                    count += 1
-                embed.add_field(name="🤖 Comportamento de Smurf/Feeder Detectado", value=text, inline=False)
-
-            if not has_content:
-                embed.description = "✅ **Nenhuma conta suspeita detectada.**\nTodos os membros parecem ter contas principais ou estão dentro dos padrões normais."
-                embed.color = discord.Color.green()
+                full_text = f"{main_desc}\n" + "\n".join(others_desc) + f"\n🔎 *{group['reason']}*"
+                
+                emoji = "🔗" if group['confidence'] == 100 else "⚠️"
+                embed.add_field(name=f"{emoji} Grupo Detectado", value=full_text, inline=False)
 
             await interaction.followup.send(embed=embed)
 
         except Exception as e:
-            logger.error(f"Erro em slash_analyze_smurfs: {e}", exc_info=True)
-            await interaction.followup.send("❌ Erro interno na análise.")
+            logger.error(f"Erro na análise smurf: {e}", exc_info=True)
+            await interaction.followup.send("❌ Erro interno ao processar.")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SmurfDetectionCog(bot))
