@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.21-AntiLoop
+# Versão 20.2.21-AntiLoop1
 
 import os
 import logging
