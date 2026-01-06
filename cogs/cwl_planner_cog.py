@@ -490,15 +490,17 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
             if not group or group.state == "notInWar": return {"error": "CWL off", "status": "NotInCwl"}
             
-            # --- OTIMIZAÇÃO: Busca paralela de guerras ---
+            # --- OTIMIZAÇÃO: Busca paralela de guerras com rastreamento de tags ---
             tasks = []
-            war_round_map = {} # Mapeia tag da guerra -> (numero_rodada)
+            war_tags_list = [] # LISTA para rastrear a ordem
+            war_round_map = {} 
 
             # Coleta todas as tags de guerra relevantes
             for i, r in enumerate(group.rounds):
                 for war_tag in r:
                     if war_tag != '#0':
                         tasks.append(self.bot.api_client.get_league_war(war_tag))
+                        war_tags_list.append(war_tag) # Salva a tag correspondente
                         war_round_map[war_tag] = i + 1
 
             # Executa todas as requisições simultaneamente
@@ -508,8 +510,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             day = 0
             states = {'inWar': [], 'preparation': [], 'warEnded': []}
 
-            # Processa os resultados
-            for w in results:
+            # Processa os resultados usando zip para recuperar a tag correta
+            for w, war_tag in zip(results, war_tags_list):
                 if isinstance(w, Exception) or not w:
                     continue
                 
@@ -520,9 +522,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                     # Identifica o oponente
                     op = w.opponent if w.clan.tag == self.bot.clan_tag else w.clan
                     
-                    # Salva na lista de estados com o numero da rodada correto recuperado do map
-                    round_idx = war_round_map.get(w.tag, 0)
-                    states.get(st, []).append((w, round_idx, w.tag, op))
+                    # Salva na lista usando a tag da lista auxiliar (zip)
+                    round_idx = war_round_map.get(war_tag, 0)
+                    states.get(st, []).append((w, round_idx, war_tag, op))
 
             # Determina o dia atual baseado no estado das guerras
             if states['inWar']: 
