@@ -526,6 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(query(`#${prefix}statsOpponentDestruction`), war.opponent_destruction?.replace('%', ''));
         setText(query(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
         setText(query(`#${prefix}statsOurAvgStars`), war.clan_avg_stars);
+        setText(query(`#${prefix}statsOurAvgDuration`), war.clan_avg_stars); // Keep reference if needed elsewhere
         setText(query(`#${prefix}statsOpponentAvgStars`), war.opponent_avg_stars);
         if(war.clan_star_distribution){
                 for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOurStars${i}`), war.clan_star_distribution[i]);
@@ -738,13 +739,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateCwlOverview(planData) {
         if (!cwlOverviewContainerEl) return;
 
+        // --- CORREÇÃO: Tratamento de erro para evitar spinner infinito ---
+        if (!planData || !planData.participation_score) {
+            setHtml(cwlOverviewContainerEl, `<div class="cwl-overview-card" style="grid-column: 1 / -1;"><p>Dados de participação indisponíveis.</p></div>`);
+            cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
+            return;
+        }
+
         const score = planData.participation_score || [];
         
-        // --- CORREÇÃO: Esta seção agora mostrará APENAS o placar final ---
         let placarHtml = '<h4>📊 Placar de Participação (Final)</h4>'; // Renomeia para "Final"
         placarHtml += '<div class="cwl-overview-list-bench">'; // Reutiliza a classe de lista
         
         if (score.length > 0) {
+             // Ordena por dias jogados
+             score.sort((a, b) => b.days_played - a.days_played);
+
              placarHtml += score.map(p => 
                 // Mostra o placar final
                 `<p>${p.player.name} (CV${p.player.town_hall}): <strong>${p.days_played} / 7 dias</strong></p>`
@@ -862,7 +872,8 @@ document.addEventListener('DOMContentLoaded', () => {
      * Função principal que é chamada pela API para preencher toda a seção CWL.
      */
     async function populateCwlData(data) {
-        if (cwlPlannerSectionEl) cwlPlannerSectionEl.style.display = 'block';
+        // --- CORREÇÃO: Tratamento de erro para evitar spinner infinito ---
+        if (!cwlPlannerSectionEl) return;
 
         // 1. Trata erros ou CWL inativa
         if (!data || data.error || data.status === "NotInCwl") {
@@ -871,8 +882,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // *** CORREÇÃO HTTP 405: Mostra o erro da API se existir ***
                 setText(noCwlMessageEl, data?.error || data?.message || "O clã não está em CWL no momento.");
             }
+            // Garante que o container principal esteja visível para mostrar a mensagem de erro
+            cwlPlannerSectionEl.style.display = 'block'; 
+            
             if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
-            if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; // Esconde a área do plano
+            if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; // Esconde a área do plano (onde fica o spinner)
             
             // <<< CORREÇÃO BUG "Carregando..." >>>
             setText(cwlStatusTextEl, "Não está em CWL");
@@ -907,9 +921,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 5. Preenche as abas e o conteúdo dos 7 dias
         populateCwlSchedule(data);
-
-        // (O código antigo de preenchimento de cwlActiveInfoEl, cwlGroupClansEl, etc. foi removido
-        // pois a nova interface do "Cérebro" não o utiliza mais.)
     }
 
     // ##### FIM DAS NOVAS FUNÇÕES DO "CÉREBRO CWL" #####
