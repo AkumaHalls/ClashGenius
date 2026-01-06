@@ -9,7 +9,7 @@ from collections import defaultdict
 from enum import Enum, auto
 import datetime
 import pytz
-import asyncio  # <--- ADICIONADO: Essencial para _fetch_pool
+import asyncio
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger("cwl_planner_cog")
@@ -486,71 +486,109 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         if not self.bot.api_client: return {"error": "API off"}
         
         try:
+            # Busca o grupo da liga
             group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
-            if not group or group.state == "notInWar": return {"error": "CWL off"}
+            if not group or group.state == "notInWar": return {"error": "CWL off", "status": "NotInCwl"}
             
-            war, day, tag, opp = None, 0, None, None
-            states = {'inWar': [], 'preparation': [], 'warEnded': []}
-            for i, r in enumerate(group.rounds):
-                for t in r:
-                    if t == '#0': continue
-                    try:
-                        w = await self.bot.api_client.get_league_war(t)
-                        if w.clan.tag == self.bot.clan_tag or w.opponent.tag == self.bot.clan_tag:
-                            st = w.state if isinstance(w.state, str) else w.state.value
-                            op = w.opponent if w.clan.tag == self.bot.clan_tag else w.clan
-                            states.get(st, []).append((w, i+1, t, op))
-                    except: pass
-            
-            if states['inWar']: war, day, tag, opp = states['inWar'][0]
-            elif states['preparation']: war, day, tag, opp = states['preparation'][0]
-            elif states['warEnded']: 
-                war, day, tag, opp = max(states['warEnded'], key=lambda x: x[1])
-                day = min(day + 1, 8)
-            
-            if not war: return {"error": "Sem guerra"}
+            # --- OTIMIZAÇÃO: Busca paralela de guerras ---
+            tasks = []
+            war_round_map = {} # Mapeia tag da guerra -> (numero_rodada)
 
-            # === CORREÇÃO CRÍTICA AQUI: Retorna dados completos no fim da temporada ===
+            # Coleta todas as tags de guerra relevantes
+            for i, r in enumerate(group.rounds):
+                for war_tag in r:
+                    if war_tag != '#0':
+                        tasks.append(self.bot.api_client.get_league_war(war_tag))
+                        war_round_map[war_tag] = i + 1
+
+            # Executa todas as requisições simultaneamente
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            war = None
+            day = 0
+            states = {'inWar': [], 'preparation': [], 'warEnded': []}
+
+            # Processa os resultados
+            for w in results:
+                if isinstance(w, Exception) or not w:
+                    continue
+                
+                # Verifica se é uma guerra do nosso clã
+                if w.clan.tag == self.bot.clan_tag or w.opponent.tag == self.bot.clan_tag:
+                    st = w.state if isinstance(w.state, str) else w.state.value
+                    
+                    # Identifica o oponente
+                    op = w.opponent if w.clan.tag == self.bot.clan_tag else w.clan
+                    
+                    # Salva na lista de estados com o numero da rodada correto recuperado do map
+                    round_idx = war_round_map.get(w.tag, 0)
+                    states.get(st, []).append((w, round_idx, w.tag, op))
+
+            # Determina o dia atual baseado no estado das guerras
+            if states['inWar']: 
+                war, day, tag, opp = states['inWar'][0]
+            elif states['preparation']: 
+                # Pega a preparação com o menor dia (próxima a começar)
+                states['preparation'].sort(key=lambda x: x[1])
+                war, day, tag, opp = states['preparation'][0]
+            elif states['warEnded']: 
+                # Pega a última guerra terminada
+                latest_ended = max(states['warEnded'], key=lambda x: x[1])
+                war, day, tag, opp = latest_ended
+                day = min(day + 1, 8) # Se acabou a última, estamos teoricamente no dia 8 (fim)
+            
+            if not war: 
+                return {"error": "Sem guerra ativa encontrada", "status": "NotInCwl"}
+
+            # === Lógica de Fim de Temporada ===
             if day >= 8: 
                 saved_plan = await self.cwl_plan_collection.find_one({"_id": group.season})
                 if saved_plan:
-                    # Retorna objeto completo para o frontend não travar
-                    return {
-                        "finished": True, 
-                        "schedule": saved_plan.get('schedule', []),
-                        "participation_score": saved_plan.get('participation_score', []),
-                        "current_day": 8,
-                        "team_size": saved_plan.get('team_size', 15),
-                        "warning": "Temporada finalizada."
-                    }
+                    saved_plan["finished"] = True
+                    saved_plan["warning"] = "Temporada finalizada."
+                    saved_plan["current_day"] = 8
+                    return sanitize_for_mongo(saved_plan)
                 return {"finished": True, "error": "CWL finalizada, plano não encontrado."}
-            # =========================================================================
 
+            # Busca pool de jogadores e estado atual
             players, _ = await self._fetch_pool(war)
-            if not players: return {"error": "Sem players"}
+            if not players: return {"error": "Sem players no roster"}
             
             await self._init_logic(war.team_size)
             existing = await self.cwl_plan_collection.find_one({"_id": group.season})
             
+            # Reconstrói histórico de participação
             roster, active, backup = await self._build_state(players, war, day, existing)
             
+            # Preenchimento de emergência se faltar gente
             if len(roster) < war.team_size:
                 needed = war.team_size - len(roster)
-                for _ in range(needed):
-                    roster.append(CWLPlayer(tag="#UNKNOWN", name="Desconhecido", town_hall=1, status=PlayerStatus.ACTIVE))
+                for i in range(needed):
+                    roster.append(CWLPlayer(tag=f"#UNK{i}", name="Vaga Vazia", town_hall=1, status=PlayerStatus.ACTIVE))
 
-            strat = self.rotation_engine.determine_optimal_strategy(
-                self.season_state or SeasonState(), day, None
-            ) if self.config['auto_adjust_strategy'] else RotationStrategy.BALANCED
+            # Determina estratégia
+            strat = RotationStrategy.BALANCED
+            if self.config['auto_adjust_strategy'] and self.season_state:
+                strat = self.rotation_engine.determine_optimal_strategy(self.season_state, day, None)
             
+            # Gera cronograma futuro
             schedule = []
-            cont = self.rotation_engine.generate_contingency_plan(roster, active+backup, day)
-            schedule.append(sanitize_for_mongo(DayPlan(day, roster.copy(), [], active, backup, strat, None, 1.0, [], cont).to_dict()))
             
+            # Se já existir um plano passado, mantemos os dias anteriores para histórico
+            if existing and 'schedule' in existing:
+                schedule = [d for d in existing['schedule'] if d['day'] < day]
+
+            # Plano do dia atual
+            cont = self.rotation_engine.generate_contingency_plan(roster, active+backup, day)
+            current_plan = DayPlan(day, roster.copy(), [], active, backup, strat, None, 1.0, [], cont)
+            schedule.append(sanitize_for_mongo(current_plan.to_dict()))
+            
+            # Projeção para dias futuros
             curr_r, curr_a, curr_b = roster.copy(), active.copy(), backup.copy()
             for d in range(day+1, 8):
                 new_r, subs, warns = self.rotation_engine.calculate_rotation(curr_r, curr_a, curr_b, d, strat)
-                for p in new_r: p.days_played += 1
+                # Simula que jogaram para o cálculo do próximo dia
+                for p in new_r: p.days_played += 1 
                 curr_r = new_r
                 schedule.append(sanitize_for_mongo(DayPlan(d, new_r, subs, curr_a, curr_b, strat, None, 0.8, warns).to_dict()))
             
@@ -559,15 +597,17 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 "participation_score": [sanitize_for_mongo(p.to_dict()) for p in players],
                 "warning": "",
                 "current_day": day,
-                "team_size": war.team_size
+                "team_size": war.team_size,
+                "season": group.season,
+                "status": "InCwl"
             }
             
-            await self.cwl_plan_collection.update_one({"_id": group.season}, {"$set": data}, upsert=True)
+            await self.cwl_plan_collection.update_one({"_id": group.season}, {"$set": sanitize_for_mongo(data)}, upsert=True)
             return data
 
         except Exception as e:
             logger.error(f"Generate error: {e}", exc_info=True)
-            return {"error": str(e)}
+            return {"error": f"Erro interno: {str(e)}"}
 
     # --- TASKS ---
     @tasks.loop(minutes=15)
