@@ -504,6 +504,7 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                         war_round_map[war_tag] = i + 1
 
             # Executa todas as requisições simultaneamente
+            # return_exceptions=True IMPEDE que um erro em um round (ex: round futuro) pare tudo
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             war = None
@@ -513,6 +514,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             # Processa os resultados usando zip para recuperar a tag correta
             for w, war_tag in zip(results, war_tags_list):
                 if isinstance(w, Exception) or not w:
+                    # Loga apenas warning para não poluir, pois é normal rounds futuros falharem
+                    logger.warning(f"Não foi possível carregar guerra {war_tag}: {w}")
                     continue
                 
                 # Verifica se é uma guerra do nosso clã
@@ -522,9 +525,12 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                     # Identifica o oponente
                     op = w.opponent if w.clan.tag == self.bot.clan_tag else w.clan
                     
-                    # Salva na lista usando a tag da lista auxiliar (zip)
+                    # Salva na lista se o estado for válido
                     round_idx = war_round_map.get(war_tag, 0)
-                    states.get(st, []).append((w, round_idx, war_tag, op))
+                    if st in states:
+                        states[st].append((w, round_idx, war_tag, op))
+                    else:
+                        logger.warning(f"Estado de guerra desconhecido recebido: {st} para a tag {war_tag}")
 
             # Determina o dia atual baseado no estado das guerras
             if states['inWar']: 
