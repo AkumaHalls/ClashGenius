@@ -32,6 +32,11 @@ def sanitize_for_mongo(data: Any) -> Any:
     else:
         return data
 
+def normalize_tag(tag: str) -> str:
+    """Normaliza tags para comparação segura."""
+    if not tag: return ""
+    return tag.upper() if tag.startswith("#") else f"#{tag.upper()}"
+
 # ==================== ENUMS E CONSTANTES ====================
 
 class PlayerStatus(Enum):
@@ -409,17 +414,20 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     async def _fetch_pool(self, active_war: Optional[coc.ClanWar] = None) -> Tuple[List[CWLPlayer], Set[str]]:
         if not self.bot.api_client: return [], set()
         try:
-            group, clan = await asyncio.gather(self.bot.api_client.get_league_group(self.bot.clan_tag), self.bot.api_client.get_clan(self.bot.clan_tag))
+            my_tag = normalize_tag(self.bot.clan_tag)
+            group, clan = await asyncio.gather(self.bot.api_client.get_league_group(my_tag), self.bot.api_client.get_clan(my_tag))
             if not group: return [], set()
             
             curr_tags = {m.tag for m in clan.members}
             war_tags = set()
             if active_war:
-                side = active_war.clan if active_war.clan.tag == self.bot.clan_tag else active_war.opponent
+                side = active_war.clan if normalize_tag(active_war.clan.tag) == my_tag else active_war.opponent
                 war_tags = {m.tag for m in side.members}
             
-            cwl_roster = next((c for c in group.clans if c.tag == self.bot.clan_tag), None)
-            if not cwl_roster: return [], curr_tags
+            cwl_roster = next((c for c in group.clans if normalize_tag(c.tag) == my_tag), None)
+            if not cwl_roster: 
+                logger.warning(f"Roster CWL não encontrado para {my_tag}")
+                return [], curr_tags
 
             db_cog = self.bot.get_cog("Banco de Dados")
             notes = await db_cog.load_player_notes_from_db() if db_cog else {}
@@ -461,7 +469,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                             hist[tag]["cons"] = hist[tag]["cons"] + 1 if hist[tag]["last"] == d['day'] - 1 else 1
                             hist[tag]["last"] = d['day']
         
-        war_tags = {m.tag for m in (war.clan if war.clan.tag == self.bot.clan_tag else war.opponent).members}
+        my_tag = normalize_tag(self.bot.clan_tag)
+        side = war.clan if normalize_tag(war.clan.tag) == my_tag else war.opponent
+        war_tags = {m.tag for m in side.members}
         roster, active, backup = [], [], []
         
         for p in players:
@@ -486,8 +496,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         if not self.bot.api_client: return {"error": "API off"}
         
         try:
+            my_tag = normalize_tag(self.bot.clan_tag)
             # Busca o grupo da liga
-            group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
+            group = await self.bot.api_client.get_league_group(my_tag)
             if not group or group.state == "notInWar": return {"error": "CWL off", "status": "NotInCwl"}
             
             # --- OTIMIZAÇÃO: Busca paralela de guerras com rastreamento de tags ---
@@ -515,15 +526,19 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             for w, war_tag in zip(results, war_tags_list):
                 if isinstance(w, Exception) or not w:
                     # Loga apenas warning para não poluir, pois é normal rounds futuros falharem
-                    logger.warning(f"Não foi possível carregar guerra {war_tag}: {w}")
+                    logger.warning(f"Não foi possível carregar guerra {war_tag} (Erro esperado em rounds futuros): {w}")
                     continue
                 
                 # Verifica se é uma guerra do nosso clã
-                if w.clan.tag == self.bot.clan_tag or w.opponent.tag == self.bot.clan_tag:
+                # USO DE TAG NORMALIZADA para evitar erro silencioso de string
+                w_clan_tag = normalize_tag(w.clan.tag)
+                w_opp_tag = normalize_tag(w.opponent.tag)
+                
+                if w_clan_tag == my_tag or w_opp_tag == my_tag:
                     st = w.state if isinstance(w.state, str) else w.state.value
                     
                     # Identifica o oponente
-                    op = w.opponent if w.clan.tag == self.bot.clan_tag else w.clan
+                    op = w.opponent if w_clan_tag == my_tag else w.clan
                     
                     # Salva na lista se o estado for válido
                     round_idx = war_round_map.get(war_tag, 0)
@@ -545,7 +560,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 war, day, tag, opp = latest_ended
                 day = min(day + 1, 8) # Se acabou a última, estamos teoricamente no dia 8 (fim)
             
-            if not war: 
+            if not war:
+                logger.warning(f"Nenhuma guerra ativa encontrada nas listas de estados: {states}") 
                 return {"error": "Sem guerra ativa encontrada", "status": "NotInCwl"}
 
             # === Lógica de Fim de Temporada ===
@@ -560,7 +576,9 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
 
             # Busca pool de jogadores e estado atual
             players, _ = await self._fetch_pool(war)
-            if not players: return {"error": "Sem players no roster"}
+            if not players: 
+                logger.error("Pool de jogadores retornou vazio.")
+                return {"error": "Sem players no roster"}
             
             await self._init_logic(war.team_size)
             existing = await self.cwl_plan_collection.find_one({"_id": group.season})
@@ -634,7 +652,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         await ctx.message.add_reaction("🧹")
         if not self.bot.api_client: return await ctx.send("API off")
         try:
-            group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
+            my_tag = normalize_tag(self.bot.clan_tag)
+            group = await self.bot.api_client.get_league_group(my_tag)
             if not group: return await ctx.send("Sem CWL")
             await self.cwl_plan_collection.delete_one({"_id": group.season})
             self.posted_daily_plans.clear()
