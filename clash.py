@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 20.2.21-AntiLoop1
+# Versão 20.2.21-
 
 import os
 import logging
@@ -67,7 +67,7 @@ COLEADER_ROLE_ID = int(os.getenv("COLEADER_ROLE_ID", 0))
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
 # --- Fim Variáveis de Ambiente ---
 
-BOT_VERSION = "20.2.21-AntiLoop" 
+BOT_VERSION = "20.2.21-CWL FIX" 
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -282,7 +282,10 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     web_api_cog = bot_instance.get_cog("Web API")
     db_cog = bot_instance.get_cog("Banco de Dados")
     profile_cog = bot_instance.get_cog("Perfis de Membros")
-    cwl_cog = bot_instance.get_cog("Planeador de CWL")
+    
+    # <<< CORREÇÃO CRÍTICA AQUI: O nome mudou de "Planeador de CWL" para "CWLPlanner" >>>
+    cwl_cog = bot_instance.get_cog("CWLPlanner")
+    
     maintenance_cog = bot_instance.get_cog("Manutenção do Sistema")
     war_advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
     admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
@@ -291,6 +294,8 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     required_cogs = [ web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog, war_advisor_cog, admin_cog, watchlist_cog ]
     if not all(required_cogs):
         missing = [name for name, inst in zip(["WebAPI","DB","Profile","CWL","Maint","Advisor","Admin","Watchlist"], required_cogs) if inst is None]
+        # Adicionei log das chaves disponíveis para ajudar no debug
+        logger.critical(f"Cogs disponíveis no bot: {list(bot_instance.cogs.keys())}")
         logger.critical(f"### ERRO FATAL: Cogs web essenciais não carregados: {', '.join(missing)}. Servidor web NÃO PODE iniciar. ###")
         return
     logger.info("Todas Cogs web encontradas.")
