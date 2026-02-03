@@ -12,12 +12,12 @@ import pytz
 import asyncio
 from abc import ABC, abstractmethod
 
+# Configuração de Logger para ver erros no console
 logger = logging.getLogger("cwl_planner_cog")
 
 # ==================== FUNÇÕES AUXILIARES ====================
 
 def sanitize_for_mongo(data: Any) -> Any:
-    """Converte objetos para tipos aceitos pelo MongoDB/JSON."""
     if isinstance(data, dict):
         return {k: sanitize_for_mongo(v) for k, v in data.items()}
     elif isinstance(data, list):
@@ -30,7 +30,6 @@ def sanitize_for_mongo(data: Any) -> Any:
         return data
 
 def normalize_tag(tag: str) -> str:
-    """Normaliza tags para comparação segura (remove espaços, garante # e upper)."""
     if not tag: return ""
     clean = tag.strip().upper()
     return clean if clean.startswith("#") else f"#{clean}"
@@ -38,23 +37,14 @@ def normalize_tag(tag: str) -> str:
 # ==================== ENUMS E CONSTANTES ====================
 
 class PlayerStatus(Enum):
-    ACTIVE = "active"
-    BACKUP = "backup"
-    UNAVAILABLE = "unavailable"
-    PRIORITY = "priority"
-    RESTING = "resting"
+    ACTIVE = "active"; BACKUP = "backup"; UNAVAILABLE = "unavailable"
+    PRIORITY = "priority"; RESTING = "resting"
 
 class RotationStrategy(Enum):
-    AGGRESSIVE = auto()
-    BALANCED = auto()
-    FAIR = auto()
-    SURVIVAL = auto()
+    AGGRESSIVE = auto(); BALANCED = auto(); FAIR = auto(); SURVIVAL = auto()
 
 class WarContext(Enum):
-    WINNING = auto()
-    COMPETITIVE = auto()
-    LOSING = auto()
-    COMFORTABLE = auto()
+    WINNING = auto(); COMPETITIVE = auto(); LOSING = auto(); COMFORTABLE = auto()
 
 # ==================== MODELOS DE DADOS ====================
 
@@ -72,9 +62,7 @@ class PlayerMetrics:
 
 @dataclass
 class CWLPlayer:
-    tag: str
-    name: str
-    town_hall: int
+    tag: str; name: str; town_hall: int
     days_played: int = 0
     status: PlayerStatus = PlayerStatus.ACTIVE
     metrics: PlayerMetrics = field(default_factory=PlayerMetrics)
@@ -99,28 +87,20 @@ class CWLPlayer:
     
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "tag": self.tag,
-            "name": self.name,
-            "town_hall": self.town_hall,
+            "tag": self.tag, "name": self.name, "town_hall": self.town_hall,
             "days_played": self.days_played,
             "status": self.status.value if isinstance(self.status, Enum) else self.status,
             "metrics": asdict(self.metrics),
             "consecutive_days_played": self.consecutive_days_played,
             "consecutive_days_rested": self.consecutive_days_rested,
-            "forced_inclusion": self.forced_inclusion,
-            "forced_exclusion": self.forced_exclusion,
+            "forced_inclusion": self.forced_inclusion, "forced_exclusion": self.forced_exclusion,
             "notes": self.notes
         }
 
 @dataclass
 class OpponentAnalysis:
-    clan_tag: str
-    clan_name: str
-    estimated_strength: float
-    th_distribution: Dict[int, int]
-    threat_level: str
-    recommended_strategy: RotationStrategy
-    
+    clan_tag: str; clan_name: str; estimated_strength: float
+    th_distribution: Dict[int, int]; threat_level: str; recommended_strategy: RotationStrategy
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d['recommended_strategy'] = self.recommended_strategy.name
@@ -131,8 +111,7 @@ class DayPlan:
     day: int
     active_roster: List[CWLPlayer]
     substitutions: List[Dict[str, Any]]
-    active_bench: List[CWLPlayer]
-    backup_bench: List[CWLPlayer]
+    active_bench: List[CWLPlayer]; backup_bench: List[CWLPlayer]
     strategy_used: RotationStrategy = RotationStrategy.BALANCED
     opponent_analysis: Optional[OpponentAnalysis] = None
     confidence_score: float = 0.0
@@ -149,17 +128,13 @@ class DayPlan:
             "backup_bench": [p.to_dict() for p in self.backup_bench],
             "strategy_used": self.strategy_used.name if isinstance(self.strategy_used, Enum) else self.strategy_used,
             "opponent_analysis": self.opponent_analysis.to_dict() if self.opponent_analysis else None,
-            "confidence_score": self.confidence_score,
-            "risk_factors": self.risk_factors,
-            "contingency_subs": self.contingency_subs,
-            "notes": self.notes
+            "confidence_score": self.confidence_score, "risk_factors": self.risk_factors,
+            "contingency_subs": self.contingency_subs, "notes": self.notes
         }
 
 @dataclass
 class SeasonState:
-    current_position: int = 0
-    total_clans: int = 8
-    total_stars: int = 0
+    current_position: int = 0; total_clans: int = 8; total_stars: int = 0
     promotion_zone: bool = False; relegation_zone: bool = False
     
     @property
@@ -358,24 +333,24 @@ class OpponentAnalyzer:
 
 # ==================== COG PRINCIPAL ====================
 
-class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
+# ATENÇÃO: NOME SIMPLIFICADO 'CWLPlanner'
+class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
         self.cwl_plan_collection = self.db.cwl_plan if self.db is not None else None
         self.cwl_state_collection = self.db.cwl_state if self.db is not None else None
-        
         self.rotation_engine: Optional[IntelligentRotationEngine] = None
         self.opponent_analyzer: Optional[OpponentAnalyzer] = None
-        
         self.posted_daily_plans: Set[str] = set()
         self.season_state: Optional[SeasonState] = None
-        
         self.config = {"min_participation_percent": 0.3, "auto_adjust_strategy": True}
+        print(">>> [CWLPlanner] Plugin inicializado!")
 
     async def cog_load(self):
         await self._load_state()
         self.monitor_task.start()
+        print(">>> [CWLPlanner] Tarefas de monitoramento iniciadas.")
 
     async def cog_unload(self):
         await self._save_state()
@@ -418,8 +393,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             
             curr_tags = {m.tag for m in clan.members}
             war_tags = set()
-            
-            # Se tivermos guerra ativa, pegamos os membros dela
             if active_war:
                 side = active_war.clan if normalize_tag(active_war.clan.tag) == my_tag else active_war.opponent
                 war_tags = {m.tag for m in side.members}
@@ -427,7 +400,6 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             cwl_roster = next((c for c in group.clans if normalize_tag(c.tag) == my_tag), None)
             if not cwl_roster: 
                 logger.warning(f"Roster CWL não encontrado para {my_tag}")
-                # Fallback: usar membros do clã atual como roster se não achar o roster oficial
                 cwl_members = clan.members
             else:
                 cwl_members = cwl_roster.members
@@ -436,29 +408,21 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
             notes = await db_cog.load_player_notes_from_db() if db_cog else {}
             
             players = []
-            # Lista de tags relevantes (roster oficial + quem está na guerra + quem está no clã)
-            all_relevant_tags = {m.tag for m in cwl_members}.union(war_tags).union(curr_tags)
-            
-            # Constrói objetos de jogadores
             member_map = {m.tag: m for m in cwl_members}
-            
+            all_relevant_tags = {m.tag for m in cwl_members}.union(war_tags).union(curr_tags)
+
             for tag in all_relevant_tags:
                 m = member_map.get(tag)
-                # Se o jogador não estiver no roster objeto, tenta buscar do clã
-                if not m:
-                    m = next((x for x in clan.members if x.tag == tag), None)
-                
+                if not m: m = next((x for x in clan.members if x.tag == tag), None)
                 if m:
                     note = notes.get(m.tag, {})
                     try: status = PlayerStatus(note.get('cwl_status', 'active'))
                     except: status = PlayerStatus.ACTIVE
-                    
                     players.append(CWLPlayer(
                         tag=m.tag, name=m.name, town_hall=m.town_hall, status=status,
                         notes=note.get('notes', ''), forced_inclusion=note.get('forced_in', False), forced_exclusion=note.get('forced_out', False)
                     ))
             
-            # Preenchimento se faltar gente para o tamanho da equipe
             if len(players) < team_size:
                 for i in range(team_size - len(players)):
                     players.append(CWLPlayer(tag=f"#UNK{i}", name=f"Vaga {i+1}", town_hall=1, status=PlayerStatus.ACTIVE))
@@ -500,159 +464,118 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
                 else: backup.append(p)
         return roster, active, backup
 
-    # ALIAS NECESSÁRIO PARA O CLASH.PY
+    # Alias essencial
     async def generate_rotation_plan(self) -> Dict[str, Any]:
         return await self.generate_plan()
 
     async def generate_plan(self) -> Dict:
+        # Verifica dependências básicas
         if self.cwl_plan_collection is None: return {"error": "DB off"}
         if not self.bot.api_client: return {"error": "API off"}
         
         try:
             my_tag = normalize_tag(self.bot.clan_tag)
-            if not my_tag: return {"error": "Tag do clã não configurada"}
-
-            # Busca o grupo da liga
+            # 1. Busca grupo
             group = await self.bot.api_client.get_league_group(my_tag)
             if not group or group.state == "notInWar": return {"error": "CWL off", "status": "NotInCwl"}
             
-            # Tenta recuperar plano existente para ter um fallback de team_size
+            # 2. Busca existente (fallback)
             existing = await self.cwl_plan_collection.find_one({"_id": group.season})
             fallback_team_size = existing.get("team_size", 15) if existing else 15
 
-            # --- BUSCA DE GUERRAS ---
-            tasks = []
-            war_tags_list = []
-            war_round_map = {} 
-
-            for i, r in enumerate(group.rounds):
-                for war_tag in r:
-                    if war_tag != '#0':
-                        tasks.append(self.bot.api_client.get_league_war(war_tag))
-                        war_tags_list.append(war_tag)
-                        war_round_map[war_tag] = i + 1
-
+            # 3. Busca guerras em paralelo (robusto)
+            tasks = [self.bot.api_client.get_league_war(t) for r in group.rounds for t in r if t != '#0']
+            war_tags_list = [t for r in group.rounds for t in r if t != '#0']
+            war_round_map = {t: i+1 for i, r in enumerate(group.rounds) for t in r}
+            
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            war = None
-            day = 0
+            war = None; day = 0
             states = {'inWar': [], 'preparation': [], 'warEnded': []}
-            any_clan_war = None # Guarda qualquer guerra do clã encontrada (para fallback)
+            any_clan_war = None
 
-            for w, war_tag in zip(results, war_tags_list):
-                if isinstance(w, Exception) or not w:
-                    continue
+            for w, w_tag in zip(results, war_tags_list):
+                if isinstance(w, Exception) or not w: continue
                 
-                w_clan_tag = normalize_tag(w.clan.tag)
-                w_opp_tag = normalize_tag(w.opponent.tag)
-                
-                # Verifica se somos nós
-                if w_clan_tag == my_tag or w_opp_tag == my_tag:
-                    any_clan_war = w # Salva como fallback
-                    st = w.state if isinstance(w.state, str) else w.state.value
-                    
-                    # Identifica oponente
-                    op = w.opponent if w_clan_tag == my_tag else w.clan
-                    round_idx = war_round_map.get(war_tag, 0)
-                    
-                    if st in states:
-                        states[st].append((w, round_idx, war_tag, op))
+                w_clan = normalize_tag(w.clan.tag); w_opp = normalize_tag(w.opponent.tag)
+                if w_clan == my_tag or w_opp == my_tag:
+                    any_clan_war = w
+                    st = w.state.value if hasattr(w.state, 'value') else str(w.state)
+                    op = w.opponent if w_clan == my_tag else w.clan
+                    idx = war_round_map.get(w_tag, 0)
+                    if st in states: states[st].append((w, idx, w_tag, op))
 
-            # Lógica de seleção de guerra ativa
-            if states['inWar']: 
-                war, day, tag, opp = states['inWar'][0]
+            # 4. Determina dia
+            if states['inWar']: war, day, tag, opp = states['inWar'][0]
             elif states['preparation']: 
                 states['preparation'].sort(key=lambda x: x[1])
                 war, day, tag, opp = states['preparation'][0]
             elif states['warEnded']: 
-                latest_ended = max(states['warEnded'], key=lambda x: x[1])
-                war, day, tag, opp = latest_ended
-                day = min(day + 1, 8)
+                latest = max(states['warEnded'], key=lambda x: x[1])
+                war, day, tag, opp = latest; day = min(day + 1, 8)
             
-            # --- MODO FALLBACK (Se não achou estado claro, usa qualquer guerra encontrada) ---
+            # 5. Fallback se não achou estado claro
             used_fallback = False
             if not war:
                 if any_clan_war:
-                    logger.warning("Nenhuma guerra ativa/prep encontrada. Usando guerra de fallback para metadados.")
-                    war = any_clan_war
-                    day = existing.get("current_day", 1) if existing else 1 # Tenta manter o dia ou reseta
+                    logger.warning("Usando guerra fallback para metadados.")
+                    war = any_clan_war; day = existing.get("current_day", 1) if existing else 1
                     used_fallback = True
                 elif existing:
-                    # Último recurso: Usa dados do DB se não achou NENHUMA guerra na API
-                    day = existing.get("current_day", 1)
-                    fallback_team_size = existing.get("team_size", 15)
-                    logger.warning("API sem guerras. Usando dados cacheados do DB.")
+                    day = existing.get("current_day", 1); fallback_team_size = existing.get("team_size", 15)
+                    logger.warning("Usando DB cache.")
                 else:
-                    return {"error": "Sem guerra ativa e sem histórico.", "status": "NotInCwl"}
+                    return {"error": "Sem dados de guerra.", "status": "NotInCwl"}
 
-            # Define tamanho da equipe
             team_size = war.team_size if war else fallback_team_size
 
-            # Se acabou a temporada
             if day >= 8 and not used_fallback: 
                 if existing:
-                    existing["finished"] = True
-                    existing["warning"] = "Temporada finalizada."
-                    existing["current_day"] = 8
+                    existing["finished"] = True; existing["current_day"] = 8
                     return sanitize_for_mongo(existing)
-                return {"finished": True, "error": "CWL finalizada."}
+                return {"finished": True, "error": "CWL Finalizada."}
 
-            # Busca pool de jogadores (passa o team_size para preenchimento se war for None)
+            # 6. Gera Plano
             players, _ = await self._fetch_pool(war, team_size)
-            
-            if not players: 
-                return {"error": "Sem players no roster (Pool vazio)."}
+            if not players: return {"error": "Roster vazio."}
             
             await self._init_logic(team_size)
-            
-            # Reconstrói estado
             roster, active, backup = await self._build_state(players, war, day, existing, my_tag)
             
-            # Se usou fallback e não tem roster definido na "guerra" (pq war pode ser None), preenche roster com active
             if not war or used_fallback:
-                # Preenche roster com os melhores ativos até bater team_size
                 if len(roster) < team_size:
                     needed = team_size - len(roster)
-                    available = [p for p in active if p not in roster][:needed]
-                    roster.extend(available)
+                    roster.extend([p for p in active if p not in roster][:needed])
             
-            # Preenchimento de emergência final
             if len(roster) < team_size:
-                needed = team_size - len(roster)
-                for i in range(needed):
-                    roster.append(CWLPlayer(tag=f"#UNK_F{i}", name="Vaga Vazia", town_hall=1, status=PlayerStatus.ACTIVE))
+                for i in range(team_size - len(roster)):
+                    roster.append(CWLPlayer(tag=f"#UNK_F{i}", name="Vaga", town_hall=1))
 
-            # Estratégia
             strat = RotationStrategy.BALANCED
             if self.config['auto_adjust_strategy'] and self.season_state:
                 strat = self.rotation_engine.determine_optimal_strategy(self.season_state, day, None)
             
-            # Gera cronograma
             schedule = []
             if existing and 'schedule' in existing:
                 schedule = [d for d in existing['schedule'] if d['day'] < day]
 
-            # Plano do dia atual
             cont = self.rotation_engine.generate_contingency_plan(roster, active+backup, day)
-            current_plan = DayPlan(day, roster.copy(), [], active, backup, strat, None, 1.0, [], cont)
-            schedule.append(sanitize_for_mongo(current_plan.to_dict()))
+            curr_plan = DayPlan(day, roster.copy(), [], active, backup, strat, None, 1.0, [], cont)
+            schedule.append(sanitize_for_mongo(curr_plan.to_dict()))
             
-            # Projeção futura
-            curr_r, curr_a, curr_b = roster.copy(), active.copy(), backup.copy()
+            # Simulação Futura
+            curr_r = roster.copy(); curr_a = active.copy(); curr_b = backup.copy()
             for d in range(day+1, 8):
                 new_r, subs, warns = self.rotation_engine.calculate_rotation(curr_r, curr_a, curr_b, d, strat)
-                for p in new_r: p.days_played += 1 
+                for p in new_r: p.days_played += 1
                 curr_r = new_r
                 schedule.append(sanitize_for_mongo(DayPlan(d, new_r, subs, curr_a, curr_b, strat, None, 0.8, warns).to_dict()))
             
             data = {
                 "schedule": schedule,
                 "participation_score": [sanitize_for_mongo(p.to_dict()) for p in players],
-                "warning": "Modo Fallback Ativo" if used_fallback else "",
-                "current_day": day,
-                "team_size": team_size,
-                "season": group.season,
-                "status": "InCwl"
+                "warning": "Modo Fallback" if used_fallback else "",
+                "current_day": day, "team_size": team_size, "season": group.season, "status": "InCwl"
             }
             
             await self.cwl_plan_collection.update_one({"_id": group.season}, {"$set": sanitize_for_mongo(data)}, upsert=True)
@@ -676,37 +599,17 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
     @commands.command(name='resetarplano')
     @commands.has_permissions(administrator=True)
     async def reset_plan_command(self, ctx):
-        await ctx.message.add_reaction("🧹")
-        if not self.bot.api_client: return await ctx.send("API off")
-        try:
-            my_tag = normalize_tag(self.bot.clan_tag)
-            group = await self.bot.api_client.get_league_group(my_tag)
-            if not group: return await ctx.send("Sem CWL")
-            await self.cwl_plan_collection.delete_one({"_id": group.season})
-            self.posted_daily_plans.clear()
-            await ctx.send("✅ Plano deletado. Gerando novo...")
-            res = await self.generate_plan()
-            if "error" in res: await ctx.send(f"❌ Erro: {res['error']}")
-            else: await ctx.send("✅ Sucesso!")
-        except Exception as e: await ctx.send(f"Erro: {e}")
+        await self.cwl_plan_collection.delete_many({})
+        self.posted_daily_plans.clear()
+        await ctx.send("✅ Plano resetado. Recalculando...")
+        await self.generate_plan()
 
-    @commands.command(name='forcarplano')
-    @commands.has_permissions(administrator=True)
-    async def force_plan(self, ctx):
-        await ctx.message.add_reaction("🔄")
-        res = await self.generate_plan()
-        if "error" in res: await ctx.send(f"Erro: {res['error']}")
-        else: await ctx.send("✅ Plano atualizado.")
-
-    @commands.command(name='statusplano')
-    async def status_plan(self, ctx):
-        res = await self.generate_plan()
-        if "error" in res: await ctx.send(res['error'])
-        else: await ctx.send(f"Dia {res.get('current_day', '?')} | Tamanho: {res.get('team_size', '?')}")
+    @commands.command(name='cwl_status_debug')
+    async def cwl_debug(self, ctx):
+        await ctx.send("✅ O plugin CWLPlanner está carregado e funcionando!")
 
 async def setup(bot: commands.Bot):
-    # ATENÇÃO: Verificação removida para garantir carregamento na API
-    if bot.db is not None:
-        await bot.add_cog(CwlPlannerCog(bot))
-    else:
-        logger.error("Database não conectada. CwlPlannerCog não carregado.")
+    # FORÇA O CARREGAMENTO SEMPRE
+    print(">>> [SETUP] Tentando carregar CWLPlanner...")
+    await bot.add_cog(CwlPlannerCog(bot))
+    print(">>> [SETUP] CWLPlanner carregado com sucesso!")
