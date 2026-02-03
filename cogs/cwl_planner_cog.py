@@ -705,5 +705,8 @@ class CwlPlannerCog(commands.Cog, name="Planeador de CWL"):
         else: await ctx.send(f"Dia {res.get('current_day', '?')} | Tamanho: {res.get('team_size', '?')}")
 
 async def setup(bot: commands.Bot):
-    if bot.cwl_planner_channel_id and bot.db is not None:
+    # ATENÇÃO: Verificação removida para garantir carregamento na API
+    if bot.db is not None:
         await bot.add_cog(CwlPlannerCog(bot))
+    else:
+        logger.error("Database não conectada. CwlPlannerCog não carregado.")
