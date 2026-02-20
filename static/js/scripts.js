@@ -903,7 +903,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     async function savePlayerNote(playerTag, text, priority) {
         try {
             await fetchData(`notes/${encodeURIComponent(playerTag)}`, {
@@ -943,7 +942,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const date = new Date(m.last_war_date);
                     lastWarDateFormatted = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
                 } catch (e) {
-                    console.warn(`Data inválida de última guerra para ${m.name}: ${m.last_war_date}`);
                     lastWarDateFormatted = 'Inválida';
                 }
             }
@@ -989,6 +987,23 @@ document.addEventListener('DOMContentLoaded', () => {
         attachMemberEventListeners();
         applyMemberFilters(); 
     }
+
+    // === FUNÇÃO DE FILTRO RECUPERADA ===
+    function applyMemberFilters() {
+        const nameFilter = filterNameInput?.value?.toLowerCase() || '';
+        const thFilter = filterTHInput?.value || '';
+        document.querySelectorAll('.member-card').forEach(card => {
+            const name = card.dataset.name || '';
+            const th = card.dataset.th || '';
+            const nameMatch = name.includes(nameFilter);
+            const thMatch = !thFilter || th === thFilter;
+            card.style.display = (nameMatch && thMatch) ? 'flex' : 'none';
+        });
+    }
+
+    filterNameInput?.addEventListener('input', applyMemberFilters); 
+    filterTHInput?.addEventListener('input', applyMemberFilters);
+    // ===================================
 
     function attachMemberEventListeners() {
         if (!userIsAdmin) {
@@ -1292,6 +1307,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (warLogData && !warLogData.error) populateWarLog(warLogData);
             if (cwlInfoData) populateCwlData(cwlInfoData); 
             if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); 
+            
+            // POPULA A CAPITAL
             if (capitalData) populateCapitalData(capitalData);
 
             updateLastUpdated();
