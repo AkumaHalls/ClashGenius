@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel Avançado - Clash Genius</title>
     
-    <!-- Favicon Links Adicionados -->
     <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon-16x16.png">
@@ -15,12 +14,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
-    <!-- INÍCIO: Adiciona a biblioteca de gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- FIM: Adiciona a biblioteca de gráficos -->
-</head>
+    </head>
 <body>
-    <!-- Elemento de áudio para a música de fundo -->
     <audio id="background-music" src="/static/audio/WARS.mp3" loop></audio>
 
     <canvas id="particle-background"></canvas>
@@ -43,6 +39,7 @@
                     <li><a href="#war-details-nav" class="nav-link" data-section="war-details-nav">Guerra</a></li>
                     <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav">Ataques Pendentes</a></li>
                     <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav">CWL</a></li>
+                    <li><a href="#capital-nav" class="nav-link" data-section="capital-nav">Capital do Clã</a></li>
                     <li><a href="#war-log-nav" class="nav-link" data-section="war-log-nav">Histórico</a></li>
                     <li><a href="#members-list-nav" class="nav-link" data-section="members-list-nav">Membros</a></li>
                 </ul>
@@ -239,39 +236,29 @@
                 </div>
                 <p id="noCwlMessage" class="message-box" style="display: none;">O clã não está em CWL ou informações não disponíveis.</p>
             
-                <!-- ##### INÍCIO DA SECÇÃO DO CÉREBRO CWL ##### -->
                 <div id="cwlPlannerSection" class="cwl-planner-container" style="display: none;">
                     <h3><span class="ai-indicator"></span>🔮 Cérebro da CWL: Plano de Rotação</h3>
                     <p class="planner-description">
                         A IA analisa o status (Ativo/Backup) e a participação de cada membro para gerar e atualizar automaticamente um plano de rotação justo para os 7 dias.
                     </p>
                     
-                    <!-- [REMOVIDO] Botão de gerar plano removido, agora é automático. -->
-                    
                     <div id="cwlPlanResult" class="cwl-plan-result" style="display: none;">
                         
-                        <!-- Nova Secção: Visão Geral (Placar e Banco) -->
                         <h4><span class="ai-indicator"></span> Visão Geral da Rotação</h4>
                         <div id="cwlOverviewContainer" class="cwl-overview-grid">
-                            <!-- O JS vai preencher: Placar de Participação e Banco de Reservas -->
                             <div class="loading-spinner" style="margin: 20px auto; grid-column: 1 / -1;"></div>
                         </div>
 
-                        <!-- Secção Interativa: Abas dos 7 Dias -->
                         <h4 style="margin-top: 25px;"><span class="ai-indicator"></span> Plano Tático (Dia-a-Dia)</h4>
                         <div class="cwl-plan-tabs-container">
                             <nav class="cwl-plan-tabs" id="cwlPlanDaysTabs">
-                                <!-- Abas dos 7 dias serão geradas pelo JS -->
                             </nav>
                         </div>
                         <div class="cwl-plan-content" id="cwlPlanContent">
-                            <!-- Conteúdo do dia selecionado será gerado pelo JS -->
                         </div>
                     </div>
 
-                    <!-- Bloco de Alerta Adicionado -->
                     <div id="cwlPlanWarning" class="inactivity-alert" style="display: none; background-color: rgba(236, 201, 75, 0.2); border-color: var(--color-warning); color: var(--color-warning);">
-                        <!-- O conteúdo será inserido pelo JavaScript -->
                     </div>
 
                     <div id="cwlInactivityAlert" class="inactivity-alert" style="display: none;">
@@ -279,7 +266,46 @@
                         <p id="cwlInactivityText">-</p>
                     </div>
                 </div>
-                <!-- ##### FIM DA SECÇÃO DO CÉREBRO CWL ##### -->
+            </section>
+
+            <section id="capital-nav" class="card capital-card content-section">
+                <h2>🏰 Raio-X da Capital do Clã</h2>
+                <div id="capitalContent" style="display: none;">
+                    <div class="capital-header-stats">
+                        <div class="stat-card stat-card-capital-league">
+                            <h4>Status da Raide</h4>
+                            <p id="capStatus" class="status-badge">-</p>
+                        </div>
+                        <div class="stat-card stat-card-capital-trophies">
+                            <h4>Ouro Saqueado Global</h4>
+                            <p id="capTotalLoot" class="text-gold">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Ataques Usados</h4>
+                            <p id="capTotalAttacks">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Distritos Destruídos</h4>
+                            <p id="capDestroyed">-</p>
+                        </div>
+                    </div>
+
+                    <div class="grid-container" style="margin-top: 25px;">
+                        <div class="card" style="margin-bottom: 0;">
+                            <h3>🏆 Top 5 Atacantes</h3>
+                            <div id="capTopAttackersList" class="podium-list"></div>
+                        </div>
+                        <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--color-danger);">
+                            <h3 class="text-danger">🛑 Sangue-Sugas (0 Ataques)</h3>
+                            <div id="capZeroAttacksList" class="list-box" style="max-height: 400px;"></div>
+                        </div>
+                        <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--color-warning);">
+                            <h3 class="text-warning">⚠️ Faltou Terminar</h3>
+                            <div id="capIncompleteAttacksList" class="list-box" style="max-height: 400px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <p id="noCapitalMessage" class="message-box" style="display: none;"></p>
             </section>
 
             <section id="war-log-nav" class="card war-log-card content-section">
@@ -314,7 +340,6 @@
         </div>
     </main>
 
-    <!-- Modal para Detalhes da Guerra Histórica -->
     <div id="historicWarModal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
@@ -322,7 +347,6 @@
         </div>
     </div>
 
-    <!-- Modal para Perfil do Membro -->
     <div id="memberProfileModal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
@@ -330,7 +354,6 @@
         </div>
     </div>
     
-    <!-- Template para o Modal de Guerra Histórica -->
     <template id="historic-war-template">
         <div class="war-header">
             <img id="historic-warDetailClanBadge" src="/static/images/default_badge.png" alt="Emblema Clã" class="war-header-badge">
