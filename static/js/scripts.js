@@ -1,11 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
     const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
-    let phaseTimerInterval = null; // Variável para controlar o timer
+    let phaseTimerInterval = null; 
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
-    const loadingStatusTextEl = loadingOverlayEl?.querySelector('p'); // Add null check
+    const loadingStatusTextEl = loadingOverlayEl?.querySelector('p'); 
     const backgroundMusicEl = document.getElementById('background-music');
     const muteButtonEl = document.getElementById('mute-button');
     const adminLinkBtn = document.querySelector('.admin-link-btn');
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanBadgeEl = document.getElementById('clanBadge');
     const clanCapitalPointsEl = document.getElementById('clanCapitalPoints');
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
-    const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts'); // Keep reference if needed elsewhere
+    const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts'); 
 
     const highlightsClanNameEl = document.getElementById('highlightsClanName');
     const topDonorsListEl = document.getElementById('topDonorsList');
@@ -53,9 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const statsOpponentDestructionEl = document.getElementById('statsOpponentDestruction');
     const statsOpponentAttacksUsedEl = document.getElementById('statsOpponentAttacksUsed');
     const statsOurAvgStarsEl = document.getElementById('statsOurAvgStars');
-    const statsOurAvgDurationEl = document.getElementById('statsOurAvgDuration'); // Keep reference if needed elsewhere
+    const statsOurAvgDurationEl = document.getElementById('statsOurAvgDuration'); 
     const statsOpponentAvgStarsEl = document.getElementById('statsOpponentAvgStars');
-    const statsOpponentAvgDurationEl = document.getElementById('statsOpponentAvgDuration'); // Keep reference if needed elsewhere
+    const statsOpponentAvgDurationEl = document.getElementById('statsOpponentAvgDuration'); 
     const statsOurStars3El = document.getElementById('statsOurStars3');
     const statsOurStars2El = document.getElementById('statsOurStars2');
     const statsOurStars1El = document.getElementById('statsOurStars1');
@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
-    const cwlStatusTextEl = document.getElementById('cwlStatusText'); // <-- Elemento que estava travado
+    const cwlStatusTextEl = document.getElementById('cwlStatusText'); 
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
     const cwlSeasonEl = document.getElementById('cwlSeason');
     const cwlGroupStateEl = document.getElementById('cwlGroupState');
@@ -84,17 +84,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const cwlRoundsInfoEl = document.getElementById('cwlRoundsInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
 
-    // --- NOVOS ELEMENTOS DO "CÉREBRO CWL" ---
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
     const cwlPlanResultEl = document.getElementById('cwlPlanResult');
     const cwlPlanContentEl = document.getElementById('cwlPlanContent');
     const cwlInactivityAlertEl = document.getElementById('cwlInactivityAlert');
     const cwlInactivityTextEl = document.getElementById('cwlInactivityText');
-    const cwlOverviewContainerEl = document.getElementById('cwlOverviewContainer'); // Visão Geral (Placar/Banco)
-    const cwlPlanDaysTabsEl = document.getElementById('cwlPlanDaysTabs'); // Abas 7 dias
-    const cwlPlanWarningEl = document.getElementById('cwlPlanWarning'); // Aviso IA
-    // Botão de gerar plano foi removido do HTML, esta referência não é mais necessária
-    // const generateCwlPlanBtn = document.getElementById('generateCwlPlanBtn'); 
+    const cwlOverviewContainerEl = document.getElementById('cwlOverviewContainer'); 
+    const cwlPlanDaysTabsEl = document.getElementById('cwlPlanDaysTabs'); 
+    const cwlPlanWarningEl = document.getElementById('cwlPlanWarning'); 
 
     const warLogLimitEl = document.getElementById('warLogLimit');
     const warLogTableBodyEl = document.getElementById('warLogTableBody');
@@ -111,15 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const navLinks = document.querySelectorAll('.nav-link');
     const contentSections = document.querySelectorAll('.content-section');
     let isFirstLoad = true;
-    let userIsAdmin = false; // <<< ADICIONADO para controle de acesso
+    let userIsAdmin = false; 
 
     const historicWarModal = document.getElementById('historicWarModal');
     const historicWarDetailContent = document.getElementById('historicWarDetailContent');
-    const closeModalButton = historicWarModal?.querySelector('.close-button'); // Add null check
+    const closeModalButton = historicWarModal?.querySelector('.close-button'); 
 
     const memberProfileModal = document.getElementById('memberProfileModal');
     const memberProfileContent = document.getElementById('memberProfileContent');
-    const closeProfileModalButton = memberProfileModal?.querySelector('.close-button'); // Add null check
+    const closeProfileModalButton = memberProfileModal?.querySelector('.close-button'); 
     let memberTrophyChart = null;
 
     // --- FUNÇÃO DE FETCH MELHORADA ---
@@ -127,9 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(`${API_BASE_URL}/api/${endpoint}`, options);
 
-            // Handle non-OK responses first
             if (!response.ok) {
-                // *** CORREÇÃO HTTP 405: Adiciona log específico ***
                 if (response.status === 405) {
                     console.error(`Erro 405 (Método Não Permitido) para ${endpoint}. O JS usou ${options.method || 'GET'}?`);
                 }
@@ -138,32 +133,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (response.status === 503) {
                     console.warn(`API retornou 503 (Serviço Indisponível/Iniciando) para ${endpoint}.`);
-                    // Update loading text only if overlay is visible
                     if (loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
                             setText(loadingStatusTextEl, 'Aguardando API CoC ficar pronta...');
                     }
                 } else {
                     console.error(`Erro na API! Status: ${response.status} para ${endpoint}`, errorData);
                 }
-                // Always return an object with an error key for consistency
                 return { error: errorMessage };
             }
 
-            // Handle successful No Content response
             if (response.status === 204) {
                 return { success: true };
             }
 
-            // Handle successful responses with content
             return await response.json();
 
         } catch (error) {
             console.error(`Erro de conexão ao buscar ${endpoint}:`, error);
-            // Update loading text only if overlay is visible
             if (loadingStatusTextEl && loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
                 setText(loadingStatusTextEl, 'Erro de conexão. Verifique a consola.');
             }
-            // Return an object with an error key
             return { error: `Erro de conexão ao buscar ${endpoint}.` };
         }
     }
@@ -172,23 +161,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DA MÚSICA DE FUNDO ---
     if (backgroundMusicEl && muteButtonEl) {
         backgroundMusicEl.volume = 0.2;
-        let musicStarted = false; // Flag to ensure play is attempted only once via interaction
+        let musicStarted = false; 
 
         const playMusic = async () => {
-            if (musicStarted) return; // Don't try again if already started or blocked
+            if (musicStarted) return; 
             try {
                 await backgroundMusicEl.play();
-                musicStarted = true; // Set flag on successful play
-                // Remove listener after first successful interaction play
+                musicStarted = true; 
                 document.body.removeEventListener('click', playMusic);
                 document.body.removeEventListener('keydown', playMusic);
             } catch (err) {
-                musicStarted = true; // Set flag even if blocked, to prevent retries
+                musicStarted = true; 
                 console.log('Autoplay da música bloqueado pelo navegador.');
-                // Keep listeners if initially blocked, maybe next interaction works
             }
         };
-        // Attempt play on first click or keydown
         document.body.addEventListener('click', playMusic, { once: true });
         document.body.addEventListener('keydown', playMusic, { once: true });
 
@@ -196,10 +182,9 @@ document.addEventListener('DOMContentLoaded', () => {
         muteButtonEl.addEventListener('click', () => {
             backgroundMusicEl.muted = !backgroundMusicEl.muted;
             muteButtonEl.textContent = backgroundMusicEl.muted ? '🔇' : '🔊';
-            localStorage.setItem('musicMuted', backgroundMusicEl.muted.toString()); // Save preference
+            localStorage.setItem('musicMuted', backgroundMusicEl.muted.toString()); 
         });
 
-        // Restore preference on load
         if (localStorage.getItem('musicMuted') === 'true') {
             backgroundMusicEl.muted = true;
             muteButtonEl.textContent = '🔇';
@@ -214,7 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setText(element, text, defaultValue = '-') {
         if (element) {
-            // Ensure text is a string, handle null/undefined explicitly
             const finalText = (text === null || text === undefined || text === '') ? defaultValue : String(text);
             element.textContent = finalText;
         }
@@ -227,7 +211,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function setBadge(element, url) {
         if (element) {
                 element.src = url || DEFAULT_BADGE_URL;
-                // Add error handler for badges
                 element.onerror = () => { element.src = DEFAULT_BADGE_URL; };
         }
     }
@@ -236,53 +219,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const initialSectionId = navLinks.length > 0 ? navLinks[0].dataset.section : 'clan-info-nav';
     let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
 
-    // Set initial active section and link
     contentSections.forEach(section => {
-        section?.classList.toggle('active-section', section.id === currentActiveSectionId); // Add null check
+        section?.classList.toggle('active-section', section.id === currentActiveSectionId); 
     });
     navLinks.forEach(link => {
-        link?.classList.toggle('active-nav-link', link.dataset.section === currentActiveSectionId); // Add null check
+        link?.classList.toggle('active-nav-link', link.dataset.section === currentActiveSectionId); 
     });
 
     function setActiveSection(newSectionId) {
-        if (!newSectionId || newSectionId === currentActiveSectionId) return; // Do nothing if invalid or already active
+        if (!newSectionId || newSectionId === currentActiveSectionId) return; 
 
         const oldSectionEl = document.getElementById(currentActiveSectionId);
         const newSectionEl = document.getElementById(newSectionId);
 
         if (!newSectionEl) {
             console.warn(`Section with ID "${newSectionId}" not found.`);
-            return; // Exit if the new section doesn't exist
+            return; 
         }
 
-        // Remove active class from old section and link
-        oldSectionEl?.classList.remove('active-section'); // Add null check
-        navLinks.forEach(link => link?.classList.remove('active-nav-link')); // Add null check
+        oldSectionEl?.classList.remove('active-section'); 
+        navLinks.forEach(link => link?.classList.remove('active-nav-link')); 
 
-        // Add active class to new section and link
         newSectionEl.classList.add('active-section');
         const newLink = document.querySelector(`.nav-link[data-section="${newSectionId}"]`);
-        newLink?.classList.add('active-nav-link'); // Add null check
+        newLink?.classList.add('active-nav-link'); 
 
-        // Store the new active section and update the new ID
         localStorage.setItem('activeSection', newSectionId);
         currentActiveSectionId = newSectionId;
     }
 
-    // Add click listeners to navigation links
     navLinks.forEach((link) => {
-        link?.addEventListener('click', (e) => { // Add null check
-            e.preventDefault(); // Prevent default anchor behavior
+        link?.addEventListener('click', (e) => { 
+            e.preventDefault(); 
             setActiveSection(link.dataset.section);
         });
     });
 
     // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
-        // (Código mantido igual, verificações já existentes)
         if (!data || data.error || !data.name) {
             setText(clanNameHeaderEl, "Erro");
-            setText(clanNameEl, data?.error || "N/A"); // Add null check for data
+            setText(clanNameEl, data?.error || "N/A"); 
             return;
         }
         setText(clanNameHeaderEl, data.name);
@@ -294,40 +271,37 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(clanMemberCountEl, `Membros: ${data.member_count || '-'}/50`);
         setText(clanLocationEl, `Local: ${data.location || '-'}`);
         setText(clanTypeEl, `Tipo: ${data.type || '-'}`);
-        setText(clanWarWinsEl, `${data.war_wins?.toLocaleString() || '-'} ⚔️`); // Add toLocaleString
-        setText(clanPointsEl, `${data.points?.toLocaleString() || '-'} 🏆`); // Add toLocaleString
-        setText(clanCapitalPointsEl, `${data.capital_points?.toLocaleString() || '-'} 🏆`); // Add toLocaleString
+        setText(clanWarWinsEl, `${data.war_wins?.toLocaleString() || '-'} ⚔️`); 
+        setText(clanPointsEl, `${data.points?.toLocaleString() || '-'} 🏆`); 
+        setText(clanCapitalPointsEl, `${data.capital_points?.toLocaleString() || '-'} 🏆`); 
         setText(clanCapitalLeagueEl, data.capital_league);
         setText(clanDescriptionEl, data.description, 'Sem descrição.');
         setText(botVersionEl, data.version, '?');
     }
 
     function populateHighlights(data) {
-        const highlightsContentEl = document.getElementById('highlightsContent'); // Get content wrapper
+        const highlightsContentEl = document.getElementById('highlightsContent'); 
 
-        // Handle error case first
         if (!data || data.error || !data.clan_name) {
             if (noHighlightsMessageEl) {
                 noHighlightsMessageEl.style.display = 'block';
                 setText(noHighlightsMessageEl, data?.error || "Não foi possível carregar os destaques.");
             }
-            if(highlightsContentEl) highlightsContentEl.style.display = 'none'; // Hide content area
-            console.error("Erro ao carregar destaques ou dados ausentes:", data?.error || "Dados ausentes"); // Log do erro
+            if(highlightsContentEl) highlightsContentEl.style.display = 'none'; 
+            console.error("Erro ao carregar destaques ou dados ausentes:", data?.error || "Dados ausentes"); 
             return;
         }
 
-        // Show content area and hide error message
         if (noHighlightsMessageEl) noHighlightsMessageEl.style.display = 'none';
         if (highlightsContentEl) highlightsContentEl.style.display = 'block';
 
         setText(highlightsClanNameEl, data.clan_name);
-        setText(warDateHighlightEl, data.war_date ? `(${data.war_date})` : ''); // Show war date if available
+        setText(warDateHighlightEl, data.war_date ? `(${data.war_date})` : ''); 
 
-        // Populate Top Donors
         setHtml(topDonorsListEl, data.top_donors?.length > 0 ? data.top_donors.map((donor, index) => {
             const medals = ['gold', 'silver', 'bronze'];
             const medal_icons = ['🥇', '🥈', '🥉'];
-            const rankIcon = medal_icons[index] || `${index + 1}.`; // Use number if beyond top 3
+            const rankIcon = medal_icons[index] || `${index + 1}.`; 
             return `<div class="podium-item ${medals[index] || ''}">
                         <span class="podium-rank">${rankIcon}</span>
                         <div class="podium-details">
@@ -337,45 +311,40 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
         }).join('') : '<p>Nenhum doador encontrado.</p>');
 
-        // Populate War Heroes/Best Attacks
         const warHeroTitleEl = document.getElementById('warHeroTitle');
-        setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra'); // Title for the section
+        setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra'); 
         setHtml(bestAttacksListEl, data.war_heroes?.length > 0 ? data.war_heroes.map(hero => {
             const isMvp = hero.rank === 1;
             const heroClass = isMvp ? 'mvp-card' : 'attack-item';
             const medals = ['🥇', '🥈', '🥉'];
-            const rankIcon = medals[hero.rank - 1] || `${hero.rank}.`; // Use number if beyond top 3
+            const rankIcon = medals[hero.rank - 1] || `${hero.rank}.`; 
 
             const titleHtml = isMvp
                 ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p><h4 class="mvp-name">${hero.name || 'N/A'} <span>(CV${hero.town_hall || '?'})</span></h4>`
                 : `<div class="attack-header">${rankIcon} ${hero.name || 'N/A'} (CV${hero.town_hall || '?'})</div>`;
 
-            // Add tooltip with the reason
             return `<div class="${heroClass}">
                         ${titleHtml}
                         <span class="tooltip-text">${hero.reason || 'Sem detalhes'}</span>
                     </div>`;
-        }).join('') : '<p>Nenhum herói para destacar na última guerra ou análise indisponível.</p>'); // More informative default
+        }).join('') : '<p>Nenhum herói para destacar na última guerra ou análise indisponível.</p>'); 
 
-        // --- CHART LOGIC ---
-        // Destroy previous chart instance if exists
         if (activityChart) {
             try {
                 activityChart.destroy();
-                activityChart = null; // Ensure variable is reset
+                activityChart = null; 
                  console.log("Gráfico anterior destruído.");
             } catch(e) {
                  console.error("Erro ao destruir gráfico anterior:", e);
             }
         }
 
-        // Create new Activity Chart if data is available
         const chartData = data.activity_chart_data;
         if (activityChartCanvas && chartData && chartData.labels && chartData.labels.length > 0 && chartData.donations && chartData.received) {
-            console.log("Tentando criar gráfico com dados:", chartData); // Log dos dados
+            console.log("Tentando criar gráfico com dados:", chartData); 
             try {
                 const ctx = activityChartCanvas.getContext('2d');
-                if (!ctx) throw new Error("Não foi possível obter o contexto 2D do canvas."); // Verifica se o contexto foi obtido
+                if (!ctx) throw new Error("Não foi possível obter o contexto 2D do canvas."); 
 
                 activityChart = new Chart(ctx, {
                     type: 'bar',
@@ -398,12 +367,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Gráfico de atividade criado com sucesso.");
             } catch (e) {
                 console.error("Erro detalhado ao criar gráfico de atividade:", e);
-                // Optionally display an error message in the chart area
                 if (activityChartCanvas) {
                     const ctx = activityChartCanvas.getContext('2d');
                     if (ctx) {
                         ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
-                        ctx.fillStyle = 'rgba(255, 100, 100, 0.8)'; // Cor de erro
+                        ctx.fillStyle = 'rgba(255, 100, 100, 0.8)'; 
                         ctx.textAlign = 'center';
                         ctx.font = '14px Open Sans';
                         ctx.fillText('Erro ao renderizar o gráfico.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
@@ -415,7 +383,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else if (activityChartCanvas) {
             console.warn("Dados de atividade insuficientes ou canvas não encontrado. Limpando área do gráfico.");
-            // Clear canvas or show message if no data or canvas error
             try {
                 const ctx = activityChartCanvas.getContext('2d');
                 if (ctx) {
@@ -435,35 +402,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     function createStarString(stars) {
-        const starCount = parseInt(stars, 10); // Ensure it's a number
-        if (isNaN(starCount) || starCount < 0) return '⚫⚫⚫'; // Default empty
+        const starCount = parseInt(stars, 10); 
+        if (isNaN(starCount) || starCount < 0) return '⚫⚫⚫'; 
         return '⭐'.repeat(starCount) + '⚫'.repeat(Math.max(0, 3 - starCount));
     }
 
     function populateWarDetails(data, containerId = 'war-details-nav', isModal = false) {
-        // (Código mantido igual, verificações já existentes)
         const container = document.getElementById(containerId);
-        if (!container) return; // Exit if container not found
+        if (!container) return; 
 
-        const prefix = isModal ? 'historic-' : ''; // Prefix for element IDs in modal
+        const prefix = isModal ? 'historic-' : ''; 
         const warHeader = container.querySelector('.war-header');
         const warTabsNav = container.querySelector('.war-tabs');
         const noWarMsg = container.querySelector(isModal ? `#${prefix}noWarDetailMessage` : '#noWarDetailMessage');
         const predictionSection = container.querySelector(isModal ? null : '#warPredictionSection');
 
-        // Handle error or no war data
         if (!data || data.error || !data.war_data) {
             if (noWarMsg) { noWarMsg.style.display = 'block'; setText(noWarMsg, data?.error || "Nenhuma guerra para detalhar."); }
             if (warHeader) warHeader.style.display = 'none';
             if (warTabsNav) warTabsNav.style.display = 'none';
-            container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none'); // Hide all tabs
-            if (predictionSection) predictionSection.style.display = 'none'; // Hide prediction
+            container.querySelectorAll('.war-tab-content').forEach(tab => tab.style.display = 'none'); 
+            if (predictionSection) predictionSection.style.display = 'none'; 
             return;
         }
-        // --- Populate War Prediction (only on main page) ---
-        // (Código mantido igual)
+
         if (!isModal && predictionSection) {
             const predictionTextEl = container.querySelector('#warPredictionText');
             const predictionTagsEl = container.querySelector('#warPredictionTags');
@@ -487,23 +450,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <span class="tooltip-text">Nível de certeza da IA sobre a sua própria previsão, baseado na qualidade e quantidade de dados disponíveis.</span>
                     </div>`;
-                predictionSection.style.display = 'block'; // Show prediction section
+                predictionSection.style.display = 'block'; 
             } else {
-                predictionSection.style.display = 'none'; // Hide if no prediction data
+                predictionSection.style.display = 'none'; 
             }
         } else if (predictionSection) {
-                predictionSection.style.display = 'none'; // Ensure prediction is hidden in modal
+                predictionSection.style.display = 'none'; 
         }
 
-        // --- Populate General War Info ---
-        if (noWarMsg) noWarMsg.style.display = 'none'; // Hide no war message
-        if (warHeader) warHeader.style.display = 'flex'; // Show header
-        if (warTabsNav) warTabsNav.style.display = 'flex'; // Show tabs
+        if (noWarMsg) noWarMsg.style.display = 'none'; 
+        if (warHeader) warHeader.style.display = 'flex'; 
+        if (warTabsNav) warTabsNav.style.display = 'flex'; 
 
         const war = data.war_data;
-        const query = (sel) => container.querySelector(sel); // Helper to query within container
+        const query = (sel) => container.querySelector(sel); 
 
-        // Set header info
         setText(query(`#${prefix}warDetailOurClanName`), war.clan_name);
         setText(query(`#${prefix}warDetailOpponentName`), war.opponent_name);
         setBadge(query(`#${prefix}warDetailClanBadge`), war.clan_badge_url);
@@ -513,10 +474,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(query(`#${prefix}warDetailTimeRemaining`), war.time_remaining);
         const stateEl = query(`#${prefix}warDetailState`);
         setText(stateEl, war.state_description);
-        if(stateEl) stateEl.className = 'war-state ' + (war.status || '').toLowerCase(); // Style based on war state
+        if(stateEl) stateEl.className = 'war-state ' + (war.status || '').toLowerCase(); 
 
-        // --- Populate Stats Tab ---
-        // (Código mantido igual)
         setText(query(`#${prefix}statsOurClanName`), war.clan_name);
         setText(query(`#${prefix}statsOurStars`), war.clan_stars);
         setText(query(`#${prefix}statsOurDestruction`), war.clan_destruction?.replace('%', ''));
@@ -526,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(query(`#${prefix}statsOpponentDestruction`), war.opponent_destruction?.replace('%', ''));
         setText(query(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
         setText(query(`#${prefix}statsOurAvgStars`), war.clan_avg_stars);
-        setText(query(`#${prefix}statsOurAvgDuration`), war.clan_avg_stars); // Keep reference if needed elsewhere
+        setText(query(`#${prefix}statsOurAvgDuration`), war.clan_avg_stars); 
         setText(query(`#${prefix}statsOpponentAvgStars`), war.opponent_avg_stars);
         if(war.clan_star_distribution){
                 for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOurStars${i}`), war.clan_star_distribution[i]);
@@ -535,10 +494,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOpponentStars${i}`), war.opponent_star_distribution[i]);
         }
 
-        // --- Populate Events Tab ---
-        // (Código mantido igual)
         const eventsTableBody = query(`#${prefix}warEventsTableBody`);
-        setText(query(`#${prefix}warTotalAttacksCount`), data.all_attacks?.length || 0); // Add null check
+        setText(query(`#${prefix}warTotalAttacksCount`), data.all_attacks?.length || 0); 
         setHtml(eventsTableBody, data.all_attacks?.length > 0 ? data.all_attacks.map(att => `
             <tr>
                 <td>${att.order ?? '-'}</td>
@@ -549,8 +506,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </tr>
         `).join('') : '<tr><td colspan="5">Nenhum ataque registado.</td></tr>');
 
-        // --- Populate Team Tabs ---
-        // (Código mantido igual)
         const populateTeamTabData = (teamMembersData, teamName, teamElementId) => {
             const teamMembersEl = query(`#${prefix}${teamElementId}Members`);
             setText(query(`#${prefix}${teamElementId}Name`), teamName);
@@ -574,25 +529,19 @@ document.addEventListener('DOMContentLoaded', () => {
         populateTeamTabData(data.our_clan_members_in_war, war.clan_name, "warOurTeam");
         populateTeamTabData(data.opponent_clan_members_in_war, war.opponent_name, "warOpponentTeam");
 
-        // --- Activate Default Tab ---
-        // (Código mantido igual)
         const currentActiveTab = query('.war-tab-button.active');
-        if (!currentActiveTab || !currentActiveTab.closest(`#${containerId}`)) { // Activate first tab if none is active within the container
+        if (!currentActiveTab || !currentActiveTab.closest(`#${containerId}`)) { 
             const firstTabButton = query('.war-tab-button');
             const firstTabContentId = isModal ? `#historic-${firstTabButton?.dataset.tab}` : `#${firstTabButton?.dataset.tab}`;
             const firstTabContent = query(firstTabContentId);
-            // Deactivate others first
             container.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
             container.querySelectorAll('.war-tab-content').forEach(cont => cont.style.display = 'none');
-            // Activate first
             firstTabButton?.classList.add('active');
             if(firstTabContent) firstTabContent.style.display = 'block';
         }
     }
 
-
     function populateWarAdvisorPlan(data) {
-        // (Código mantido igual)
         if (!warAdvisorContentEl) return;
 
         if (phaseTimerInterval) { clearInterval(phaseTimerInterval); phaseTimerInterval = null; }
@@ -632,12 +581,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         ${alternativesHtml}
                         <div class="advisor-confidence">
-                            <span>Confiança</span> {/* Simplified label */}
+                            <span>Confiança</span> 
                             <div class="confidence-bar-container"><div class="confidence-bar ${confidenceColor}" style="width: ${confidencePercent}%;"></div></div>
                             <span>${confidencePercent}%</span>
                         </div>
                     </div>`;
-            }).join('') : '<p class="message-box">Nenhuma recomendação específica gerada.</p>'; // Message if no recommendations
+            }).join('') : '<p class="message-box">Nenhuma recomendação específica gerada.</p>'; 
             contentHtml += '</div>';
             setHtml(warAdvisorContentEl, contentHtml);
 
@@ -646,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (planData.phase_2_start_time_iso && timerEl && timerTextEl) {
                 const phase2StartTime = new Date(planData.phase_2_start_time_iso);
                 timerEl.style.display = 'block';
-                const updateTimer = () => { // Function to update timer text
+                const updateTimer = () => { 
                     const now = new Date(); const diff = phase2StartTime - now;
                     if (diff <= 0) {
                         setText(timerTextEl, 'Fase 2 Iniciada! Foco em limpeza.');
@@ -656,8 +605,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const hours = Math.floor(diff / 36e5); const minutes = Math.floor((diff % 36e5) / 6e4); const seconds = Math.floor((diff % 6e4) / 1000);
                     setText(timerTextEl, `${hours}h ${minutes}m ${seconds}s`);
                 };
-                updateTimer(); // Initial call
-                phaseTimerInterval = setInterval(updateTimer, 1000); // Update every second
+                updateTimer(); 
+                phaseTimerInterval = setInterval(updateTimer, 1000); 
             } else if (timerEl) {
                 timerEl.style.display = 'none';
             }
@@ -667,11 +616,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function populateMissedAttacksHistory(data) {
-        // Check if title element exists before setting text
         if(attacksRemainingTitleEl?.querySelector('span')) setText(attacksRemainingTitleEl.querySelector('span'), data?.clan_name || 'Clã');
 
         if (!data || data.error || !data.wars_with_missed_attacks?.length) {
-            setHtml(missedAttacksContainerEl, ''); // Clear container
+            setHtml(missedAttacksContainerEl, ''); 
             if (noMissedAttacksMessageEl) {
                 noMissedAttacksMessageEl.style.display = 'block';
                 setText(noMissedAttacksMessageEl, data?.error || "Nenhuma pendência de ataque encontrada.");
@@ -702,22 +650,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>`).join(''));
 
-        // Re-attach listeners to copy buttons
         document.querySelectorAll('.copy-tag-btn').forEach(button => {
             button.addEventListener('click', () => copyTagToClipboard(button));
         });
     }
 
-
     function copyTagToClipboard(button) {
-        // (Código mantido igual)
         const tag = button.dataset.tag;
         const textArea = document.createElement("textarea");
         textArea.value = tag;
         document.body.appendChild(textArea);
         textArea.select();
         try {
-            // Use execCommand as fallback
             const successful = document.execCommand('copy');
             if(successful){
                 button.textContent = 'Copiado!'; button.disabled = true;
@@ -730,15 +674,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(textArea);
     }
 
-    // ##### INÍCIO DAS NOVAS FUNÇÕES DO "CÉREBRO CWL" (CORRIGIDAS) #####
-
-    /**
-     * Preenche os quadros de "Visão Geral" (Placar de Participação e Banco de Reservas).
-     */
     function populateCwlOverview(planData) {
         if (!cwlOverviewContainerEl) return;
 
-        // --- CORREÇÃO: Tratamento de erro para evitar spinner infinito ---
         if (!planData || !planData.participation_score) {
             setHtml(cwlOverviewContainerEl, `<div class="cwl-overview-card" style="grid-column: 1 / -1;"><p>Dados de participação indisponíveis.</p></div>`);
             cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
@@ -747,15 +685,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const score = planData.participation_score || [];
         
-        let placarHtml = '<h4>📊 Placar de Participação (Final)</h4>'; // Renomeia para "Final"
-        placarHtml += '<div class="cwl-overview-list-bench">'; // Reutiliza a classe de lista
+        let placarHtml = '<h4>📊 Placar de Participação (Final)</h4>'; 
+        placarHtml += '<div class="cwl-overview-list-bench">'; 
         
         if (score.length > 0) {
-             // Ordena por dias jogados
              score.sort((a, b) => b.days_played - a.days_played);
 
              placarHtml += score.map(p => 
-                // Mostra o placar final
                 `<p>${p.player.name} (CV${p.player.town_hall}): <strong>${p.days_played} / 7 dias</strong></p>`
              ).join('');
         } else {
@@ -763,25 +699,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         placarHtml += '</div>';
 
-        // Remove o grid de 2 colunas e o bancoHtml
         setHtml(cwlOverviewContainerEl, `
             <div class="cwl-overview-card" style="grid-column: 1 / -1;">${placarHtml}</div>
         `);
         
-        // Aplica o CSS de 1 coluna
         cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
     }
 
-    /**
-     * Preenche as abas dos 7 dias e o conteúdo do dia selecionado.
-     */
     function populateCwlSchedule(planData) {
         if (!cwlPlanDaysTabsEl || !cwlPlanContentEl) return;
 
         const schedule = planData.schedule || [];
         const currentDay = planData.current_day || 1;
 
-        // 1. Gera as Abas dos 7 Dias
         const tabsHtml = schedule.map(dayPlan => {
             const day = dayPlan.day;
             const isActive = day === currentDay;
@@ -789,7 +719,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
         setHtml(cwlPlanDaysTabsEl, tabsHtml);
 
-        // 2. Função para Renderizar o Conteúdo de um Dia
         const renderDayPlan = (day) => {
             const dayData = schedule.find(d => d.day == day);
             if (!dayData) {
@@ -797,7 +726,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // --- Substituições (Código existente) ---
             let planHtml = `<h4>Alterações na Equipa</h4>`;
             planHtml += dayData.substitutions?.length > 0
                 ? dayData.substitutions.map(sub => `
@@ -808,11 +736,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`).join('')
                 : `<p>${day == 1 ? 'Escalação inicial.' : 'Manter a escalação do dia anterior.'}</p>`;
 
-            // --- Escalação Ativa (Código existente) ---
             const roster = dayData.active_roster || [];
             planHtml += `<h4>⚔️ Escalação Ativa (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
             
-            // Ordena a escalação por CV (mais forte primeiro) para exibição
             const sortedRoster = [...roster].sort((a, b) => b.player.town_hall - a.player.town_hall);
 
             planHtml += sortedRoster.length > 0
@@ -821,27 +747,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>${i + 1}.</span>${p.player.name || '?'} (CV${p.player.town_hall || '?'}) - ${p.days_played}d
                     </div>`).join('')
                 : '<p>Nenhum jogador na escalação.</p>';
-            planHtml += `</div>`; // Fim do .roster-grid
+            planHtml += `</div>`; 
             
-            // --- INÍCIO DA CORREÇÃO: Adiciona o Banco de Reservas do dia ---
             const activeBench = dayData.active_bench || [];
             const backupBench = dayData.backup_bench || [];
 
             planHtml += `<h4 style="margin-top: 20px;"><span class="ai-indicator"></span>Banco de Reservas (Dia ${day})</h4>`;
-            planHtml += '<div class="cwl-overview-card" style="background-color: rgba(0,0,0,0.1);">'; // Reutiliza o estilo
-            planHtml += '<div class="cwl-overview-list-bench">'; // Reutiliza o estilo
+            planHtml += '<div class="cwl-overview-card" style="background-color: rgba(0,0,0,0.1);">'; 
+            planHtml += '<div class="cwl-overview-list-bench">'; 
 
             if (activeBench.length > 0) {
                 planHtml += '<h5>Ativos (Próximos a entrar):</h5>';
                 planHtml += activeBench
-                    .sort((a, b) => a.days_played - b.days_played) // Ordena por dias jogados
+                    .sort((a, b) => a.days_played - b.days_played) 
                     .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
                     .join('');
             }
             if (backupBench.length > 0) {
                 planHtml += '<h5 style="margin-top: 10px;">Backups (Emergência):</h5>';
                 planHtml += backupBench
-                    .sort((a, b) => a.days_played - b.days_played) // Ordena por dias jogados
+                    .sort((a, b) => a.days_played - b.days_played) 
                     .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
                     .join('');
             }
@@ -849,15 +774,12 @@ document.addEventListener('DOMContentLoaded', () => {
                  planHtml += '<p>Nenhum jogador no banco para este dia.</p>';
             }
             planHtml += '</div></div>';
-            // --- FIM DA CORREÇÃO ---
             
             setHtml(cwlPlanContentEl, planHtml);
         };
 
-        // 3. Renderiza o dia atual (ou dia 1 se a CWL tiver terminado)
         renderDayPlan(currentDay <= 7 ? currentDay : 1);
 
-        // 4. Adiciona Listeners às Abas
         cwlPlanDaysTabsEl.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 cwlPlanDaysTabsEl.querySelector('.cwl-plan-day-tab.active')?.classList.remove('active');
@@ -867,47 +789,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * Função principal que é chamada pela API para preencher toda a seção CWL.
-     */
     async function populateCwlData(data) {
-        // --- CORREÇÃO: Tratamento de erro para evitar spinner infinito ---
         if (!cwlPlannerSectionEl) return;
 
-        // 1. Trata erros ou CWL inativa
         if (!data || data.error || data.status === "NotInCwl") {
             if (noCwlMessageEl) {
                 noCwlMessageEl.style.display = 'block';
-                // *** CORREÇÃO HTTP 405: Mostra o erro da API se existir ***
                 setText(noCwlMessageEl, data?.error || data?.message || "O clã não está em CWL no momento.");
             }
-            // Garante que o container principal esteja visível para mostrar a mensagem de erro
             cwlPlannerSectionEl.style.display = 'block'; 
             
             if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
-            if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; // Esconde a área do plano (onde fica o spinner)
+            if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; 
             
-            // <<< CORREÇÃO BUG "Carregando..." >>>
             setText(cwlStatusTextEl, "Não está em CWL");
-            // <<< FIM CORREÇÃO >>>
             return;
         }
 
-        // 2. Se a CWL está ativa, esconde a mensagem de "não está em cwl"
         if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
-        if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; // Mostra a área do plano
+        if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
-        // <<< CORREÇÃO BUG "Carregando..." >>>
         if (data.current_day >= 8) {
             setText(cwlStatusTextEl, "Finalizada");
         } else if (data.current_day >= 1) {
             setText(cwlStatusTextEl, `Em Guerra (Dia ${data.current_day})`);
         } else {
-            setText(cwlStatusTextEl, "Em Preparação"); // Fallback
+            setText(cwlStatusTextEl, "Em Preparação"); 
         }
-        // <<< FIM CORREÇÃO >>>
 
-        // 3. Preenche o aviso da IA, se houver
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -915,16 +824,9 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
-        // 4. Preenche os novos quadros da "Visão Geral"
         populateCwlOverview(data);
-
-        // 5. Preenche as abas e o conteúdo dos 7 dias
         populateCwlSchedule(data);
     }
-
-    // ##### FIM DAS NOVAS FUNÇÕES DO "CÉREBRO CWL" #####
-
-
 
     function populateWarLog(data) {
         setText(warLogLimitEl, data?.log?.length || '0');
@@ -947,19 +849,15 @@ document.addEventListener('DOMContentLoaded', () => {
             </tr>`).join(''));
     }
 
-
     async function savePlayerNote(playerTag, text, priority) {
-        // (Código mantido igual)
         try {
             await fetchData(`notes/${encodeURIComponent(playerTag)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text, priority })
             });
-            // No explicit success feedback needed here, UI updates optimistically
         } catch (e) {
             console.error("Erro ao salvar nota:", e);
-            // Maybe add visual feedback about save failure here
         }
     }
 
@@ -984,21 +882,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const noteText = m.note || 'Clique para editar...';
             const notePriority = m.note_priority || 'none';
 
-            // *** NOVO: Formata a data da última guerra (se existir) ***
             let lastWarDateFormatted = 'N/A';
             if (m.last_war_date) {
                 try {
                     const date = new Date(m.last_war_date);
-                    // Formata para dd/mm/aaaa
                     lastWarDateFormatted = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
                 } catch (e) {
                     console.warn(`Data inválida de última guerra para ${m.name}: ${m.last_war_date}`);
                     lastWarDateFormatted = 'Inválida';
                 }
             }
-            // *** AJUSTE: Usa span com title para o tooltip ***
             const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">⚔️ ${lastWarDateFormatted}</span>`;
-            // *** FIM AJUSTE ***
 
             return `
             <div class="member-card ${watchlistClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
@@ -1038,22 +932,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join(''));
 
         attachMemberEventListeners();
-        applyMemberFilters(); // Apply filters after populating
+        applyMemberFilters(); 
     }
 
-
     function attachMemberEventListeners() {
-        // <<< ADICIONADO: Bloqueia a função se não for admin >>>
         if (!userIsAdmin) {
             console.log("Modo Somente Leitura: Listeners de edição de membros desativados.");
             return;
         }
         console.log("Modo Admin: Listeners de edição de membros ATIVADOS.");
-        // <<< FIM ADIÇÃO >>>
 
-        // Remove existing listeners before adding new ones to prevent duplicates
         membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
-            header.replaceWith(header.cloneNode(true)); // Simple way to remove listeners
+            header.replaceWith(header.cloneNode(true)); 
         });
         membersGridEl?.querySelectorAll('.note-text').forEach(span => {
             span.replaceWith(span.cloneNode(true));
@@ -1064,19 +954,17 @@ document.addEventListener('DOMContentLoaded', () => {
         membersGridEl?.querySelectorAll('.priority-btn').forEach(btn => {
             btn.replaceWith(btn.cloneNode(true));
         });
-        // Remove listeners for cwl status buttons
         membersGridEl?.querySelectorAll('.cwl-status-btn').forEach(btn => {
             btn.replaceWith(btn.cloneNode(true));
         });
 
-        // Add new listeners
         membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
             header.addEventListener('click', () => openMemberProfileModal(header.dataset.playerTag));
         });
         membersGridEl?.querySelectorAll('.note-text').forEach(span => {
             span.addEventListener('click', () => {
                 const input = span.nextElementSibling;
-                if (input && input.classList.contains('note-input')) { // Check if next sibling is the input
+                if (input && input.classList.contains('note-input')) { 
                     span.style.display = 'none'; input.style.display = 'inline-block'; input.focus();
                 }
             });
@@ -1110,7 +998,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(playerTag) savePlayerNote(playerTag, text, newPriority);
             });
         });
-        // Add listeners for cwl status buttons
         membersGridEl?.querySelectorAll('.cwl-status-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 if (btn.classList.contains('active')) return;
@@ -1119,13 +1006,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newStatus = e.target.dataset.status;
                 if (!playerTag || !newStatus) return;
 
-                selector?.querySelector('.active')?.classList.remove('active'); // Add null checks
+                selector?.querySelector('.active')?.classList.remove('active'); 
                 e.target.classList.add('active');
                 const success = await setPlayerCwlStatus(playerTag, newStatus);
                 if (!success) {
                     alert('Erro ao salvar o status. Tente novamente.');
                     e.target.classList.remove('active');
-                    selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); // Add null checks
+                    selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); 
                 }
             });
         });
@@ -1138,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status })
             });
-            return response && !response.error; // Success if no error reported
+            return response && !response.error; 
         } catch (e) {
             console.error("Erro ao definir status CWL:", e);
             return false;
@@ -1157,40 +1044,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    filterNameInput?.addEventListener('input', applyMemberFilters); // Use input for instant filtering
+    filterNameInput?.addEventListener('input', applyMemberFilters); 
     filterTHInput?.addEventListener('input', applyMemberFilters);
 
     // =========================================================================
-    // >>> LÓGICA ATUALIZADA DO MODAL DE PERFIL DO JOGADOR <<<
+    // >>> LÓGICA ATUALIZADA DO MODAL DE PERFIL DO JOGADOR (COM HITRATE) <<<
     // =========================================================================
     async function openMemberProfileModal(playerTag) {
         if (!playerTag || !memberProfileModal || !memberProfileContent) return;
         
-        // 1. Mostrar Spinner
-        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar perfil profundo da Supercell...</p>');
+        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar registros do jogador...</p>');
         memberProfileModal.style.display = 'block';
 
-        // 2. Busca dados de contexto interno (BD do bot)
         const membersData = await fetchData('members');
         let basicData = {};
         if (membersData && !membersData.error && membersData.members) {
             basicData = membersData.members.find(m => m.tag === playerTag) || {};
         }
 
-        // 3. Busca a nova requisição DIRETA detalhada para pegar a foto da liga e os heróis
         let detailedData = await fetchData(`player_profile/${encodeURIComponent(playerTag)}`);
-        
         if (!detailedData || detailedData.error) {
-             setHtml(memberProfileContent, `<p class="message-box">${detailedData?.error || 'Erro ao comunicar com API da Supercell.'}</p>`);
+             setHtml(memberProfileContent, `<p class="message-box">${detailedData?.error || 'Erro ao comunicar com a Supercell.'}</p>`);
              return;
         }
 
-        // 4. Merge dos dois mundos (Contexto Local + Dados em Tempo Real da Supercell)
         const profileData = { ...basicData, ...detailedData };
 
-        // --- PREPARAÇÃO DE DADOS ---
-        
-        // Data de Guerra formatada
         let lastWarDateFormatted = 'Sem Registro';
         if (profileData.last_war_date) {
             try {
@@ -1198,7 +1077,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) { lastWarDateFormatted = 'Inválida'; }
         }
 
-        // Renderização dos Heróis (com mapeamento de imagens locais)
         const heroImageMap = {
             'barbarian king': 'barbarian-king.png',
             'archer queen': 'archer-queen.png',
@@ -1216,7 +1094,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>`;
         }).join('') : '<p class="message-box" style="width:100%;">Nenhum herói da vila principal encontrado.</p>';
 
-        // Painel de Status CWL (Apenas para Admins)
         const cwlStatus = profileData.cwl_status || 'active';
         const cwlStatusHtml = userIsAdmin ? `
             <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}" style="margin-bottom: 20px;">
@@ -1229,10 +1106,42 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="member-cwl-status" style="margin-bottom: 20px; justify-content: flex-start; gap: 15px;">
                 <label>Status CWL:</label>
                 <span style="color: ${cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)'}; font-weight:bold;">${cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas'}</span>
-            </div>
-            `;
+            </div>`;
 
-        // 5. Montagem do HTML com o Novo Design (CSS inserido no style.css)
+        // LÓGICA DO CARTÃO DE BATALHA (HITRATE)
+        const hitrate = profileData.hitrate || { total_wars: 0, attacks_made: 0, attacks_missed: 0, total_stars: 0, three_star_attacks: 0, avg_destruction: 0 };
+        const totalPossiveis = hitrate.attacks_made + hitrate.attacks_missed;
+        const txParticipacao = totalPossiveis > 0 ? Math.round((hitrate.attacks_made / totalPossiveis) * 100) : 0;
+        const tx3Estrelas = hitrate.attacks_made > 0 ? Math.round((hitrate.three_star_attacks / hitrate.attacks_made) * 100) : 0;
+        const mediaEstrelas = hitrate.attacks_made > 0 ? (hitrate.total_stars / hitrate.attacks_made).toFixed(1) : "0.0";
+
+        let corParticipacao = 'text-danger';
+        if (txParticipacao >= 90) corParticipacao = 'text-success';
+        else if (txParticipacao >= 50) corParticipacao = 'text-warning';
+
+        const battleCardHtml = `
+            <div class="battle-card-container">
+                <h3 class="profile-section-title" style="margin-bottom:10px; border:none; padding:0;">⚔️ Cartão de Batalha (Últimas ${hitrate.total_wars} Guerras)</h3>
+                <div class="battle-card-stats">
+                    <div class="bc-stat">
+                        <span class="bc-label">Assiduidade</span>
+                        <span class="bc-value ${corParticipacao}">${txParticipacao}%</span>
+                        <span class="bc-sub">${hitrate.attacks_made} de ${totalPossiveis} atks</span>
+                    </div>
+                    <div class="bc-stat">
+                        <span class="bc-label">Média de Estrelas</span>
+                        <span class="bc-value text-gold">${mediaEstrelas} ⭐</span>
+                        <span class="bc-sub">Destruição: ${hitrate.avg_destruction}%</span>
+                    </div>
+                    <div class="bc-stat">
+                        <span class="bc-label">Taxa de Perfeitos</span>
+                        <span class="bc-value text-info">${tx3Estrelas}%</span>
+                        <span class="bc-sub">${hitrate.three_star_attacks} PTs</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
         setHtml(memberProfileContent, `
             <div class="profile-header-new">
                 <div class="profile-league-badge">
@@ -1250,13 +1159,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="p-card"><span class="p-icon">🎁</span><span class="p-val">${profileData.donations || 0}</span><span class="p-label">Doadas</span></div>
                 <div class="p-card"><span class="p-icon">📥</span><span class="p-val">${profileData.received || 0}</span><span class="p-label">Recebidas</span></div>
                 <div class="p-card" title="Última guerra registrada no sistema">
-                    <span class="p-icon">⚔️</span>
+                    <span class="p-icon">🛡️</span>
                     <span class="p-val" style="font-size:1em; margin-top:5px;">${lastWarDateFormatted}</span>
                     <span class="p-label">Últ. Guerra</span>
                 </div>
             </div>
             
             ${cwlStatusHtml}
+            ${battleCardHtml}
 
             <h3 class="profile-section-title">Progresso de Heróis</h3>
             <div class="profile-heroes-grid">
@@ -1269,7 +1179,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `);
 
-        // 6. Refazer Listeners Internos do Modal
         if (userIsAdmin) {
             memberProfileContent.querySelectorAll('.cwl-status-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
@@ -1286,14 +1195,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert('Erro ao salvar status.');
                         e.target.classList.remove('active');
                     } else {
-                         // Refresh background list silently
                          fetchData('members').then(populateMembersList);
                     }
                 });
             });
         }
 
-        // 7. Lógica do Gráfico de Troféus
         if (memberTrophyChart) memberTrophyChart.destroy();
         const trophyCanvas = document.getElementById('trophyChart');
         
@@ -1311,7 +1218,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: '#fff' } }, x: { ticks: { color: '#fff' } } }, plugins: { legend: { display: false } } }
             });
         } else if (trophyCanvas) {
-            // Se não tem histórico salvo no banco do bot
             const ctx = trophyCanvas.getContext('2d');
             ctx.clearRect(0, 0, trophyCanvas.width, trophyCanvas.height);
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; 
@@ -1335,7 +1241,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        historicWarDetailContent.innerHTML = ''; // Clear loading
+        historicWarDetailContent.innerHTML = ''; 
         try {
             const warDetailsContent = template.content.cloneNode(true);
             historicWarDetailContent.appendChild(warDetailsContent);
@@ -1344,7 +1250,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Template clone error:", e);
             return;
         }
-
 
         historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
             button.addEventListener('click', () => {
@@ -1364,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     warTabButtons.forEach(button => {
-        button?.addEventListener('click', () => { // Add null check
+        button?.addEventListener('click', () => { 
             const parentSection = button.closest('.content-section');
             if (!parentSection) return;
             parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
@@ -1378,57 +1283,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAllData() {
         try {
-            // <<< ADICIONADO: Busca o status E o status de admin >>>
             const statusData = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true, is_admin: false }).catch(() => ({ maintenance_mode: true, is_admin: false }));
-            userIsAdmin = statusData.is_admin || false; // Salva o status de admin
-            console.log(`Status Admin: ${userIsAdmin}`); // Log
-            // <<< FIM ADIÇÃO >>>
-
-            // No need to redirect here, backend handles it in /painel handler
+            userIsAdmin = statusData.is_admin || false; 
+            console.log(`Status Admin: ${userIsAdmin}`); 
 
             const clanData = await fetchData('clan');
             populateClanInfo(clanData);
 
-            if (clanData?.error && isFirstLoad) { // Add null check
+            if (clanData?.error && isFirstLoad) { 
                 if(loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
                 console.error("Erro inicial ao carregar dados do clã, parando carregamento:", clanData.error);
-                return; // Stop further loading if essential clan data failed initially
+                return; 
             }
             
-            // *** CORREÇÃO HTTP 405: Mudar cwl/generate_plan de GET para POST ***
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
                 warLogData, cwlInfoData, highlightsData, warAdvisorData
             ] = await Promise.all([
                 fetchData('members'), fetchData('current_war_details'), fetchData('missed_attacks_history'),
                 fetchData('war_log'), 
-                fetchData('cwl/generate_plan', { method: 'POST' }), // *** ESTA É A CORREÇÃO ***
+                fetchData('cwl/generate_plan', { method: 'POST' }), 
                 fetchData('highlights'), fetchData('war_advisor_plan')
             ]);
 
-            // Populate sections, checking for errors in each response
             if (membersData && !membersData.error) populateMembersList(membersData); else console.error("Erro ao carregar membros:", membersData?.error);
-            if (currentWarDetailsData) populateWarDetails(currentWarDetailsData, 'war-details-nav', false); else console.error("Erro ao carregar detalhes da guerra atual:", currentWarDetailsData?.error); // War details can have expected 'error' like 'not in war'
+            if (currentWarDetailsData) populateWarDetails(currentWarDetailsData, 'war-details-nav', false); else console.error("Erro ao carregar detalhes da guerra atual:", currentWarDetailsData?.error);
             if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); else console.error("Erro ao carregar plano da IA:", warAdvisorData?.error);
             if (missedAttacksData && !missedAttacksData.error) populateMissedAttacksHistory(missedAttacksData); else console.error("Erro ao carregar histórico de ataques perdidos:", missedAttacksData?.error);
             if (warLogData && !warLogData.error) populateWarLog(warLogData); else console.error("Erro ao carregar log de guerra:", warLogData?.error);
-            // *** CORREÇÃO: Chama a nova função principal da CWL ***
             if (cwlInfoData) populateCwlData(cwlInfoData); else console.error("Erro ao carregar informações da CWL:", cwlInfoData?.error); 
             if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); else console.error("Erro ao carregar destaques:", highlightsData?.error);
 
             updateLastUpdated();
         } catch (error) {
             console.error("Erro geral ao carregar todos os dados:", error);
-            // Don't hide loading overlay if there's a major fetch error
             if (loadingStatusTextEl && loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
                 setText(loadingStatusTextEl, 'Erro grave ao carregar dados. Verifique a consola.');
             }
         } finally {
             if (isFirstLoad && loadingOverlayEl) {
-                // Check if there was an error message displayed before hiding
                 const isLoadingError = loadingStatusTextEl?.textContent?.toLowerCase().includes('erro');
-                if(!isLoadingError){ // Hide only if no major error was shown during loading
-                    setTimeout(() => { loadingOverlayEl.classList.add('hidden'); }, 300); // Shorter delay
+                if(!isLoadingError){ 
+                    setTimeout(() => { loadingOverlayEl.classList.add('hidden'); }, 300); 
                 }
                 isFirstLoad = false;
             }
@@ -1439,19 +1335,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closeModalButton) closeModalButton.addEventListener('click', () => { if(historicWarModal) historicWarModal.style.display = 'none'; });
     if (closeProfileModalButton) closeProfileModalButton.addEventListener('click', () => {
         if(memberProfileModal) memberProfileModal.style.display = 'none';
-        // Refresh member list after closing profile is handled in populateMembersList/attachMemberEventListeners
     });
 
     window.addEventListener('click', (event) => {
         if (event.target == historicWarModal && historicWarModal) historicWarModal.style.display = 'none';
         if (event.target == memberProfileModal && memberProfileModal) {
             memberProfileModal.style.display = 'none';
-            // Refresh list handled inside modal logic now
         }
     });
 
-    // Use event delegation on the table body for war log clicks
-    warLogTableBodyEl?.addEventListener('click', (event) => { // Add null check
+    warLogTableBodyEl?.addEventListener('click', (event) => { 
         const row = event.target.closest('.historic-war-row');
         if (row && row.dataset.warId) {
             openHistoricWarModal(row.dataset.warId);
@@ -1459,27 +1352,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     loadAllData();
-    setInterval(loadAllData, 45000); // Refresh data every 45 seconds
+    setInterval(loadAllData, 45000); 
 
     async function checkApiMaintenance() {
-        // (Código mantido igual)
         try {
             const response = await fetch(`${API_BASE_URL}/api/coc_status`, { cache: 'no-store' });
             if (!response.ok) { console.error('Falha ao buscar status da API.'); return; }
             const data = await response.json();
             if (data.status === 'maintenance') {
                 console.warn('API em manutenção. Redirecionando...');
-                // Check if already on maintenance page to prevent loop
                 if (!window.location.pathname.endsWith('/maintenance.html') && !window.location.pathname.endsWith('/maintenance')) {
-                    window.location.href = '/maintenance'; // Use relative path
+                    window.location.href = '/maintenance'; 
                 }
             } else if (data.status === 'ok' && (window.location.pathname.endsWith('/maintenance.html') || window.location.pathname.endsWith('/maintenance'))) {
-                // If API is OK and we are on maintenance page, redirect back
                 console.info('API voltou. Redirecionando para o painel...');
                 window.location.href = '/painel';
             }
         } catch (error) { console.error('Erro ao verificar status de manutenção:', error); }
     }
-    checkApiMaintenance(); // Check immediately
-    setInterval(checkApiMaintenance, 20000); // Check every 20 seconds
+    checkApiMaintenance(); 
+    setInterval(checkApiMaintenance, 20000); 
 });
