@@ -2047,3 +2047,147 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-text-secondary);
 }
 /* <<< FIM DA MUDANÇA >>> */
+
+/* ========================================================
+   >>> NOVO DESIGN DO MODAL DE PERFIL DO JOGADOR <<<
+   ======================================================== */
+
+.profile-header-new {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(0,0,0,0.25);
+    padding: 20px;
+    border-radius: var(--border-radius-base);
+    margin-bottom: 20px;
+    border-left: 5px solid var(--color-accent);
+}
+
+.profile-league-badge img {
+    width: 90px;
+    height: 90px;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+}
+
+.profile-title-new {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.profile-title-new h2 {
+    margin: 0 0 5px 0 !important;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.8em !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+.profile-th-icon {
+    width: 38px;
+    height: 38px;
+}
+
+.profile-tag-new {
+    color: var(--color-text-secondary);
+    font-family: monospace;
+    font-size: 1.1em;
+}
+
+.profile-role-new {
+    color: var(--color-gold);
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    margin-top: 5px;
+    letter-spacing: 1px;
+}
+
+/* Cards das Estatísticas de Jogo */
+.profile-stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.p-card {
+    background: rgba(74, 85, 104, 0.15);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-base);
+    padding: 15px 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+    transition: transform 0.2s, background 0.2s;
+}
+
+.p-card:hover {
+    background: rgba(74, 85, 104, 0.3);
+    transform: translateY(-2px);
+}
+
+.p-icon { font-size: 1.6em; margin-bottom: 8px; }
+.p-val { font-size: 1.3em; font-weight: bold; color: var(--color-text-main); }
+.p-label { font-size: 0.8em; color: var(--color-text-secondary); text-transform: uppercase; margin-top: 5px;}
+
+/* Design Focado nos Heróis */
+.profile-section-title {
+    border-bottom: 1px solid var(--color-divider);
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+    color: var(--color-text-title-card);
+    font-family: var(--font-title);
+    font-weight: 500;
+}
+
+.profile-heroes-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    margin-bottom: 25px;
+}
+
+.hero-item-new {
+    background: linear-gradient(180deg, rgba(74,85,104,0.1) 0%, rgba(0,0,0,0.4) 100%);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 12px;
+    width: 80px;
+    text-align: center;
+    border-bottom: 3px solid var(--color-accent);
+    transition: transform 0.2s;
+}
+.hero-item-new:hover {
+    transform: scale(1.05);
+    border-bottom-color: var(--color-success);
+}
+
+.hero-item-new img {
+    width: 55px;
+    height: 55px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+}
+
+.hero-lvl-box {
+    background: rgba(0,0,0,0.6);
+    border-radius: 4px;
+    padding: 3px 0;
+    margin-top: 8px;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: white;
+}
+
+@media (max-width: 600px) {
+    .profile-header-new {
+        flex-direction: column;
+        text-align: center;
+    }
+}

@@ -681,7 +681,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (noMissedAttacksMessageEl) noMissedAttacksMessageEl.style.display = 'none';
 
-        // <<< CORRIGIDO: Removido comentário dentro do template string >>>
         setHtml(missedAttacksContainerEl, data.wars_with_missed_attacks.map(war => `
             <div class="war-group">
                 <h3 class="war-group-header">Guerra vs <strong>${war.opponent_name || '?'}</strong> (${war.end_date || '?'}) ${war.is_latest ? '<span class="latest-war-badge">💥 Última Guerra</span>' : ''}</h3>
@@ -930,7 +929,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateWarLog(data) {
         setText(warLogLimitEl, data?.log?.length || '0');
 
-        // <<< CORRIGIDO: Removido comentário dentro do template string >>>
         if (!data || data.error || !data.log?.length) {
             if(noWarLogMessageEl) { noWarLogMessageEl.style.display = 'block'; setText(noWarLogMessageEl, data?.error || "Log de guerra indisponível."); }
             setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data?.error || "Nenhum registo encontrado."}</td></tr>`);
@@ -968,7 +966,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateMembersList(data) {
         setText(membersClanNameEl, data?.clan_name);
 
-        // <<< CORRIGIDO: Removido comentário dentro do template string >>>
         if (!data || data.error || !data.members) {
             setHtml(membersGridEl, `<p class="message-box">${data?.error || "Não foi possível carregar os membros."}</p>`);
             return;
@@ -1134,8 +1131,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // (setPlayerCwlStatus, applyMemberFilters, openMemberProfileModal, openHistoricWarModal, loadAllData, EventListeners Modal, Inicialização - MANTIDOS IGUAIS)
-    // ... restante do código ...
     async function setPlayerCwlStatus(playerTag, status) {
         try {
             const response = await fetchData(`cwl/player_status/${encodeURIComponent(playerTag)}`, {
@@ -1165,99 +1160,116 @@ document.addEventListener('DOMContentLoaded', () => {
     filterNameInput?.addEventListener('input', applyMemberFilters); // Use input for instant filtering
     filterTHInput?.addEventListener('input', applyMemberFilters);
 
+    // =========================================================================
+    // >>> LÓGICA ATUALIZADA DO MODAL DE PERFIL DO JOGADOR <<<
+    // =========================================================================
     async function openMemberProfileModal(playerTag) {
         if (!playerTag || !memberProfileModal || !memberProfileContent) return;
-        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar perfil do membro...</p>');
+        
+        // 1. Mostrar Spinner
+        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar perfil profundo da Supercell...</p>');
         memberProfileModal.style.display = 'block';
 
-        // *** ATUALIZAÇÃO: Busca os dados completos do membro, que agora incluem a data da guerra ***
+        // 2. Busca dados de contexto interno (BD do bot)
         const membersData = await fetchData('members');
-        let profileData = null;
+        let basicData = {};
         if (membersData && !membersData.error && membersData.members) {
-            profileData = membersData.members.find(m => m.tag === playerTag);
+            basicData = membersData.members.find(m => m.tag === playerTag) || {};
         }
 
-        // Se não encontrou nos membros (pode ter saído), busca pela API individual
-        if (!profileData) {
-            profileData = await fetchData(`player_profile/${encodeURIComponent(playerTag)}`);
-        }
-        // *** FIM ATUALIZAÇÃO ***
-
-        if (!profileData || profileData.error) {
-            setHtml(memberProfileContent, `<p class="message-box">${profileData?.error || 'Erro ao carregar perfil.'}</p>`);
-            return;
+        // 3. Busca a nova requisição DIRETA detalhada para pegar a foto da liga e os heróis
+        let detailedData = await fetchData(`player_profile/${encodeURIComponent(playerTag)}`);
+        
+        if (!detailedData || detailedData.error) {
+             setHtml(memberProfileContent, `<p class="message-box">${detailedData?.error || 'Erro ao comunicar com API da Supercell.'}</p>`);
+             return;
         }
 
-        // *** NOVO: Formata a data da última guerra para exibição ***
-        let lastWarDateFormatted = 'N/A';
+        // 4. Merge dos dois mundos (Contexto Local + Dados em Tempo Real da Supercell)
+        const profileData = { ...basicData, ...detailedData };
+
+        // --- PREPARAÇÃO DE DADOS ---
+        
+        // Data de Guerra formatada
+        let lastWarDateFormatted = 'Sem Registro';
         if (profileData.last_war_date) {
             try {
-                const date = new Date(profileData.last_war_date);
-                lastWarDateFormatted = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            } catch (e) {
-                console.warn(`Data inválida de última guerra para ${profileData.name}: ${profileData.last_war_date}`);
-                lastWarDateFormatted = 'Inválida';
-            }
+                lastWarDateFormatted = new Date(profileData.last_war_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            } catch (e) { lastWarDateFormatted = 'Inválida'; }
         }
-        // *** AJUSTE: Usa span com title para o tooltip ***
-        const lastWarHtml = `
-            <div class="profile-stat-card">
-                <h4>Última Guerra</h4>
-                <p title="Esta é a data da última guerra conhecida no histórico">⚔️ ${lastWarDateFormatted}</p>
-            </div>`;
-        // *** FIM AJUSTE ***
 
-        const heroesHtml = profileData.heroes?.map(hero => `
-            <div class="hero-item">
-                <img src="/static/images/heroes/${(hero.name || '').toLowerCase().replace(/\s+/g, '-')}.png" alt="${hero.name || '?'}" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='50px';">
-                <p><strong>${hero.level || '?'}</strong> / ${hero.max_level || '?'}</p>
-            </div>`).join('');
-        const leagueImageHtml = profileData.league_icon ? `<div class="profile-league-container"><img src="${profileData.league_icon}" alt="${profileData.league || '?'}" class="profile-league-image"></div>` : '';
+        // Renderização dos Heróis (com mapeamento de imagens locais)
+        const heroImageMap = {
+            'barbarian king': 'barbarian-king.png',
+            'archer queen': 'archer-queen.png',
+            'grand warden': 'grand-warden.png',
+            'royal champion': 'royal-champion.png',
+            'minion prince': 'minion-prince.png'
+        };
+
+        const heroesHtml = profileData.heroes?.length > 0 ? profileData.heroes.map(hero => {
+            const imgName = heroImageMap[(hero.name || '').toLowerCase()] || 'default_hero.png';
+            return `
+                <div class="hero-item-new">
+                    <img src="/static/images/heroes/${imgName}" alt="${hero.name}" onerror="this.src='/static/images/default_badge.png'">
+                    <div class="hero-lvl-box">${hero.level} <span style="font-size:0.7em;color:var(--color-text-secondary);">/ ${hero.max_level}</span></div>
+                </div>`;
+        }).join('') : '<p class="message-box" style="width:100%;">Nenhum herói da vila principal encontrado.</p>';
+
+        // Painel de Status CWL (Apenas para Admins)
         const cwlStatus = profileData.cwl_status || 'active';
-        // <<< ADICIONADO: Esconde botões de status CWL se não for admin >>>
         const cwlStatusHtml = userIsAdmin ? `
-            <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}">
+            <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}" style="margin-bottom: 20px;">
                 <label>Status na CWL:</label>
                 <div class="cwl-status-selector">
                     <button class="cwl-status-btn ${cwlStatus === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
                     <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
                 </div>
             </div>` : `
-             <div class="member-cwl-status">
-                <label>Status na CWL:</label>
-                <span class="cwl-status-readonly status-${cwlStatus}">${cwlStatus === 'active' ? 'Ativo' : 'Backup'}</span>
-             </div>
+            <div class="member-cwl-status" style="margin-bottom: 20px; justify-content: flex-start; gap: 15px;">
+                <label>Status CWL:</label>
+                <span style="color: ${cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)'}; font-weight:bold;">${cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas'}</span>
+            </div>
             `;
-        // <<< FIM ADIÇÃO >>>
 
-        const statsGridHtml = `
-            <div class="profile-details-container">
-                <div class="profile-stats-grid">
-                    <div class="profile-stat-card"><h4>Liga</h4><p>${profileData.league || 'N/A'}</p></div>
-                    <div class="profile-stat-card"><h4>Troféus</h4><p>🏆 ${profileData.trophies || 0}</p></div>
-                    <div class="profile-stat-card"><h4>Doadas</h4><p>🎁 ${profileData.donations || 0}</p></div>
-                    <div class="profile-stat-card"><h4>Recebidas</h4><p>📥 ${profileData.received || 0}</p></div>
-                    ${lastWarHtml} </div>
-                ${cwlStatusHtml}
-            </div>`;
-
+        // 5. Montagem do HTML com o Novo Design (CSS inserido no style.css)
         setHtml(memberProfileContent, `
-            <div class="profile-header">
-                <h2>${profileData.name || '?'} (CV${profileData.town_hall || '?'})</h2>
-                <p class="player-tag">${profileData.tag || '#?'}</p>
+            <div class="profile-header-new">
+                <div class="profile-league-badge">
+                    <img src="${profileData.league_icon || DEFAULT_BADGE_URL}" alt="${profileData.league || 'Liga'}" title="${profileData.league || 'Sem Liga'}">
+                </div>
+                <div class="profile-title-new">
+                    <h2>${profileData.name || '?'} <img src="/static/images/townhall${profileData.town_hall || 1}.png" class="profile-th-icon" alt="CV" title="CV ${profileData.town_hall}" onerror="this.src=DEFAULT_BADGE_URL;"></h2>
+                    <span class="profile-tag-new">${profileData.tag || '#?'}</span>
+                    <span class="profile-role-new">${profileData.role || 'Membro'}</span>
+                </div>
             </div>
-            <div class="profile-main-content">
-                ${leagueImageHtml}
-                ${statsGridHtml}
-            </div>
-            <h3>Heróis</h3>
-            <div class="heroes-list">${heroesHtml || '<p>Nenhum herói encontrado.</p>'}</div>
-            <div class="profile-chart-container">
-                <h3>Evolução de Troféus</h3>
-                <canvas id="trophyChart"></canvas>
-            </div>`);
 
-        // <<< ADICIONADO: Só anexa listener de CWL se for admin >>>
+            <div class="profile-stats-cards">
+                <div class="p-card"><span class="p-icon">🏆</span><span class="p-val">${profileData.trophies || 0}</span><span class="p-label">Troféus</span></div>
+                <div class="p-card"><span class="p-icon">🎁</span><span class="p-val">${profileData.donations || 0}</span><span class="p-label">Doadas</span></div>
+                <div class="p-card"><span class="p-icon">📥</span><span class="p-val">${profileData.received || 0}</span><span class="p-label">Recebidas</span></div>
+                <div class="p-card" title="Última guerra registrada no sistema">
+                    <span class="p-icon">⚔️</span>
+                    <span class="p-val" style="font-size:1em; margin-top:5px;">${lastWarDateFormatted}</span>
+                    <span class="p-label">Últ. Guerra</span>
+                </div>
+            </div>
+            
+            ${cwlStatusHtml}
+
+            <h3 class="profile-section-title">Progresso de Heróis</h3>
+            <div class="profile-heroes-grid">
+                ${heroesHtml}
+            </div>
+
+            <div class="profile-chart-container">
+                <h3 class="profile-section-title">Evolução de Troféus (Local)</h3>
+                <canvas id="trophyChart"></canvas>
+            </div>
+        `);
+
+        // 6. Refazer Listeners Internos do Modal
         if (userIsAdmin) {
             memberProfileContent.querySelectorAll('.cwl-status-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
@@ -1267,57 +1279,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     const newStatus = e.target.dataset.status;
                     if (!playerTag || !newStatus) return;
 
-                    selector?.querySelector('.active')?.classList.remove('active'); // Add null checks
+                    selector?.querySelector('.active')?.classList.remove('active');
                     e.target.classList.add('active');
                     const success = await setPlayerCwlStatus(playerTag, newStatus);
                     if (!success) {
-                        alert('Erro ao salvar o status. Tente novamente.');
+                        alert('Erro ao salvar status.');
                         e.target.classList.remove('active');
-                        selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); // Add null checks
+                    } else {
+                         // Refresh background list silently
+                         fetchData('members').then(populateMembersList);
                     }
-                    // Refresh member list in background after status change
-                    fetchData('members').then(populateMembersList);
                 });
             });
         }
-        // <<< FIM ADIÇÃO >>>
 
-
+        // 7. Lógica do Gráfico de Troféus
         if (memberTrophyChart) memberTrophyChart.destroy();
         const trophyCanvas = document.getElementById('trophyChart');
+        
         if (trophyCanvas && profileData.trophy_history?.length > 0) {
-            try {
-                memberTrophyChart = new Chart(trophyCanvas.getContext('2d'), {
-                    type: 'line',
-                    data: {
-                        labels: profileData.trophy_history.map(h => h.timestamp || '?'),
-                        datasets: [{
-                            label: 'Troféus', data: profileData.trophy_history.map(h => h.trophies || 0),
-                            borderColor: 'rgba(54, 162, 235, 1)', backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            fill: true, tension: 0.1
-                        }]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: { y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }, x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } } },
-                        plugins: { legend: { display: false } }
-                    }
-                });
-            } catch (e) {
-                console.error("Erro ao criar gráfico de troféus:", e);
-                if(trophyCanvas){
-                    const ctx = trophyCanvas.getContext('2d');
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.textAlign = 'center';
-                    ctx.fillText('Erro ao carregar gráfico.', trophyCanvas.width / 2, trophyCanvas.height / 2);
-                }
-            }
+            memberTrophyChart = new Chart(trophyCanvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: profileData.trophy_history.map(h => h.timestamp || '?'),
+                    datasets: [{
+                        label: 'Troféus', data: profileData.trophy_history.map(h => h.trophies || 0),
+                        borderColor: 'rgba(54, 162, 235, 1)', backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        fill: true, tension: 0.1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: '#fff' } }, x: { ticks: { color: '#fff' } } }, plugins: { legend: { display: false } } }
+            });
         } else if (trophyCanvas) {
+            // Se não tem histórico salvo no banco do bot
             const ctx = trophyCanvas.getContext('2d');
             ctx.clearRect(0, 0, trophyCanvas.width, trophyCanvas.height);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.textAlign = 'center';
-            ctx.fillText('Histórico de troféus indisponível.', trophyCanvas.width / 2, trophyCanvas.height / 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; 
+            ctx.textAlign = 'center';
+            ctx.font = '14px Open Sans';
+            ctx.fillText('Nenhum dado histórico registrado pelo bot ainda.', trophyCanvas.width / 2, trophyCanvas.height / 2);
         }
     }
+
 
     async function openHistoricWarModal(warId) {
         if (!warId || !historicWarModal || !historicWarDetailContent) return;

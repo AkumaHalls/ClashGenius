@@ -8,7 +8,7 @@ import coc
 from typing import Dict, Any, Optional, List
 import datetime
 import json
-import asyncio  # <--- Adicionado para o sleep do Rate Limit
+import asyncio
 
 logger = logging.getLogger("admin_cog")
 
@@ -79,16 +79,29 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "recent_logs": log_buffer
         }
 
+    async def get_discord_data(self) -> Dict[str, Any]:
+        """Obtém canais e cargos dos servidores em que o bot está para popular os dropdowns no Painel Admin."""
+        data = {"channels": [], "roles": []}
+        try:
+            for guild in self.bot.guilds:
+                # Mapeia Canais de Texto
+                for channel in guild.text_channels:
+                    data["channels"].append({"id": str(channel.id), "name": f"[{guild.name}] #{channel.name}"})
+                
+                # Mapeia Cargos
+                for role in guild.roles:
+                    if role.name != "@everyone":
+                        data["roles"].append({"id": str(role.id), "name": f"[{guild.name}] @{role.name}"})
+            
+            # Ordena alfabeticamente para facilitar encontrar no dropdown
+            data["channels"] = sorted(data["channels"], key=lambda x: x["name"].lower())
+            data["roles"] = sorted(data["roles"], key=lambda x: x["name"].lower())
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados do Discord para o Dropdown: {e}", exc_info=True)
+        return data
+
     async def get_settings(self, session: Dict[str, Any]) -> Dict[str, Any]:
-        """Obtém as configurações atuais do bot."""
-        guild_id_str = session.get('guild_id')
-        guild = None
-        if guild_id_str:
-            try:
-                guild = self.bot.get_guild(int(guild_id_str))
-            except (ValueError, TypeError):
-                logger.warning(f"get_settings: guild_id inválido na sessão: {guild_id_str}")
-        
+        """Obtém as configurações atuais do bot (Apenas IDs em texto para os dropdowns)."""
         defaults = {
             "channel_id": getattr(self.bot, 'channel_id', 0),
             "post_war_analysis_channel_id": getattr(self.bot, 'post_war_analysis_channel_id', 0),
@@ -115,43 +128,16 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         
         merged_settings.pop('_id', None)
 
-        settings_with_names = {}
+        settings_for_frontend = {}
         for key, value in merged_settings.items():
             if ("_id" in key or "channel_id" in key) and isinstance(value, (int, float, str)):
-                id_str = str(value)
-                id_int = 0
-                try:
-                    id_int = int(id_str)
-                except (ValueError, TypeError):
-                    pass
-                
-                if id_int == 0:
-                    settings_with_names[key] = {"id": id_str, "name": "Nenhum"}
-                    continue
-
-                item_name = "Não encontrado"
-                if "channel_id" in key:
-                    channel = self.bot.get_channel(id_int)
-                    if channel:
-                        item_name = f"#{channel.name}"
-                elif "role_id" in key:
-                    role = None
-                    if guild:
-                        role = guild.get_role(id_int)
-                    if role:
-                        item_name = f"@{role.name}"
-                    elif guild:
-                        item_name = "Cargo não encontrado"
-                    else:
-                        item_name = "Sem Info do Servidor"
-                
-                settings_with_names[key] = {"id": id_str, "name": item_name}
+                settings_for_frontend[key] = str(value)
             elif key == "auto_add_watchlist_enabled":
-                settings_with_names[key] = "true" if value else "false"
+                settings_for_frontend[key] = "true" if value else "false"
             else:
-                settings_with_names[key] = value
+                settings_for_frontend[key] = value
 
-        return settings_with_names
+        return settings_for_frontend
 
     async def update_settings(self, new_settings: Dict[str, Any]) -> Dict[str, Any]:
         """Atualiza as configurações no bot e no banco de dados."""
@@ -234,17 +220,15 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             )
             embed.set_footer(text=f"Enviado via Painel Clash Genius v{self.bot.bot_version}")
 
-            # --- PROTEÇÃO RATE LIMIT ---
             try:
                 await channel.send(embed=embed)
             except discord.errors.HTTPException as e:
                 if e.status == 429: # Rate Limit
                     logger.warning(f"Rate Limit 429 detectado ao enviar anúncio. Aguardando 5s...")
                     await asyncio.sleep(5)
-                    await channel.send(embed=embed) # Tenta novamente
+                    await channel.send(embed=embed) 
                 else:
                     raise e
-            # ---------------------------
 
             logger.info(f"Anúncio enviado para o canal {channel_id} via painel.")
             return {"status": "success", "message": "Anúncio enviado com sucesso!"}

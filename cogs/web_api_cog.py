@@ -171,6 +171,37 @@ class WebApiCog(commands.Cog, name="Web API"):
             logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
             return {"error": "Erro interno ao processar dados da guerra."}
 
+    # >>> NOVA FUNÇÃO ADICIONADA: BUSCA PERFIL DETALHADO INDIVIDUAL <<<
+    async def fetch_player_profile_for_web(self, player_tag: str):
+        try:
+            player = await self.bot.api_client.get_player(player_tag)
+            if not player:
+                return {"error": "Jogador não encontrado na Supercell."}
+
+            home_heroes = ["Barbarian King", "Archer Queen", "Grand Warden", "Royal Champion", "Minion Prince"]
+            heroes_data = [{"name": h.name, "level": h.level, "max_level": h.max_level} for h in player.heroes if h.name in home_heroes]
+            
+            league_icon = None
+            if player.league and player.league.icon:
+                league_icon = player.league.icon.url
+
+            return {
+                "name": player.name,
+                "tag": player.tag,
+                "town_hall": player.town_hall,
+                "trophies": player.trophies,
+                "league": player.league.name if player.league else "Sem Liga",
+                "league_icon": league_icon,
+                "donations": player.donations,
+                "received": player.received,
+                "heroes": heroes_data,
+                "role": player.role.name.capitalize() if hasattr(player, 'role') and hasattr(player.role, 'name') else "Membro"
+            }
+        except Exception as e:
+            logger.error(f"Erro ao buscar perfil detalhado web do jogador {player_tag}: {e}")
+            return {"error": "Falha de conexão com a API da Supercell."}
+    # >>> FIM NOVA FUNÇÃO <<<
+
     async def fetch_clan_members_for_web(self):
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
@@ -309,8 +340,6 @@ class WebApiCog(commands.Cog, name="Web API"):
                                 **war_time_details
                             })
                     except coc.NotFound:
-                        # >>> CORREÇÃO CRÍTICA AQUI <<<
-                        # Retorna um objeto SEGURO em vez de apenas "error", para o frontend não quebrar
                         round_data["wars"].append({
                             "war_tag": war_tag,
                             "clan_name": "N/A", "clan_badge_url": None, "clan_stars": 0,
