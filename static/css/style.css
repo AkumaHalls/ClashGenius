@@ -440,16 +440,15 @@ main.container {
     z-index: 10;
     bottom: 110%;
     left: 50%;
-    margin-left: -125px; /* Metade da largura */
+    margin-left: -125px;
     opacity: 0;
     transition: opacity 0.3s;
     font-size: 0.85em;
     border: 1px solid var(--color-border-light);
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    pointer-events: none; /* Evita que o tooltip interfira com o hover */
+    pointer-events: none;
 }
 
-/* Tooltip da Watchlist */
 .member-card .watchlist-tooltip {
     bottom: 115%;
     left: 20px;
@@ -460,11 +459,11 @@ main.container {
     border-color: var(--color-gold);
 }
 
-.member-card .watchlist-tooltip::after { /* Seta para baixo */
+.member-card .watchlist-tooltip::after {
     content: "";
     position: absolute;
     top: 100%;
-    left: 15px; /* Posição da seta */
+    left: 15px;
     margin-left: 0;
     border-width: 5px;
     border-style: solid;
@@ -2212,6 +2211,26 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .text-danger { color: #f56565; }  
 .text-gold { color: #FFD700; }    
 .text-info { color: #63b3ed; }    
+
+/* ========================================================
+   >>> ESTILOS DA CAPITAL DO CLÃ <<<
+   ======================================================== */
+.capital-header-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+.status-badge {
+    padding: 6px 12px;
+    border-radius: var(--border-radius-base);
+    font-size: 0.85em;
+    font-weight: 600;
+    display: inline-block;
+    text-transform: uppercase;
+}
+.status-success { background-color: var(--color-success); color: white; }
+.status-warning { background-color: var(--color-warning); color: var(--color-priority-text-dark); }
+
 
 @media (max-width: 600px) {
     .profile-header-new {
