@@ -302,10 +302,14 @@ class IntelligentRotationEngine:
             low_in_roster = sorted([p for p in new_roster if p.town_hall < max_th - 1], key=lambda p: p.town_hall)
             swaps = min(len(high_on_bench), len(low_in_roster), min(5, self.team_size // 3) - high_th)
             for i in range(swaps):
-                if low_in_roster[i] in new_roster: new_roster.remove(low_in_roster[i])
-                new_roster.append(high_on_bench[i])
-                if high_on_bench[i] in new_bench: new_bench.remove(high_on_bench[i])
-                new_bench.append(low_in_roster[i])
+                p_out = low_in_roster[i]
+                p_in = high_on_bench[i]
+                # Modificação de segurança: checar existência antes de remover
+                if p_out in new_roster and p_in in new_bench:
+                    new_roster.remove(p_out)
+                    new_roster.append(p_in)
+                    new_bench.remove(p_in)
+                    new_bench.append(p_out)
         
         old_tags = {p.tag for p in roster}
         new_tags = {p.tag for p in new_roster}
@@ -343,10 +347,16 @@ class OpponentAnalyzer:
     def __init__(self, api_client): self.api = api_client
     async def analyze(self, tag, name, war=None) -> OpponentAnalysis:
         dist = defaultdict(int); strength = 0.0
+        # Modificação de segurança: Remoção do bare except e melhoria dos logs
         try:
             clan = war.opponent if war and war.clan.tag != tag else (war.clan if war else await self.api.get_clan(tag))
             for m in clan.members: dist[m.town_hall] += 1; strength += m.town_hall * 10
-        except: pass
+        except coc.NotFound:
+            logger.warning(f"Clã oponente {tag} não encontrado para análise.")
+        except coc.Maintenance:
+            logger.warning(f"API em manutenção ao tentar analisar clã oponente {tag}.")
+        except Exception as e:
+            logger.error(f"Erro inesperado na análise do oponente {tag}: {e}")
         
         max_th = max(dist.keys()) if dist else 15
         high = sum(v for k, v in dist.items() if k >= max_th - 1)
@@ -368,6 +378,7 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
         self.posted_daily_plans: Set[str] = set()
         self.season_state: Optional[SeasonState] = None
         self.config = {"min_participation_percent": 0.3, "auto_adjust_strategy": True}
+        self.is_generating_plan = False  # Lock para evitar tasks simultâneas
         print(">>> [CWLPlanner] Plugin inicializado!")
 
     async def cog_load(self):
@@ -438,8 +449,12 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 if not m: m = next((x for x in clan.members if x.tag == tag), None)
                 if m:
                     note = notes.get(m.tag, {})
-                    try: status = PlayerStatus(note.get('cwl_status', 'active'))
-                    except: status = PlayerStatus.ACTIVE
+                    # Modificação de segurança: Enum parse explícito
+                    try: 
+                        status = PlayerStatus(note.get('cwl_status', 'active'))
+                    except ValueError: 
+                        status = PlayerStatus.ACTIVE
+                        
                     players.append(CWLPlayer(
                         tag=m.tag, name=m.name, town_hall=m.town_hall, status=status,
                         notes=note.get('notes', ''), forced_inclusion=note.get('forced_in', False), forced_exclusion=note.get('forced_out', False)
@@ -617,7 +632,17 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
     @tasks.loop(minutes=15)
     async def monitor_task(self):
         if not self.bot.is_ready(): return
-        await self.generate_plan()
+        
+        # Modificação de segurança: Lock para evitar tasks encavaladas
+        if getattr(self, "is_generating_plan", False):
+            logger.warning("Monitoramento CWL pulado: geração anterior ainda em andamento.")
+            return
+            
+        self.is_generating_plan = True
+        try:
+            await self.generate_plan()
+        finally:
+            self.is_generating_plan = False
 
     @monitor_task.before_loop
     async def before_monitor_task(self):
