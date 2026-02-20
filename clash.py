@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 30.3.1-Capital
+# Versão 30.3.2-Capital
 
 import os
 import logging
@@ -65,7 +65,7 @@ LEADER_ROLE_ID = int(os.getenv("LEADER_ROLE_ID", 0))
 COLEADER_ROLE_ID = int(os.getenv("COLEADER_ROLE_ID", 0))
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
 
-BOT_VERSION = "30.3.1-Capital" 
+BOT_VERSION = "30.3.2-Capital" 
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -135,7 +135,7 @@ class ClashGeniusBot(commands.Bot):
             self.loop.create_task(self.war_prediction_system.initialize_system())
 
             logger.info("--- Iniciando carregamento de Cogs ---")
-            # <<< ADICIONADO: 'capital_cog' NA LISTA DE COGS >>>
+            # <<< ADICIONADO AQUI: 'capital_cog' >>>
             cog_files = [ 'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog', 'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog', 'slash_cog', 'watchlist_cog', 'smurf_detection_cog', 'capital_cog' ]
             loaded_cogs_count = 0
             for cog_name in cog_files:
@@ -270,7 +270,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     war_advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
     admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
     watchlist_cog = bot_instance.get_cog("Lista de Observação")
-    # <<< ADICIONADO: MAPEAMENTO DO COG DA CAPITAL >>>
+    # <<< ADICIONADO AQUI TAMBÉM >>>
     capital_cog = bot_instance.get_cog("Monitoramento da Capital")
 
     required_cogs = [ web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog, war_advisor_cog, admin_cog, watchlist_cog, capital_cog ]
@@ -312,7 +312,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_cwl_info_handler(r): return await handle_web_response(r, 'cwl', web_api_cog.fetch_cwl_info_for_web)
     async def api_highlights_handler(r): return await handle_web_response(r, 'highlights', web_api_cog.fetch_highlights_for_web)
     
-    # <<< NOVA ROTA ADICIONADA PARA A WEB API: /api/capital >>>
+    # <<< NOVA ROTA DE API >>>
     async def api_capital_handler(r): return await handle_web_response(r, 'capital', capital_cog.fetch_capital_data_for_web)
     
     async def api_save_player_note_handler(request):
