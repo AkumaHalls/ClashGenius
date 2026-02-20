@@ -41,11 +41,11 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
             }
 
             if self.db is not None:
-                # Procura as últimas 15 guerras onde o jogador estava na escalação
+                # Procura as últimas 50 guerras onde o jogador estava na escalação
                 pipeline = [
                     {"$match": {"our_clan_members_in_war.tag": player_tag}},
                     {"$sort": {"war_data.end_time_iso": DESCENDING}},
-                    {"$limit": 15},
+                    {"$limit": 50},  # <--- LIMITE ALTERADO PARA 50 AQUI
                     {"$unwind": "$our_clan_members_in_war"},
                     {"$match": {"our_clan_members_in_war.tag": player_tag}}
                 ]
