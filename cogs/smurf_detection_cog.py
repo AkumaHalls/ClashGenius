@@ -39,18 +39,24 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         ach_gold = player.get_achievement(name="Gold Grab")
         if ach_gold: gold_grab = ach_gold.value
 
-        # Heróis Totais
-        heroes_lvl = sum(h.level for h in player.heroes if h.is_home_village)
+        # Capital Gold: Adicionado para punir smurfs inativas na capital
+        capital_gold = 0
+        ach_capital = player.get_achievement(name="Aggressive Capitalism")
+        if ach_capital: capital_gold = ach_capital.value
+
+        # Heróis Totais (Correção: Filtro por nome para evitar erro de versão da API)
+        home_heroes = ["Barbarian King", "Archer Queen", "Grand Warden", "Royal Champion", "Minion Prince"]
+        heroes_lvl = sum(h.level for h in player.heroes if h.name in home_heroes)
 
         # "Massa da Conta": Uma fórmula matemática para definir quem é o "Pai" e quem é o "Filho"
-        # CV pesa muito, mas o tempo de jogo (Loot/Obstáculos) desempata CVs rushados.
-        account_mass = (player.town_hall * 1000) + (heroes_lvl * 50) + (obstacles * 2) + (gold_grab / 1000000)
+        account_mass = (player.town_hall * 1000) + (heroes_lvl * 50) + (obstacles * 2) + (gold_grab / 1000000) + (capital_gold / 50000)
 
         return {
             "th": player.town_hall,
             "heroes": heroes_lvl,
             "obstacles": obstacles,
             "gold_grab": gold_grab,
+            "capital_gold": capital_gold,
             "mass": account_mass
         }
 
@@ -245,7 +251,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
             embed = discord.Embed(
                 title="⚖️ Laudo Pericial de Multicontas",
-                description="O sistema cruzou **identidade lexical** com **variáveis de tempo de vida e loot** para determinar fraudes ou contas secundárias.\n*Se a confiança estiver alta e os atributos divergirem muito, o banimento é seguro.*",
+                description="O sistema cruzou **identidade lexical** com **variáveis de tempo de vida, capital e loot** para determinar contas secundárias.\n*Se a confiança estiver alta e os atributos divergirem muito, o banimento é seguro.*",
                 color=0xFF4444, # Vermelho alerta
                 timestamp=datetime.datetime.now()
             )
@@ -256,7 +262,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             def format_stats(p_tag):
                 s = p_stats[p_tag]
                 loot_format = f"{s['gold_grab']/1000000:.1f}M" if s['gold_grab'] < 1000000000 else f"{s['gold_grab']/1000000000:.1f}B"
-                return f"`Heróis: {s['heroes']:>3}` | `Obs: {s['obstacles']:>4}` | `Loot: {loot_format:>5}`"
+                cap_format = f"{s['capital_gold']/1000000:.1f}M"
+                return f"`Heróis: {s['heroes']:>3}` | `Obs: {s['obstacles']:>4}` | `Loot: {loot_format:>5}` | `Cap: {cap_format:>4}`"
 
             for inv in investigations:
                 main = inv['main']
@@ -276,7 +283,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 
                 embed.add_field(name=title, value=body, inline=False)
                 
-            embed.set_footer(text="Atenção: 'Obs' = Obstáculos Removidos | 'Loot' = Ouro Roubado Vitalício")
+            embed.set_footer(text="Atenção: 'Obs' = Obstáculos Removidos | 'Loot' = Ouro Roubado Vitalício | 'Cap' = Ouro da Capital")
 
             await interaction.followup.send(embed=embed)
 
