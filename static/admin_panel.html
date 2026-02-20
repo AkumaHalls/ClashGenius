@@ -5,23 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel Admin - Clash Genius</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <!-- Adiciona estilos específicos para as abas do admin -->
     <style>
         .admin-nav ul { list-style: none; padding: 0; margin: 0 0 20px 0; display: flex; flex-wrap: wrap; background-color: rgba(0,0,0,0.2); border-radius: var(--border-radius-base); padding: 5px; }
         .admin-nav li { margin: 5px; }
-        .admin-nav a { font-family: var(--font-body); color: var(--color-text-secondary); text-decoration: none; font-size: 0.9em; padding: 8px 12px; border-radius: var(--border-radius-base); transition: background-color 0.2s, color 0.2s; white-space: nowrap; font-weight: 500; display: block; cursor: pointer; } /* Added cursor: pointer */
+        .admin-nav a { font-family: var(--font-body); color: var(--color-text-secondary); text-decoration: none; font-size: 0.9em; padding: 8px 12px; border-radius: var(--border-radius-base); transition: background-color 0.2s, color 0.2s; white-space: nowrap; font-weight: 500; display: block; cursor: pointer; }
         .admin-nav a:hover { color: #ffffff; background-color: var(--color-accent-hover); }
         .admin-nav a.active-nav-link { color: #ffffff; background-color: var(--color-accent); }
-        .admin-sections-wrapper { position: relative; overflow: hidden; width: 100%;} /* Similar ao painel principal */
+        .admin-sections-wrapper { position: relative; overflow: hidden; width: 100%;}
         .admin-section {
-            display: none; /* Esconde por padrão */
+            display: none;
             opacity: 0;
-            transition: opacity 0.3s ease-in-out; /* Add transition for fade */
+            transition: opacity 0.3s ease-in-out;
          }
         .admin-section.active-section {
-            display: block; /* Mostra ativa */
-            opacity: 1; /* Make it visible */
-            animation: fadeIn 0.3s; /* Optional: Keep fade-in animation if desired */
+            display: block;
+            opacity: 1;
+            animation: fadeIn 0.3s;
          }
 
          @keyframes fadeIn {
@@ -29,14 +28,13 @@
              to { opacity: 1; }
          }
 
-         /* Estilos dos inputs e textareas do admin para consistência */
         .admin-input, .admin-textarea, .settings-input, .settings-textarea {
             width: 100%;
-            padding: 10px 12px; /* Aumenta um pouco o padding */
-            margin-bottom: 10px; /* Adiciona espaço abaixo */
+            padding: 10px 12px;
+            margin-bottom: 10px;
             border: 1px solid var(--color-border-light);
             border-radius: var(--border-radius-base);
-            background-color: var(--color-background); /* Fundo mais escuro */
+            background-color: var(--color-background);
             color: var(--color-text-main);
             font-family: var(--font-body);
             font-size: 0.95em;
@@ -45,115 +43,58 @@
         }
         .admin-input:focus, .admin-textarea:focus, .settings-input:focus, .settings-textarea:focus {
             border-color: var(--color-accent);
-            background-color: #2d3748; /* Ligeiramente mais claro no foco */
+            background-color: #2d3748;
             outline: none;
         }
-        .settings-textarea, .admin-textarea {
-            min-height: 80px; /* Altura mínima para textareas */
-            resize: vertical; /* Permite redimensionar verticalmente */
+
+        /* Estilização Nova e Elegante para os Dropdowns do Discord */
+        select.settings-input {
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="292.4" height="292.4"><path fill="%23a0aec0" d="M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.4-12.8z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 15px top 50%;
+            background-size: 12px auto;
+            padding-right: 40px;
+            cursor: pointer;
         }
-         /* Melhora espaçamento dos form-groups */
+        select.settings-input option {
+            background-color: var(--color-card-background);
+            color: var(--color-text-main);
+            padding: 10px;
+        }
+
+        .settings-textarea, .admin-textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
         .form-group {
              margin-bottom: 15px;
         }
 
-        /* <<< INÍCIO CSS: Layout Corrigido para Nomes de Canais/Cargos >>> */
-        
-        /* Define o grid com 3 colunas: Label, ID Input, Name Span */
+        /* Grid Limpo (Como do início, desfazendo o improviso do Span) */
         #settings-form .form-grid {
             display: grid;
-            /* Colunas: 
-               1. (Label): Tamanho automático
-               2. (ID Input): 1 fração do espaço (flexível)
-               3. (Name Span): 1 fração do espaço (flexível)
-            */
-            grid-template-columns: auto 1fr 1fr;
-            gap: 10px 15px; /* 10px vertical, 15px horizontal */
-            align-items: center; /* Alinha verticalmente label, input e span */
-        }
-
-        /* Faz a Label ocupar a primeira coluna */
-        .form-group label {
-            grid-column: 1 / 2;
-            margin-bottom: 0; /* Remove margem que estava no .form-group */
-            text-align: right; /* Alinha a label à direita para ficar perto do input */
-            padding-right: 10px; /* Espaço entre label e input */
-            font-size: 0.9em;
-            color: var(--color-text-secondary);
-        }
-
-        /* Faz o Input de ID ocupar a segunda coluna */
-        .form-group .settings-input {
-            grid-column: 2 / 3;
-            margin-bottom: 0; /* Remove margem */
-            font-family: monospace;
-        }
-        
-        /* Faz o Span de Nome ocupar a terceira coluna */
-        .form-group .setting-id-name {
-            grid-column: 3 / 4;
-            font-size: 0.9em;
-            color: var(--color-text-secondary);
-            background-color: rgba(0,0,0,0.2);
-            padding: 8px 12px;
-            border-radius: var(--border-radius-base);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            border: 1px solid var(--color-border);
-            box-sizing: border-box;
-            height: 39px; /* Altura fixa para alinhar com o input */
-            line-height: 21px; /* Ajusta o texto verticalmente */
-        }
-
-        /* Faz campos que não têm nome (como maintenance_message) ocupar o grid todo */
-        .form-group.full-width {
-            grid-column: 1 / -1; /* Ocupa todas as 3 colunas */
-        }
-        .form-group.full-width label {
-            grid-column: 1 / -1;
-            text-align: left; /* Alinha à esquerda */
-            padding-right: 0;
-            margin-bottom: 5px; /* Adiciona margem de volta */
-        }
-        .form-group.full-width .settings-textarea,
-        .form-group.full-width .settings-input {
-            grid-column: 1 / -1;
-            margin-bottom: 0; /* Remove margem */
-        }
-
-        /* Remove o wrapper flex que eu tinha adicionado antes */
-        .setting-id-wrapper {
-             /* Não é mais display: flex, agora é parte do grid */
-             display: contents; /* Faz o wrapper "desaparecer" e seus filhos entrarem no grid */
-        }
-        /* <<< FIM CSS >>> */
-
-        /* <<< INÍCIO CSS: Estilo Watchlist >>> */
-        #admin-watchlist .table-container-admin {
-            max-height: 450px; /* Aumenta a altura de 200px para 450px */
-        }
-        #admin-watchlist table {
-            font-size: 0.95em; /* Aumenta a fonte de 0.85em para 0.95em */
-        }
-        /* Filtros da Watchlist */
-        .watchlist-filters {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
             margin-bottom: 15px;
-            padding: 10px;
-            background-color: rgba(74, 85, 104, 0.1);
-            border-radius: var(--border-radius-base);
         }
-        .watchlist-filters input[type="text"] {
-            flex-grow: 1;
-            min-width: 200px;
-            /* Reutiliza a classe 'admin-input' mas remove a margem de baixo */
-            margin-bottom: 0; 
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            color: var(--color-text-secondary);
+            text-align: left;
         }
-        /* <<< FIM CSS >>> */
 
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* Watchlist */
+        #admin-watchlist .table-container-admin { max-height: 450px; }
+        #admin-watchlist table { font-size: 0.95em; }
+        .watchlist-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
+        .watchlist-filters input[type="text"] { flex-grow: 1; min-width: 200px; margin-bottom: 0; }
     </style>
 </head>
 <body class="admin-page">
@@ -165,10 +106,8 @@
                 <a href="/admin/logout" class="logout-btn">Sair</a>
             </div>
 
-            <!-- Navegação por Abas -->
             <nav class="admin-nav">
                 <ul>
-                    <!-- Links agora usam # como href mas confiam no data-section -->
                     <li><a href="#" class="nav-link" data-section="admin-geral">Geral</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-diagnostico">Diagnóstico</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-configuracoes">Configurações</a></li>
@@ -179,7 +118,6 @@
             </nav>
 
             <div class="admin-sections-wrapper">
-                <!-- Seção Geral -->
                 <div id="admin-geral" class="admin-section">
                     <div class="control-section">
                         <h3>Controles Gerais</h3>
@@ -196,11 +134,9 @@
                          <h3>Informações do Sistema</h3>
                          <p><strong>Versão do Bot:</strong> <span id="bot-version-text">-</span></p>
                     </div>
-                     <!-- Feedback global para ações gerais -->
                      <p id="geral-feedback" class="feedback-text" style="margin-top: 15px;"></p>
                 </div>
 
-                <!-- Seção Diagnóstico -->
                 <div id="admin-diagnostico" class="admin-section">
                     <div class="control-section">
                         <h3>Diagnóstico do Sistema</h3>
@@ -216,140 +152,88 @@
                     </div>
                 </div>
 
-                <!-- Seção Configurações -->
                 <div id="admin-configuracoes" class="admin-section">
                     <div class="control-section">
-                        <h3>Gerenciamento de Configurações</h3>
+                        <h3>Gerenciamento de Configurações do Discord</h3>
+                        <p class="control-description" style="margin-top:0; margin-bottom: 20px;">
+                            Selecione os canais e cargos diretamente do seu servidor do Discord.
+                        </p>
                         <form id="settings-form">
-                            <h4>Canais e Cargos (IDs Numéricos)</h4>
-                            
-                            <!-- <<< INÍCIO ALTERAÇÃO HTML: Reestrutura o grid >>> -->
+                            <h4>Canais de Texto</h4>
                             <div class="form-grid">
-                                
-                                <!-- Canal Logs Principal -->
                                 <div class="form-group">
-                                    <label for="channel_id">Canal Logs Principal</label>
-                                    <div class="setting-id-wrapper"> <!-- Este wrapper agora é display: contents -->
-                                        <input type="text" id="channel_id" name="channel_id" class="settings-input">
-                                        <span class="setting-id-name" id="channel_id_name">...</span>
-                                    </div>
+                                    <label for="channel_id">Canal de Logs Principal (Bot)</label>
+                                    <select id="channel_id" name="channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
-                                
-                                <!-- Canal Análise Pós-Guerra -->
                                 <div class="form-group">
-                                    <label for="post_war_analysis_channel_id">Canal Análise Pós-Guerra</label>
-                                    <div class="setting-id-wrapper">
-                                        <input type="text" id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input">
-                                        <span class="setting-id-name" id="post_war_analysis_channel_id_name">...</span>
-                                    </div>
+                                    <label for="post_war_analysis_channel_id">Canal: Relatórios de Guerra</label>
+                                    <select id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
-                                
-                                <!-- Canal Jogos do Clã -->
                                 <div class="form-group">
-                                    <label for="clan_games_channel_id">Canal Jogos do Clã</label>
-                                    <div class="setting-id-wrapper">
-                                        <input type="text" id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input">
-                                        <span class="setting-id-name" id="clan_games_channel_id_name">...</span>
-                                    </div>
+                                    <label for="clan_games_channel_id">Canal: Jogos do Clã</label>
+                                    <select id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
-                                
-                                <!-- Canal Planejador CWL -->
-                                 <div class="form-group">
-                                    <label for="cwl_planner_channel_id">Canal Planejador CWL</label>
-                                    <div class="setting-id-wrapper">
-                                        <input type="text" id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input">
-                                        <span class="setting-id-name" id="cwl_planner_channel_id_name">...</span>
-                                    </div>
-                                </div>
-                                
-                                <!-- Canal Rel. Doações -->
                                 <div class="form-group">
-                                    <label for="donations_channel_id">Canal Rel. Doações</label>
-                                    <div class="setting-id-wrapper">
-                                        <input type="text" id="donations_channel_id" name="donations_channel_id" class="settings-input">
-                                        <span class="setting-id-name" id="donations_channel_id_name">...</span>
-                                    </div>
+                                    <label for="cwl_planner_channel_id">Canal: Ligas de Guerra (CWL)</label>
+                                    <select id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
-                                
-                                <!-- Canal Alerta Watchlist -->
                                 <div class="form-group">
-                                     <label for="watchlist_alert_channel_id">Canal Alerta Watchlist</label>
-                                     <div class="setting-id-wrapper">
-                                         <input type="text" id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input">
-                                         <span class="setting-id-name" id="watchlist_alert_channel_id_name">...</span>
-                                    </div>
+                                    <label for="donations_channel_id">Canal: Doações (Logs)</label>
+                                    <select id="donations_channel_id" name="donations_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
-                                
-                                <!-- Cargo Alerta 1 Estrela -->
                                 <div class="form-group">
-                                    <label for="role_id_1star_alert">Cargo Alerta 1 Estrela</label>
-                                    <div class="setting-id-wrapper">
-                                        <input type="text" id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input">
-                                        <span class="setting-id-name" id="role_id_1star_alert_name">...</span>
-                                    </div>
+                                     <label for="watchlist_alert_channel_id">Canal: Alertas da Watchlist</label>
+                                     <select id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
-                                
-                                <!-- Cargo Ataque Perdido -->
+                            </div>
+                            
+                            <h4>Cargos (Roles)</h4>
+                            <div class="form-grid">
                                 <div class="form-group">
-                                    <label for="role_id_missed_attack">Cargo Ataque Perdido</label>
-                                    <div class="setting-id-wrapper">
-                                        <input type="text" id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input">
-                                        <span class="setting-id-name" id="role_id_missed_attack_name">...</span>
-                                    </div>
+                                    <label for="role_id_1star_alert">Cargo (Aviso): Fazer 1 Estrela</label>
+                                    <select id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input"><option value="0">Carregando cargos...</option></select>
                                 </div>
-                                
-                                <!-- Cargo Líder (Watchlist) -->
                                 <div class="form-group">
-                                    <label for="leader_role_id">Cargo Líder (Watchlist)</label>
-                                    <div class="setting-id-wrapper">
-                                        <input type="text" id="leader_role_id" name="leader_role_id" class="settings-input">
-                                        <span class="setting-id-name" id="leader_role_id_name">...</span>
-                                    </div>
+                                    <label for="role_id_missed_attack">Cargo (Aviso): Esquecer de Atacar</label>
+                                    <select id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input"><option value="0">Carregando cargos...</option></select>
                                 </div>
-                                
-                                <!-- Cargo Co-líder (Watchlist) -->
-                                 <div class="form-group">
-                                    <label for="coleader_role_id">Cargo Co-líder (Watchlist)</label>
-                                    <div class="setting-id-wrapper">
-                                        <input type="text" id="coleader_role_id" name="coleader_role_id" class="settings-input">
-                                        <span class="setting-id-name" id="coleader_role_id_name">...</span>
-                                    </div>
+                                <div class="form-group">
+                                    <label for="leader_role_id">Cargo Liderança: Líder (Acesso Root)</label>
+                                    <select id="leader_role_id" name="leader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select>
                                 </div>
+                                <div class="form-group">
+                                    <label for="coleader_role_id">Cargo Liderança: Co-Líder</label>
+                                    <select id="coleader_role_id" name="coleader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select>
+                                </div>
+                            </div>
 
-                                <!-- Mensagem de Manutenção (full-width) -->
-                                <div class="form-group full-width">
-                                    <label for="maintenance_message">Mensagem de Manutenção</label>
-                                    <textarea id="maintenance_message" name="maintenance_message" rows="3" class="settings-textarea"></textarea>
-                                </div>
-                                
-                                <!-- Watchlist Auto-add (full-width) -->
+                            <h4>Avisos e Funções</h4>
+                            <div class="form-grid">
                                  <div class="form-group full-width">
-                                    <label for="auto_add_watchlist_enabled">Adicionar Automaticamente à Watchlist (Ataques Perdidos)</label>
-                                    <select id="auto_add_watchlist_enabled" name="auto_add_watchlist_enabled" class="settings-input" style="width: auto;"> <!-- Estilo para não ocupar 100% -->
-                                        <option value="true">Sim</option>
-                                        <option value="false">Não</option>
+                                    <label for="auto_add_watchlist_enabled">Vigiar jogadores automaticamente após erro na Guerra?</label>
+                                    <select id="auto_add_watchlist_enabled" name="auto_add_watchlist_enabled" class="settings-input" style="width: 250px;">
+                                        <option value="true">Ativado (Sim)</option>
+                                        <option value="false">Desativado (Não)</option>
                                     </select>
                                  </div>
+                                <div class="form-group full-width">
+                                    <label for="maintenance_message">Mensagem de Manutenção exibida no site</label>
+                                    <textarea id="maintenance_message" name="maintenance_message" rows="3" class="settings-textarea"></textarea>
+                                </div>
                             </div>
-                            <!-- <<< FIM ALTERAÇÃO HTML >>> -->
-                            
-                            <h4>Outras Configurações</h4>
-                            <!-- Campos movidos para dentro do grid acima -->
                              
-                            <button type="submit" class="control-btn">Salvar Configurações</button>
-                            <p id="settings-feedback" class="feedback-text"></p>
+                            <button type="submit" class="control-btn" style="width: 100%;">Salvar Configurações</button>
+                            <p id="settings-feedback" class="feedback-text" style="text-align: center;"></p>
                         </form>
                     </div>
                 </div>
 
-                <!-- Seção Watchlist -->
-                 <div id="admin-watchlist" class="admin-section">
+                <div id="admin-watchlist" class="admin-section">
                      <div class="control-section">
                         <h3>Gerenciar Lista de Observação (Watchlist)</h3>
                         <form id="admin-add-watchlist-form">
                             <h4>Adicionar Jogador</h4>
-                            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;"> <!-- Aplica grid de 3 colunas aqui também -->
-                                <div class="form-group" style="grid-column: 1 / 2;">
+                            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;"> <div class="form-group" style="grid-column: 1 / 2;">
                                     <label for="watchlist-player-tag">Tag do Jogador</label>
                                     <input type="text" id="watchlist-player-tag" name="player_tag" class="admin-input" required placeholder="#ABC123XYZ">
                                 </div>
@@ -362,8 +246,7 @@
                                     <input type="text" id="watchlist-reason" name="reason" class="admin-input" required placeholder="Ex: Não atacou na guerra">
                                 </div>
                             </div>
-                             <div class="form-group full-width"> <!-- Usa full-width para detalhes -->
-                                <label for="watchlist-details">Detalhes (Opcional)</label>
+                             <div class="form-group full-width"> <label for="watchlist-details">Detalhes (Opcional)</label>
                                 <textarea id="watchlist-details" name="details" rows="2" class="admin-textarea" placeholder="Ex: Guerra vs Tropa XYZ em 15/10/2025"></textarea>
                             </div>
                             <button type="submit" class="control-btn">Adicionar à Lista</button>
@@ -372,12 +255,10 @@
                         
                         <h4 style="margin-top: 25px;">Jogadores na Lista</h4>
                         
-                        <!-- <<< INÍCIO DA ALTERAÇÃO (Filtros Watchlist) >>> -->
                         <div class="watchlist-filters">
                             <input type="text" id="watchlist-filter-name" class="admin-input" placeholder="Filtrar por Nome...">
                             <input type="text" id="watchlist-filter-tag" class="admin-input" placeholder="Filtrar por Tag...">
                         </div>
-                        <!-- <<< FIM DA ALTERAÇÃO >>> -->
 
                          <div class="table-container-admin">
                             <table id="admin-watchlist-table">
@@ -389,7 +270,6 @@
                     </div>
                 </div>
 
-                <!-- Seção Ações -->
                 <div id="admin-acoes" class="admin-section">
                     <div class="control-section">
                         <h3>Ações do Bot</h3>
@@ -425,7 +305,6 @@
                     </div>
                 </div>
 
-                <!-- Seção Base de Dados -->
                 <div id="admin-db" class="admin-section">
                      <div class="control-section">
                         <h3>Visualizador da Base de Dados (Últimos 5)</h3>
@@ -444,15 +323,11 @@
                             </table>
                         </div>
                          <p class="control-description">Exibe os registros mais recentes salvos no MongoDB.</p>
-                         <!-- Feedback específico para DB -->
                          <p id="db-feedback" class="feedback-text" style="margin-top: 15px;"></p>
                     </div>
                 </div>
-            </div> <!-- Fim admin-sections-wrapper -->
-        </div>
+            </div> </div>
     </div>
     <script src="/static/js/admin.js"></script>
 </body>
 </html>
-
-
