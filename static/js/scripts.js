@@ -102,6 +102,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterTHInput = document.getElementById('filterTH');
     const membersGridEl = document.getElementById('membersGrid');
 
+    // === ELEMENTOS DA CAPITAL ===
+    const capitalContentEl = document.getElementById('capitalContent');
+    const capStatusEl = document.getElementById('capStatus');
+    const capTotalLootEl = document.getElementById('capTotalLoot');
+    const capTotalAttacksEl = document.getElementById('capTotalAttacks');
+    const capDestroyedEl = document.getElementById('capDestroyed');
+    const capTopAttackersListEl = document.getElementById('capTopAttackersList');
+    const capZeroAttacksListEl = document.getElementById('capZeroAttacksList');
+    const capIncompleteAttacksListEl = document.getElementById('capIncompleteAttacksList');
+    const noCapitalMessageEl = document.getElementById('noCapitalMessage');
+
     const botVersionEl = document.getElementById('botVersion');
     const lastUpdatedEl = document.getElementById('lastUpdated');
 
@@ -333,7 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 activityChart.destroy();
                 activityChart = null; 
-                 console.log("Gráfico anterior destruído.");
             } catch(e) {
                  console.error("Erro ao destruir gráfico anterior:", e);
             }
@@ -341,7 +351,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const chartData = data.activity_chart_data;
         if (activityChartCanvas && chartData && chartData.labels && chartData.labels.length > 0 && chartData.donations && chartData.received) {
-            console.log("Tentando criar gráfico com dados:", chartData); 
             try {
                 const ctx = activityChartCanvas.getContext('2d');
                 if (!ctx) throw new Error("Não foi possível obter o contexto 2D do canvas."); 
@@ -364,7 +373,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         plugins: { legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } }
                     }
                 });
-                console.log("Gráfico de atividade criado com sucesso.");
             } catch (e) {
                 console.error("Erro detalhado ao criar gráfico de atividade:", e);
                 if (activityChartCanvas) {
@@ -375,14 +383,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.textAlign = 'center';
                         ctx.font = '14px Open Sans';
                         ctx.fillText('Erro ao renderizar o gráfico.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
-                         console.error("Canvas context was available, but chart creation failed.");
-                    } else {
-                         console.error("Falha ao obter contexto 2D para mensagem de erro no canvas.");
                     }
                 }
             }
         } else if (activityChartCanvas) {
-            console.warn("Dados de atividade insuficientes ou canvas não encontrado. Limpando área do gráfico.");
             try {
                 const ctx = activityChartCanvas.getContext('2d');
                 if (ctx) {
@@ -391,14 +395,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.textAlign = 'center';
                     ctx.font = '14px Open Sans';
                     ctx.fillText('Dados de atividade indisponíveis para o gráfico.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
-                } else {
-                     console.error("Não foi possível obter contexto 2D para limpar/mostrar mensagem no canvas.");
                 }
-            } catch(e) {
-                 console.error("Erro ao tentar limpar ou exibir mensagem no canvas:", e);
-            }
-        } else {
-             console.error("Elemento canvas 'activityChart' não encontrado no DOM.");
+            } catch(e) {}
         }
     }
 
@@ -613,7 +611,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         setupAdvisorUI(data);
     }
-
 
     function populateMissedAttacksHistory(data) {
         if(attacksRemainingTitleEl?.querySelector('span')) setText(attacksRemainingTitleEl.querySelector('span'), data?.clan_name || 'Clã');
@@ -849,6 +846,64 @@ document.addEventListener('DOMContentLoaded', () => {
             </tr>`).join(''));
     }
 
+    // === NOVA FUNÇÃO: POPULA A CAPITAL ===
+    function populateCapitalData(data) {
+        if (!capitalContentEl) return;
+
+        if (!data || data.error || !data.raid) {
+            if (noCapitalMessageEl) {
+                noCapitalMessageEl.style.display = 'block';
+                setText(noCapitalMessageEl, data?.error || "Dados da Capital indisponíveis.");
+            }
+            capitalContentEl.style.display = 'none';
+            return;
+        }
+
+        if (noCapitalMessageEl) noCapitalMessageEl.style.display = 'none';
+        capitalContentEl.style.display = 'block';
+
+        const raid = data.raid;
+        const members = data.members || [];
+
+        const statusPt = raid.state === "ongoing" ? "Em Andamento" : "Finalizada";
+        setText(capStatusEl, statusPt);
+        if(capStatusEl) capStatusEl.className = `status-badge ${raid.state === "ongoing" ? 'status-warning' : 'status-success'}`;
+        
+        setText(capTotalLootEl, '🪙 ' + (raid.total_loot?.toLocaleString() || '0'));
+        setText(capTotalAttacksEl, raid.total_attacks || '0');
+        setText(capDestroyedEl, raid.destroyed_districts || '0');
+
+        const topAttackers = members.slice(0, 5);
+        const zeroAttacks = members.filter(m => m.attacks === 0);
+        const incompleteAttacks = members.filter(m => m.attacks > 0 && m.attacks < m.limit);
+
+        if (capTopAttackersListEl) {
+            const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
+            setHtml(capTopAttackersListEl, topAttackers.length > 0 && topAttackers[0].attacks > 0 ? topAttackers.map((m, i) => `
+                <div class="podium-item ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">
+                    <span class="podium-rank">${medals[i] || `${i+1}.`}</span>
+                    <div class="podium-details">
+                        <div class="member-name">${m.name}</div>
+                        <div class="donation-count"><strong>🪙 ${m.looted.toLocaleString()}</strong> ouro (Ataques: ${m.attacks}/${m.limit})</div>
+                    </div>
+                </div>
+            `).join('') : '<p>Nenhum ataque registrado ainda.</p>');
+        }
+
+        if (capZeroAttacksListEl) {
+            setHtml(capZeroAttacksListEl, zeroAttacks.length > 0 ? zeroAttacks.map(m => `
+                <p>🔴 <strong>${m.name}</strong></p>
+            `).join('') : '<p style="color: var(--color-success); font-weight: bold;">Incrível! Todos do clã atacaram.</p>');
+        }
+
+        if (capIncompleteAttacksListEl) {
+            setHtml(capIncompleteAttacksListEl, incompleteAttacks.length > 0 ? incompleteAttacks.map(m => `
+                <p>🟡 <strong>${m.name}</strong>: Fez ${m.attacks} de ${m.limit}</p>
+            `).join('') : '<p>Nenhum ataque incompleto.</p>');
+        }
+    }
+
+
     async function savePlayerNote(playerTag, text, priority) {
         try {
             await fetchData(`notes/${encodeURIComponent(playerTag)}`, {
@@ -940,7 +995,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Modo Somente Leitura: Listeners de edição de membros desativados.");
             return;
         }
-        console.log("Modo Admin: Listeners de edição de membros ATIVADOS.");
 
         membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
             header.replaceWith(header.cloneNode(true)); 
@@ -1032,24 +1086,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function applyMemberFilters() {
-        const nameFilter = filterNameInput?.value?.toLowerCase() || '';
-        const thFilter = filterTHInput?.value || '';
-        document.querySelectorAll('.member-card').forEach(card => {
-            const name = card.dataset.name || '';
-            const th = card.dataset.th || '';
-            const nameMatch = name.includes(nameFilter);
-            const thMatch = !thFilter || th === thFilter;
-            card.style.display = (nameMatch && thMatch) ? 'flex' : 'none';
-        });
-    }
-
-    filterNameInput?.addEventListener('input', applyMemberFilters); 
-    filterTHInput?.addEventListener('input', applyMemberFilters);
-
-    // =========================================================================
-    // >>> LÓGICA ATUALIZADA DO MODAL DE PERFIL DO JOGADOR (COM HITRATE) <<<
-    // =========================================================================
     async function openMemberProfileModal(playerTag) {
         if (!playerTag || !memberProfileModal || !memberProfileContent) return;
         
@@ -1108,7 +1144,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span style="color: ${cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)'}; font-weight:bold;">${cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas'}</span>
             </div>`;
 
-        // LÓGICA DO CARTÃO DE BATALHA (HITRATE)
         const hitrate = profileData.hitrate || { total_wars: 0, attacks_made: 0, attacks_missed: 0, total_stars: 0, three_star_attacks: 0, avg_destruction: 0 };
         const totalPossiveis = hitrate.attacks_made + hitrate.attacks_missed;
         const txParticipacao = totalPossiveis > 0 ? Math.round((hitrate.attacks_made / totalPossiveis) * 100) : 0;
@@ -1228,91 +1263,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    async function openHistoricWarModal(warId) {
-        if (!warId || !historicWarModal || !historicWarDetailContent) return;
-        setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar detalhes da guerra...</p>');
-        historicWarModal.style.display = 'block';
-
-        const historicWarData = await fetchData(`war_history/${encodeURIComponent(warId)}`);
-
-        const template = document.getElementById('historic-war-template');
-        if (!template) {
-            setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro: Template do modal não encontrado.</p>');
-            return;
-        }
-
-        historicWarDetailContent.innerHTML = ''; 
-        try {
-            const warDetailsContent = template.content.cloneNode(true);
-            historicWarDetailContent.appendChild(warDetailsContent);
-        } catch (e) {
-            setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro ao clonar template.</p>');
-            console.error("Template clone error:", e);
-            return;
-        }
-
-        historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
-            button.addEventListener('click', () => {
-                const modalContentEl = button.closest('.modal-content');
-                if(!modalContentEl) return;
-                modalContentEl.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
-                button.classList.add('active');
-                const tabId = `historic-${button.dataset.tab}`;
-                modalContentEl.querySelectorAll('.war-tab-content').forEach(content => {
-                    content.style.display = content.id === tabId ? 'block' : 'none';
-                });
-            });
-        });
-
-        populateWarDetails(historicWarData, 'historicWarDetailContent', true);
-    }
-
-
-    warTabButtons.forEach(button => {
-        button?.addEventListener('click', () => { 
-            const parentSection = button.closest('.content-section');
-            if (!parentSection) return;
-            parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            const tabId = button.dataset.tab;
-            parentSection.querySelectorAll('.war-tab-content').forEach(content => {
-                content.style.display = content.id === tabId ? 'block' : 'none';
-            });
-        });
-    });
-
     async function loadAllData() {
         try {
             const statusData = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true, is_admin: false }).catch(() => ({ maintenance_mode: true, is_admin: false }));
             userIsAdmin = statusData.is_admin || false; 
-            console.log(`Status Admin: ${userIsAdmin}`); 
 
             const clanData = await fetchData('clan');
             populateClanInfo(clanData);
 
             if (clanData?.error && isFirstLoad) { 
                 if(loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
-                console.error("Erro inicial ao carregar dados do clã, parando carregamento:", clanData.error);
                 return; 
             }
             
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
-                warLogData, cwlInfoData, highlightsData, warAdvisorData
+                warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData
             ] = await Promise.all([
                 fetchData('members'), fetchData('current_war_details'), fetchData('missed_attacks_history'),
-                fetchData('war_log'), 
-                fetchData('cwl/generate_plan', { method: 'POST' }), 
-                fetchData('highlights'), fetchData('war_advisor_plan')
+                fetchData('war_log'), fetchData('cwl/generate_plan', { method: 'POST' }), 
+                fetchData('highlights'), fetchData('war_advisor_plan'), fetchData('capital')
             ]);
 
-            if (membersData && !membersData.error) populateMembersList(membersData); else console.error("Erro ao carregar membros:", membersData?.error);
-            if (currentWarDetailsData) populateWarDetails(currentWarDetailsData, 'war-details-nav', false); else console.error("Erro ao carregar detalhes da guerra atual:", currentWarDetailsData?.error);
-            if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); else console.error("Erro ao carregar plano da IA:", warAdvisorData?.error);
-            if (missedAttacksData && !missedAttacksData.error) populateMissedAttacksHistory(missedAttacksData); else console.error("Erro ao carregar histórico de ataques perdidos:", missedAttacksData?.error);
-            if (warLogData && !warLogData.error) populateWarLog(warLogData); else console.error("Erro ao carregar log de guerra:", warLogData?.error);
-            if (cwlInfoData) populateCwlData(cwlInfoData); else console.error("Erro ao carregar informações da CWL:", cwlInfoData?.error); 
-            if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); else console.error("Erro ao carregar destaques:", highlightsData?.error);
+            if (membersData && !membersData.error) populateMembersList(membersData);
+            if (currentWarDetailsData) populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
+            if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); 
+            if (missedAttacksData && !missedAttacksData.error) populateMissedAttacksHistory(missedAttacksData);
+            if (warLogData && !warLogData.error) populateWarLog(warLogData);
+            if (cwlInfoData) populateCwlData(cwlInfoData); 
+            if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); 
+            if (capitalData) populateCapitalData(capitalData);
 
             updateLastUpdated();
         } catch (error) {
@@ -1357,15 +1337,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function checkApiMaintenance() {
         try {
             const response = await fetch(`${API_BASE_URL}/api/coc_status`, { cache: 'no-store' });
-            if (!response.ok) { console.error('Falha ao buscar status da API.'); return; }
+            if (!response.ok) { return; }
             const data = await response.json();
             if (data.status === 'maintenance') {
-                console.warn('API em manutenção. Redirecionando...');
                 if (!window.location.pathname.endsWith('/maintenance.html') && !window.location.pathname.endsWith('/maintenance')) {
                     window.location.href = '/maintenance'; 
                 }
             } else if (data.status === 'ok' && (window.location.pathname.endsWith('/maintenance.html') || window.location.pathname.endsWith('/maintenance'))) {
-                console.info('API voltou. Redirecionando para o painel...');
                 window.location.href = '/painel';
             }
         } catch (error) { console.error('Erro ao verificar status de manutenção:', error); }
