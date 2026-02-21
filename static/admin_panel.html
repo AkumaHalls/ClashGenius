@@ -71,7 +71,6 @@
              margin-bottom: 15px;
         }
 
-        /* Grid Limpo (Como do início, desfazendo o improviso do Span) */
         #settings-form .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -159,38 +158,38 @@
                             Selecione os canais e cargos diretamente do seu servidor do Discord.
                         </p>
                         <form id="settings-form">
-                            <h4>Canais de Texto</h4>
+                            <h4>Arquitetura de Canais (Setores)</h4>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label for="channel_id">Canal de Logs Principal (Bot)</label>
+                                    <label for="channel_id">📝 Canal: Logs Gerais (Troféus, Ligas, Status API)</label>
                                     <select id="channel_id" name="channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="post_war_analysis_channel_id">Canal: Relatórios de Guerra</label>
+                                    <label for="post_war_analysis_channel_id">🛡️ Canal: Alertas de Guerra (Ataques, Resultados, Fails)</label>
                                     <select id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="clan_games_channel_id">Canal: Jogos do Clã</label>
+                                     <label for="watchlist_alert_channel_id">👥 Canal: RH do Clã (Entradas, Saídas, Cargos, Watchlist)</label>
+                                     <select id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clan_games_channel_id">🏰 Canal: Eventos Secundários (Capital e Jogos do Clã)</label>
                                     <select id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="cwl_planner_channel_id">Canal: Ligas de Guerra (CWL)</label>
+                                    <label for="cwl_planner_channel_id">🔮 Canal: Cérebro CWL (Planejamento Tático)</label>
                                     <select id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="donations_channel_id">Canal: Doações (Logs)</label>
+                                    <label for="donations_channel_id">🎁 Canal: Notificações de Doação (Pode desativar)</label>
                                     <select id="donations_channel_id" name="donations_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
-                                <div class="form-group">
-                                     <label for="watchlist_alert_channel_id">Canal: Alertas da Watchlist</label>
-                                     <select id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
                             </div>
                             
                             <h4>Cargos (Roles)</h4>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label for="role_id_1star_alert">Cargo (Aviso): Fazer 1 Estrela</label>
+                                    <label for="role_id_1star_alert">Cargo (Aviso): Fazer apenas 1 Estrela</label>
                                     <select id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input"><option value="0">Carregando cargos...</option></select>
                                 </div>
                                 <div class="form-group">
@@ -198,7 +197,7 @@
                                     <select id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input"><option value="0">Carregando cargos...</option></select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="leader_role_id">Cargo Liderança: Líder (Acesso Root)</label>
+                                    <label for="leader_role_id">Cargo Liderança: Líder (Acesso Root ao Bot)</label>
                                     <select id="leader_role_id" name="leader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select>
                                 </div>
                                 <div class="form-group">
@@ -210,14 +209,14 @@
                             <h4>Avisos e Funções</h4>
                             <div class="form-grid">
                                  <div class="form-group full-width">
-                                    <label for="auto_add_watchlist_enabled">Vigiar jogadores automaticamente após erro na Guerra?</label>
+                                    <label for="auto_add_watchlist_enabled">Vigiar jogadores automaticamente após esquecer ataque na Guerra?</label>
                                     <select id="auto_add_watchlist_enabled" name="auto_add_watchlist_enabled" class="settings-input" style="width: 250px;">
                                         <option value="true">Ativado (Sim)</option>
                                         <option value="false">Desativado (Não)</option>
                                     </select>
                                  </div>
                                 <div class="form-group full-width">
-                                    <label for="maintenance_message">Mensagem de Manutenção exibida no site</label>
+                                    <label for="maintenance_message">Mensagem de Manutenção exibida no Painel Web</label>
                                     <textarea id="maintenance_message" name="maintenance_message" rows="3" class="settings-textarea"></textarea>
                                 </div>
                             </div>
