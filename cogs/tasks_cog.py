@@ -8,14 +8,11 @@ import datetime
 import pytz
 from typing import Dict, Any, Optional
 
-# Importa a função diretamente se ela for usada apenas aqui
 try:
     from cogs.post_war_analysis import create_post_war_analysis_embed
 except ImportError:
-    # Fallback ou log se necessário, mas idealmente a estrutura do projeto garante a importação
     create_post_war_analysis_embed = None
     logger.error("Falha ao importar create_post_war_analysis_embed de cogs.post_war_analysis")
-
 
 logger = logging.getLogger("tasks_cog")
 
@@ -26,33 +23,21 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         self.bot = bot
         self.db = bot.db
         self.last_prediction_sent_time = None
-        # REMOVIDO: self.watchlist_cog = None (Será obtido just-in-time)
         self.tasks_started = False
         logger.info("TasksCog __init__ concluído.")
 
     async def cog_load(self):
-        """Método chamado pelo discord.py após a Cog ser carregada."""
         logger.info("Iniciando cog_load para TasksCog...")
-        # REMOVIDO: Tentativa de obter watchlist_cog aqui
-        # self.watchlist_cog = self.bot.get_cog("Lista de Observação")
-        # if not self.watchlist_cog:
-        #     logger.error("WatchlistCog não encontrada em TasksCog! Adição automática desativada.")
-        #     self.watchlist_cog = None
-
         logger.info("cog_load para TasksCog concluído (tasks serão iniciadas após 'on_ready').")
-
 
     @commands.Cog.listener()
     async def on_ready(self):
-        """Inicia as tasks quando o bot estiver totalmente pronto."""
         if not self.tasks_started:
             logger.info("TasksCog: Evento on_ready recebido. Iniciando tasks...")
             try:
-                # Espera DB e CoC estarem prontos
                 await asyncio.wait_for(self.bot.db_ready.wait(), timeout=30.0)
-                await asyncio.wait_for(self.bot.coc_client_ready.wait(), timeout=60.0) # Aumenta timeout CoC
+                await asyncio.wait_for(self.bot.coc_client_ready.wait(), timeout=60.0) 
 
-                # Inicia as tasks
                 if not self.check_war_end_task.is_running(): self.check_war_end_task.start()
                 if not self.donation_snapshot_task.is_running(): self.donation_snapshot_task.start()
                 if not self.cleanup_old_snapshots_task.is_running(): self.cleanup_old_snapshots_task.start()
@@ -67,7 +52,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 
     def cog_unload(self):
-        """Para todas as tarefas quando o cog é descarregado."""
         logger.info("Descarregando TasksCog e cancelando tasks...")
         if self.check_war_end_task.is_running(): self.check_war_end_task.cancel()
         if self.donation_snapshot_task.is_running(): self.donation_snapshot_task.cancel()
@@ -79,7 +63,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     # --- Tarefas de Doações ---
     @tasks.loop(hours=1)
     async def donation_snapshot_task(self):
-       # (Código mantido igual)
         if self.bot.maintenance_mode or self.db is None: return
         logger.info("Executando snapshot de doações...")
         try:
@@ -98,7 +81,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
     @tasks.loop(hours=24)
     async def cleanup_old_snapshots_task(self):
-        # (Código mantido igual)
         if self.bot.maintenance_mode or self.db is None: return
         logger.info("Executando limpeza de snapshots antigos...")
         eight_days_ago = datetime.datetime.now(pytz.utc) - datetime.timedelta(days=8)
@@ -114,11 +96,10 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
     # --- Tarefa de Fim de Guerra ---
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
-        # (Código mantido igual)
         if self.bot.maintenance_mode: return
-        channel_id_to_use = target_channel_id or self.bot.channel_id
+        channel_id_to_use = target_channel_id if target_channel_id else self.bot.channel_id
         if not channel_id_to_use:
-            logger.warning(f"Tentativa de enviar embed, mas channel_id não configurado (target: {target_channel_id}, default: {self.bot.channel_id})")
+            logger.warning("Tentativa de enviar embed, mas channel_id não configurado.")
             return
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
@@ -133,7 +114,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
 
     def _get_war_id(self, war: coc.ClanWar) -> str:
-        # (Código mantido igual)
         if hasattr(war, 'tag') and war.tag and war.tag != '#0': return war.tag
         if hasattr(war, 'preparation_start_time') and war.preparation_start_time and hasattr(war.preparation_start_time, 'time'): return war.preparation_start_time.time.isoformat()
         if hasattr(war, 'end_time') and war.end_time and hasattr(war.end_time, 'time'): return war.end_time.time.isoformat()
@@ -159,7 +139,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 war_details_for_db = await web_api_cog.format_war_details_for_web(war)
                 if 'error' not in war_details_for_db:
                     await db_cog.save_war_to_history(war_details_for_db, war_id)
-                    # Verifica se a função de análise foi importada corretamente
                     if create_post_war_analysis_embed and self.bot.post_war_analysis_channel_id:
                         analysis_embed = create_post_war_analysis_embed(war_details_for_db)
                         if analysis_embed: await self._send_log_embed(analysis_embed, target_channel_id=self.bot.post_war_analysis_channel_id)
@@ -178,16 +157,16 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 embed.add_field(name="Jogadores com Ataques Pendentes", value="\n".join(missed_lines), inline=False)
                 if opponent_clan_in_war.badge: embed.set_thumbnail(url=opponent_clan_in_war.badge.url)
                 role_mention = f"<@&{self.bot.role_id_missed_attack}>" if self.bot.role_id_missed_attack else ""
-                await self._send_log_embed(embed, content=f"{role_mention} Atenção!", target_channel_id=self.bot.channel_id)
+                
+                # ENVIAR PARA SALA DE GUERRA
+                await self._send_log_embed(embed, content=f"{role_mention} Atenção!", target_channel_id=self.bot.post_war_analysis_channel_id)
 
-                # <<< MODIFICADO: Obtém watchlist_cog aqui >>>
                 watchlist_cog = self.bot.get_cog("Lista de Observação")
 
                 if watchlist_cog and self.bot.auto_add_watchlist_enabled:
                     logger.info(f"Adicionando {len(missed_members)} membros à watchlist automaticamente...")
                     for member in missed_members:
-                        # Chama método direto no cog obtido
-                        await watchlist_cog.add_to_watchlist( # Mudança: Usando add_to_watchlist genérico
+                        await watchlist_cog.add_to_watchlist( 
                             player_tag=member.tag,
                             player_name=member.name,
                             reason=f"{war.attacks_per_member - len(member.attacks)} ataque(s) perdido(s) vs {opponent_name}",
@@ -207,14 +186,12 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
 
     @tasks.loop(seconds=60.0)
     async def check_war_end_task(self):
-        # (Código mantido igual)
         if self.bot.maintenance_mode: return
         if not self.bot.api_client or not self.bot.coc_client_ready.is_set():
              logger.debug("check_war_end_task: Pulando execução - Cliente CoC não está pronto.")
              return
 
         wars_to_check = []
-        # ... (restante da lógica de busca de guerras mantida igual) ...
         try:
             current_war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
             if current_war:
@@ -238,7 +215,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                         except Exception as inner_e: logger.error(f"check_war_end_task: Erro ao buscar guerra CWL específica {war_tag}: {inner_e}")
         except coc.NotFound: logger.info("check_war_end_task: Nenhum grupo de CWL ativo encontrado.")
         except Exception as e: logger.error(f"check_war_end_task: Erro ao buscar grupo de CWL: {e}", exc_info=True)
-        # ... (restante da lógica de processamento mantida igual) ...
+        
         if not wars_to_check:
              logger.debug("check_war_end_task: Nenhuma guerra relevante encontrada para verificar.")
              return
@@ -278,11 +255,10 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @commands.has_permissions(administrator=True)
     async def sync_war(self, ctx: commands.Context):
         """(Admin) Força a execução da verificação de fim de guerra."""
-        # (Código mantido igual)
         await ctx.message.add_reaction("🔄")
         logger.info(f"Comando !syncwar invocado por {ctx.author.name}.")
         try:
-            await self.check_war_end_task.coro(self) # Chama a task diretamente
+            await self.check_war_end_task.coro(self) 
             await ctx.send("✅ Sincronização de fim de guerra forçada concluída.")
         except Exception as e:
             logger.error(f"Erro no comando !syncwar: {e}", exc_info=True)
@@ -295,7 +271,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     # --- Tarefa de Status da API ---
     @tasks.loop(minutes=1)
     async def check_api_status_task(self):
-        # (Código mantido igual)
         if self.bot.maintenance_mode or not self.bot.coc_client_ready.is_set():
             logger.debug("check_api_status_task: Pulando execução - Manutenção ou Cliente CoC não pronto.")
             return
@@ -316,7 +291,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                     embed_color=discord.Color.orange(); title="🚨 Alerta API Supercell 🚨"
                     description="Acesso à API Clash of Clans instável/manutenção."
                     impact="**Painel Web:** Indisponível.\n**Alertas Discord:** Podem ser afetados."
-                else: # ok
+                else: 
                     embed_color=discord.Color.green(); title="✅ API Supercell Operacional"
                     description="API Clash of Clans voltou ao normal."
                     impact="**Painel Web:** Acesso restaurado.\n**Alertas Discord:** Normais."
@@ -324,6 +299,8 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 embed = discord.Embed(title=title,description=description,color=embed_color)
                 embed.add_field(name="Motivo", value=status_message, inline=False)
                 embed.add_field(name="Impacto", value=impact, inline=False)
+                
+                # Envia para Logs Gerais (channel_id)
                 await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
                 self.bot.last_api_status = current_status
             else:
@@ -340,7 +317,6 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @check_api_status_task.before_loop
     async def before_tasks_start(self):
         """Espera o bot, DB e CoC estarem prontos antes de iniciar as tasks."""
-        # (Código mantido igual)
         logger.debug(f"before_tasks_start: Aguardando on_ready...")
         await self.bot.wait_until_ready()
         logger.debug(f"before_tasks_start: Aguardando db_ready...")
@@ -350,13 +326,10 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         logger.debug(f"before_tasks_start: Todas as dependências prontas. Task pode iniciar.")
 
 
-# Função setup
 async def setup(bot: commands.Bot):
-     # (Código mantido igual)
      logger.info("Configurando TasksCog...")
      try:
          await bot.add_cog(TasksCog(bot))
          logger.info("TasksCog adicionado com sucesso.")
      except Exception as e:
          logger.critical(f"### ERRO FATAL AO ADICIONAR TASKSCOG ###: {e}", exc_info=True)
-
