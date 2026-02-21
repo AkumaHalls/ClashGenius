@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 30.3.2-Capital
+# Versão 30.3.7-RE
 
 import os
 import logging
@@ -64,8 +64,9 @@ WATCHLIST_ALERT_CHANNEL_ID = int(os.getenv("WATCHLIST_ALERT_CHANNEL_ID", 0))
 LEADER_ROLE_ID = int(os.getenv("LEADER_ROLE_ID", 0))
 COLEADER_ROLE_ID = int(os.getenv("COLEADER_ROLE_ID", 0))
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
+LOW_PERFORMANCE_CHANNEL_ID = int(os.getenv("LOW_PERFORMANCE_CHANNEL_ID", 0))
 
-BOT_VERSION = "30.3.2-Capital" 
+BOT_VERSION = "30.3.7-RE" 
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -86,6 +87,7 @@ class ClashGeniusBot(commands.Bot):
         self.leader_role_id = LEADER_ROLE_ID
         self.coleader_role_id = COLEADER_ROLE_ID
         self.auto_add_watchlist_enabled = AUTO_ADD_WATCHLIST_ENABLED
+        self.low_performance_channel_id = LOW_PERFORMANCE_CHANNEL_ID
         self.bot_version = BOT_VERSION
         self.timezone = TIMEZONE
         self.base_url = BASE_URL
@@ -135,8 +137,7 @@ class ClashGeniusBot(commands.Bot):
             self.loop.create_task(self.war_prediction_system.initialize_system())
 
             logger.info("--- Iniciando carregamento de Cogs ---")
-            # <<< ADICIONADO AQUI: 'capital_cog' >>>
-            cog_files = [ 'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog', 'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog', 'slash_cog', 'watchlist_cog', 'smurf_detection_cog', 'capital_cog' ]
+            cog_files = [ 'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog', 'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog', 'slash_cog', 'watchlist_cog', 'smurf_detection_cog', 'capital_cog', 'performance_cog' ]
             loaded_cogs_count = 0
             for cog_name in cog_files:
                 try:
@@ -172,6 +173,7 @@ class ClashGeniusBot(commands.Bot):
                 self.cwl_planner_channel_id = bot_settings.get("cwl_planner_channel_id", self.cwl_planner_channel_id)
                 self.donations_channel_id = bot_settings.get("donations_channel_id", self.donations_channel_id)
                 self.watchlist_alert_channel_id = bot_settings.get("watchlist_alert_channel_id", self.watchlist_alert_channel_id)
+                self.low_performance_channel_id = bot_settings.get("low_performance_channel_id", self.low_performance_channel_id)
                 self.role_id_1star_alert = bot_settings.get("role_id_1star_alert", self.role_id_1star_alert)
                 self.role_id_missed_attack = bot_settings.get("role_id_missed_attack", self.role_id_missed_attack)
                 self.leader_role_id = bot_settings.get("leader_role_id", self.leader_role_id)
@@ -270,7 +272,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     war_advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
     admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
     watchlist_cog = bot_instance.get_cog("Lista de Observação")
-    # <<< ADICIONADO AQUI TAMBÉM >>>
     capital_cog = bot_instance.get_cog("Monitoramento da Capital")
 
     required_cogs = [ web_api_cog, db_cog, profile_cog, cwl_cog, maintenance_cog, war_advisor_cog, admin_cog, watchlist_cog, capital_cog ]
@@ -311,8 +312,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_war_log_handler(r): return await handle_web_response(r, 'war_log', web_api_cog.fetch_war_log_for_web)
     async def api_cwl_info_handler(r): return await handle_web_response(r, 'cwl', web_api_cog.fetch_cwl_info_for_web)
     async def api_highlights_handler(r): return await handle_web_response(r, 'highlights', web_api_cog.fetch_highlights_for_web)
-    
-    # <<< NOVA ROTA DE API >>>
     async def api_capital_handler(r): return await handle_web_response(r, 'capital', capital_cog.fetch_capital_data_for_web)
     
     async def api_save_player_note_handler(request):
@@ -388,8 +387,6 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler); app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler);
     app.router.add_get("/api/coc_status", api_coc_status_handler); app.router.add_get("/api/status", admin_get_status_handler);
     app.router.add_get("/api/maintenance_message", api_maintenance_message); 
-    
-    # <<< NOVA ROTA MAPEADA AQUI: /api/capital >>>
     app.router.add_get("/api/capital", api_capital_handler);
 
     @web.middleware
