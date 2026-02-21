@@ -39,6 +39,7 @@
                     <li><a href="#war-details-nav" class="nav-link" data-section="war-details-nav">Guerra</a></li>
                     <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav">Ataques Pendentes</a></li>
                     <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav">CWL</a></li>
+                    <li><a href="#clan-games-nav" class="nav-link" data-section="clan-games-nav">Jogos</a></li>
                     <li><a href="#capital-nav" class="nav-link" data-section="capital-nav">Capital do Clã</a></li>
                     <li><a href="#war-log-nav" class="nav-link" data-section="war-log-nav">Histórico</a></li>
                     <li><a href="#members-list-nav" class="nav-link" data-section="members-list-nav">Membros</a></li>
@@ -255,6 +256,33 @@
                         <p id="cwlInactivityText">-</p>
                     </div>
                 </div>
+            </section>
+
+            <section id="clan-games-nav" class="card clan-games-card content-section">
+                <h2>🏅 Rastreador de Jogos do Clã</h2>
+                <div id="cgContent" style="display: none;">
+                    <div class="cg-progress-container">
+                        <div class="cg-progress-info">
+                            <span id="cgTotalPoints" class="cg-points">0</span> / <span id="cgMaxPoints">50,000</span> Pontos
+                        </div>
+                        <div class="cg-progress-bar-bg">
+                            <div id="cgProgressBar" class="cg-progress-bar-fill" style="width: 0%;"></div>
+                        </div>
+                        <p id="cgProgressText" class="cg-progress-text">0% Concluído</p>
+                    </div>
+
+                    <div class="grid-container" style="margin-top: 25px;">
+                        <div class="card" style="margin-bottom: 0;">
+                            <h3>🏆 Máquinas de Farm</h3>
+                            <div id="cgTopPlayersList" class="list-box scrollable-box" style="max-height: 400px; padding: 0;"></div>
+                        </div>
+                        <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--color-danger);">
+                            <h3 class="text-danger">🛑 0 Pontos (Parasitas)</h3>
+                            <div id="cgZeroPlayersList" class="list-box scrollable-box" style="max-height: 400px; padding: 0;"></div>
+                        </div>
+                    </div>
+                </div>
+                <p id="noClanGamesMessage" class="message-box" style="display: none;">Os Jogos do Clã não estão ativos no momento.</p>
             </section>
 
             <section id="capital-nav" class="card capital-card content-section">
