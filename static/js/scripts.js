@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!response.ok) {
                 if (response.status === 405) {
-                    console.error(`Erro 405 (Método Não Permitido) para ${endpoint}. O JS usou ${options.method || 'GET'}?`);
+                    console.error(`Erro 405 (Método Não Permitido) para ${endpoint}.`);
                 }
                 const errorData = await response.json().catch(() => ({ error: `Erro HTTP ${response.status}` }));
                 const errorMessage = errorData.error || errorData.message || `Falha ao carregar ${endpoint}.`;
@@ -835,18 +835,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none';
-        setHtml(warLogTableBodyEl, data.log.map(e => `
-            <tr class="historic-war-row" data-war-id="${e.war_id || ''}">
+        
+        // <<< FIX 2: Mapeamento blindado para o ID da guerra >>>
+        setHtml(warLogTableBodyEl, data.log.map(e => {
+            const warId = e.war_id || e.id || e._id || '';
+            return `
+            <tr class="historic-war-row" data-war-id="${warId}">
                 <td>${e.end_time_formatted || '?'}</td>
                 <td><img src="${e.opponent_badge_url || DEFAULT_BADGE_URL}" alt="Emblema" class="log-opponent-badge">${e.opponent_name || 'N/A'}</td>
                 <td>${e.clan_stars ?? '?'}⭐ vs ${e.opponent_stars ?? '?'}⭐</td>
                 <td class="war-result-${e.result?.toLowerCase() || 'unknown'}">${e.result || '?'}</td>
                 <td>${e.team_size || '?'}</td>
                 <td>${e.is_cwl ? "CWL" : "Normal"}</td>
-            </tr>`).join(''));
+            </tr>`;
+        }).join(''));
     }
 
-    // === NOVA FUNÇÃO: POPULA A CAPITAL ===
     function populateCapitalData(data) {
         if (!capitalContentEl) return;
 
@@ -902,6 +906,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('') : '<p>Nenhum ataque incompleto.</p>');
         }
     }
+
 
     async function savePlayerNote(playerTag, text, priority) {
         try {
@@ -988,7 +993,6 @@ document.addEventListener('DOMContentLoaded', () => {
         applyMemberFilters(); 
     }
 
-    // === FUNÇÃO DE FILTRO RECUPERADA ===
     function applyMemberFilters() {
         const nameFilter = filterNameInput?.value?.toLowerCase() || '';
         const thFilter = filterTHInput?.value || '';
@@ -1003,7 +1007,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     filterNameInput?.addEventListener('input', applyMemberFilters); 
     filterTHInput?.addEventListener('input', applyMemberFilters);
-    // ===================================
 
     function attachMemberEventListeners() {
         if (!userIsAdmin) {
@@ -1079,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.target.classList.add('active');
                 const success = await setPlayerCwlStatus(playerTag, newStatus);
                 if (!success) {
-                    alert('Erro ao salvar o status. Tente novamente.');
+                    alert('Erro ao salvar status. Tente novamente.');
                     e.target.classList.remove('active');
                     selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); 
                 }
@@ -1278,6 +1281,79 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+    async function openHistoricWarModal(warId) {
+        if (!warId || !historicWarModal || !historicWarDetailContent) return;
+        setHtml(historicWarDetailContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar detalhes da guerra...</p>');
+        historicWarModal.style.display = 'block';
+
+        const historicWarData = await fetchData(`war_history/${encodeURIComponent(warId)}`);
+
+        const template = document.getElementById('historic-war-template');
+        if (!template) {
+            setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro: Template do modal não encontrado.</p>');
+            return;
+        }
+
+        historicWarDetailContent.innerHTML = ''; 
+        try {
+            const warDetailsContent = template.content.cloneNode(true);
+            historicWarDetailContent.appendChild(warDetailsContent);
+        } catch (e) {
+            setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro ao clonar template.</p>');
+            console.error("Template clone error:", e);
+            return;
+        }
+
+        historicWarDetailContent.querySelectorAll('.war-tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const modalContentEl = button.closest('.modal-content');
+                if(!modalContentEl) return;
+                modalContentEl.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                const tabId = `historic-${button.dataset.tab}`;
+                modalContentEl.querySelectorAll('.war-tab-content').forEach(content => {
+                    content.style.display = content.id === tabId ? 'block' : 'none';
+                });
+            });
+        });
+
+        populateWarDetails(historicWarData, 'historicWarDetailContent', true);
+    }
+
+    // <<< FIX 1: RESTAURAÇÃO DO CÓDIGO DAS ABAS PRINCIPAIS DE GUERRA >>>
+    warTabButtons.forEach(button => {
+        button?.addEventListener('click', () => { 
+            const parentSection = button.closest('.content-section');
+            if (!parentSection) return;
+            parentSection.querySelectorAll('.war-tab-button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            const tabId = button.dataset.tab;
+            parentSection.querySelectorAll('.war-tab-content').forEach(content => {
+                content.style.display = content.id === tabId ? 'block' : 'none';
+            });
+        });
+    });
+
+    if (closeModalButton) closeModalButton.addEventListener('click', () => { if(historicWarModal) historicWarModal.style.display = 'none'; });
+    if (closeProfileModalButton) closeProfileModalButton.addEventListener('click', () => {
+        if(memberProfileModal) memberProfileModal.style.display = 'none';
+    });
+
+    window.addEventListener('click', (event) => {
+        if (event.target == historicWarModal && historicWarModal) historicWarModal.style.display = 'none';
+        if (event.target == memberProfileModal && memberProfileModal) {
+            memberProfileModal.style.display = 'none';
+        }
+    });
+
+    warLogTableBodyEl?.addEventListener('click', (event) => { 
+        const row = event.target.closest('.historic-war-row');
+        if (row && row.dataset.warId) {
+            openHistoricWarModal(row.dataset.warId);
+        }
+    });
+
+
     async function loadAllData() {
         try {
             const statusData = await fetch('/api/status').then(res => res.ok ? res.json() : { maintenance_mode: true, is_admin: false }).catch(() => ({ maintenance_mode: true, is_admin: false }));
@@ -1308,7 +1384,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cwlInfoData) populateCwlData(cwlInfoData); 
             if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); 
             
-            // POPULA A CAPITAL
             if (capitalData) populateCapitalData(capitalData);
 
             updateLastUpdated();
@@ -1327,26 +1402,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-
-
-    if (closeModalButton) closeModalButton.addEventListener('click', () => { if(historicWarModal) historicWarModal.style.display = 'none'; });
-    if (closeProfileModalButton) closeProfileModalButton.addEventListener('click', () => {
-        if(memberProfileModal) memberProfileModal.style.display = 'none';
-    });
-
-    window.addEventListener('click', (event) => {
-        if (event.target == historicWarModal && historicWarModal) historicWarModal.style.display = 'none';
-        if (event.target == memberProfileModal && memberProfileModal) {
-            memberProfileModal.style.display = 'none';
-        }
-    });
-
-    warLogTableBodyEl?.addEventListener('click', (event) => { 
-        const row = event.target.closest('.historic-war-row');
-        if (row && row.dataset.warId) {
-            openHistoricWarModal(row.dataset.warId);
-        }
-    });
 
     loadAllData();
     setInterval(loadAllData, 45000); 
