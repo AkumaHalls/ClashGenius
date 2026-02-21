@@ -12,7 +12,7 @@
 
 ---
 
-## 🌟 DESTAQUES DO PAINEL WEB
+## 🌟 DESTAQUES DO PAINEL WEB.
 
 🎯 **Interatividade Total** para você e seu clã:
 
