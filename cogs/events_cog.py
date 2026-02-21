@@ -81,9 +81,11 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             await self.events_client.close()
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None):
-        """Envia embeds de log de forma segura, evitando crash por Rate Limit (429)."""
-        channel_id_to_use = target_channel_id or self.bot.channel_id
+        """Envia embeds de log de forma segura para o canal especificado, com fallback para o canal geral."""
+        # Se o canal alvo não existir ou for 0, cai para o logs-gerais (channel_id)
+        channel_id_to_use = target_channel_id if target_channel_id else self.bot.channel_id
         if not channel_id_to_use: return
+        
         try:
             channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
             now_in_timezone = datetime.datetime.now(self.bot.timezone)
@@ -95,8 +97,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                 await channel.send(content=content, embed=embed_to_log)
             except discord.errors.HTTPException as e:
                 if e.status == 429:
-                    # Se tomar Rate Limit, APENAS LOGA e desiste dessa mensagem.
-                    # Tentar de novo (retry) em logs automáticos é perigoso e pode banir o IP.
                     logger.warning(f"Rate Limit (429) no canal de logs {channel_id_to_use}. Mensagem ignorada para proteção.")
                     return
                 else:
@@ -122,7 +122,9 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         embed.add_field(name="CV", value=member.town_hall, inline=True)
         if hasattr(member, 'league') and member.league and hasattr(member.league, 'name'):
             embed.add_field(name="Liga", value=member.league.name, inline=True)
-        await self._send_log_embed(embed)
+        
+        # Envia para a sala de RH
+        await self._send_log_embed(embed, target_channel_id=self.bot.watchlist_alert_channel_id)
 
     async def handle_clan_member_leave(self, member, clan):
         if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
@@ -130,7 +132,9 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         embed.add_field(name="CV", value=member.town_hall, inline=True)
         role_name = member.role.name.capitalize() if member.role and hasattr(member.role, 'name') else "N/A"
         embed.add_field(name="Cargo", value=role_name, inline=True)
-        await self._send_log_embed(embed)
+        
+        # Envia para a sala de RH
+        await self._send_log_embed(embed, target_channel_id=self.bot.watchlist_alert_channel_id)
 
     async def on_war_attack(self, attack, war):
         if self.bot.maintenance_mode: return
@@ -155,7 +159,9 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                 embed.add_field(name="Detalhes", value=f"{attacker_str} atacou {defender_str}", inline=False)
                 embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
                 if war.opponent.badge: embed.set_thumbnail(url=war.opponent.badge.url)
-                await self._send_log_embed(embed)
+                
+                # Envia para a sala de Guerra
+                await self._send_log_embed(embed, target_channel_id=self.bot.post_war_analysis_channel_id)
 
                 if attack.stars <= 1:
                     alert_embed = discord.Embed(title=f"⚠️ Ataque fora do padrão!", description=f"**{attacker.clan.name}**\n⚔️ **Ataque Realizado ({war_type})**", color=discord.Color.red())
@@ -163,14 +169,18 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                     alert_embed.add_field(name="Resultado", value=f"{'⚫⚫⚫' if attack.stars == 0 else '⭐⚫⚫'} ({attack.destruction}%)", inline=False)
                     if war.opponent.badge: alert_embed.set_thumbnail(url=war.opponent.badge.url)
                     role_mention = f"<@&{self.bot.role_id_1star_alert}>" if self.bot.role_id_1star_alert else ""
-                    await self._send_log_embed(alert_embed, content=f"{role_mention} Atenção ao ataque fora do padrão!")
+                    
+                    # Envia alerta para a sala de Guerra
+                    await self._send_log_embed(alert_embed, content=f"{role_mention} Atenção ao ataque fora do padrão!", target_channel_id=self.bot.post_war_analysis_channel_id)
             else:
                 embed = discord.Embed(title=f"🛡️ Defesa Recebida ({war_type})", description=f"{defender.clan.name}", color=discord.Color.orange())
                 embed.add_field(name="Detalhes", value=f"{defender_str} foi atacado por {attacker_str}", inline=False)
                 embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
                 if hasattr(war, 'clan') and war.clan and hasattr(war.clan, 'badge') and war.clan.badge:
                      embed.set_thumbnail(url=war.clan.badge.url)
-                await self._send_log_embed(embed)
+                
+                # Envia para a sala de Guerra
+                await self._send_log_embed(embed, target_channel_id=self.bot.post_war_analysis_channel_id)
         except Exception as e:
             logger.error(f"Erro em on_war_attack: {e}", exc_info=True)
 
@@ -183,7 +193,9 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         embed = discord.Embed(title="✨ Mudança de Cargo", description=f"O cargo de **{new_member.name}** foi alterado.", color=discord.Color.purple())
         embed.add_field(name="Cargo Antigo", value=old_role, inline=True)
         embed.add_field(name="Novo Cargo", value=new_role, inline=True)
-        await self._send_log_embed(embed)
+        
+        # Envia para a sala de RH
+        await self._send_log_embed(embed, target_channel_id=self.bot.watchlist_alert_channel_id)
 
     async def handle_clan_member_trophies_change(self, old_member, new_member):
         if self.bot.maintenance_mode: return
@@ -193,7 +205,9 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         color = discord.Color.green() if diff > 0 else discord.Color.red()
         emoji = "🏆" if diff > 0 else "💔"
         embed = discord.Embed(description=f"{emoji} **{new_member.name}** {action} **{abs(diff)}** troféus (Total: {new_member.trophies})", color=color)
-        await self._send_log_embed(embed)
+        
+        # Envia para Logs Gerais (Padrão)
+        await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
 
     async def handle_clan_member_league_change(self, old_member, new_member):
         if self.bot.maintenance_mode: return
@@ -206,7 +220,9 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         embed.add_field(name="Nova Liga", value=new_league, inline=True)
         if hasattr(new_member.league, 'icon') and hasattr(new_member.league.icon, 'medium'):
             embed.set_thumbnail(url=new_member.league.icon.medium)
-        await self._send_log_embed(embed)
+            
+        # Envia para Logs Gerais
+        await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
 
     async def handle_member_donations(self, old_member, new_member):
         if self.bot.maintenance_mode: return
@@ -215,7 +231,9 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         embed = discord.Embed(description=f"🎁 **{new_member.name}** doou **{diff}** tropas (Total: {new_member.donations}).", color=0xf1c40f)
         if new_member.clan and new_member.clan.badge:
              embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
-        await self._send_log_embed(embed)
+             
+        # Envia para Logs Gerais ou Doações
+        await self._send_log_embed(embed, target_channel_id=self.bot.donations_channel_id)
 
     async def handle_member_received(self, old_member, new_member):
         if self.bot.maintenance_mode: return
@@ -224,7 +242,9 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         embed = discord.Embed(description=f"📥 **{new_member.name}** recebeu **{diff}** tropas (Total: {new_member.received}).", color=0x3498db)
         if new_member.clan and new_member.clan.badge:
              embed.set_author(name=f"Clã: {new_member.clan.name}", icon_url=new_member.clan.badge.url)
-        await self._send_log_embed(embed)
+             
+        # Envia para Logs Gerais ou Doações
+        await self._send_log_embed(embed, target_channel_id=self.bot.donations_channel_id)
 
     @tasks.loop(seconds=30)
     async def check_new_attack_task(self):
