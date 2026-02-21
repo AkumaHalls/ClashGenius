@@ -39,7 +39,6 @@
     --color-priority-none-bg: rgba(74, 85, 104, 0.3);
     --color-priority-text-dark: #1A202C;
 
-
     --color-success: var(--color-priority-green);
     --color-danger: var(--color-priority-red);
     --color-warning: var(--color-priority-yellow);
@@ -89,7 +88,6 @@ body {
     height: 100%;
     z-index: -1;
 }
-
 
 .container {
     width: 95%;
@@ -442,31 +440,30 @@ main.container {
     z-index: 10;
     bottom: 110%;
     left: 50%;
-    margin-left: -125px; /* Metade da largura */
+    margin-left: -125px;
     opacity: 0;
     transition: opacity 0.3s;
     font-size: 0.85em;
     border: 1px solid var(--color-border-light);
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    pointer-events: none; /* Evita que o tooltip interfira com o hover */
+    pointer-events: none;
 }
 
-/* Tooltip da Watchlist (posição pode precisar de ajuste) */
 .member-card .watchlist-tooltip {
-    bottom: 115%; /* Um pouco mais acima */
-    left: 20px; /* Ajuste para alinhar com o ícone */
+    bottom: 115%;
+    left: 20px;
     margin-left: 0;
-    width: 280px; /* Mais largo para detalhes */
-    background-color: var(--color-warning); /* Fundo de aviso */
-    color: var(--color-priority-text-dark); /* Texto escuro */
+    width: 280px;
+    background-color: var(--color-warning);
+    color: var(--color-priority-text-dark);
     border-color: var(--color-gold);
 }
 
-.member-card .watchlist-tooltip::after { /* Seta para baixo */
+.member-card .watchlist-tooltip::after {
     content: "";
     position: absolute;
     top: 100%;
-    left: 15px; /* Posição da seta */
+    left: 15px;
     margin-left: 0;
     border-width: 5px;
     border-style: solid;
@@ -476,7 +473,7 @@ main.container {
 
 .mvp-card:hover .tooltip-text,
 .attack-item:hover .tooltip-text,
-.watchlist-icon:hover + .watchlist-tooltip { /* Mostra tooltip ao passar sobre o ícone */
+.watchlist-icon:hover + .watchlist-tooltip {
     visibility: visible;
     opacity: 1;
 }
@@ -592,7 +589,6 @@ main.container {
 .star-distribution-container p { font-size: 0.9em; margin: 5px 0; color: var(--color-text-secondary); }
 .star-distribution-container p span { color: var(--color-text-main); font-weight: 500; }
 
-
 .table-container { overflow-x: auto; max-height: 750px; border: 1px solid var(--color-border); border-radius: var(--border-radius-base); background-color: var(--color-card-background); }
 .medium-table { max-height: 500px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
@@ -642,7 +638,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .member-filters input[type="text"]::placeholder { color: var(--color-text-secondary); opacity: 0.7; }
 .member-filters input[type="text"]:focus { border-color: var(--color-accent); outline: none; background-color: #354154; }
 
-
 .members-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -656,9 +651,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     display: flex;
     flex-direction: column;
     transition: transform 0.2s, box-shadow 0.2s;
-    position: relative; /* Necessário para o tooltip */
+    position: relative;
 }
-/* Estilo para card na watchlist */
 .member-card.on-watchlist {
     border-left: 5px solid var(--color-warning);
 }
@@ -672,14 +666,14 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     gap: 12px;
     margin-bottom: 15px;
     cursor: pointer;
-    position: relative; /* Para o ícone ficar relativo a este header */
+    position: relative;
 }
 .watchlist-icon {
     color: var(--color-warning);
     font-size: 1.3em;
     margin-left: 8px;
-    cursor: help; /* Indica que há informação ao passar o mouse */
-    display: inline-block; /* Garante que ocupa espaço */
+    cursor: help;
+    display: inline-block;
 }
 .member-th-icon {
     width: 40px;
@@ -689,7 +683,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     margin: 0;
     font-size: 1.15em;
     color: var(--color-text-main);
-    display: flex; /* Para alinhar o ícone */
+    display: flex;
     align-items: center;
 }
 .member-info p {
@@ -814,7 +808,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     background-color: var(--color-success);
     cursor: default;
 }
-
 .attacks-info {
     text-align: right;
 }
@@ -893,7 +886,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .note-priority-yellow .note-text { background-color: rgba(236, 201, 75, 0.3); }
 .note-priority-red .note-text { background-color: rgba(229, 62, 62, 0.3); }
 
-
 .capital-districts-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 #cwlRoundsInfo { max-height: 400px; overflow-y: auto; }
 .cwl-round { margin-bottom: 15px; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--border-radius-base); background-color: rgba(74, 85, 104, 0.1); }
@@ -905,7 +897,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .cwl-clans-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .cwl-clans-grid p img { vertical-align: middle; margin-right: 8px; height: 22px; }
 .log-opponent-badge { vertical-align: middle; margin-right: 5px; height: 20px; }
-
 
 .icon-trophy::before { content: '🏆'; margin-left: 4px; }
 .icon-sword::before { content: '⚔️'; margin-left: 4px; }
@@ -981,7 +972,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     .clan-profile-header { flex-direction: column; text-align: center; }
     .highlights-grid { grid-template-columns: 1fr; }
     .members-grid { grid-template-columns: 1fr; }
-    .admin-card .form-grid { grid-template-columns: 1fr; } /* Ajuste admin */
+    .admin-card .form-grid { grid-template-columns: 1fr; } 
 }
 @media (max-width: 480px) {
     .loading-badge { width: 70vw; max-width: 300px; }
@@ -1022,7 +1013,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     max-height: 90vh;
     overflow-y: auto;
 }
-
 
 @keyframes fadeIn {
     from {opacity: 0; transform: scale(0.95);}
@@ -1327,7 +1317,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-text-secondary);
     margin-top: 10px;
 }
-/* Estilo botão remover */
 .admin-remove-btn {
     background-color: var(--color-danger);
     font-size: 0.8em;
@@ -1388,9 +1377,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .table-container-admin td.priority-cell.priority-red { color: var(--color-danger); font-weight: bold; }
 .table-container-admin td.priority-cell.priority-yellow { color: var(--color-warning); }
 .table-container-admin td.priority-cell.priority-green { color: var(--color-success); }
-/* Estilo para tabela watchlist */
 #admin-watchlist-table td, #admin-watchlist-table th { padding: 8px 10px; }
-
 
 .admin-link-btn {
     position: fixed;
@@ -1641,7 +1628,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     visibility: visible;
     opacity: 1;
 }
-
 
 .cwl-plan-result {
     background-color: rgba(0,0,0,0.2);
@@ -1895,6 +1881,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     font-size: 1.2em;
     font-weight: 700;
 }
+
 .member-cwl-status {
     background-color: rgba(0, 0, 0, 0.15);
     padding: 10px;
@@ -1949,7 +1936,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     color: var(--color-priority-text-dark);
 }
 
-/* <<< INÍCIO DA MUDANÇA (Melhorias 3 e 4) >>> */
 .cwl-plan-overview {
     margin-top: 25px;
     padding-top: 20px;
@@ -1963,7 +1949,7 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 .cwl-overview-grid {
     display: grid;
-    grid-template-columns: 1fr; /* CORREÇÃO: Mudar de '1fr 1fr' para '1fr' */
+    grid-template-columns: 1fr;
     gap: 15px;
 }
 .cwl-overview-card {
@@ -1996,10 +1982,10 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     display: flex;
     justify-content: space-between;
 }
-/* Alinha o placar */
+
 .cwl-overview-card .overview-content li strong {
     color: var(--color-text-main);
-    width: 60px; /* Largura fixa para "X / 7" */
+    width: 60px;
     display: inline-block;
     flex-shrink: 0;
 }
@@ -2020,17 +2006,9 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     font-weight: 500;
 }
 
-@media (max-width: 768px) {
-    .cwl-overview-grid {
-        grid-template-columns: 1fr;
-    }
-}
-/* <<< FIM DA MUDANÇA >>> */
-
-/* <<< INÍCIO DA MUDANÇA (CSS do Banco de Reservas dentro da aba) >>> */
 .cwl-overview-list-bench {
     font-size: 0.9em;
-    max-height: 250px; /* Altura máxima para o banco dentro da aba */
+    max-height: 250px;
     overflow-y: auto;
 }
 .cwl-overview-list-bench h5 {
@@ -2046,11 +2024,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     padding: 4px;
     color: var(--color-text-secondary);
 }
-/* <<< FIM DA MUDANÇA >>> */
-
-/* ========================================================
-   >>> NOVO DESIGN DO MODAL DE PERFIL DO JOGADOR <<<
-   ======================================================== */
 
 .profile-header-new {
     display: flex;
@@ -2105,7 +2078,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     letter-spacing: 1px;
 }
 
-/* Cards das Estatísticas de Jogo */
 .profile-stats-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -2135,7 +2107,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .p-val { font-size: 1.3em; font-weight: bold; color: var(--color-text-main); }
 .p-label { font-size: 0.8em; color: var(--color-text-secondary); text-transform: uppercase; margin-top: 5px;}
 
-/* Design Focado nos Heróis */
 .profile-section-title {
     border-bottom: 1px solid var(--color-divider);
     padding-bottom: 8px;
@@ -2184,6 +2155,82 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     font-weight: bold;
     color: white;
 }
+
+/* ========================================================
+   >>> ESTILOS DO CARTÃO DE BATALHA (HITRATE) <<<
+   ======================================================== */
+.battle-card-container {
+    background: linear-gradient(135deg, rgba(45, 55, 72, 0.4) 0%, rgba(26, 32, 44, 0.6) 100%);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-base);
+    padding: 15px;
+    margin-bottom: 25px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.battle-card-stats {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.bc-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: rgba(0,0,0,0.3);
+    padding: 12px;
+    border-radius: 8px;
+    min-width: 120px;
+    flex: 1;
+}
+
+.bc-label {
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    letter-spacing: 1px;
+}
+
+.bc-value {
+    font-size: 1.8em;
+    font-weight: bold;
+    margin: 5px 0;
+    font-family: var(--font-title);
+}
+
+.bc-sub {
+    font-size: 0.8em;
+    color: var(--color-text-secondary);
+}
+
+.text-success { color: #48bb78; } 
+.text-warning { color: #ecc94b; } 
+.text-danger { color: #f56565; }  
+.text-gold { color: #FFD700; }    
+.text-info { color: #63b3ed; }    
+
+/* ========================================================
+   >>> ESTILOS DA CAPITAL DO CLÃ <<<
+   ======================================================== */
+.capital-header-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+.status-badge {
+    padding: 6px 12px;
+    border-radius: var(--border-radius-base);
+    font-size: 0.85em;
+    font-weight: 600;
+    display: inline-block;
+    text-transform: uppercase;
+}
+.status-success { background-color: var(--color-success); color: white; }
+.status-warning { background-color: var(--color-warning); color: var(--color-priority-text-dark); }
+
 
 @media (max-width: 600px) {
     .profile-header-new {

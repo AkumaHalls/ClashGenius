@@ -20,7 +20,6 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         self.db = bot.db
 
     async def sync_commands(self, scope: str, guild: Optional[discord.Guild] = None) -> Dict[str, Any]:
-        """Lógica centralizada para sincronizar comandos de barra."""
         target_guild = guild if scope == 'guild' else None
         scope_name = f"o servidor '{guild.name}'" if target_guild else "globalmente"
         logger.info(f"Sincronização iniciada para o escopo: {scope_name}")
@@ -35,7 +34,6 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                  logger.info(f"Comandos limpos no servidor {target_guild.name}.")
 
             synced = await self.bot.tree.sync(guild=target_guild)
-
             message = f"Sincronizados {len(synced)} comandos com sucesso no escopo '{scope}'."
             logger.info(message)
             return {"status": "success", "message": message}
@@ -49,51 +47,35 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             return {"status": "error", "message": message}
 
     async def get_api_status(self) -> Dict[str, Any]:
-        """Verifica o status da API da Supercell."""
         if not self.bot.api_client:
-             logger.error("get_api_status: Tentativa de verificar status sem api_client.")
              return {"status": "error", "message": "Erro interno: Cliente CoC não inicializado."}
         try:
             await self.bot.api_client.get_clan(self.bot.clan_tag)
             return {"status": "ok", "message": "API do Clash of Clans operacional."}
         except coc.errors.Maintenance:
-            logger.warning("API CoC está em manutenção.")
             return {"status": "maintenance", "message": "A API do Clash of Clans está em manutenção. Tente novamente mais tarde."}
         except coc.errors.LoginError:
-             logger.error("Erro de autenticação com a API CoC.")
              return {"status": "error", "message": "Erro de autenticação com a API CoC. Verifique as credenciais."}
         except coc.errors.NotFound:
-             logger.error(f"Erro ao verificar status: Clã {self.bot.clan_tag} não encontrado. Verifique CLAN_TAG.")
              return {"status": "error", "message": f"Erro de configuração: Clã {self.bot.clan_tag} não encontrado."}
         except Exception as e:
-            logger.error(f"Erro inesperado ao verificar status da API: {type(e).__name__} - {e}", exc_info=False)
             return {"status": "error", "message": f"Erro de conexão com a API: Acesso temporariamente indisponível."}
 
     async def get_diagnostics(self) -> Dict[str, Any]:
-        """Coleta dados de diagnóstico do bot."""
         api_status = await self.get_api_status()
         recent_logs = getattr(self.bot, 'log_handler', None)
         log_buffer = recent_logs.buffer if recent_logs else ["Log handler não encontrado."]
-        return {
-            "api_status": api_status,
-            "recent_logs": log_buffer
-        }
+        return {"api_status": api_status, "recent_logs": log_buffer}
 
     async def get_discord_data(self) -> Dict[str, Any]:
-        """Obtém canais e cargos dos servidores em que o bot está para popular os dropdowns no Painel Admin."""
         data = {"channels": [], "roles": []}
         try:
             for guild in self.bot.guilds:
-                # Mapeia Canais de Texto
                 for channel in guild.text_channels:
                     data["channels"].append({"id": str(channel.id), "name": f"[{guild.name}] #{channel.name}"})
-                
-                # Mapeia Cargos
                 for role in guild.roles:
                     if role.name != "@everyone":
                         data["roles"].append({"id": str(role.id), "name": f"[{guild.name}] @{role.name}"})
-            
-            # Ordena alfabeticamente para facilitar encontrar no dropdown
             data["channels"] = sorted(data["channels"], key=lambda x: x["name"].lower())
             data["roles"] = sorted(data["roles"], key=lambda x: x["name"].lower())
         except Exception as e:
@@ -101,7 +83,6 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         return data
 
     async def get_settings(self, session: Dict[str, Any]) -> Dict[str, Any]:
-        """Obtém as configurações atuais do bot (Apenas IDs em texto para os dropdowns)."""
         defaults = {
             "channel_id": getattr(self.bot, 'channel_id', 0),
             "post_war_analysis_channel_id": getattr(self.bot, 'post_war_analysis_channel_id', 0),
@@ -109,6 +90,9 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "cwl_planner_channel_id": getattr(self.bot, 'cwl_planner_channel_id', 0),
             "donations_channel_id": getattr(self.bot, 'donations_channel_id', 0),
             "watchlist_alert_channel_id": getattr(self.bot, 'watchlist_alert_channel_id', getattr(self.bot, 'channel_id', 0)),
+            # NOVO CANAL AQUI!
+            "low_performance_channel_id": getattr(self.bot, 'low_performance_channel_id', 0),
+            
             "role_id_1star_alert": getattr(self.bot, 'role_id_1star_alert', 0),
             "role_id_missed_attack": getattr(self.bot, 'role_id_missed_attack', 0),
             "leader_role_id": getattr(self.bot, 'leader_role_id', 0),
@@ -123,8 +107,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                 settings_from_db = await self.db.system_config.find_one({"_id": "bot_settings"})
                 if settings_from_db:
                     merged_settings.update(settings_from_db)
-            except Exception as e:
-                logger.error(f"Erro ao buscar settings do DB: {e}", exc_info=True)
+            except Exception as e: pass
         
         merged_settings.pop('_id', None)
 
@@ -140,7 +123,6 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         return settings_for_frontend
 
     async def update_settings(self, new_settings: Dict[str, Any]) -> Dict[str, Any]:
-        """Atualiza as configurações no bot e no banco de dados."""
         if self.db is None: return {"status": "error", "message": "Banco de dados não configurado."}
         update_data = {}
         successful_updates = {}
@@ -148,23 +130,18 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             try:
                 processed_value = value
                 if isinstance(value, str) and ("_id" in key or "channel_id" in key) and value.isdigit():
-                    try:
-                        processed_value = int(value)
-                    except ValueError:
-                         processed_value = value
+                    try: processed_value = int(value)
+                    except ValueError: processed_value = value
                 elif key == "auto_add_watchlist_enabled":
                      processed_value = str(value).lower() in ['true', 'on', '1', 'yes']
 
                 if hasattr(self.bot, key):
                     setattr(self.bot, key, processed_value)
                     successful_updates[key] = processed_value
-                else:
-                     logger.warning(f"Tentativa de atualizar setting inexistente no bot: '{key}'")
-
+                else: pass
                 update_data[key] = processed_value
 
             except (ValueError, TypeError) as e:
-                 logger.warning(f"Erro ao processar setting '{key}' com valor '{value}': {e}. Usando valor original.")
                  if hasattr(self.bot, key): setattr(self.bot, key, value)
                  update_data[key] = value
 
@@ -173,91 +150,42 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             logger.info(f"Configurações do bot atualizadas via painel admin: {successful_updates}")
             return {"status": "success", "message": "Configurações salvas."}
         except Exception as e:
-            logger.error(f"Erro ao salvar settings no DB: {e}", exc_info=True)
             return {"status": "error", "message": "Erro ao salvar configurações no banco de dados."}
 
     async def get_db_viewer_data(self) -> Dict[str, Any]:
-        """Busca os últimos registros de guerras e notas para o painel admin."""
         if self.db is None: return {"error": "Banco de dados não configurado."}
         try:
-             wars_cursor = self.db.war_history.find(
-                 {},
-                 {"war_data.opponent_name": 1, "war_data.end_time_iso": 1, "_id": 1}
-             ).sort("war_data.end_time_iso", DESCENDING).limit(5)
-             last_wars = [
-                 {"opponent": w.get("war_data", {}).get("opponent_name", "N/A"),
-                  "end_time": w.get("war_data", {}).get("end_time_iso"),
-                  "id": w.get("_id")}
-                 async for w in wars_cursor if w.get("_id")
-             ]
-
+             wars_cursor = self.db.war_history.find({}, {"war_data.opponent_name": 1, "war_data.end_time_iso": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(5)
+             last_wars = [ {"opponent": w.get("war_data", {}).get("opponent_name", "N/A"), "end_time": w.get("war_data", {}).get("end_time_iso"), "id": w.get("_id")} async for w in wars_cursor if w.get("_id") ]
              notes_cursor = self.db.player_notes.find({}).sort([("$natural", -1)]).limit(5)
-             last_notes = [
-                 {"player_tag": n.get("_id"),
-                  "note": n.get("text", ""),
-                  "priority": n.get("priority", "none")}
-                 async for n in notes_cursor if n.get("_id")
-             ]
+             last_notes = [ {"player_tag": n.get("_id"), "note": n.get("text", ""), "priority": n.get("priority", "none")} async for n in notes_cursor if n.get("_id") ]
              return {"last_wars": last_wars, "last_notes": last_notes}
-        except Exception as e:
-             logger.error(f"Erro ao buscar dados para DB viewer: {e}", exc_info=True)
-             return {"error": "Erro ao buscar dados do banco."}
+        except Exception as e: return {"error": "Erro ao buscar dados do banco."}
 
     async def send_announcement(self, channel_id_str: str, message: str) -> Dict[str, Any]:
-        """Envia um anúncio para um canal específico, com proteção contra Rate Limit."""
-        if not channel_id_str or not message:
-            return {"status": "error", "message": "ID do canal e mensagem são obrigatórios."}
-
+        if not channel_id_str or not message: return {"status": "error", "message": "ID do canal e mensagem são obrigatórios."}
         try:
             channel_id = int(channel_id_str)
             channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
-
-            embed = discord.Embed(
-                title="📢 Anúncio do Administrador",
-                description=message,
-                color=discord.Color.orange(),
-                timestamp=datetime.datetime.now(self.bot.timezone)
-            )
-            embed.set_footer(text=f"Enviado via Painel Clash Genius v{self.bot.bot_version}")
-
-            try:
-                await channel.send(embed=embed)
+            embed = discord.Embed(title="📢 Anúncio do Administrador", description=message, color=discord.Color.orange(), timestamp=datetime.datetime.now(self.bot.timezone))
+            try: await channel.send(embed=embed)
             except discord.errors.HTTPException as e:
-                if e.status == 429: # Rate Limit
-                    logger.warning(f"Rate Limit 429 detectado ao enviar anúncio. Aguardando 5s...")
+                if e.status == 429:
                     await asyncio.sleep(5)
                     await channel.send(embed=embed) 
-                else:
-                    raise e
-
-            logger.info(f"Anúncio enviado para o canal {channel_id} via painel.")
+                else: raise e
             return {"status": "success", "message": "Anúncio enviado com sucesso!"}
-
-        except ValueError:
-            return {"status": "error", "message": "O ID do canal deve ser um número."}
-        except (discord.NotFound, discord.Forbidden):
-            return {"status": "error", "message": "Canal não encontrado ou sem permissão."}
-        except Exception as e:
-            logger.error(f"Erro ao enviar anúncio: {e}", exc_info=True)
-            return {"status": "error", "message": f"Erro interno: {e}"}
+        except Exception as e: return {"status": "error", "message": f"Erro interno: {e}"}
 
     async def clear_web_cache(self, cache_key: str) -> Dict[str, Any]:
         if cache_key == 'all':
             self.bot.web_api_cache.clear()
-            logger.info("Cache web limpo via painel.")
             return {"status": "success", "message": "Todo o cache da web foi limpo."}
-        elif cache_key in self.bot.web_api_cache:
-            self.bot.web_api_cache.pop(cache_key)
-            logger.info(f"Cache '{cache_key}' limpo via painel.")
-            return {"status": "success", "message": f"Cache '{cache_key}' foi limpo."}
         return {"status": "not_found", "message": f"Cache '{cache_key}' não encontrado."}
 
     async def get_watchlist_admin(self) -> List[Dict[str, Any]]:
         watchlist_cog = self.bot.get_cog("Lista de Observação")
-        if not watchlist_cog:
-            logger.error("get_watchlist_admin: Watchlist Cog não carregada.")
-            return {"error": "Watchlist Cog não carregada."}
-
+        if not watchlist_cog: return {"error": "Watchlist Cog não carregada."}
         try:
             watchlist_data = await watchlist_cog.get_full_watchlist()
             processed_data = []
@@ -266,29 +194,19 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                     player['date_added'] = player['date_added'].isoformat()
                 processed_data.append(player)
             return processed_data
-        except Exception as e:
-            logger.error(f"Erro ao buscar/processar watchlist: {e}", exc_info=True)
-            return {"error": "Erro interno ao buscar watchlist."}
+        except Exception as e: return {"error": "Erro interno ao buscar watchlist."}
 
     async def add_to_watchlist_admin(self, player_tag: str, player_name: str, reason: str, details: Optional[str] = None) -> bool:
         watchlist_cog = self.bot.get_cog("Lista de Observação")
-        if not watchlist_cog:
-            return False
-        try:
-             return await watchlist_cog.add_to_watchlist(player_tag, player_name, reason, details)
-        except Exception as e:
-             logger.error(f"Erro ao chamar add_to_watchlist: {e}", exc_info=True)
-             return False
+        if not watchlist_cog: return False
+        try: return await watchlist_cog.add_to_watchlist(player_tag, player_name, reason, details)
+        except Exception: return False
 
     async def remove_from_watchlist_admin(self, player_tag: str) -> bool:
         watchlist_cog = self.bot.get_cog("Lista de Observação")
-        if not watchlist_cog:
-            return False
-        try:
-            return await watchlist_cog.remove_from_watchlist(player_tag)
-        except Exception as e:
-             logger.error(f"Erro ao chamar remove_from_watchlist: {e}", exc_info=True)
-             return False
+        if not watchlist_cog: return False
+        try: return await watchlist_cog.remove_from_watchlist(player_tag)
+        except Exception: return False
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))
