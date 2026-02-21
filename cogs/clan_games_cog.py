@@ -20,6 +20,11 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         self.clan_tag: str = bot.clan_tag
         self.snapshot_collection = self.db.clan_games_snapshot if self.db is not None else None
         
+        # --- FLEXIBILIDADE DE PONTOS MÁXIMOS ---
+        # Valores padrão, podem ser alterados via comando !cgs setmax
+        self.max_player_points = 4000
+        self.max_clan_points = 50000
+        
         # Guarda quem já platinou nesta temporada para não avisar repetido no Discord
         self.already_congratulated = set()
 
@@ -119,7 +124,8 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             return {
                 "active": True,
                 "total_points": total_points,
-                "max_points": 50000,
+                "max_clan_points": self.max_clan_points,
+                "max_player_points": self.max_player_points,
                 "members": player_scores
             }
 
@@ -189,7 +195,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
 
     @tasks.loop(minutes=15)
     async def auto_manage_clan_games(self):
-        """Motor inteligente: Começa e termina os jogos sozinho e parabeniza quem faz 4k."""
+        """Motor inteligente: Começa e termina os jogos sozinho e parabeniza quem faz maximo de pontos."""
         if self.bot.maintenance_mode: return 
         now_utc = datetime.datetime.now(pytz.utc)
 
@@ -204,16 +210,16 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
                 await self.post_status_update(is_final_report=True) 
                 await self.clear_snapshot(automated=True) 
             
-            # Lógica de Parabenização de 4K: Verifica em tempo real
+            # Lógica de Parabenização da Pontuação Máxima: Verifica em tempo real
             if is_active and 22 <= now_utc.day < 28:
                 data = await self.fetch_clan_games_data_for_web()
                 if "error" not in data:
                     for p in data.get("members", []):
-                        if p["score"] >= 4000 and p["tag"] not in self.already_congratulated:
+                        if p["score"] >= self.max_player_points and p["tag"] not in self.already_congratulated:
                             self.already_congratulated.add(p["tag"])
                             embed = discord.Embed(
                                 title="🔥 PLATINOU!",
-                                description=f"O guerreiro **{p['name']}** bateu o máximo de **4.000 pontos** nos Jogos do Clã!\nObrigado por puxar o Clã pra cima! 🍻",
+                                description=f"O guerreiro **{p['name']}** bateu o máximo de **{self.max_player_points} pontos** nos Jogos do Clã!\nObrigado por puxar o Clã pra cima! 🍻",
                                 color=discord.Color.brand_green()
                             )
                             embed.set_thumbnail(url="https://clashofclans.com/uploaded-images-blog/Clan-Games-icon.png")
@@ -252,6 +258,14 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         await self.clear_snapshot(automated=False) 
         await ctx.message.remove_reaction("🔄", self.bot.user)
 
+    @cgs.command(name='setmax')
+    @commands.has_permissions(administrator=True)
+    async def cgs_setmax(self, ctx: commands.Context, max_player: int, max_clan: int = 50000):
+        """Altera dinamicamente o limite de pontos dos jogos. Ex: !cgs setmax 10000 75000"""
+        self.max_player_points = max_player
+        self.max_clan_points = max_clan
+        await ctx.send(f"✅ Limites atualizados!\n👤 Máximo por Jogador: **{max_player}**\n🏆 Meta do Clã: **{max_clan}**")
+
     async def post_status_update(self, ctx: Optional[commands.Context] = None, is_final_report: bool = False):
         """Envia para o Discord um apanhado geral dos pontos usando os dados que a Web API gera."""
         is_manual_request = ctx is not None
@@ -272,13 +286,13 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             embed_title = "🏁 Fim dos Jogos do Clã (Relatório)" if is_final_report else "🏅 Progresso nos Jogos do Clã"
             embed = discord.Embed(title=embed_title, color=discord.Color.gold())
             
-            progress = min(total_points / 50000, 1.0)
+            progress = min(total_points / self.max_clan_points, 1.0)
             filled_blocks = int(progress * 20)
             progress_bar = "█" * filled_blocks + "░" * (20 - filled_blocks)
 
             embed.add_field(
                 name="Meta do Clã",
-                value=f"**{total_points:,} / 50.000 Pontos**\n`{progress_bar}` {progress:.1%}",
+                value=f"**{total_points:,} / {self.max_clan_points:,} Pontos**\n`{progress_bar}` {progress:.1%}",
                 inline=False
             )
 
