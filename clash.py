@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 30.3.7-RE
+# Versão 30.3.8-Capital
 
 import os
 import logging
@@ -66,7 +66,7 @@ COLEADER_ROLE_ID = int(os.getenv("COLEADER_ROLE_ID", 0))
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
 LOW_PERFORMANCE_CHANNEL_ID = int(os.getenv("LOW_PERFORMANCE_CHANNEL_ID", 0))
 
-BOT_VERSION = "30.3.7-RE" 
+BOT_VERSION = "30.3.8-Capital" 
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -314,6 +314,12 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_highlights_handler(r): return await handle_web_response(r, 'highlights', web_api_cog.fetch_highlights_for_web)
     async def api_capital_handler(r): return await handle_web_response(r, 'capital', capital_cog.fetch_capital_data_for_web)
     
+    # <<< ROTA DOS JOGOS DO CLÃ ADICIONADA AQUI >>>
+    async def api_clan_games_handler(r): 
+        clan_games_cog = bot_instance.get_cog("Jogos do Clã")
+        if clan_games_cog: return await handle_web_response(r, 'clan_games', clan_games_cog.fetch_clan_games_data_for_web)
+        return web.json_response({"error": "Módulo dos Jogos do Clã não encontrado."}, status=500)
+    
     async def api_save_player_note_handler(request):
         player_tag = coc.utils.correct_tag(request.match_info['player_tag']); data = await request.json()
         try:
@@ -388,6 +394,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/coc_status", api_coc_status_handler); app.router.add_get("/api/status", admin_get_status_handler);
     app.router.add_get("/api/maintenance_message", api_maintenance_message); 
     app.router.add_get("/api/capital", api_capital_handler);
+    
+    # <<< REGISTRO DA ROTA DOS JOGOS DO CLÃ WEB >>>
+    app.router.add_get("/api/clan_games", api_clan_games_handler);
 
     @web.middleware
     async def admin_auth_middleware(request, handler):
