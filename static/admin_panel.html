@@ -47,7 +47,6 @@
             outline: none;
         }
 
-        /* Estilização Nova e Elegante para os Dropdowns do Discord */
         select.settings-input {
             appearance: none;
             background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="292.4" height="292.4"><path fill="%23a0aec0" d="M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.4-12.8z"/></svg>');
@@ -89,7 +88,6 @@
             grid-column: 1 / -1;
         }
 
-        /* Watchlist */
         #admin-watchlist .table-container-admin { max-height: 450px; }
         #admin-watchlist table { font-size: 0.95em; }
         .watchlist-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
@@ -172,6 +170,12 @@
                                      <label for="watchlist_alert_channel_id">👥 Canal: RH do Clã (Entradas, Saídas, Cargos, Watchlist)</label>
                                      <select id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
                                 </div>
+                                
+                                <div class="form-group">
+                                    <label for="low_performance_channel_id">📉 Canal: Relatório de Faxina (Sanguessugas e Desertores)</label>
+                                    <select id="low_performance_channel_id" name="low_performance_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
+                                </div>
+
                                 <div class="form-group">
                                     <label for="clan_games_channel_id">🏰 Canal: Eventos Secundários (Capital e Jogos do Clã)</label>
                                     <select id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
