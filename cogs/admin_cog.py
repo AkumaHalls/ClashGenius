@@ -19,30 +19,36 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         self.bot = bot
         self.db = bot.db
 
+    # ==========================================
+    # SISTEMA DE SINCRONIZAÇÃO CORRIGIDO
+    # ==========================================
     async def sync_commands(self, scope: str, guild: Optional[discord.Guild] = None) -> Dict[str, Any]:
         target_guild = guild if scope == 'guild' else None
         scope_name = f"o servidor '{guild.name}'" if target_guild else "globalmente"
         logger.info(f"Sincronização iniciada para o escopo: {scope_name}")
+        
         try:
             if scope == 'global':
-                 self.bot.tree.clear_commands(guild=None)
-                 await self.bot.tree.sync()
-                 logger.info("Comandos globais limpos.")
+                 # Sincroniza globalmente (O Discord pode demorar até 1 hora para mostrar para todos os usuários)
+                 synced = await self.bot.tree.sync()
+                 message = f"✅ {len(synced)} comandos sincronizados globalmente! (Pode demorar um pouco para aparecer no app)."
+                 logger.info(f"Comandos globais sincronizados: {len(synced)}")
+                 
             elif target_guild:
-                 self.bot.tree.clear_commands(guild=target_guild)
-                 await self.bot.tree.sync(guild=target_guild)
-                 logger.info(f"Comandos limpos no servidor {target_guild.name}.")
+                 # Copia a árvore global para o servidor específico (Atualização INSTANTÂNEA)
+                 self.bot.tree.copy_global_to(guild=target_guild)
+                 synced = await self.bot.tree.sync(guild=target_guild)
+                 message = f"⚡ {len(synced)} comandos forçados no servidor local! (Aparece na hora)."
+                 logger.info(f"Comandos limpos e recarregados no servidor {target_guild.name}.")
 
-            synced = await self.bot.tree.sync(guild=target_guild)
-            message = f"Sincronizados {len(synced)} comandos com sucesso no escopo '{scope}'."
-            logger.info(message)
             return {"status": "success", "message": message}
+            
         except discord.errors.Forbidden as e:
-             message = f"Falha ao sincronizar: Permissão negada no escopo '{scope}'. Verifique as permissões do bot. Erro: {e}"
+             message = f"Falha ao sincronizar: O bot não tem permissão de criar comandos (application.commands) no servidor. Erro: {e}"
              logger.error(message)
              return {"status": "error", "message": message}
         except Exception as e:
-            message = f"Falha ao sincronizar comandos no escopo '{scope}': {e}"
+            message = f"Falha crítica ao sincronizar comandos: {e}"
             logger.error(message, exc_info=True)
             return {"status": "error", "message": message}
 
@@ -90,9 +96,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "cwl_planner_channel_id": getattr(self.bot, 'cwl_planner_channel_id', 0),
             "donations_channel_id": getattr(self.bot, 'donations_channel_id', 0),
             "watchlist_alert_channel_id": getattr(self.bot, 'watchlist_alert_channel_id', getattr(self.bot, 'channel_id', 0)),
-            # NOVO CANAL AQUI!
             "low_performance_channel_id": getattr(self.bot, 'low_performance_channel_id', 0),
-            
             "role_id_1star_alert": getattr(self.bot, 'role_id_1star_alert', 0),
             "role_id_missed_attack": getattr(self.bot, 'role_id_missed_attack', 0),
             "leader_role_id": getattr(self.bot, 'leader_role_id', 0),
