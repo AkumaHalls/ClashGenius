@@ -93,8 +93,16 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             date_range = f"{start} - {end}"
 
             total_medals = getattr(raid, 'offensive_reward', 0) + getattr(raid, 'defensive_reward', 0)
-            league_name = getattr(clan.capital_league, 'name', 'Desconhecida')
-            league_icon_url = getattr(clan.capital_league.icon, 'url', self.assets['trophy'])
+            
+            # --- BLINDAGEM CONTRA FALTA DE ÍCONE NA LIGA ---
+            league_name = "Desconhecida"
+            league_icon_url = self.assets['trophy'] # Fallback padrão
+            
+            if clan.capital_league:
+                league_name = getattr(clan.capital_league, 'name', 'Desconhecida')
+                # Verifica se o objeto capital_league realmente tem o atributo 'icon' antes de acessá-lo
+                if hasattr(clan.capital_league, 'icon') and clan.capital_league.icon:
+                    league_icon_url = getattr(clan.capital_league.icon, 'url', self.assets['trophy'])
 
             return {
                 "clan_name": clan.name,
