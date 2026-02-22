@@ -100,16 +100,21 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         draw.rectangle([0, 0, width, header_height], fill=(30, 35, 45, 255))
         draw.rectangle([0, header_height-4, width, header_height], fill=(255, 200, 0, 180)) # Linha dourada sutil
 
-        # Fontes (Tenta carregar Arial Bold, senão usa default)
+        # Fontes (Tenta carregar Arial Bold, senão usa default para não crashar no Linux/Render)
         try:
             font_header = ImageFont.truetype("arialbd.ttf", 36)
             font_sub = ImageFont.truetype("arial.ttf", 24)
             font_huge_num = ImageFont.truetype("arialbd.ttf", 72)
             font_big_num = ImageFont.truetype("arialbd.ttf", 58)
             font_label = ImageFont.truetype("arialbd.ttf", 28)
+            font_status = ImageFont.truetype("arialbd.ttf", 20)
         except IOError:
-            font_header = ImageFont.load_default(); font_sub = ImageFont.load_default()
-            font_huge_num = ImageFont.load_default(); font_big_num = ImageFont.load_default(); font_label = ImageFont.load_default()
+            font_header = ImageFont.load_default()
+            font_sub = ImageFont.load_default()
+            font_huge_num = ImageFont.load_default()
+            font_big_num = ImageFont.load_default()
+            font_label = ImageFont.load_default()
+            font_status = ImageFont.load_default()
 
         # Texto do Cabeçalho
         draw.text((30, 15), f"CLÃ: {clan_name.upper()}", fill=(255, 255, 255), font=font_header)
@@ -163,11 +168,11 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         draw.text((start_x_right, box_y + 110), f"Distritos Destruídos:", fill=(160, 160, 170), font=font_sub)
         draw.text((start_x_right + 230, box_y + 108), f"{raid_data['destroyed_districts']}", fill=(255, 255, 255), font=font_label)
         
-        # Status final
+        # Status final (Com a correção de fonte para a Render)
         status_txt = "FINALIZADO" if raid_data.get('state') != "ongoing" else "EM ANDAMENTO"
         status_col = (50, 255, 50) if status_txt == "FINALIZADO" else (255, 200, 0)
         draw.rectangle([width-180, height-40, width-30, height-10], fill=status_col)
-        draw.text((width-170, height-38), status_txt, fill=(0,0,0), font=ImageFont.truetype("arialbd.ttf", 20))
+        draw.text((width-170, height-38), status_txt, fill=(0,0,0), font=font_status)
 
         # Finaliza e salva no buffer
         buffer = BytesIO()
