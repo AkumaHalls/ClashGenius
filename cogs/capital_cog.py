@@ -25,7 +25,8 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
     async def fetch_capital_data_for_web(self) -> Dict[str, Any]:
         """Busca os dados da Raide atual para alimentar o Painel Web."""
         try:
-            raid_log = await self.bot.api_client.get_raid_seasons(self.bot.clan_tag, limit=1)
+            # CORREÇÃO: O método correto em coc.py é get_raid_log, não get_raid_seasons
+            raid_log = await self.bot.api_client.get_raid_log(self.bot.clan_tag, limit=1)
             if not raid_log:
                  return {"error": "Nenhum histórico de Raide encontrado."}
             
@@ -33,26 +34,30 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             
             members_data = []
             for m in raid.members:
+                # Usando getattr para blindar contra atualizações da Supercell onde atributos sumam
+                attack_limit = getattr(m, 'attack_limit', 5)
+                bonus_limit = getattr(m, 'bonus_attack_limit', 0)
+                
                 members_data.append({
                     "name": m.name,
                     "tag": m.tag,
-                    "attacks": m.attack_count,
-                    "limit": m.attack_limit + m.bonus_attack_limit,
-                    "looted": m.capital_resources_looted
+                    "attacks": getattr(m, 'attack_count', 0),
+                    "limit": attack_limit + bonus_limit,
+                    "looted": getattr(m, 'capital_resources_looted', 0)
                 })
             
             members_data.sort(key=lambda x: x["looted"], reverse=True)
 
             return {
                 "raid": {
-                    "state": raid.state,
-                    "start_time": raid.start_time.time.isoformat() if raid.start_time else None,
-                    "end_time": raid.end_time.time.isoformat() if raid.end_time else None,
-                    "total_loot": raid.total_loot,
-                    "total_attacks": raid.attack_count,
-                    "destroyed_districts": raid.destroyed_district_count,
-                    "offensive_reward": raid.offensive_reward,
-                    "defensive_reward": raid.defensive_reward
+                    "state": getattr(raid, 'state', 'ended'),
+                    "start_time": raid.start_time.time.isoformat() if getattr(raid, 'start_time', None) else None,
+                    "end_time": raid.end_time.time.isoformat() if getattr(raid, 'end_time', None) else None,
+                    "total_loot": getattr(raid, 'total_loot', 0),
+                    "total_attacks": getattr(raid, 'attack_count', 0),
+                    "destroyed_districts": getattr(raid, 'destroyed_district_count', 0),
+                    "offensive_reward": getattr(raid, 'offensive_reward', 0),
+                    "defensive_reward": getattr(raid, 'defensive_reward', 0)
                 },
                 "members": members_data
             }
@@ -119,7 +124,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         draw.text((80, 365), f"Distritos Destruídos: {raid_data['destroyed_districts']}", fill=(226, 232, 240), font=font_subtitle)
         
         # Status
-        state_text = "Em Andamento" if raid_data['state'] == "ongoing" else "Finalizado"
+        state_text = "Em Andamento" if raid_data.get('state') == "ongoing" else "Finalizado"
         draw.text((500, 345), f"Status: {state_text}", fill=(255, 100, 100) if state_text == "Finalizado" else (100, 255, 100), font=font_title)
 
         # Salva em memória (buffer) para mandar pro Discord sem criar arquivo físico
