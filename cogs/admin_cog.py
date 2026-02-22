@@ -19,9 +19,6 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         self.bot = bot
         self.db = bot.db
 
-    # ==========================================
-    # SISTEMA DE SINCRONIZAÇÃO CORRIGIDO
-    # ==========================================
     async def sync_commands(self, scope: str, guild: Optional[discord.Guild] = None) -> Dict[str, Any]:
         target_guild = guild if scope == 'guild' else None
         scope_name = f"o servidor '{guild.name}'" if target_guild else "globalmente"
@@ -29,13 +26,11 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         
         try:
             if scope == 'global':
-                 # Sincroniza globalmente (O Discord pode demorar até 1 hora para mostrar para todos os usuários)
                  synced = await self.bot.tree.sync()
                  message = f"✅ {len(synced)} comandos sincronizados globalmente! (Pode demorar um pouco para aparecer no app)."
                  logger.info(f"Comandos globais sincronizados: {len(synced)}")
                  
             elif target_guild:
-                 # Copia a árvore global para o servidor específico (Atualização INSTANTÂNEA)
                  self.bot.tree.copy_global_to(guild=target_guild)
                  synced = await self.bot.tree.sync(guild=target_guild)
                  message = f"⚡ {len(synced)} comandos forçados no servidor local! (Aparece na hora)."
@@ -97,6 +92,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "donations_channel_id": getattr(self.bot, 'donations_channel_id', 0),
             "watchlist_alert_channel_id": getattr(self.bot, 'watchlist_alert_channel_id', getattr(self.bot, 'channel_id', 0)),
             "low_performance_channel_id": getattr(self.bot, 'low_performance_channel_id', 0),
+            "capital_report_channel_id": getattr(self.bot, 'capital_report_channel_id', 0),
             "role_id_1star_alert": getattr(self.bot, 'role_id_1star_alert', 0),
             "role_id_missed_attack": getattr(self.bot, 'role_id_missed_attack', 0),
             "leader_role_id": getattr(self.bot, 'leader_role_id', 0),
