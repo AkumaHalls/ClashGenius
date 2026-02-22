@@ -2,148 +2,213 @@
 import logging
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import coc
-from typing import Dict, Any
-import datetime
+import asyncio
+from typing import Dict, Any, Optional
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger("capital_cog")
 
 class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
-    """Cog para gerenciar e auditar os Finais de Semana de Raide da Capital do Clã."""
+    """Cog para gerenciar a Capital do Clã, Painel Web e Gerar Imagens de Resumo."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = bot.db
+        self.last_raid_state = None
+        self.auto_raid_summary.start()
+
+    async def cog_unload(self):
+        self.auto_raid_summary.cancel()
 
     async def fetch_capital_data_for_web(self) -> Dict[str, Any]:
-        """Busca os dados da Raide atual/recente e cruza com a lista do clã para achar os inativos."""
-        if not self.bot.api_client:
-            return {"error": "API CoC não inicializada."}
-        
+        """Busca os dados da Raide atual para alimentar o Painel Web."""
         try:
-            # 1. Busca o log mais recente da capital
-            raid_log = await self.bot.api_client.get_raid_log(self.bot.clan_tag, limit=1)
+            raid_log = await self.bot.api_client.get_raid_seasons(self.bot.clan_tag, limit=1)
             if not raid_log:
-                return {"error": "Nenhum registro de Raide (Capital) encontrado para este clã."}
+                 return {"error": "Nenhum histórico de Raide encontrado."}
             
-            latest_raid = raid_log[0]
+            raid = raid_log[0]
             
-            # Dados Gerais
-            raid_data = {
-                "state": latest_raid.state,
-                "start_time": latest_raid.start_time.time.isoformat() if latest_raid.start_time else None,
-                "end_time": latest_raid.end_time.time.isoformat() if latest_raid.end_time else None,
-                "total_loot": latest_raid.total_loot,
-                "total_attacks": latest_raid.attack_count,
-                "destroyed_districts": latest_raid.destroyed_district_count,
-                "offensive_reward": latest_raid.offensive_reward,
-                "defensive_reward": latest_raid.defensive_reward
-            }
-
-            # 2. Processa quem atacou
-            raid_members_map = {}
-            for member in latest_raid.members:
-                raid_members_map[member.tag] = {
-                    "name": member.name,
-                    "tag": member.tag,
-                    "attacks": member.attack_count,
-                    "limit": member.attack_limit + member.bonus_attack_limit,
-                    "looted": member.capital_resources_looted
-                }
+            members_data = []
+            for m in raid.members:
+                members_data.append({
+                    "name": m.name,
+                    "tag": m.tag,
+                    "attacks": m.attack_count,
+                    "limit": m.attack_limit + m.bonus_attack_limit,
+                    "looted": m.capital_resources_looted
+                })
             
-            # 3. Cruza com os membros atuais do clã para pegar quem fez ZERO ataques
-            clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
-            if clan:
-                for clan_member in clan.members:
-                    if clan_member.tag not in raid_members_map:
-                        # Jogador está no clã, mas não participou da raide
-                        raid_members_map[clan_member.tag] = {
-                            "name": clan_member.name,
-                            "tag": clan_member.tag,
-                            "attacks": 0,
-                            "limit": 6, # Padrão
-                            "looted": 0
-                        }
-
-            members_data = list(raid_members_map.values())
-            
-            # Ordena do maior loot para o menor
             members_data.sort(key=lambda x: x["looted"], reverse=True)
 
             return {
-                "raid": raid_data,
+                "raid": {
+                    "state": raid.state,
+                    "start_time": raid.start_time.time.isoformat() if raid.start_time else None,
+                    "end_time": raid.end_time.time.isoformat() if raid.end_time else None,
+                    "total_loot": raid.total_loot,
+                    "total_attacks": raid.attack_count,
+                    "destroyed_districts": raid.destroyed_district_count,
+                    "offensive_reward": raid.offensive_reward,
+                    "defensive_reward": raid.defensive_reward
+                },
                 "members": members_data
             }
-            
-        except Exception as e:
-            logger.error(f"Erro ao buscar dados da Capital: {e}", exc_info=True)
-            return {"error": f"Erro interno ao auditar a capital: {str(e)}"}
 
-    @app_commands.command(name="capital", description="🏰 Raio-X da Capital: Mostra Top Atacantes e Inativos (0 ataques).")
-    async def capital_report(self, interaction: discord.Interaction):
-        """Comando de barra para gerar o relatório da capital no Discord."""
-        await interaction.response.defer(thinking=True)
+        except coc.errors.Maintenance:
+            return {"error": "A API da Supercell está em manutenção."}
+        except Exception as e:
+            logger.error(f"Erro ao buscar dados da Capital para a Web: {e}", exc_info=True)
+            return {"error": "Erro interno ao processar dados da Capital."}
+
+    # ========================================================
+    # >>> GERADOR DE IMAGEM (ESTILO CLASHPERK) <<<
+    # ========================================================
+    def generate_raid_image(self, clan_name: str, raid_data: Dict) -> BytesIO:
+        """Desenha uma imagem premium do zero com os resultados da raide."""
+        width, height = 800, 450
         
+        # Criação do Fundo Escuro Premium (Estilo Discord/Clash)
+        img = Image.new('RGB', (width, height), color=(26, 32, 44))
+        draw = ImageDraw.Draw(img)
+        
+        # Borda Superior Dourada
+        draw.rectangle([0, 0, width, 15], fill=(212, 175, 55))
+
+        # Título
+        try:
+            # Tenta carregar uma fonte do sistema, se não achar usa a default pixelada
+            font_title = ImageFont.truetype("arialbd.ttf", 40)
+            font_subtitle = ImageFont.truetype("arial.ttf", 25)
+            font_large = ImageFont.truetype("arialbd.ttf", 60)
+        except IOError:
+            font_title = ImageFont.load_default()
+            font_subtitle = ImageFont.load_default()
+            font_large = ImageFont.load_default()
+
+        # Textos do Cabeçalho
+        draw.text((40, 40), f"Clã: {clan_name}", fill=(255, 255, 255), font=font_title)
+        draw.text((40, 90), "RESUMO DO FIM DE SEMANA DE RAIDE", fill=(160, 174, 192), font=font_subtitle)
+
+        # Desenho dos Cartões Internos
+        def draw_rounded_rect(draw, xy, radius, fill):
+            x0, y0, x1, y1 = xy
+            draw.rectangle([x0, y0 + radius, x1, y1 - radius], fill=fill)
+            draw.rectangle([x0 + radius, y0, x1 - radius, y1], fill=fill)
+            draw.pieslice([x0, y0, x0 + radius * 2, y0 + radius * 2], 180, 270, fill=fill)
+            draw.pieslice([x1 - radius * 2, y0, x1, y0 + radius * 2], 270, 360, fill=fill)
+            draw.pieslice([x0, y1 - radius * 2, x0 + radius * 2, y1], 90, 180, fill=fill)
+            draw.pieslice([x1 - radius * 2, y1 - radius * 2, x1, y1], 0, 90, fill=fill)
+
+        # Caixa de Ouro (Loot Total)
+        draw_rounded_rect(draw, [40, 150, 380, 280], 15, fill=(45, 55, 72))
+        draw.text((60, 170), "Ouro Saqueado Total", fill=(212, 175, 55), font=font_subtitle)
+        draw.text((60, 205), f"{raid_data['total_loot']:,}", fill=(255, 255, 255), font=font_large)
+
+        # Caixa de Medalhas (Ofensiva + Defensiva)
+        medals = raid_data.get('offensive_reward', 0) + raid_data.get('defensive_reward', 0)
+        draw_rounded_rect(draw, [420, 150, 760, 280], 15, fill=(45, 55, 72))
+        draw.text((440, 170), "Medalhas de Raide (Estimativa)", fill=(104, 211, 145), font=font_subtitle)
+        draw.text((440, 205), f"{medals:,}", fill=(255, 255, 255), font=font_large)
+
+        # Estatísticas Secundárias
+        draw_rounded_rect(draw, [40, 310, 760, 410], 15, fill=(23, 25, 35))
+        draw.text((80, 330), f"Ataques Usados: {raid_data['total_attacks']}", fill=(226, 232, 240), font=font_subtitle)
+        draw.text((80, 365), f"Distritos Destruídos: {raid_data['destroyed_districts']}", fill=(226, 232, 240), font=font_subtitle)
+        
+        # Status
+        state_text = "Em Andamento" if raid_data['state'] == "ongoing" else "Finalizado"
+        draw.text((500, 345), f"Status: {state_text}", fill=(255, 100, 100) if state_text == "Finalizado" else (100, 255, 100), font=font_title)
+
+        # Salva em memória (buffer) para mandar pro Discord sem criar arquivo físico
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        return buffer
+
+    # ========================================================
+    # >>> MOTOR AUTÔNOMO <<<
+    # ========================================================
+    @tasks.loop(minutes=30)
+    async def auto_raid_summary(self):
+        """Verifica a cada 30 min se a Raide acabou. Se acabou, gera e posta a imagem."""
+        if self.bot.maintenance_mode or not getattr(self.bot, 'capital_report_channel_id', None):
+            return
+
         try:
             data = await self.fetch_capital_data_for_web()
-            if "error" in data:
-                await interaction.followup.send(f"❌ {data['error']}")
-                return
-            
-            raid = data["raid"]
-            members = data["members"]
+            if "error" in data: return
 
-            top_attackers = members[:5] # Top 5
-            zero_attacks = [m for m in members if m["attacks"] == 0]
-            missed_some_attacks = [m for m in members if 0 < m["attacks"] < m["limit"]]
+            current_state = data["raid"]["state"]
 
-            status_pt = "Em Andamento" if raid["state"] == "ongoing" else "Finalizada"
+            # Lógica: Se antes estava 'ongoing' (rolando) e agora virou 'ended' (acabou)
+            if self.last_raid_state == "ongoing" and current_state == "ended":
+                logger.info("Raide da Capital encerrada! Gerando imagem de resumo...")
+                
+                channel_id = self.bot.capital_report_channel_id
+                channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
+                
+                if channel:
+                    clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
+                    image_buffer = self.generate_raid_image(clan.name, data["raid"])
+                    
+                    file = discord.File(fp=image_buffer, filename="raid_summary.png")
+                    
+                    # Cria um Embed anexando a imagem desenhada
+                    embed = discord.Embed(
+                        title="🏕️ O Fim de Semana de Raide Chegou ao Fim!",
+                        description="Confira o resumo financeiro do clã abaixo. Os parasitas que não atacaram já estão sendo listados no Painel Web.",
+                        color=discord.Color.dark_theme()
+                    )
+                    embed.set_image(url="attachment://raid_summary.png")
+                    
+                    await channel.send(embed=embed, file=file)
 
-            embed = discord.Embed(
-                title="🏰 Raio-X da Capital do Clã",
-                description=f"**Status:** {status_pt}\n**Ouro Saqueado Global:** 🪙 {raid['total_loot']:,}\n**Distritos Destruídos:** 🏚️ {raid['destroyed_districts']}",
-                color=discord.Color.purple(),
-                timestamp=datetime.datetime.now()
-            )
-
-            # TOP Atacantes
-            top_text = ""
-            medals = ["🥇", "🥈", "🥉", "🏅", "🏅"]
-            for i, m in enumerate(top_attackers):
-                if m["attacks"] > 0:
-                    top_text += f"{medals[i]} **{m['name']}** ━ 🪙 {m['looted']:,} *(Ataques: {m['attacks']}/{m['limit']})*\n"
-            embed.add_field(name="🏆 Máquinas de Farm (Top 5)", value=top_text or "Nenhum ataque registrado.", inline=False)
-
-            # Inativos Totais (Zero Ataques)
-            zero_text = ""
-            for m in zero_attacks:
-                zero_text += f"🔴 {m['name']}\n"
-            
-            if zero_text:
-                if len(zero_text) > 1000:
-                    zero_text = zero_text[:950] + "\n... e outros."
-                embed.add_field(name=f"🛑 Sangue-Sugas (0 Ataques) - {len(zero_attacks)} membros", value=zero_text, inline=False)
-            else:
-                embed.add_field(name="🛑 Sangue-Sugas", value="Incrível! Todos atacaram a capital.", inline=False)
-
-            # Ataques Incompletos
-            inc_text = ""
-            for m in missed_some_attacks:
-                inc_text += f"🟡 **{m['name']}** (Fez {m['attacks']}/{m['limit']})\n"
-            
-            if inc_text:
-                if len(inc_text) > 1000:
-                    inc_text = inc_text[:950] + "\n... e outros."
-                embed.add_field(name="⚠️ Faltou Terminar", value=inc_text, inline=False)
-
-            embed.set_footer(text=f"Auditoria ClashGenius | Total de Ataques: {raid['total_attacks']}")
-            
-            await interaction.followup.send(embed=embed)
+            # Atualiza a memória do bot
+            self.last_raid_state = current_state
 
         except Exception as e:
-            logger.error(f"Erro no comando /capital: {e}", exc_info=True)
-            await interaction.followup.send("❌ Ocorreu um erro catastrófico ao gerar a auditoria da capital.")
+            logger.error(f"Erro no monitoramento autônomo da Raide: {e}")
+
+    @auto_raid_summary.before_loop
+    async def before_auto_raid(self):
+        await self.bot.wait_until_ready()
+        
+        # Pega o status inicial para não disparar logo ao ligar
+        try:
+            data = await self.fetch_capital_data_for_web()
+            if "error" not in data:
+                self.last_raid_state = data["raid"]["state"]
+        except Exception:
+            pass
+
+    # ========================================================
+    # >>> COMANDO MANUAL <<<
+    # ========================================================
+    @app_commands.command(name="gerar_raide", description="Gera e envia a imagem com o resumo da Capital agora.")
+    @app_commands.default_permissions(administrator=True)
+    async def cmd_gerar_raide(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
+        data = await self.fetch_capital_data_for_web()
+        if "error" in data:
+            await interaction.followup.send(f"❌ {data['error']}")
+            return
+
+        clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
+        image_buffer = self.generate_raid_image(clan.name, data["raid"])
+        file = discord.File(fp=image_buffer, filename="raid_summary.png")
+        
+        embed = discord.Embed(
+            title="🏕️ Resumo Atual da Raide (Solicitado Manualmente)",
+            color=discord.Color.dark_theme()
+        )
+        embed.set_image(url="attachment://raid_summary.png")
+        
+        await interaction.followup.send(embed=embed, file=file)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(CapitalCog(bot))
