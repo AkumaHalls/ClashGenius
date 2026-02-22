@@ -12,7 +12,7 @@ import asyncio
 logger = logging.getLogger("clan_games_cog")
 
 class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
-    """Cog para gerenciar os Jogos do Clã usando comandos Slash (/) e proteção contra reinícios."""
+    """Cog para gerenciar os Jogos do Clã usando comandos Slash e proteção contra reinícios."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -36,16 +36,16 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         self.periodic_status_update.cancel()
 
     async def _is_snapshot_active(self) -> bool:
-        """Verifica se já existe um snapshot gravado na base de dados (se os jogos já começaram)."""
+        """Verifica se já existe um snapshot gravado na base de dados."""
         if self.snapshot_collection is None:
             return False
         return await self.snapshot_collection.find_one({}) is not None
 
     async def _send_to_channel(self, message: str = None, embed: discord.Embed = None, embeds: List[discord.Embed] = None):
-        """Envia mensagens para a sala de 'Eventos Secundários' no Discord."""
+        """Envia mensagens para a sala de Eventos Secundários no Discord."""
         channel_id = self.bot.clan_games_channel_id
         if not channel_id:
-            return # Se não tiver canal configurado, sofre em silêncio
+            return 
         try:
             channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
             if embeds: 
@@ -60,7 +60,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             logger.error(f"Erro ao enviar aviso de Jogos do Clã: {e}")
 
     async def fetch_clan_games_data_for_web(self) -> Dict[str, Any]:
-        """Calcula os pontos e alimenta o Painel Web (Front-end)."""
+        """Calcula os pontos e alimenta o Painel Web."""
         if not await self._is_snapshot_active():
             return {"error": "Os Jogos do Clã não estão ativos no momento."}
 
@@ -98,7 +98,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
                 else:
                     player_scores.append({"name": initial_info.get("name", member_tag) + " (Saiu)", "tag": member_tag, "score": 0, "role": "Ex-Membro"})
 
-            # Checa os "novatos" que entraram depois do snapshot
+            # Checa os novatos que entraram depois do snapshot
             for member in clan.members:
                 if member.tag not in processed_tags:
                     score = getattr(member, "clan_games_points", 0)
@@ -123,13 +123,11 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             logger.error(f"Erro ao processar dados Web dos Jogos: {e}", exc_info=True)
             return {"error": "Erro interno ao processar pontos."}
 
-
     async def take_snapshot(self, automated: bool = False):
-        """Salva a pontuação base de todos os membros. (Marco zero dos jogos)"""
+        """Salva a pontuação base de todos os membros."""
         if self.snapshot_collection is None: return
 
         if await self._is_snapshot_active():
-            # Limpa o antigo silenciosamente se já tiver um ativo
             await self.clear_snapshot(automated=False, silent=True) 
 
         try:
@@ -162,7 +160,6 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         except Exception as e:
              logger.error(f"Erro ao gerar snapshot: {e}", exc_info=True)
 
-
     async def clear_snapshot(self, automated: bool = False, silent: bool = False):
         """Apaga a tabela base, indicando que os jogos acabaram."""
         if self.snapshot_collection is None: return
@@ -191,19 +188,15 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         try:
             is_active = await self._is_snapshot_active()
             
-            # Automação de Início (Dia 22 ao 28)
-            # Ele só inicia se já não houver um DB ativo, blindando contra reinícios
             if 22 <= now_utc.day < 28 and not is_active:
                 logger.info("Automação: Dia 22 detectado. Iniciando os jogos sozinhos...")
                 await self.take_snapshot(automated=True) 
 
-            # Automação de Fim (Após dia 28)
             elif now_utc.day >= 28 and is_active:
                 logger.info("Automação: Dia 28 chegou. Cuspir relatório final e encerrar.")
                 await self.post_status_update(is_final_report=True) 
                 await self.clear_snapshot(automated=True) 
             
-            # Automação: Parabéns pro Platineiro
             if is_active and 22 <= now_utc.day < 28:
                 data = await self.fetch_clan_games_data_for_web()
                 if "error" not in data:
@@ -221,7 +214,6 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         except Exception as e:
              logger.error(f"Erro no auto_manage: {e}", exc_info=True)
 
-
     @periodic_status_update.before_loop
     @auto_manage_clan_games.before_loop
     async def before_tasks(self):
@@ -230,11 +222,9 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
 
 
     # ==================== COMANDOS SLASH ====================
-    # O grupo "cgs" agora fica muito mais bonito e fácil de usar no Discord.
 
-    cgs_group = app_commands.Group(name="cgs", description="Comandos de Controle dos Jogos do Clã", default_permissions=discord.Permissions(administrator=True))
-
-    @cgs_group.command(name="iniciar", description="Tira o Snapshot inicial agora (força o início do monitoramento).")
+    @app_commands.command(name="cgs_iniciar", description="Tira o Snapshot inicial agora (força o início do monitoramento).")
+    @app_commands.default_permissions(administrator=True)
     async def cmd_cgs_start(self, interaction: discord.Interaction):
         await interaction.response.defer()
         if await self._is_snapshot_active():
@@ -243,7 +233,8 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         await self.take_snapshot(automated=False)
         await interaction.followup.send("✅ Rastreador ativado manualmente!")
 
-    @cgs_group.command(name="parar", description="Desliga o rastreio, zera o BD dos Jogos e cospe o placar final.")
+    @app_commands.command(name="cgs_parar", description="Desliga o rastreio, zera o BD dos Jogos e cospe o placar final.")
+    @app_commands.default_permissions(administrator=True)
     async def cmd_cgs_stop(self, interaction: discord.Interaction):
         await interaction.response.defer()
         if not await self._is_snapshot_active():
@@ -252,19 +243,19 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         await self.post_status_update(interaction=interaction, is_final_report=True) 
         await self.clear_snapshot(automated=False) 
 
-    @cgs_group.command(name="configurar", description="Altera os pontos máximos permitidos neste mês.")
+    @app_commands.command(name="cgs_configurar", description="Altera os pontos máximos permitidos neste mês.")
     @app_commands.describe(max_jogador="O máximo de pontos que 1 pessoa pode fazer (ex: 4000)", meta_cla="O limite final do clã inteiro (ex: 50000)")
+    @app_commands.default_permissions(administrator=True)
     async def cmd_cgs_set(self, interaction: discord.Interaction, max_jogador: int, meta_cla: int = 50000):
         self.max_player_points = max_jogador
         self.max_clan_points = meta_cla
         await interaction.response.send_message(f"⚙️ **Regras Atualizadas:**\n👤 Max. Jogador: **{max_jogador}**\n🏆 Meta do Clã: **{meta_cla}**")
 
-    @cgs_group.command(name="status", description="Mostra a barra de progresso no Discord imediatamente.")
+    @app_commands.command(name="cgs_status", description="Mostra a barra de progresso no Discord imediatamente.")
     async def cmd_cgs_status(self, interaction: discord.Interaction):
         await interaction.response.defer()
         await self.post_status_update(interaction=interaction)
 
-    # Função central que cospe os embeds no Discord
     async def post_status_update(self, interaction: Optional[discord.Interaction] = None, is_final_report: bool = False):
         if not await self._is_snapshot_active():
             if interaction: await interaction.followup.send("Nenhum monitoramento dos Jogos do Clã ativo no momento.")
@@ -292,7 +283,6 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
                 inline=False
             )
 
-            # TOP 5 Carregadores do Clã
             top_players = [p for p in players if p["score"] > 0][:5]
             if top_players:
                 top_text = "\n".join([f"`{i+1}.` **{p['name']}**: {p['score']:,}" for i, p in enumerate(top_players)])
@@ -300,7 +290,6 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             else:
                 embed.add_field(name="Participantes", value="Ninguém pontuou ainda.", inline=False)
 
-            # Relatório Final (O Puxão de Orelha)
             if is_final_report:
                 zero_scorers = [p for p in players if p["score"] == 0]
                 low_scorers = [p for p in players if 0 < p["score"] < 1000]
@@ -327,7 +316,4 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             if interaction: await interaction.followup.send("❌ Erro interno.")
 
 async def setup(bot: commands.Bot):
-    # O bot precisa adicionar a classe, e então adicionar o Grupo de comandos Slash à árvore.
-    cog = ClanGamesCog(bot)
-    bot.tree.add_command(cog.cgs_group)
-    await bot.add_cog(cog)
+    await bot.add_cog(ClanGamesCog(bot))
