@@ -107,14 +107,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if(recentLogsBox) recentLogsBox.textContent = Array.isArray(recent_logs) && recent_logs.length > 0 ? recent_logs.join('\n') : 'Nenhum log recente.'; 
     }
 
-    // ========================================================
-    // >>> POPULA OS NOVOS DROPDOWNS DO DISCORD <<<
-    // ========================================================
     function populateDiscordDropdowns(discordData) {
         if (!discordData || discordData.error) return;
 
-        // <<< ADICIONADO A VARIÁVEL DO CANAL DE FAXINA AQUI >>>
-        const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id'];
+        // <<< ARRAY ATUALIZADO COM O capital_report_channel_id >>>
+        const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id'];
         const roleSelects = ['role_id_1star_alert', 'role_id_missed_attack', 'leader_role_id', 'coleader_role_id'];
 
         channelSelects.forEach(id => {
@@ -141,11 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const input = document.getElementById(key);
             if (input) {
                 if (input.tagName === 'SELECT') {
-                    // Para os novos dropdowns de Canais e Roles
                     const valStr = String(data[key] || "0");
-                    
-                    // Mecanismo de Prevenção: Se o ID existir na DB mas o bot não o encontrar mais no Discord,
-                    // nós criamos uma opção provisória para ele não ser apagado do banco de dados acidentalmente.
                     let optionExists = false;
                     for (let i = 0; i < input.options.length; i++) {
                         if (input.options[i].value === valStr) {
@@ -159,7 +152,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         dummyOpt.text = `ID Desconhecido (Salvo: ${valStr})`;
                         input.add(dummyOpt);
                     }
-                    
                     input.value = valStr;
                 } else if (input.type === 'checkbox') {
                     input.checked = (data[key] === 'true' || data[key] === true);
@@ -169,7 +161,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // ========================================================
 
     function updateDbViewer(data) {
         if (!data || data.error) {
@@ -396,7 +387,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateDiagnostics(diagnostics);
                     break;
                 case 'admin-configuracoes':
-                    // >>> GERA E PREENCHE OS DROP DOWN LISTS AQUI <<<
                     const [settings, discordData] = await Promise.all([
                         fetchAdminAPI('settings'),
                         fetchAdminAPI('discord_data')
@@ -477,7 +467,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (key === "auto_add_watchlist_enabled") {
                     settings[key] = value === 'true';
                 } else if ((key.includes('_id') || key.includes('channel_id')) && value.match(/^\d+$/)) {
-                    // ID puro enviado perfeitamente via select agora.
                     settings[key] = value;
                 } else if (value.match(/^\d+$/) && !key.includes('message')) {
                      if (value !== '') settings[key] = parseInt(value, 10);
