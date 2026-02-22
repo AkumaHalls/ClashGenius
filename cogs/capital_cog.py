@@ -18,13 +18,13 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.last_raid_state = None
-        # URLs dos assets oficiais do jogo
+        
+        # AGORA SIM: URLs REAIS DOS ASSETS OFICIAIS DO JOGO (Wiki do Clash of Clans)
         self.assets = {
-            "bg": "https://i.imgur.com/9Y9t8bM.jpg",           # Fundo da Capital
-            "medal": "https://i.imgur.com/sP0Q9pX.png",        # Ícone Medalha Raide
-            "trophy": "https://i.imgur.com/5j1c2eH.png",       # Ícone Troféu Capital
-            "xp": "https://i.imgur.com/1Q8Z9dY.png",           # Ícone XP Clã
-            "banner": "https://i.imgur.com/LdLlVjZ.png"        # Textura para banners
+            "bg": "https://static.wikia.nocookie.net/clashofclans/images/2/23/Capital_Peak_Scenery.png",
+            "medal": "https://static.wikia.nocookie.net/clashofclans/images/5/52/Raid_Medal.png",
+            "trophy": "https://static.wikia.nocookie.net/clashofclans/images/0/05/Capital_Trophy.png",
+            "xp": "https://static.wikia.nocookie.net/clashofclans/images/c/c9/XP.png"
         }
         self.auto_raid_summary.start()
 
@@ -94,13 +94,11 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
 
             total_medals = getattr(raid, 'offensive_reward', 0) + getattr(raid, 'defensive_reward', 0)
             
-            # --- BLINDAGEM CONTRA FALTA DE ÍCONE NA LIGA ---
             league_name = "Desconhecida"
-            league_icon_url = self.assets['trophy'] # Fallback padrão
+            league_icon_url = self.assets['trophy'] 
             
             if clan.capital_league:
                 league_name = getattr(clan.capital_league, 'name', 'Desconhecida')
-                # Verifica se o objeto capital_league realmente tem o atributo 'icon' antes de acessá-lo
                 if hasattr(clan.capital_league, 'icon') and clan.capital_league.icon:
                     league_icon_url = getattr(clan.capital_league.icon, 'url', self.assets['trophy'])
 
@@ -121,12 +119,21 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             return {"error": "Erro interno ao processar dados."}
 
     async def _fetch_image(self, session, url):
+        """Baixa uma imagem da Wiki burlando bloqueios."""
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+        }
         try:
-            async with session.get(url) as resp:
+            async with session.get(url, headers=headers, timeout=15) as resp:
                 if resp.status == 200:
                     data = await resp.read()
                     return Image.open(BytesIO(data)).convert("RGBA")
-        except: return None
+                else:
+                    logger.warning(f"Erro HTTP {resp.status} ao baixar {url}")
+        except Exception as e:
+            logger.warning(f"Falha ao baixar imagem de {url}: {e}")
+        return None
 
     def _draw_rounded_panel(self, img, xy, corner_radius, fill_color, border_color=None, border_width=0):
         draw = ImageDraw.Draw(img)
@@ -136,7 +143,10 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
 
     def generate_game_style_image(self, data: Dict, images: Dict[str, Image.Image]) -> BytesIO:
         W, H = 1000, 600
-        base = images.get('bg', Image.new('RGBA', (W, H))).resize((W, H), Image.LANCZOS)
+        
+        # Fundo Oficial da Capital
+        bg_raw = images.get('bg') or Image.new('RGBA', (W, H), color=(40, 50, 60))
+        base = bg_raw.resize((W, H), Image.LANCZOS).convert("RGBA")
         draw = ImageDraw.Draw(base)
 
         def get_font(size, bold=True):
@@ -151,7 +161,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         font_xp = get_font(30)
         font_league = get_font(42)
 
-        # Cabeçalho
+        # Cabeçalho: Nome do Clã
         draw.text((103, 33), data['clan_name'], font=font_title, fill=(0,0,0)) 
         draw.text((100, 30), data['clan_name'], font=font_title, fill=(255, 255, 255))
         
@@ -167,17 +177,20 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         draw.text((W - draw.textlength(date_txt, font=font_subtitle) - 30 + 2, 72), date_txt, font=font_subtitle, fill=(0,0,0))
         draw.text((W - draw.textlength(date_txt, font=font_subtitle) - 30, 70), date_txt, font=font_subtitle, fill=(255, 200, 0)) 
 
-        # Banner Central
+        # Banner Central (Medalhas)
         banner_y = 150
         reward_txt = "Recompensa Total:"
         draw.text(((W - draw.textlength(reward_txt, font=font_subtitle))/2 + 2, banner_y - 40 + 2), reward_txt, font=font_subtitle, fill=(0,0,0))
         draw.text(((W - draw.textlength(reward_txt, font=font_subtitle))/2, banner_y - 40), reward_txt, font=font_subtitle, fill=(255,255,255))
 
-        banner_bg = Image.new('RGBA', (600, 120), (0, 0, 0, 150))
+        banner_bg = Image.new('RGBA', (600, 120), (0, 0, 0, 160))
         base.paste(banner_bg, ((W-600)//2, banner_y), banner_bg)
         self._draw_rounded_panel(base, ((W-600)//2, banner_y, (W+600)//2, banner_y + 120), 20, (0,0,0,0), (255, 215, 0), 3)
 
-        medal_icon = images.get('medal', Image.new('RGBA',(1,1))).resize((100, 100), Image.LANCZOS)
+        # Ícone Oficial da Medalha
+        medal_raw = images.get('medal') or Image.new('RGBA', (1,1), (0,0,0,0))
+        medal_icon = medal_raw.resize((100, 100), Image.LANCZOS)
+        
         medal_val_txt = f"+{data['total_medals']:,}"
         total_w = 100 + draw.textlength(medal_val_txt, font=font_medals) + 20
         start_x = (W - total_w) / 2
@@ -190,21 +203,28 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         panel_y = 320
         panel_h = 230
         panel_w = 460
-        panel_bg_color = (230, 225, 210, 230)
+        panel_bg_color = (230, 225, 210, 240)
         panel_border = (180, 170, 150)
 
         # Painel Esquerdo: Troféus e XP
         self._draw_rounded_panel(base, (30, panel_y, 30 + panel_w, panel_y + panel_h), 25, panel_bg_color, panel_border, 4)
         draw.text((60, panel_y + 20), "Total de Troféus:", font=font_panel_title, fill=(60, 60, 60))
         
-        trophy_icon = images.get('trophy', Image.new('RGBA',(1,1))).resize((70, 70), Image.LANCZOS)
+        # Ícone Oficial de Troféu da Capital
+        trophy_raw = images.get('trophy') or Image.new('RGBA', (1,1), (0,0,0,0))
+        trophy_icon = trophy_raw.resize((70, 70), Image.LANCZOS)
         base.paste(trophy_icon, (60, panel_y + 70), trophy_icon)
+        
         draw.text((140, panel_y + 75), f"{data['total_trophies']:,}", font=font_panel_value, fill=(0,0,0))
 
         xp_bar_y = panel_y + 160
         self._draw_rounded_panel(base, (50, xp_bar_y, 30 + panel_w - 20, xp_bar_y + 50), 15, (210, 205, 190), (190, 185, 170), 2)
-        xp_icon = images.get('xp', Image.new('RGBA',(1,1))).resize((40, 40), Image.LANCZOS)
+        
+        # Ícone Oficial de XP do Clã
+        xp_raw = images.get('xp') or Image.new('RGBA', (1,1), (0,0,0,0))
+        xp_icon = xp_raw.resize((40, 40), Image.LANCZOS)
         base.paste(xp_icon, (60, xp_bar_y + 5), xp_icon)
+        
         draw.text((110, xp_bar_y + 10), f"XP do Clã Ganho: {data['clan_xp']}", font=font_xp, fill=(60, 60, 60))
 
         # Painel Direito: Liga
@@ -239,6 +259,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             if interaction: await interaction.followup.send(f"❌ {data['error']}")
             return
 
+        # Baixa os arquivos da Wiki do Clash of Clans
         async with aiohttp.ClientSession() as session:
             tasks = [
                 self._fetch_image(session, self.assets['bg']),
