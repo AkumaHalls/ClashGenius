@@ -5,186 +5,201 @@ from discord import app_commands
 from discord.ext import commands, tasks
 import coc
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import aiohttp
+import datetime
 
 logger = logging.getLogger("capital_cog")
 
 class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
-    """Cog para gerenciar a Capital do Clã, Painel Web e Gerar Imagens de Resumo Premium."""
+    """Cog para gerenciar a Capital e Gerar Imagens de Resumo no estilo oficial."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.last_raid_state = None
-        # URLs dos assets oficiais (ícones do jogo)
-        self.icon_gold_url = "https://i.imgur.com/Sy8C85a.png" # Ícone Ouro Capital HD
-        self.icon_medal_url = "https://i.imgur.com/sP0Q9pX.png" # Ícone Medalha Raide HD
-        self.bg_overlay_url = "https://i.imgur.com/LdLlVjZ.png" # Textura de fundo sutil
+        # URLs dos assets oficiais do jogo
+        self.assets = {
+            "bg": "https://i.imgur.com/9Y9t8bM.jpg",           # Fundo da Capital
+            "medal": "https://i.imgur.com/sP0Q9pX.png",        # Ícone Medalha Raide
+            "trophy": "https://i.imgur.com/5j1c2eH.png",       # Ícone Troféu Capital
+            "xp": "https://i.imgur.com/1Q8Z9dY.png",           # Ícone XP Clã
+            "banner": "https://i.imgur.com/LdLlVjZ.png"        # Textura para banners
+        }
         self.auto_raid_summary.start()
 
     async def cog_unload(self):
         self.auto_raid_summary.cancel()
 
-    async def fetch_capital_data_for_web(self) -> Dict[str, Any]:
-        """Busca os dados da Raide atual para alimentar o Painel Web e a Imagem."""
+    async def fetch_raid_data(self) -> Dict[str, Any]:
+        """Busca dados completos da Raide e do Clã para a imagem."""
         try:
-            raid_log = await self.bot.api_client.get_raid_log(self.bot.clan_tag, limit=1)
-            if not raid_log:
-                 return {"error": "Nenhum histórico de Raide encontrado."}
-            
+            # Busca dados do clã (para troféus totais e liga) e do log de raide
+            clan_task = self.bot.api_client.get_clan(self.bot.clan_tag)
+            raid_log_task = self.bot.api_client.get_raid_log(self.bot.clan_tag, limit=1)
+            clan, raid_log = await asyncio.gather(clan_task, raid_log_task)
+
+            if not raid_log: return {"error": "Nenhum histórico de Raide encontrado."}
             raid = raid_log[0]
+
+            # Formata as datas (ex: "23 Ago - 26 Ago 2024")
+            start = raid.start_time.time.strftime("%d %b")
+            end = raid.end_time.time.strftime("%d %b %Y")
+            date_range = f"{start} - {end}"
+
+            # Calcula medalhas totais (estimativa)
+            total_medals = getattr(raid, 'offensive_reward', 0) + getattr(raid, 'defensive_reward', 0)
             
-            members_data = []
-            for m in raid.members:
-                attack_limit = getattr(m, 'attack_limit', 5)
-                bonus_limit = getattr(m, 'bonus_attack_limit', 0)
-                members_data.append({
-                    "name": m.name,
-                    "tag": m.tag,
-                    "attacks": getattr(m, 'attack_count', 0),
-                    "limit": attack_limit + bonus_limit,
-                    "looted": getattr(m, 'capital_resources_looted', 0)
-                })
-            
-            members_data.sort(key=lambda x: x["looted"], reverse=True)
+            # Tenta pegar a liga, se não tiver, usa um placeholder
+            league_name = getattr(clan.capital_league, 'name', 'Desconhecida')
+            league_icon_url = getattr(clan.capital_league.icon, 'url', self.assets['trophy'])
 
             return {
-                "raid": {
-                    "state": getattr(raid, 'state', 'ended'),
-                    "start_time": raid.start_time.time.isoformat() if getattr(raid, 'start_time', None) else None,
-                    "end_time": raid.end_time.time.isoformat() if getattr(raid, 'end_time', None) else None,
-                    "total_loot": getattr(raid, 'total_loot', 0),
-                    "total_attacks": getattr(raid, 'attack_count', 0),
-                    "destroyed_districts": getattr(raid, 'destroyed_district_count', 0),
-                    "offensive_reward": getattr(raid, 'offensive_reward', 0),
-                    "defensive_reward": getattr(raid, 'defensive_reward', 0)
-                },
-                "members": members_data
+                "clan_name": clan.name,
+                "clan_badge_url": clan.badge.url,
+                "date_range": date_range,
+                "total_medals": total_medals,
+                "total_trophies": clan.capital_points, # Troféus totais do clã na capital
+                "clan_xp": getattr(raid, 'clan_xp_reward', 0),
+                "league_name": league_name,
+                "league_icon_url": league_icon_url,
+                "state": getattr(raid, 'state', 'ended')
             }
         except coc.errors.Maintenance: return {"error": "A API da Supercell está em manutenção."}
         except Exception as e:
             logger.error(f"Erro ao buscar dados da Capital: {e}", exc_info=True)
-            return {"error": "Erro interno ao processar dados da Capital."}
+            return {"error": "Erro interno ao processar dados."}
 
-    async def _fetch_image_asset(self, session, url):
-        """Baixa uma imagem da web e retorna como objeto PIL."""
+    async def _fetch_image(self, session, url):
+        """Baixa uma imagem e retorna como objeto PIL RGBA."""
         try:
             async with session.get(url) as resp:
                 if resp.status == 200:
                     data = await resp.read()
                     return Image.open(BytesIO(data)).convert("RGBA")
-        except Exception as e:
-            logger.error(f"Erro ao baixar asset {url}: {e}")
-        return None
+        except: return None
 
-    # ========================================================
-    # >>> GERADOR DE IMAGEM PREMIUM (ESTILO PRO) <<<
-    # ========================================================
-    def generate_pro_raid_image(self, clan_name: str, raid_data: Dict, icon_gold: Optional[Image.Image], icon_medal: Optional[Image.Image], bg_texture: Optional[Image.Image]) -> BytesIO:
-        """Monta a imagem usando assets reais e layout profissional."""
-        width, height = 900, 500
+    def _draw_rounded_panel(self, img, xy, corner_radius, fill_color, border_color=None, border_width=0):
+        """Desenha um painel retangular com bordas arredondadas estilo UI do jogo."""
+        draw = ImageDraw.Draw(img)
+        x0, y0, x1, y1 = xy
+        # Desenha o preenchimento
+        draw.rounded_rectangle(xy, corner_radius, fill=fill_color)
+        # Desenha a borda se especificada
+        if border_color and border_width > 0:
+             draw.rounded_rectangle(xy, corner_radius, fill=None, outline=border_color, width=border_width)
+
+    def generate_game_style_image(self, data: Dict, images: Dict[str, Image.Image]) -> BytesIO:
+        """Monta a imagem final imitando o layout do jogo."""
+        W, H = 1000, 600
+        # 1. Fundo
+        base = images.get('bg', Image.new('RGBA', (W, H))).resize((W, H), Image.LANCZOS)
+        draw = ImageDraw.Draw(base)
+
+        # Fontes (Tenta usar Arial Bold para simular o estilo, com fallback)
+        def get_font(size, bold=True):
+            try: return ImageFont.truetype("arialbd.ttf" if bold else "arial.ttf", size)
+            except: return ImageFont.load_default()
+
+        font_title = get_font(48)
+        font_subtitle = get_font(32)
+        font_medals = get_font(80)
+        font_panel_title = get_font(36)
+        font_panel_value = get_font(50)
+        font_xp = get_font(30)
+        font_league = get_font(42)
+
+        # === CABEÇALHO ===
+        # Nome do Clã (com sombra)
+        draw.text((103, 33), data['clan_name'], font=font_title, fill=(0,0,0)) # Sombra
+        draw.text((100, 30), data['clan_name'], font=font_title, fill=(255, 255, 255))
         
-        # 1. Fundo Base (Degradê Dark Premium)
-        base_img = Image.new('RGBA', (width, height), color=(20, 25, 35, 255))
-        draw = ImageDraw.Draw(base_img)
+        # Badge do Clã
+        if images.get('badge'):
+            badge = images['badge'].resize((80, 80), Image.LANCZOS)
+            base.paste(badge, (15, 15), badge)
+
+        # Título e Data (lado direito)
+        title_txt = "Resultado do Fim de Semana"
+        date_txt = data['date_range']
         
-        # Adiciona textura de fundo se disponível
-        if bg_texture:
-            bg_texture = bg_texture.resize((width, height))
-            base_img = Image.alpha_composite(base_img, bg_texture)
+        # Sombra e texto do título
+        draw.text((W - draw.textlength(title_txt, font=font_subtitle) - 30 + 2, 32), title_txt, font=font_subtitle, fill=(0,0,0))
+        draw.text((W - draw.textlength(title_txt, font=font_subtitle) - 30, 30), title_txt, font=font_subtitle, fill=(255, 255, 255))
+        # Sombra e texto da data
+        draw.text((W - draw.textlength(date_txt, font=font_subtitle) - 30 + 2, 72), date_txt, font=font_subtitle, fill=(0,0,0))
+        draw.text((W - draw.textlength(date_txt, font=font_subtitle) - 30, 70), date_txt, font=font_subtitle, fill=(255, 200, 0)) # Amarelo ouro
+
+        # === BANNER DE RECOMPENSA (CENTRO) ===
+        banner_y = 150
+        # Texto "Você recebeu:"
+        reward_txt = "Recompensa Total:"
+        draw.text(((W - draw.textlength(reward_txt, font=font_subtitle))/2 + 2, banner_y - 40 + 2), reward_txt, font=font_subtitle, fill=(0,0,0))
+        draw.text(((W - draw.textlength(reward_txt, font=font_subtitle))/2, banner_y - 40), reward_txt, font=font_subtitle, fill=(255,255,255))
+
+        # Fundo do banner semi-transparente
+        banner_bg = Image.new('RGBA', (600, 120), (0, 0, 0, 150))
+        base.paste(banner_bg, ((W-600)//2, banner_y), banner_bg)
+        self._draw_rounded_panel(base, ((W-600)//2, banner_y, (W+600)//2, banner_y + 120), 20, (0,0,0,0), (255, 215, 0), 3) # Borda dourada
+
+        # Ícone de Medalha e Valor
+        medal_icon = images.get('medal', Image.new('RGBA',(1,1))).resize((100, 100), Image.LANCZOS)
+        medal_val_txt = f"+{data['total_medals']:,}"
+        total_w = 100 + draw.textlength(medal_val_txt, font=font_medals) + 20
+        start_x = (W - total_w) / 2
         
-        # Faixa de Título Superior
-        header_height = 70
-        draw.rectangle([0, 0, width, header_height], fill=(30, 35, 45, 255))
-        draw.rectangle([0, header_height-4, width, header_height], fill=(255, 200, 0, 180)) # Linha dourada sutil
+        base.paste(medal_icon, (int(start_x), banner_y + 10), medal_icon)
+        draw.text((int(start_x) + 120 + 3, banner_y + 15 + 3), medal_val_txt, font=font_medals, fill=(0,0,0)) # Sombra
+        draw.text((int(start_x) + 120, banner_y + 15), medal_val_txt, font=font_medals, fill=(255, 255, 255))
 
-        # Fontes (Tenta carregar Arial Bold, senão usa default para não crashar no Linux/Render)
-        try:
-            font_header = ImageFont.truetype("arialbd.ttf", 36)
-            font_sub = ImageFont.truetype("arial.ttf", 24)
-            font_huge_num = ImageFont.truetype("arialbd.ttf", 72)
-            font_big_num = ImageFont.truetype("arialbd.ttf", 58)
-            font_label = ImageFont.truetype("arialbd.ttf", 28)
-            font_status = ImageFont.truetype("arialbd.ttf", 20)
-        except IOError:
-            font_header = ImageFont.load_default()
-            font_sub = ImageFont.load_default()
-            font_huge_num = ImageFont.load_default()
-            font_big_num = ImageFont.load_default()
-            font_label = ImageFont.load_default()
-            font_status = ImageFont.load_default()
+        # === PAINÉIS INFERIORES ===
+        panel_y = 320
+        panel_h = 230
+        panel_w = 460
+        panel_bg_color = (230, 225, 210, 230) # Cor bege estilo UI do jogo
+        panel_border = (180, 170, 150)
 
-        # Texto do Cabeçalho
-        draw.text((30, 15), f"CLÃ: {clan_name.upper()}", fill=(255, 255, 255), font=font_header)
-        draw.text((width - 350, 22), "RESUMO DO FIM DE SEMANA", fill=(180, 180, 190), font=font_sub)
-
-        # Função auxiliar para desenhar caixas translúcidas
-        def draw_translucent_box(x, y, w, h, color_rgb, alpha):
-            overlay = Image.new('RGBA', base_img.size, (0,0,0,0))
-            dr = ImageDraw.Draw(overlay)
-            dr.rectangle([x, y, x+w, y+h], fill=(color_rgb[0], color_rgb[1], color_rgb[2], alpha), outline=(color_rgb[0]+30, color_rgb[1]+30, color_rgb[2]+30), width=2)
-            return Image.alpha_composite(base_img, overlay)
-
-        # --- SEÇÃO PRINCIPAL: OURO TOTAL ---
-        base_img = draw_translucent_box(30, 100, width - 60, 150, (40, 44, 52), 220)
-        draw = ImageDraw.Draw(base_img) # Atualiza o drawer
+        # --- PAINEL ESQUERDO: TROFÉUS E XP ---
+        self._draw_rounded_panel(base, (30, panel_y, 30 + panel_w, panel_y + panel_h), 25, panel_bg_color, panel_border, 4)
         
-        draw.text((50, 115), "OURO TOTAL SAQUEADO", fill=(255, 215, 0), font=font_label)
-        loot_text = f"{raid_data['total_loot']:,}".replace(",", ".")
-        draw.text((160, 155), loot_text, fill=(255, 255, 255), font=font_huge_num)
-
-        if icon_gold:
-            icon_gold = icon_gold.resize((100, 100), Image.LANCZOS)
-            base_img.paste(icon_gold, (50, 145), icon_gold)
-
-        # --- SEÇÃO INFERIOR DIVIDIDA ---
-        box_width = (width - 90) // 2
-        box_y = 280
-        box_h = 180
-
-        # Caixa Esquerda: Medalhas
-        base_img = draw_translucent_box(30, box_y, box_width, box_h, (40, 44, 52), 220)
-        draw = ImageDraw.Draw(base_img)
-        medals = raid_data.get('offensive_reward', 0) + raid_data.get('defensive_reward', 0)
-        draw.text((50, box_y + 20), "MEDALHAS ESTIMADAS", fill=(0, 200, 255), font=font_label)
-        draw.text((140, box_y + 65), f"{medals:,}".replace(",", "."), fill=(255, 255, 255), font=font_big_num)
+        # Título Troféus
+        draw.text((60, panel_y + 20), "Total de Troféus:", font=font_panel_title, fill=(60, 60, 60))
         
-        if icon_medal:
-            icon_medal = icon_medal.resize((80, 80), Image.LANCZOS)
-            base_img.paste(icon_medal, (50, box_y + 65), icon_medal)
+        # Ícone e Valor Troféus
+        trophy_icon = images.get('trophy', Image.new('RGBA',(1,1))).resize((70, 70), Image.LANCZOS)
+        base.paste(trophy_icon, (60, panel_y + 70), trophy_icon)
+        draw.text((140, panel_y + 75), f"{data['total_trophies']:,}", font=font_panel_value, fill=(0,0,0))
 
-        # Caixa Direita: Estatísticas
-        base_img = draw_translucent_box(60 + box_width, box_y, box_width, box_h, (35, 38, 45), 230)
-        draw = ImageDraw.Draw(base_img)
-        start_x_right = 80 + box_width
-        draw.text((start_x_right, box_y + 20), "ESTATÍSTICAS DA GUERRA", fill=(200, 200, 200), font=font_label)
-        
-        # Linhas de estatística
-        draw.text((start_x_right, box_y + 70), f"Ataques Usados:", fill=(160, 160, 170), font=font_sub)
-        draw.text((start_x_right + 200, box_y + 68), f"{raid_data['total_attacks']}", fill=(255, 255, 255), font=font_label)
-        
-        draw.text((start_x_right, box_y + 110), f"Distritos Destruídos:", fill=(160, 160, 170), font=font_sub)
-        draw.text((start_x_right + 230, box_y + 108), f"{raid_data['destroyed_districts']}", fill=(255, 255, 255), font=font_label)
-        
-        # Status final (Com a correção de fonte para a Render)
-        status_txt = "FINALIZADO" if raid_data.get('state') != "ongoing" else "EM ANDAMENTO"
-        status_col = (50, 255, 50) if status_txt == "FINALIZADO" else (255, 200, 0)
-        draw.rectangle([width-180, height-40, width-30, height-10], fill=status_col)
-        draw.text((width-170, height-38), status_txt, fill=(0,0,0), font=font_status)
+        # Barra de XP
+        xp_bar_y = panel_y + 160
+        self._draw_rounded_panel(base, (50, xp_bar_y, 30 + panel_w - 20, xp_bar_y + 50), 15, (210, 205, 190), (190, 185, 170), 2)
+        xp_icon = images.get('xp', Image.new('RGBA',(1,1))).resize((40, 40), Image.LANCZOS)
+        base.paste(xp_icon, (60, xp_bar_y + 5), xp_icon)
+        draw.text((110, xp_bar_y + 10), f"XP do Clã Ganho: {data['clan_xp']}", font=font_xp, fill=(60, 60, 60))
 
-        # Finaliza e salva no buffer
+        # --- PAINEL DIREITO: LIGA ---
+        self._draw_rounded_panel(base, (W - 30 - panel_w, panel_y, W - 30, panel_y + panel_h), 25, panel_bg_color, panel_border, 4)
+        
+        # Título Liga
+        draw.text((W - panel_w + 60 - 30, panel_y + 20), "Resultado da Liga:", font=font_panel_title, fill=(60, 60, 60))
+        
+        # Ícone e Nome da Liga
+        if images.get('league'):
+            league_icon = images['league'].resize((100, 100), Image.LANCZOS)
+            base.paste(league_icon, (W - panel_w + 60 - 30, panel_y + 80), league_icon)
+        
+        draw.text((W - panel_w + 180 - 30, panel_y + 100), data['league_name'], font=font_league, fill=(0,0,0))
+
+        # Rodapé
+        draw.text((30, H - 30), "Gerado pelo ClashGenius", font=get_font(18), fill=(200, 200, 200, 150))
+
         buffer = BytesIO()
-        base_img.convert("RGB").save(buffer, format="PNG", quality=95)
+        base.convert("RGB").save(buffer, format="PNG", quality=95)
         buffer.seek(0)
         return buffer
 
-    # ========================================================
-    # >>> MOTOR AUTÔNOMO E COMANDO (COM DOWNLOAD DE ASSETS) <<<
-    # ========================================================
-    async def _process_and_send_image(self, interaction: Optional[discord.Interaction] = None, automated: bool = False):
-        """Função central que baixa assets, gera a imagem e envia."""
+    async def _process_and_send(self, interaction: Optional[discord.Interaction] = None, automated: bool = False):
         if automated and (self.bot.maintenance_mode or not getattr(self.bot, 'capital_report_channel_id', None)): return
 
         channel = None
@@ -193,41 +208,46 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
             if not channel: return
         
-        data = await self.fetch_capital_data_for_web()
+        data = await self.fetch_raid_data()
         if "error" in data:
             if interaction: await interaction.followup.send(f"❌ {data['error']}")
             return
 
-        # Baixa os assets em tempo real antes de gerar a imagem
+        # Baixa todos os assets necessários em paralelo
         async with aiohttp.ClientSession() as session:
-            icon_gold_task = asyncio.create_task(self._fetch_image_asset(session, self.icon_gold_url))
-            icon_medal_task = asyncio.create_task(self._fetch_image_asset(session, self.icon_medal_url))
-            bg_texture_task = asyncio.create_task(self._fetch_image_asset(session, self.bg_overlay_url))
-            icon_gold, icon_medal, bg_texture = await asyncio.gather(icon_gold_task, icon_medal_task, bg_texture_task)
+            tasks = [
+                self._fetch_image(session, self.assets['bg']),
+                self._fetch_image(session, self.assets['medal']),
+                self._fetch_image(session, self.assets['trophy']),
+                self._fetch_image(session, self.assets['xp']),
+                self._fetch_image(session, data['clan_badge_url']),
+                self._fetch_image(session, data['league_icon_url'])
+            ]
+            results = await asyncio.gather(*tasks)
+            image_assets = {
+                'bg': results[0], 'medal': results[1], 'trophy': results[2],
+                'xp': results[3], 'badge': results[4], 'league': results[5]
+            }
 
-        clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
+        # Gera a imagem em uma thread separada
+        image_buffer = await asyncio.to_thread(self.generate_game_style_image, data, image_assets)
         
-        # Roda a geração da imagem (que é pesada) em uma thread separada para não travar o bot
-        image_buffer = await asyncio.to_thread(self.generate_pro_raid_image, clan.name, data["raid"], icon_gold, icon_medal, bg_texture)
-        
-        file = discord.File(fp=image_buffer, filename="raid_summary_pro.png")
-        embed = discord.Embed(color=discord.Color(0x1a1d26)) # Cor escura do fundo da imagem
-        embed.set_image(url="attachment://raid_summary_pro.png")
+        file = discord.File(fp=image_buffer, filename="raid_summary.png")
+        embed = discord.Embed(color=discord.Color(0x2B2D31))
+        embed.set_image(url="attachment://raid_summary.png")
 
-        if interaction:
-            await interaction.followup.send(file=file, embed=embed)
-        elif channel:
-            await channel.send(content="🏕️ **Resumo do Fim de Semana da Capital**", file=file, embed=embed)
+        if interaction: await interaction.followup.send(file=file, embed=embed)
+        elif channel: await channel.send(content="🏕️ **Resumo Oficial da Capital**", file=file, embed=embed)
 
     @tasks.loop(minutes=30)
     async def auto_raid_summary(self):
         try:
-            data = await self.fetch_capital_data_for_web()
+            data = await self.fetch_raid_data()
             if "error" in data: return
-            current_state = data["raid"]["state"]
+            current_state = data["state"]
             if self.last_raid_state == "ongoing" and current_state == "ended":
-                logger.info("Raide finalizada. Iniciando geração de imagem PRO...")
-                await self._process_and_send_image(automated=True)
+                logger.info("Raide finalizada. Gerando imagem estilo jogo...")
+                await self._process_and_send(automated=True)
             self.last_raid_state = current_state
         except Exception as e: logger.error(f"Erro no auto_raid_summary: {e}")
 
@@ -235,15 +255,15 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
     async def before_auto_raid(self):
         await self.bot.wait_until_ready()
         try:
-            data = await self.fetch_capital_data_for_web()
-            if "error" not in data: self.last_raid_state = data["raid"]["state"]
-        except Exception: pass
+            data = await self.fetch_raid_data()
+            if "error" not in data: self.last_raid_state = data["state"]
+        except: pass
 
-    @app_commands.command(name="gerar_raide", description="Gera a imagem PREMIUM do resumo da Capital agora.")
+    @app_commands.command(name="gerar_raide", description="Gera a imagem do resumo da Capital no estilo oficial do jogo.")
     @app_commands.default_permissions(administrator=True)
     async def cmd_gerar_raide(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        await self._process_and_send_image(interaction=interaction, automated=False)
+        await self._process_and_send(interaction=interaction, automated=False)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(CapitalCog(bot))
