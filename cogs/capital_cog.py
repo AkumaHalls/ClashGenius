@@ -9,17 +9,19 @@ from typing import Dict, Any, Optional
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 import aiohttp
+import os
 
 logger = logging.getLogger("capital_cog")
 
 class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
-    """Cog para gerenciar a Capital e Gerar Imagens de Resumo no estilo oficial."""
+    """Cog para gerenciar a Capital e Gerar Imagens de Resumo no estilo exato do ClashPerk/In-Game."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.last_raid_state = None
+        self.font_path = "supercell_magic.ttf"
         
-        # AGORA SIM: URLs REAIS DOS ASSETS OFICIAIS DO JOGO (Wiki do Clash of Clans)
+        # Assets originais em alta definição da Wiki
         self.assets = {
             "bg": "https://static.wikia.nocookie.net/clashofclans/images/2/23/Capital_Peak_Scenery.png",
             "medal": "https://static.wikia.nocookie.net/clashofclans/images/5/52/Raid_Medal.png",
@@ -32,31 +34,38 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         self.auto_raid_summary.cancel()
 
     # ========================================================
+    # >>> DOWNLOADER DE FONTE OFICIAL <<<
+    # ========================================================
+    async def _ensure_font_exists(self):
+        """Baixa a fonte oficial do Clash of Clans se não existir na VPS (Render)."""
+        if not os.path.exists(self.font_path):
+            try:
+                font_url = "https://raw.githubusercontent.com/ApexzXD/Clash-of-Clans-API/master/Font/Supercell-Magic.ttf"
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(font_url) as resp:
+                        if resp.status == 200:
+                            with open(self.font_path, 'wb') as f:
+                                f.write(await resp.read())
+                            logger.info("Fonte Supercell-Magic baixada com sucesso!")
+            except Exception as e:
+                logger.error(f"Erro ao baixar a fonte: {e}")
+
+    # ========================================================
     # >>> FUNÇÃO DO PAINEL WEB (NÃO APAGAR) <<<
     # ========================================================
     async def fetch_capital_data_for_web(self) -> Dict[str, Any]:
-        """Busca os dados detalhados para alimentar o Painel Web (HTML/JS)."""
         try:
             raid_log = await self.bot.api_client.get_raid_log(self.bot.clan_tag, limit=1)
-            if not raid_log:
-                 return {"error": "Nenhum histórico de Raide encontrado."}
-            
+            if not raid_log: return {"error": "Nenhum histórico de Raide encontrado."}
             raid = raid_log[0]
-            
             members_data = []
             for m in raid.members:
-                attack_limit = getattr(m, 'attack_limit', 5)
-                bonus_limit = getattr(m, 'bonus_attack_limit', 0)
+                limit = getattr(m, 'attack_limit', 5) + getattr(m, 'bonus_attack_limit', 0)
                 members_data.append({
-                    "name": m.name,
-                    "tag": m.tag,
-                    "attacks": getattr(m, 'attack_count', 0),
-                    "limit": attack_limit + bonus_limit,
-                    "looted": getattr(m, 'capital_resources_looted', 0)
+                    "name": m.name, "tag": m.tag, "attacks": getattr(m, 'attack_count', 0),
+                    "limit": limit, "looted": getattr(m, 'capital_resources_looted', 0)
                 })
-            
             members_data.sort(key=lambda x: x["looted"], reverse=True)
-
             return {
                 "raid": {
                     "state": getattr(raid, 'state', 'ended'),
@@ -71,177 +80,204 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
                 "members": members_data
             }
         except coc.errors.Maintenance: return {"error": "A API da Supercell está em manutenção."}
-        except Exception as e:
-            logger.error(f"Erro ao buscar dados da Capital para a Web: {e}", exc_info=True)
-            return {"error": "Erro interno ao processar dados da Capital."}
+        except Exception as e: return {"error": "Erro interno ao processar dados da Capital."}
 
     # ========================================================
-    # >>> FUNÇÕES DA IMAGEM PREMIUM <<<
+    # >>> DADOS DA IMAGEM E UTILITÁRIOS <<<
     # ========================================================
+    def _translate_date(self, date_obj) -> str:
+        if not date_obj: return "??"
+        meses = {"Jan": "Jan", "Feb": "Fev", "Mar": "Mar", "Apr": "Abr", "May": "Mai", "Jun": "Jun", 
+                 "Jul": "Jul", "Aug": "Ago", "Sep": "Set", "Oct": "Out", "Nov": "Nov", "Dec": "Dez"}
+        en_month = date_obj.strftime("%b")
+        pt_month = meses.get(en_month, en_month)
+        return f"{date_obj.strftime('%d')} {pt_month}"
+
     async def fetch_raid_data(self) -> Dict[str, Any]:
-        """Busca dados resumidos e formatados especificamente para a Imagem."""
         try:
-            clan_task = self.bot.api_client.get_clan(self.bot.clan_tag)
-            raid_log_task = self.bot.api_client.get_raid_log(self.bot.clan_tag, limit=1)
-            clan, raid_log = await asyncio.gather(clan_task, raid_log_task)
-
-            if not raid_log: return {"error": "Nenhum histórico de Raide encontrado."}
+            clan, raid_log = await asyncio.gather(
+                self.bot.api_client.get_clan(self.bot.clan_tag),
+                self.bot.api_client.get_raid_log(self.bot.clan_tag, limit=1)
+            )
+            if not raid_log: return {"error": "Nenhum histórico."}
             raid = raid_log[0]
 
-            start = raid.start_time.time.strftime("%d %b") if getattr(raid, 'start_time', None) else "??"
-            end = raid.end_time.time.strftime("%d %b %Y") if getattr(raid, 'end_time', None) else "??"
-            date_range = f"{start} - {end}"
+            start_str = self._translate_date(getattr(raid, 'start_time', None).time if getattr(raid, 'start_time', None) else None)
+            end_time = getattr(raid, 'end_time', None).time if getattr(raid, 'end_time', None) else None
+            end_str = self._translate_date(end_time)
+            year = end_time.strftime("%Y") if end_time else "2025"
+            date_range = f"{start_str} - {end_str} {year}"
 
             total_medals = getattr(raid, 'offensive_reward', 0) + getattr(raid, 'defensive_reward', 0)
             
             league_name = "Desconhecida"
             league_icon_url = self.assets['trophy'] 
-            
             if clan.capital_league:
                 league_name = getattr(clan.capital_league, 'name', 'Desconhecida')
                 if hasattr(clan.capital_league, 'icon') and clan.capital_league.icon:
                     league_icon_url = getattr(clan.capital_league.icon, 'url', self.assets['trophy'])
 
             return {
-                "clan_name": clan.name,
-                "clan_badge_url": clan.badge.url,
-                "date_range": date_range,
-                "total_medals": total_medals,
+                "clan_name": clan.name, "clan_badge_url": clan.badge.url, "clan_level": clan.level,
+                "date_range": date_range, "total_medals": total_medals,
                 "total_trophies": getattr(clan, 'capital_points', 0),
                 "clan_xp": getattr(raid, 'clan_xp_reward', 0),
-                "league_name": league_name,
-                "league_icon_url": league_icon_url,
+                "league_name": league_name, "league_icon_url": league_icon_url,
                 "state": getattr(raid, 'state', 'ended')
             }
-        except coc.errors.Maintenance: return {"error": "A API da Supercell está em manutenção."}
-        except Exception as e:
-            logger.error(f"Erro ao buscar dados da Capital para a imagem: {e}", exc_info=True)
-            return {"error": "Erro interno ao processar dados."}
+        except Exception as e: return {"error": "Erro ao processar dados."}
 
     async def _fetch_image(self, session, url):
-        """Baixa uma imagem da Wiki burlando bloqueios."""
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
-        }
+        headers = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
         try:
-            async with session.get(url, headers=headers, timeout=15) as resp:
-                if resp.status == 200:
-                    data = await resp.read()
-                    return Image.open(BytesIO(data)).convert("RGBA")
-                else:
-                    logger.warning(f"Erro HTTP {resp.status} ao baixar {url}")
-        except Exception as e:
-            logger.warning(f"Falha ao baixar imagem de {url}: {e}")
+            async with session.get(url, headers=headers, timeout=10) as resp:
+                if resp.status == 200: return Image.open(BytesIO(await resp.read())).convert("RGBA")
+        except: pass
         return None
 
-    def _draw_rounded_panel(self, img, xy, corner_radius, fill_color, border_color=None, border_width=0):
-        draw = ImageDraw.Draw(img)
-        draw.rounded_rectangle(xy, corner_radius, fill=fill_color)
-        if border_color and border_width > 0:
-             draw.rounded_rectangle(xy, corner_radius, fill=None, outline=border_color, width=border_width)
+    def _draw_text_outlined(self, draw, pos, text, font, fill_color, stroke_color=(0,0,0), stroke_width=3):
+        """Escreve o texto com a borda preta grossa, marca registrada da UI do Clash."""
+        x, y = pos
+        # Desenha a borda
+        for dx in range(-stroke_width, stroke_width+1):
+            for dy in range(-stroke_width, stroke_width+1):
+                if dx*dx + dy*dy <= stroke_width*stroke_width:
+                    draw.text((x+dx, y+dy), text, font=font, fill=stroke_color)
+        # Desenha o texto principal
+        draw.text((x, y), text, font=font, fill=fill_color)
 
+    # ========================================================
+    # >>> COMPOSITOR DE ARTE (CLASHPERK CLONE) <<<
+    # ========================================================
     def generate_game_style_image(self, data: Dict, images: Dict[str, Image.Image]) -> BytesIO:
-        W, H = 1000, 600
-        
-        # Fundo Oficial da Capital
-        bg_raw = images.get('bg') or Image.new('RGBA', (W, H), color=(40, 50, 60))
-        base = bg_raw.resize((W, H), Image.LANCZOS).convert("RGBA")
+        W, H = 1000, 620
+        base = Image.new('RGBA', (W, H), color=(234, 230, 223)) # Cor bege de fundo da UI base
         draw = ImageDraw.Draw(base)
 
-        def get_font(size, bold=True):
-            try: return ImageFont.truetype("arialbd.ttf" if bold else "arial.ttf", size)
-            except: return ImageFont.load_default()
+        # Sistema de Fonte
+        def get_font(size):
+            try: return ImageFont.truetype(self.font_path, size)
+            except: 
+                try: return ImageFont.truetype("arialbd.ttf", size)
+                except: return ImageFont.load_default()
 
-        font_title = get_font(48)
-        font_subtitle = get_font(32)
-        font_medals = get_font(80)
-        font_panel_title = get_font(36)
-        font_panel_value = get_font(50)
-        font_xp = get_font(30)
-        font_league = get_font(42)
+        f_huge = get_font(52)
+        f_title = get_font(34)
+        f_sub = get_font(26)
+        f_small = get_font(22)
 
-        # Cabeçalho: Nome do Clã
-        draw.text((103, 33), data['clan_name'], font=font_title, fill=(0,0,0)) 
-        draw.text((100, 30), data['clan_name'], font=font_title, fill=(255, 255, 255))
-        
+        # 1. PARTE SUPERIOR: Fundo da Capital
+        bg_img = images.get('bg')
+        if bg_img:
+            # Corta e redimensiona para o topo
+            bg_img = bg_img.resize((W, int(W * bg_img.height / bg_img.width)), Image.LANCZOS)
+            bg_img = bg_img.crop((0, 0, W, 310))
+            base.paste(bg_img, (0, 0))
+        else:
+            draw.rectangle([0, 0, W, 310], fill=(70, 90, 110))
+
+        # Divider branco grosso
+        draw.rectangle([0, 305, W, 315], fill=(255, 255, 255))
+
+        # 2. CABEÇALHO ESQUERDO (Badge e Nome)
         if images.get('badge'):
-            badge = images['badge'].resize((80, 80), Image.LANCZOS)
-            base.paste(badge, (15, 15), badge)
+            badge = images['badge'].resize((90, 90), Image.LANCZOS)
+            base.paste(badge, (20, 15), badge)
+        self._draw_text_outlined(draw, (120, 35), data['clan_name'], f_title, (255, 255, 255), stroke_width=4)
 
-        title_txt = "Resultado do Fim de Semana"
-        date_txt = data['date_range']
+        # 3. CABEÇALHO DIREITO (Títulos e Data)
+        txt_title = "Resultados do Fim de Semana"
+        txt_date = data['date_range']
+        tw = draw.textlength(txt_title, font=f_sub)
+        dw = draw.textlength(txt_date, font=f_sub)
+        self._draw_text_outlined(draw, (W - tw - 20, 25), txt_title, f_sub, (255, 255, 255), stroke_width=3)
+        self._draw_text_outlined(draw, (W - dw - 20, 60), txt_date, f_sub, (255, 255, 255), stroke_width=3)
+
+        # 4. BANNER CENTRAL TRANSLÚCIDO (Medalhas/Loot Principal)
+        pill_w, pill_h = 400, 80
+        pill_x, pill_y = (W - pill_w) // 2, 170
         
-        draw.text((W - draw.textlength(title_txt, font=font_subtitle) - 30 + 2, 32), title_txt, font=font_subtitle, fill=(0,0,0))
-        draw.text((W - draw.textlength(title_txt, font=font_subtitle) - 30, 30), title_txt, font=font_subtitle, fill=(255, 255, 255))
-        draw.text((W - draw.textlength(date_txt, font=font_subtitle) - 30 + 2, 72), date_txt, font=font_subtitle, fill=(0,0,0))
-        draw.text((W - draw.textlength(date_txt, font=font_subtitle) - 30, 70), date_txt, font=font_subtitle, fill=(255, 200, 0)) 
+        txt_reward = "Você recebeu:"
+        rw = draw.textlength(txt_reward, font=f_sub)
+        self._draw_text_outlined(draw, ((W - rw) // 2, pill_y - 35), txt_reward, f_sub, (255, 255, 255), stroke_width=3)
 
-        # Banner Central (Medalhas)
-        banner_y = 150
-        reward_txt = "Recompensa Total:"
-        draw.text(((W - draw.textlength(reward_txt, font=font_subtitle))/2 + 2, banner_y - 40 + 2), reward_txt, font=font_subtitle, fill=(0,0,0))
-        draw.text(((W - draw.textlength(reward_txt, font=font_subtitle))/2, banner_y - 40), reward_txt, font=font_subtitle, fill=(255,255,255))
+        # Desenha a pílula preta translúcida
+        overlay = Image.new('RGBA', (W, H), (0,0,0,0))
+        d_overlay = ImageDraw.Draw(overlay)
+        d_overlay.rounded_rectangle([pill_x, pill_y, pill_x + pill_w, pill_y + pill_h], radius=40, fill=(0, 0, 0, 140))
+        base = Image.alpha_composite(base, overlay)
+        draw = ImageDraw.Draw(base)
 
-        banner_bg = Image.new('RGBA', (600, 120), (0, 0, 0, 160))
-        base.paste(banner_bg, ((W-600)//2, banner_y), banner_bg)
-        self._draw_rounded_panel(base, ((W-600)//2, banner_y, (W+600)//2, banner_y + 120), 20, (0,0,0,0), (255, 215, 0), 3)
-
-        # Ícone Oficial da Medalha
-        medal_raw = images.get('medal') or Image.new('RGBA', (1,1), (0,0,0,0))
-        medal_icon = medal_raw.resize((100, 100), Image.LANCZOS)
+        # Ícone de Medalha / Troféu Ouro
+        icon_main = images.get('medal') or images.get('trophy')
+        if icon_main:
+            icon_main = icon_main.resize((110, 110), Image.LANCZOS)
+            base.paste(icon_main, (pill_x - 40, pill_y - 15), icon_main)
         
-        medal_val_txt = f"+{data['total_medals']:,}"
-        total_w = 100 + draw.textlength(medal_val_txt, font=font_medals) + 20
-        start_x = (W - total_w) / 2
-        
-        base.paste(medal_icon, (int(start_x), banner_y + 10), medal_icon)
-        draw.text((int(start_x) + 120 + 3, banner_y + 15 + 3), medal_val_txt, font=font_medals, fill=(0,0,0))
-        draw.text((int(start_x) + 120, banner_y + 15), medal_val_txt, font=font_medals, fill=(255, 255, 255))
+        # Texto da Medalha
+        val_txt = f"+{data['total_medals']}" if data['total_medals'] > 0 else "0"
+        vw = draw.textlength(val_txt, font=f_huge)
+        self._draw_text_outlined(draw, (pill_x + (pill_w - vw)//2 + 20, pill_y + 10), val_txt, f_huge, (255, 255, 255), stroke_width=4)
 
-        # Painéis Inferiores
-        panel_y = 320
-        panel_h = 230
-        panel_w = 460
-        panel_bg_color = (230, 225, 210, 240)
-        panel_border = (180, 170, 150)
+        # 5. PAINÉIS INFERIORES
+        y_bot = 330
+        h_bot = 260
+        w_panel = 460
 
-        # Painel Esquerdo: Troféus e XP
-        self._draw_rounded_panel(base, (30, panel_y, 30 + panel_w, panel_y + panel_h), 25, panel_bg_color, panel_border, 4)
-        draw.text((60, panel_y + 20), "Total de Troféus:", font=font_panel_title, fill=(60, 60, 60))
+        # --- PAINEL ESQUERDO (TROFÉUS E XP) ---
+        p1_x = 25
+        # Fundo do painel
+        draw.rounded_rectangle([p1_x, y_bot, p1_x + w_panel, y_bot + h_bot], radius=15, fill=(202, 195, 179), outline=(163, 156, 141), width=4)
         
-        # Ícone Oficial de Troféu da Capital
-        trophy_raw = images.get('trophy') or Image.new('RGBA', (1,1), (0,0,0,0))
-        trophy_icon = trophy_raw.resize((70, 70), Image.LANCZOS)
-        base.paste(trophy_icon, (60, panel_y + 70), trophy_icon)
+        # Título "Total de Troféus:"
+        self._draw_text_outlined(draw, (p1_x + 60, y_bot + 25), "Total de Troféus:", f_title, (255, 255, 255), stroke_width=3)
         
-        draw.text((140, panel_y + 75), f"{data['total_trophies']:,}", font=font_panel_value, fill=(0,0,0))
+        # Valor dos Troféus
+        trophy_val = f"{data['total_trophies']}"
+        self._draw_text_outlined(draw, (p1_x + 90, y_bot + 80), trophy_val, f_huge, (255, 255, 255), stroke_width=4)
+        
+        # Ícone do Troféu
+        if images.get('trophy'):
+            ic = images['trophy'].resize((70, 70), Image.LANCZOS)
+            base.paste(ic, (p1_x + 90 + int(draw.textlength(trophy_val, font=f_huge)) + 15, y_bot + 80), ic)
 
-        xp_bar_y = panel_y + 160
-        self._draw_rounded_panel(base, (50, xp_bar_y, 30 + panel_w - 20, xp_bar_y + 50), 15, (210, 205, 190), (190, 185, 170), 2)
-        
-        # Ícone Oficial de XP do Clã
-        xp_raw = images.get('xp') or Image.new('RGBA', (1,1), (0,0,0,0))
-        xp_icon = xp_raw.resize((40, 40), Image.LANCZOS)
-        base.paste(xp_icon, (60, xp_bar_y + 5), xp_icon)
-        
-        draw.text((110, xp_bar_y + 10), f"XP do Clã Ganho: {data['clan_xp']}", font=font_xp, fill=(60, 60, 60))
+        # Pílula de XP
+        xp_y = y_bot + 180
+        draw.rounded_rectangle([p1_x + 30, xp_y, p1_x + w_panel - 30, xp_y + 55], radius=25, fill=(225, 221, 211), outline=(255, 255, 255), width=2)
+        if images.get('xp'):
+            xp_ic = images['xp'].resize((45, 45), Image.LANCZOS)
+            base.paste(xp_ic, (p1_x + 40, xp_y + 5), xp_ic)
+        self._draw_text_outlined(draw, (p1_x + 100, xp_y + 12), f"XP do Clã: {data['clan_xp']}", f_sub, (255, 255, 255), stroke_width=3)
 
-        # Painel Direito: Liga
-        self._draw_rounded_panel(base, (W - 30 - panel_w, panel_y, W - 30, panel_y + panel_h), 25, panel_bg_color, panel_border, 4)
-        draw.text((W - panel_w + 60 - 30, panel_y + 20), "Resultado da Liga:", font=font_panel_title, fill=(60, 60, 60))
+
+        # --- PAINEL DIREITO (LIGA) ---
+        p2_x = W - w_panel - 25
+        # Fundo do painel direito
+        draw.rounded_rectangle([p2_x, y_bot, p2_x + w_panel, y_bot + h_bot], radius=15, fill=(202, 195, 179), outline=(163, 156, 141), width=4)
+        
+        # Faixa cinza escura da liga
+        draw.rounded_rectangle([p2_x, y_bot + 70, p2_x + w_panel, y_bot + h_bot], radius=15, fill=(103, 106, 107))
+        # Refaz o preenchimento reto em cima para não ter cantos arredondados vazando
+        draw.rectangle([p2_x, y_bot + 70, p2_x + w_panel, y_bot + 100], fill=(103, 106, 107))
+
+        # Título Liga
+        txt_league_title = "Liga Atual da Capital"
+        lw = draw.textlength(txt_league_title, font=f_sub)
+        self._draw_text_outlined(draw, (p2_x + (w_panel - lw)//2, y_bot + 20), txt_league_title, f_sub, (255, 255, 255), stroke_width=3)
+
+        # Sinal de Igual, Ícone e Nome da Liga
+        self._draw_text_outlined(draw, (p2_x + 30, y_bot + 130), "=", f_huge, (255, 255, 255), stroke_width=4)
         
         if images.get('league'):
-            league_icon = images['league'].resize((100, 100), Image.LANCZOS)
-            base.paste(league_icon, (W - panel_w + 60 - 30, panel_y + 80), league_icon)
-        
-        draw.text((W - panel_w + 180 - 30, panel_y + 100), data['league_name'], font=font_league, fill=(0,0,0))
+            l_ic = images['league'].resize((120, 120), Image.LANCZOS)
+            base.paste(l_ic, (p2_x + 100, y_bot + 100), l_ic)
+            
+        self._draw_text_outlined(draw, (p2_x + 230, y_bot + 120), data['league_name'], f_title, (255, 255, 255), stroke_width=3)
+        self._draw_text_outlined(draw, (p2_x + 230, y_bot + 175), f"{data['total_trophies']} Troféus", f_small, (255, 215, 0), stroke_width=2) # Texto dourado
 
-        # Rodapé Discreto
-        draw.text((30, H - 30), "Gerado pelo ClashGenius", font=get_font(18), fill=(200, 200, 200, 150))
-
+        # Retorna a imagem montada
         buffer = BytesIO()
-        base.convert("RGB").save(buffer, format="PNG", quality=95)
+        base.convert("RGB").save(buffer, format="PNG", quality=100)
         buffer.seek(0)
         return buffer
 
@@ -254,12 +290,13 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
             if not channel: return
         
+        await self._ensure_font_exists()
+        
         data = await self.fetch_raid_data()
         if "error" in data:
             if interaction: await interaction.followup.send(f"❌ {data['error']}")
             return
 
-        # Baixa os arquivos da Wiki do Clash of Clans
         async with aiohttp.ClientSession() as session:
             tasks = [
                 self._fetch_image(session, self.assets['bg']),
@@ -269,20 +306,17 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
                 self._fetch_image(session, data['clan_badge_url']),
                 self._fetch_image(session, data['league_icon_url'])
             ]
-            results = await asyncio.gather(*tasks)
-            image_assets = {
-                'bg': results[0], 'medal': results[1], 'trophy': results[2],
-                'xp': results[3], 'badge': results[4], 'league': results[5]
-            }
+            res = await asyncio.gather(*tasks)
+            image_assets = {'bg': res[0], 'medal': res[1], 'trophy': res[2], 'xp': res[3], 'badge': res[4], 'league': res[5]}
 
         image_buffer = await asyncio.to_thread(self.generate_game_style_image, data, image_assets)
         
         file = discord.File(fp=image_buffer, filename="raid_summary.png")
-        embed = discord.Embed(color=discord.Color(0x2B2D31))
+        embed = discord.Embed(color=discord.Color(0xEAE6DF)) # Cor da borda do embed combinando com a imagem
         embed.set_image(url="attachment://raid_summary.png")
 
         if interaction: await interaction.followup.send(file=file, embed=embed)
-        elif channel: await channel.send(content="🏕️ **Resumo Oficial da Capital**", file=file, embed=embed)
+        elif channel: await channel.send(content="🏕️ **Resultados do Fim de Semana da Capital!**", file=file, embed=embed)
 
     @tasks.loop(minutes=30)
     async def auto_raid_summary(self):
@@ -291,7 +325,6 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             if "error" in data: return
             current_state = data.get("state", "ended")
             if self.last_raid_state == "ongoing" and current_state == "ended":
-                logger.info("Raide finalizada. Gerando imagem estilo jogo...")
                 await self._process_and_send(automated=True)
             self.last_raid_state = current_state
         except Exception as e: logger.error(f"Erro no auto_raid_summary: {e}")
@@ -304,7 +337,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             if "error" not in data: self.last_raid_state = data.get("state", "ended")
         except: pass
 
-    @app_commands.command(name="gerar_raide", description="Gera a imagem do resumo da Capital no estilo oficial do jogo.")
+    @app_commands.command(name="gerar_raide", description="Gera a imagem do resumo da Capital idêntica à do jogo.")
     @app_commands.default_permissions(administrator=True)
     async def cmd_gerar_raide(self, interaction: discord.Interaction):
         await interaction.response.defer()
