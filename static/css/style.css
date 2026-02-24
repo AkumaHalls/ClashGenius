@@ -2220,6 +2220,70 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 15px;
 }
+
+/* ========================================================
+   >>> ESTILOS DOS JOGOS DO CLÃ <<<
+   ======================================================== */
+.cg-progress-container {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    border-radius: var(--border-radius-base);
+    border: 1px solid var(--color-border);
+    text-align: center;
+}
+.cg-progress-info {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: var(--color-text-main);
+}
+.cg-points {
+    color: var(--color-gold);
+    font-size: 1.2em;
+}
+.cg-progress-bar-bg {
+    background-color: rgba(255, 255, 255, 0.1);
+    height: 25px;
+    border-radius: 15px;
+    overflow: hidden;
+    width: 100%;
+    border: 1px solid var(--color-border-light);
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+    margin-bottom: 5px;
+}
+.cg-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-warning) 0%, var(--color-success) 100%);
+    border-radius: 15px;
+    transition: width 1s ease-in-out;
+}
+.cg-progress-text {
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+    margin: 5px 0 0 0;
+}
+.cg-player-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-divider);
+    align-items: center;
+}
+.cg-player-item:last-child {
+    border-bottom: none;
+}
+.cg-player-info strong {
+    color: var(--color-text-main);
+}
+.cg-player-score {
+    font-weight: bold;
+    color: var(--color-info);
+}
+.cg-player-score.max-score {
+    color: var(--color-gold);
+    text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+}
+
 .status-badge {
     padding: 6px 12px;
     border-radius: var(--border-radius-base);
@@ -2230,7 +2294,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 }
 .status-success { background-color: var(--color-success); color: white; }
 .status-warning { background-color: var(--color-warning); color: var(--color-priority-text-dark); }
-
 
 @media (max-width: 600px) {
     .profile-header-new {

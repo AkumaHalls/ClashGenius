@@ -113,6 +113,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const capIncompleteAttacksListEl = document.getElementById('capIncompleteAttacksList');
     const noCapitalMessageEl = document.getElementById('noCapitalMessage');
 
+    // === ELEMENTOS DOS JOGOS DO CLÃ ===
+    const cgContentEl = document.getElementById('cgContent');
+    const cgTotalPointsEl = document.getElementById('cgTotalPoints');
+    const cgMaxPointsEl = document.getElementById('cgMaxPoints');
+    const cgProgressBarEl = document.getElementById('cgProgressBar');
+    const cgProgressTextEl = document.getElementById('cgProgressText');
+    const cgTopPlayersListEl = document.getElementById('cgTopPlayersList');
+    const cgZeroPlayersListEl = document.getElementById('cgZeroPlayersList');
+    const noClanGamesMessageEl = document.getElementById('noClanGamesMessage');
+
     const botVersionEl = document.getElementById('botVersion');
     const lastUpdatedEl = document.getElementById('lastUpdated');
 
@@ -836,7 +846,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(noWarLogMessageEl) noWarLogMessageEl.style.display = 'none';
         
-        // <<< FIX 2: Mapeamento blindado para o ID da guerra >>>
         setHtml(warLogTableBodyEl, data.log.map(e => {
             const warId = e.war_id || e.id || e._id || '';
             return `
@@ -907,6 +916,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // === NOVA FUNÇÃO: POPULA JOGOS DO CLÃ ===
+    function populateClanGamesData(data) {
+        if (!cgContentEl) return;
+
+        if (!data || data.error || !data.active) {
+            if (noClanGamesMessageEl) {
+                noClanGamesMessageEl.style.display = 'block';
+                setText(noClanGamesMessageEl, data?.error || "Os Jogos do Clã não estão ativos no momento.");
+            }
+            cgContentEl.style.display = 'none';
+            return;
+        }
+
+        if (noClanGamesMessageEl) noClanGamesMessageEl.style.display = 'none';
+        cgContentEl.style.display = 'block';
+
+        const totalPoints = data.total_points || 0;
+        const maxClanPoints = data.max_clan_points || 50000;
+        const maxPlayerPoints = data.max_player_points || 4000;
+        const members = data.members || [];
+
+        setText(cgTotalPointsEl, totalPoints.toLocaleString());
+        setText(cgMaxPointsEl, maxClanPoints.toLocaleString());
+
+        let progress = totalPoints / maxClanPoints;
+        if (progress > 1) progress = 1;
+        
+        cgProgressBarEl.style.width = `${(progress * 100).toFixed(1)}%`;
+        setText(cgProgressTextEl, `${(progress * 100).toFixed(1)}% Concluído`);
+
+        const topPlayers = members.filter(m => m.score > 0);
+        const zeroPlayers = members.filter(m => m.score === 0);
+
+        if (cgTopPlayersListEl) {
+            setHtml(cgTopPlayersListEl, topPlayers.length > 0 ? topPlayers.map((m, i) => `
+                <div class="cg-player-item">
+                    <div class="cg-player-info">
+                        <span>${i+1}.</span> <strong>${m.name}</strong> <span style="font-size: 0.8em; color: var(--color-text-secondary);">(${m.role})</span>
+                    </div>
+                    <div class="cg-player-score ${m.score >= maxPlayerPoints ? 'max-score' : ''}">
+                        ${m.score.toLocaleString()} ${m.score >= maxPlayerPoints ? '🔥' : ''}
+                    </div>
+                </div>
+            `).join('') : '<p>Ninguém pontuou ainda.</p>');
+        }
+
+        if (cgZeroPlayersListEl) {
+            setHtml(cgZeroPlayersListEl, zeroPlayers.length > 0 ? zeroPlayers.map(m => `
+                <div class="cg-player-item">
+                    <div class="cg-player-info"><strong>${m.name}</strong></div>
+                    <div class="cg-player-score text-danger">0</div>
+                </div>
+            `).join('') : '<p class="text-success" style="padding: 10px;">Todos pontuaram! 🎉</p>');
+        }
+    }
+
 
     async function savePlayerNote(playerTag, text, priority) {
         try {
@@ -947,6 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const date = new Date(m.last_war_date);
                     lastWarDateFormatted = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
                 } catch (e) {
+                    console.warn(`Data inválida de última guerra para ${m.name}: ${m.last_war_date}`);
                     lastWarDateFormatted = 'Inválida';
                 }
             }
@@ -1320,7 +1386,6 @@ document.addEventListener('DOMContentLoaded', () => {
         populateWarDetails(historicWarData, 'historicWarDetailContent', true);
     }
 
-    // <<< FIX 1: RESTAURAÇÃO DO CÓDIGO DAS ABAS PRINCIPAIS DE GUERRA >>>
     warTabButtons.forEach(button => {
         button?.addEventListener('click', () => { 
             const parentSection = button.closest('.content-section');
@@ -1369,11 +1434,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
-                warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData
+                warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData, clanGamesData
             ] = await Promise.all([
                 fetchData('members'), fetchData('current_war_details'), fetchData('missed_attacks_history'),
                 fetchData('war_log'), fetchData('cwl/generate_plan', { method: 'POST' }), 
-                fetchData('highlights'), fetchData('war_advisor_plan'), fetchData('capital')
+                fetchData('highlights'), fetchData('war_advisor_plan'), fetchData('capital'), fetchData('clan_games')
             ]);
 
             if (membersData && !membersData.error) populateMembersList(membersData);
@@ -1383,8 +1448,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (warLogData && !warLogData.error) populateWarLog(warLogData);
             if (cwlInfoData) populateCwlData(cwlInfoData); 
             if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); 
-            
             if (capitalData) populateCapitalData(capitalData);
+            
+            // Renderiza Jogos do Clã
+            if (clanGamesData) populateClanGamesData(clanGamesData);
 
             updateLastUpdated();
         } catch (error) {

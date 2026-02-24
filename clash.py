@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Versão 30.3.7-RE
+# Versão 31.0.0-Capital-Image
 
 import os
 import logging
@@ -65,8 +65,9 @@ LEADER_ROLE_ID = int(os.getenv("LEADER_ROLE_ID", 0))
 COLEADER_ROLE_ID = int(os.getenv("COLEADER_ROLE_ID", 0))
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
 LOW_PERFORMANCE_CHANNEL_ID = int(os.getenv("LOW_PERFORMANCE_CHANNEL_ID", 0))
+CAPITAL_REPORT_CHANNEL_ID = int(os.getenv("CAPITAL_REPORT_CHANNEL_ID", 0))
 
-BOT_VERSION = "30.3.7-RE" 
+BOT_VERSION = "31.0.0-Capital-Image" 
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -88,6 +89,7 @@ class ClashGeniusBot(commands.Bot):
         self.coleader_role_id = COLEADER_ROLE_ID
         self.auto_add_watchlist_enabled = AUTO_ADD_WATCHLIST_ENABLED
         self.low_performance_channel_id = LOW_PERFORMANCE_CHANNEL_ID
+        self.capital_report_channel_id = CAPITAL_REPORT_CHANNEL_ID
         self.bot_version = BOT_VERSION
         self.timezone = TIMEZONE
         self.base_url = BASE_URL
@@ -174,6 +176,7 @@ class ClashGeniusBot(commands.Bot):
                 self.donations_channel_id = bot_settings.get("donations_channel_id", self.donations_channel_id)
                 self.watchlist_alert_channel_id = bot_settings.get("watchlist_alert_channel_id", self.watchlist_alert_channel_id)
                 self.low_performance_channel_id = bot_settings.get("low_performance_channel_id", self.low_performance_channel_id)
+                self.capital_report_channel_id = bot_settings.get("capital_report_channel_id", self.capital_report_channel_id)
                 self.role_id_1star_alert = bot_settings.get("role_id_1star_alert", self.role_id_1star_alert)
                 self.role_id_missed_attack = bot_settings.get("role_id_missed_attack", self.role_id_missed_attack)
                 self.leader_role_id = bot_settings.get("leader_role_id", self.leader_role_id)
@@ -314,6 +317,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     async def api_highlights_handler(r): return await handle_web_response(r, 'highlights', web_api_cog.fetch_highlights_for_web)
     async def api_capital_handler(r): return await handle_web_response(r, 'capital', capital_cog.fetch_capital_data_for_web)
     
+    async def api_clan_games_handler(r): 
+        clan_games_cog = bot_instance.get_cog("Jogos do Clã")
+        if clan_games_cog: return await handle_web_response(r, 'clan_games', clan_games_cog.fetch_clan_games_data_for_web)
+        return web.json_response({"error": "Módulo dos Jogos do Clã não encontrado."}, status=500)
+    
     async def api_save_player_note_handler(request):
         player_tag = coc.utils.correct_tag(request.match_info['player_tag']); data = await request.json()
         try:
@@ -388,6 +396,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/coc_status", api_coc_status_handler); app.router.add_get("/api/status", admin_get_status_handler);
     app.router.add_get("/api/maintenance_message", api_maintenance_message); 
     app.router.add_get("/api/capital", api_capital_handler);
+    app.router.add_get("/api/clan_games", api_clan_games_handler);
 
     @web.middleware
     async def admin_auth_middleware(request, handler):
