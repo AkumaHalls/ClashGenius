@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 import coc
 import datetime
+import asyncio
 from typing import Optional
 
 logger = logging.getLogger("events_cog")
@@ -141,14 +142,34 @@ class EventsCog(commands.Cog, name="Monitor de Eventos"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.bot.coc_client_ready.wait()
+
+    async def cog_load(self):
+        """Dispara assim que a cog for carregada para ligar o rastreamento da API."""
+        self.bot.loop.create_task(self._start_tracking())
+
+    async def cog_unload(self):
+        """Desliga o rastreamento ao descarregar a cog."""
+        if self.bot.api_client:
+            self.bot.api_client.remove_clan_update(self.bot.clan_tag)
+
+    async def _start_tracking(self):
+        """A chave mágica: liga o motor de eventos da Supercell em segundo plano."""
+        await self.bot.coc_client_ready.wait()
         
-        # Inscreve os listeners na API da Supercell
+        # 1. Registra os ouvintes (Listeners)
         self.bot.api_client.add_events(
             self.on_clan_member_join,
             self.on_clan_member_leave,
             self.on_clan_member_role_change
         )
+        
+        # 2. Adiciona o Clã na lista de varredura
+        self.bot.api_client.add_clan_update(self.bot.clan_tag)
+        
+        # 3. Liga o laço de repetição que fica perguntando à Supercell se algo mudou
+        self.bot.api_client.start_updates('clan')
+        
+        logger.info(f"O radar do RH foi ligado com sucesso para o clã: {self.bot.clan_tag}")
 
     async def _send_rh_alert(self, embed: discord.Embed, tag: str = None):
         """Função base para enviar o alerta no canal de RH."""
