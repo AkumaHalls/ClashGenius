@@ -125,7 +125,7 @@ class OpenProfileButtonView(discord.ui.View):
             await interaction.followup.send("❌ Erro interno ao buscar dados do jogador.", ephemeral=True)
 
 # ========================================================
-# >>> COG DE EVENTOS DO CLÃ ORIGINAL RESTAURADA <<<
+# >>> COG DE EVENTOS DO CLÃ ORIGINAL RESTAURADA E BLINDADA <<<
 # ========================================================
 class EventsCog(commands.Cog, name="Eventos do Clã"):
     """Cog para gerenciar e notificar eventos do clã e de guerra."""
@@ -197,8 +197,8 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             await self.events_client.close()
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None, view: Optional[discord.ui.View] = None):
-        """Envia embeds de log de forma segura para o canal especificado."""
-        channel_id_to_use = target_channel_id if target_channel_id else self.bot.channel_id
+        """Envia embeds de log de forma segura para o canal especificado, com fallback para o canal geral."""
+        channel_id_to_use = target_channel_id if target_channel_id else getattr(self.bot, 'channel_id', None)
         if not channel_id_to_use: return
         
         try:
@@ -214,7 +214,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
                     await channel.send(content=content, embed=embed_to_log)
             except discord.errors.HTTPException as e:
                 if e.status == 429:
-                    logger.warning(f"Rate Limit (429) no canal {channel_id_to_use}. Ignorando.")
+                    logger.warning(f"Rate Limit (429) no canal de logs {channel_id_to_use}. Mensagem ignorada para proteção.")
                 else:
                     logger.error(f"Erro HTTP ao enviar log: {e}")
 
@@ -224,30 +224,32 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
     # --- FUNÇÕES QUE RESPONDEM AOS EVENTOS ---
 
     async def handle_clan_member_join(self, member, clan):
-        if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
+        # Correção da barreira invisível do '#': Verifica a tag de forma segura
+        if self.bot.maintenance_mode or coc.utils.correct_tag(clan.tag) != coc.utils.correct_tag(self.bot.clan_tag):
+            return
 
         logger.info(f"Evento member_join DETECTADO para {member.name} ({member.tag}).")
 
         watchlist_cog = self.bot.get_cog("Lista de Observação")
-        if watchlist_cog: await watchlist_cog.check_and_alert_on_join(member)
+        if watchlist_cog:
+            await watchlist_cog.check_and_alert_on_join(member)
 
-        embed = discord.Embed(title="➡️ Membro Entrou no Clã", description=f"**{member.name}** (`{member.tag}`) entrou no clã.", color=discord.Color.dark_green())
-        embed.add_field(name="CV", value=member.town_hall, inline=True)
+        embed = discord.Embed(title="➡️ Membro Entrou no Clã", description=f"**{member.name}** (`{member.tag}`) juntou-se ao clã.", color=discord.Color.brand_green())
+        embed.add_field(name="CV", value=str(member.town_hall), inline=True)
         if hasattr(member, 'league') and member.league and hasattr(member.league, 'name'):
             embed.add_field(name="Liga", value=member.league.name, inline=True)
         
-        # O SEGREDINHO AQUI: Injeta o botão da interface que criamos lá em cima!
         view = OpenProfileButtonView(self.bot, member.tag)
         await self._send_log_embed(embed, target_channel_id=self.bot.watchlist_alert_channel_id, view=view)
 
     async def handle_clan_member_leave(self, member, clan):
-        if self.bot.maintenance_mode or clan.tag != self.bot.clan_tag: return
-        embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** (`{member.tag}`) saiu do clã.", color=discord.Color.dark_grey())
-        embed.add_field(name="CV", value=member.town_hall, inline=True)
+        if self.bot.maintenance_mode or coc.utils.correct_tag(clan.tag) != coc.utils.correct_tag(self.bot.clan_tag): return
+        
+        embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** (`{member.tag}`) deixou a equipe.", color=discord.Color.dark_grey())
+        embed.add_field(name="CV", value=str(member.town_hall), inline=True)
         role_name = member.role.name.capitalize() if member.role and hasattr(member.role, 'name') else "N/A"
         embed.add_field(name="Cargo", value=role_name, inline=True)
         
-        # O SEGREDINHO AQUI: Injeta o botão
         view = OpenProfileButtonView(self.bot, member.tag)
         await self._send_log_embed(embed, target_channel_id=self.bot.watchlist_alert_channel_id, view=view)
 
@@ -297,21 +299,22 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             logger.error(f"Erro em on_war_attack: {e}", exc_info=True)
 
     async def handle_clan_member_role_change(self, old_member, new_member):
-        if self.bot.maintenance_mode: return
+        if self.bot.maintenance_mode or (new_member.clan and coc.utils.correct_tag(new_member.clan.tag) != coc.utils.correct_tag(self.bot.clan_tag)): return
+        
         old_role = old_member.role.name.capitalize() if old_member.role and hasattr(old_member.role, 'name') else "N/A"
         new_role = new_member.role.name.capitalize() if new_member.role and hasattr(new_member.role, 'name') else "N/A"
         if old_role == new_role: return
 
-        embed = discord.Embed(title="✨ Mudança de Cargo", description=f"O cargo de **{new_member.name}** (`{new_member.tag}`) foi alterado.", color=discord.Color.purple())
+        embed = discord.Embed(title="✨ Mudança de Cargo", description=f"A patente de **{new_member.name}** (`{new_member.tag}`) foi alterada.", color=discord.Color.blurple())
         embed.add_field(name="Cargo Antigo", value=old_role, inline=True)
         embed.add_field(name="Novo Cargo", value=new_role, inline=True)
         
-        # Botão de perfil para promoção também!
         view = OpenProfileButtonView(self.bot, new_member.tag)
         await self._send_log_embed(embed, target_channel_id=self.bot.watchlist_alert_channel_id, view=view)
 
     async def handle_clan_member_trophies_change(self, old_member, new_member):
-        if self.bot.maintenance_mode: return
+        if self.bot.maintenance_mode or (new_member.clan and coc.utils.correct_tag(new_member.clan.tag) != coc.utils.correct_tag(self.bot.clan_tag)): return
+        
         diff = new_member.trophies - old_member.trophies
         if abs(diff) < 5: return
         action = "ganhou" if diff > 0 else "perdeu"
@@ -322,7 +325,8 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
 
     async def handle_clan_member_league_change(self, old_member, new_member):
-        if self.bot.maintenance_mode: return
+        if self.bot.maintenance_mode or (new_member.clan and coc.utils.correct_tag(new_member.clan.tag) != coc.utils.correct_tag(self.bot.clan_tag)): return
+        
         old_league = old_member.league.name if old_member.league and hasattr(old_member.league, 'name') else "N/A"
         new_league = new_member.league.name if new_member.league and hasattr(new_member.league, 'name') else "N/A"
         if old_league == new_league: return
@@ -336,7 +340,8 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
 
     async def handle_member_donations(self, old_member, new_member):
-        if self.bot.maintenance_mode: return
+        if self.bot.maintenance_mode or (new_member.clan and coc.utils.correct_tag(new_member.clan.tag) != coc.utils.correct_tag(self.bot.clan_tag)): return
+        
         diff = new_member.donations - old_member.donations
         if diff <= 0: return
         embed = discord.Embed(description=f"🎁 **{new_member.name}** doou **{diff}** tropas (Total: {new_member.donations}).", color=0xf1c40f)
@@ -346,7 +351,8 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         await self._send_log_embed(embed, target_channel_id=self.bot.donations_channel_id)
 
     async def handle_member_received(self, old_member, new_member):
-        if self.bot.maintenance_mode: return
+        if self.bot.maintenance_mode or (new_member.clan and coc.utils.correct_tag(new_member.clan.tag) != coc.utils.correct_tag(self.bot.clan_tag)): return
+        
         diff = new_member.received - old_member.received
         if diff <= 0: return
         embed = discord.Embed(description=f"📥 **{new_member.name}** recebeu **{diff}** tropas (Total: {new_member.received}).", color=0x3498db)
