@@ -252,9 +252,19 @@ class IntelligentRotationEngine:
         total = 0.0
         for f in self.decision_factors:
             score = f.evaluate(p, ctx)
+            
+            # BLINDAGEM DO CRAQUE: Se for Fixo (Priority), a IA ignora a punição de rodízio (Fairness)
+            if p.status == PlayerStatus.PRIORITY and f.name == "Fairness":
+                score = 1.0 # Justiça máxima sempre!
+                
             weighted = score * weights.get(f.name, f.weight)
             breakdown[f.name] = {"raw": score, "weight": weights.get(f.name), "weighted": weighted}
             total += weighted
+            
+        # Garante que os fixos tenham vantagem brutal na nota final da IA
+        if p.status == PlayerStatus.PRIORITY:
+            total += 5.0
+            
         if p.forced_inclusion: total += 10.0
         if p.forced_exclusion: total -= 10.0
         return total, breakdown
@@ -434,7 +444,6 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
             else:
                 cwl_members = cwl_roster.members
 
-            # --- AQUI ESTÁ A BLINDAGEM ANTI-FANTASMA ---
             valid_cwl_tags = {m.tag for m in cwl_members}
 
             db_cog = self.bot.get_cog("Banco de Dados")
@@ -448,7 +457,6 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 m = member_map.get(tag)
                 if not m: m = next((x for x in clan.members if x.tag == tag), None)
                 
-                # SÓ ADICIONA SE ESTIVER NA LISTA OFICIAL DA SUPERCELL E FOR UM MEMBRO VÁLIDO
                 if m and m.tag in valid_cwl_tags:
                     note = notes.get(m.tag, {})
                     try: 
@@ -505,7 +513,6 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
     # ==================== CONTROLE DE PERSISTÊNCIA ====================
 
     async def generate_rotation_plan(self, force_recalculate: bool = False) -> Dict[str, Any]:
-        """Alias para o frontend do painel."""
         return await self.generate_plan(force_recalculate=force_recalculate)
 
     async def generate_plan(self, force_recalculate: bool = False) -> Dict:
@@ -522,14 +529,12 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 
             if not group or group.state == "notInWar": return {"error": "CWL off", "status": "NotInCwl"}
             
-            # --- O COFRE MÁGICO: RETORNA DO DB SE EXISTIR, EXCETO SE FORÇADO ---
             existing = await self.cwl_plan_collection.find_one({"_id": group.season})
             
             if existing and not force_recalculate:
                 logger.info("Recuperando plano de Rotação CWL salvo no Banco de Dados...")
                 return sanitize_for_mongo(existing)
 
-            # Se forçado ou não existir, cria o novo:
             logger.info("Iniciando Cérebro de Rotação (Gerando novo plano)...")
             fallback_team_size = existing.get("team_size", 15) if existing else 15
 
@@ -608,7 +613,6 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
             curr_plan = DayPlan(day, roster.copy(), [], active, backup, strat, None, 1.0, [], cont)
             schedule.append(sanitize_for_mongo(curr_plan.to_dict()))
             
-            # Simulação Futura
             curr_r = roster.copy(); curr_a = active.copy(); curr_b = backup.copy()
             for d in range(day+1, 8):
                 new_r, subs, warns = self.rotation_engine.calculate_rotation(curr_r, curr_a, curr_b, d, strat)
@@ -623,7 +627,6 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 "current_day": day, "team_size": team_size, "season": group.season, "status": "InCwl"
             }
             
-            # Salva no cofre da DB!
             await self.cwl_plan_collection.update_one({"_id": group.season}, {"$set": sanitize_for_mongo(data)}, upsert=True)
             return data
 
@@ -631,14 +634,9 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
             logger.error(f"Generate error: {e}", exc_info=True)
             return {"error": f"Erro interno: {str(e)}"}
 
-    # --- TASKS ---
     @tasks.loop(minutes=15)
     async def monitor_task(self):
-        # A task em background agora não força a recálculo da IA por padrão,
-        # ela apenas acessa generate_plan(force_recalculate=False) para fins de log,
-        # poupando toneladas de RAM da Render.
         if not self.bot.is_ready(): return
-        
         if getattr(self, "is_generating_plan", False): return
             
         self.is_generating_plan = True
@@ -651,7 +649,6 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
     async def before_monitor_task(self):
         await self.bot.wait_until_ready()
 
-    # --- COMANDOS ---
     @commands.command(name='resetarplano')
     @commands.has_permissions(administrator=True)
     async def reset_plan_command(self, ctx):
