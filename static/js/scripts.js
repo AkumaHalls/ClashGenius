@@ -799,13 +799,14 @@ document.addEventListener('DOMContentLoaded', () => {
     async function populateCwlData(data) {
         if (!cwlPlannerSectionEl) return;
 
+        // GARANTIA DE VISIBILIDADE DO CÉREBRO DE ROTAÇÃO
+        cwlPlannerSectionEl.style.display = 'block';
+
         if (!data || data.error || data.status === "NotInCwl") {
             if (noCwlMessageEl) {
                 noCwlMessageEl.style.display = 'block';
                 setText(noCwlMessageEl, data?.error || data?.message || "O clã não está em CWL no momento.");
             }
-            cwlPlannerSectionEl.style.display = 'block'; 
-            
             if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
             if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; 
             
@@ -814,14 +815,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
-        if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
+        if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'flex'; // Restaura o cabeçalho
+        if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; // Mostra os resultados
 
         if (data.current_day >= 8) {
             setText(cwlStatusTextEl, "Finalizada");
         } else if (data.current_day >= 1) {
-            setText(cwlStatusTextEl, `Em Guerra (Dia ${data.current_day})`);
+            // Diferencia entre Dia de Preparação e Dia de Batalha na UI
+            if (data.state === 'preparation' || data.war_state === 'preparation') {
+                setText(cwlStatusTextEl, `Preparação (Dia ${data.current_day})`);
+            } else {
+                setText(cwlStatusTextEl, `Em Guerra (Dia ${data.current_day})`);
+            }
         } else {
-            setText(cwlStatusTextEl, "Em Preparação"); 
+            setText(cwlStatusTextEl, "Em Preparação do Grupo"); 
         }
 
         if (data.warning) {
