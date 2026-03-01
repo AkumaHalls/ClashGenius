@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-1
 import logging
 import discord
 from discord.ext import commands, tasks
@@ -405,3 +405,4 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EventsCog(bot))
+
