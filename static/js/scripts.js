@@ -704,10 +704,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // === SOLUÇÃO DEFINITIVA: BLINDAGEM DO NOME DO JOGADOR ===
     function populateCwlOverview(planData) {
         if (!cwlOverviewContainerEl) return;
 
-        // Blindagem contra arrays vazios/inexistentes para não dar erro
         const score = (planData && Array.isArray(planData.participation_score)) ? planData.participation_score : [];
         
         let placarHtml = '<h4>📊 Placar de Participação (Estimado)</h4>'; 
@@ -715,9 +715,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (score.length > 0) {
              score.sort((a, b) => (b.days_played || 0) - (a.days_played || 0));
-             placarHtml += score.map(p => 
-                `<p>${p.player?.name || 'Membro'} (CV${p.player?.town_hall || '?'}): <strong>${p.days_played || 0} / 7 dias</strong></p>`
-             ).join('');
+             placarHtml += score.map(p => {
+                 // Busca o nome e o CV independente do formato que a API Python enviar
+                 const name = p.name || (p.player && p.player.name) || 'Membro Oculto';
+                 const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                 return `<p>${name} (CV${th}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
+             }).join('');
         } else {
             placarHtml += '<p>Nenhum dado de participação gerado.</p>';
         }
@@ -755,24 +758,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let planHtml = `<h4>Alterações na Equipa</h4>`;
             planHtml += (dayData.substitutions && dayData.substitutions.length > 0)
-                ? dayData.substitutions.map(sub => `
+                ? dayData.substitutions.map(sub => {
+                    const outName = sub.out?.name || (sub.out?.player && sub.out.player.name) || '?';
+                    const outTh = sub.out?.town_hall || (sub.out?.player && sub.out.player.town_hall) || '?';
+                    const inName = sub.in?.name || (sub.in?.player && sub.in.player.name) || '?';
+                    const inTh = sub.in?.town_hall || (sub.in?.player && sub.in.player.town_hall) || '?';
+                    return `
                     <div class="substitution-card">
-                        <p>🔴 <strong>Sai:</strong> ${sub.out?.name || '?'} (CV${sub.out?.town_hall || '?'})</p>
-                        <p>🟢 <strong>Entra:</strong> ${sub.in?.name || '?'} (CV${sub.in?.town_hall || '?'})</p>
+                        <p>🔴 <strong>Sai:</strong> ${outName} (CV${outTh})</p>
+                        <p>🟢 <strong>Entra:</strong> ${inName} (CV${inTh})</p>
                         <p class="reason"><em>IA: ${sub.reason || '-'}</em></p>
-                    </div>`).join('')
+                    </div>`;
+                }).join('')
                 : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs.' : 'A IA sugere manter a escalação do dia anterior.'}</p>`;
 
             const roster = dayData.active_roster || [];
             planHtml += `<h4>⚔️ Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
             
-            const sortedRoster = [...roster].sort((a, b) => (b.player?.town_hall || 0) - (a.player?.town_hall || 0));
+            const sortedRoster = [...roster].sort((a, b) => {
+                const thA = a.town_hall || (a.player && a.player.town_hall) || 0;
+                const thB = b.town_hall || (b.player && b.player.town_hall) || 0;
+                return thB - thA;
+            });
 
             planHtml += sortedRoster.length > 0
-                ? sortedRoster.map((p, i) => `
+                ? sortedRoster.map((p, i) => {
+                    const name = p.name || (p.player && p.player.name) || '?';
+                    const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                    return `
                     <div class="roster-player">
-                        <span>${i + 1}.</span>${p.player?.name || '?'} (CV${p.player?.town_hall || '?'}) - ${p.days_played || 0}d
-                    </div>`).join('')
+                        <span>${i + 1}.</span>${name} (CV${th}) - ${p.days_played || 0}d
+                    </div>`;
+                }).join('')
                 : '<p>Nenhum jogador na escalação.</p>';
             planHtml += `</div>`; 
             
@@ -787,14 +804,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 planHtml += '<h5>Ativos (Próximos a entrar):</h5>';
                 planHtml += activeBench
                     .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
-                    .map((p, i) => `<p>${i+1}. ${p.player?.name || '?'} (CV${p.player?.town_hall || '?'}) - ${p.days_played || 0}d</p>`)
+                    .map((p, i) => {
+                        const name = p.name || (p.player && p.player.name) || '?';
+                        const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
+                    })
                     .join('');
             }
             if (backupBench.length > 0) {
                 planHtml += '<h5 style="margin-top: 10px;">Backups (Emergência):</h5>';
                 planHtml += backupBench
                     .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
-                    .map((p, i) => `<p>${i+1}. ${p.player?.name || '?'} (CV${p.player?.town_hall || '?'}) - ${p.days_played || 0}d</p>`)
+                    .map((p, i) => {
+                        const name = p.name || (p.player && p.player.name) || '?';
+                        const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
+                    })
                     .join('');
             }
             if (activeBench.length === 0 && backupBench.length === 0) {
@@ -840,13 +865,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'flex'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
-        // 1. CORREÇÃO: PREENCHE OS DADOS EM BRANCO ("-")
+        // PREENCHE A TEMPORADA E O ESTADO
         setText(cwlSeasonEl, data.season || '-');
         
         let statusReal = data.state === 'preparation' ? 'Preparação' : (data.state === 'inWar' ? 'Em Andamento' : (data.state || '-'));
         setText(cwlGroupStateEl, statusReal);
 
-        // Preenche os clãs do grupo (com brasões)
+        // PREENCHE OS CLÃS DO GRUPO (Com os brasões)
         if (cwlGroupClansEl) {
             if (data.clans && Array.isArray(data.clans) && data.clans.length > 0) {
                 let clansHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px;">';
@@ -860,7 +885,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Preenche as rodadas (⏳, ⚔️, ✅)
+        // PREENCHE O CRONOGRAMA DE RODADAS
         if (cwlRoundsInfoEl) {
             if (data.rounds && Array.isArray(data.rounds) && data.rounds.length > 0) {
                 let roundsText = data.rounds.map((r, i) => {
@@ -873,7 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // 2. CORREÇÃO: STATUS PRINCIPAL DE GUERRA/PREPARAÇÃO
+        // STATUS PRINCIPAL DE GUERRA/PREPARAÇÃO
         if (data.current_day >= 8) {
             setText(cwlStatusTextEl, "Finalizada");
         } else if (data.current_day >= 1) {
@@ -886,7 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setText(cwlStatusTextEl, "Em Preparação do Grupo"); 
         }
 
-        // Avisos da IA
+        // AVISO DE INATIVIDADE E DICAS
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -894,7 +919,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
-        // 3. BOTÃO DE RECALCULAR
+        // BOTÃO DE RECALCULAR O CÉREBRO
         if (!document.getElementById('recalc-cwl-btn')) {
              const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold;">🧠 Recalcular Rotação Inteligente</button>`;
              if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
@@ -904,7 +929,7 @@ document.addEventListener('DOMContentLoaded', () => {
              });
         }
 
-        // Carrega a Rotação apenas 1 vez (ou quando apertar o botão)
+        // EXECUTA A ROTAÇÃO
         if (!cwlPlanCached && !isFetchingCwlPlan) {
             loadCwlPlan();
         } else if (cwlPlanCached) {
