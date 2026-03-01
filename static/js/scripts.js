@@ -697,7 +697,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) {
-            if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Falha na comunicação com o Cérebro de Rotação.</div>`);
+            console.error("Erro no JS ao gerar plano:", e);
+            if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Falha interna na Rotação. Tente novamente mais tarde.</div>`);
         } finally {
             isFetchingCwlPlan = false;
         }
@@ -706,22 +707,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateCwlOverview(planData) {
         if (!cwlOverviewContainerEl) return;
 
-        if (!planData || !planData.participation_score || planData.participation_score.length === 0) {
-            setHtml(cwlOverviewContainerEl, `<div class="cwl-overview-card" style="grid-column: 1 / -1;"><p>Dados de participação indisponíveis. Certifique-se de ativar os membros na aba Membros.</p></div>`);
-            cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
-            return;
-        }
-
-        const score = planData.participation_score;
+        // Blindagem contra arrays vazios/inexistentes para não dar erro
+        const score = (planData && Array.isArray(planData.participation_score)) ? planData.participation_score : [];
         
         let placarHtml = '<h4>📊 Placar de Participação (Estimado)</h4>'; 
         placarHtml += '<div class="cwl-overview-list-bench">'; 
         
-        score.sort((a, b) => b.days_played - a.days_played);
-        placarHtml += score.map(p => 
-            `<p>${p.player.name} (CV${p.player.town_hall}): <strong>${p.days_played} / 7 dias</strong></p>`
-        ).join('');
-        
+        if (score.length > 0) {
+             score.sort((a, b) => (b.days_played || 0) - (a.days_played || 0));
+             placarHtml += score.map(p => 
+                `<p>${p.player?.name || 'Membro'} (CV${p.player?.town_hall || '?'}): <strong>${p.days_played || 0} / 7 dias</strong></p>`
+             ).join('');
+        } else {
+            placarHtml += '<p>Nenhum dado de participação gerado.</p>';
+        }
         placarHtml += '</div>';
 
         setHtml(cwlOverviewContainerEl, `<div class="cwl-overview-card" style="grid-column: 1 / -1;">${placarHtml}</div>`);
@@ -731,11 +730,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateCwlSchedule(planData) {
         if (!cwlPlanDaysTabsEl || !cwlPlanContentEl) return;
 
-        const schedule = planData.schedule || [];
+        const schedule = (planData && Array.isArray(planData.schedule)) ? planData.schedule : [];
         const currentDay = planData.current_day || 1;
 
+        if (schedule.length === 0) {
+             setHtml(cwlPlanDaysTabsEl, '');
+             setHtml(cwlPlanContentEl, '<p class="message-box">Não foi possível montar a escalação.</p>');
+             return;
+        }
+
         const tabsHtml = schedule.map(dayPlan => {
-            const day = dayPlan.day;
+            const day = dayPlan.day || 1;
             const isActive = day === currentDay;
             return `<button class="cwl-plan-day-tab ${isActive ? 'active' : ''}" data-day="${day}">Dia ${day}</button>`;
         }).join('');
@@ -749,24 +754,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             let planHtml = `<h4>Alterações na Equipa</h4>`;
-            planHtml += dayData.substitutions?.length > 0
+            planHtml += (dayData.substitutions && dayData.substitutions.length > 0)
                 ? dayData.substitutions.map(sub => `
                     <div class="substitution-card">
                         <p>🔴 <strong>Sai:</strong> ${sub.out?.name || '?'} (CV${sub.out?.town_hall || '?'})</p>
                         <p>🟢 <strong>Entra:</strong> ${sub.in?.name || '?'} (CV${sub.in?.town_hall || '?'})</p>
                         <p class="reason"><em>IA: ${sub.reason || '-'}</em></p>
                     </div>`).join('')
-                : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs.' : 'A IA sugere manter a mesma escalação do dia anterior.'}</p>`;
+                : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs.' : 'A IA sugere manter a escalação do dia anterior.'}</p>`;
 
             const roster = dayData.active_roster || [];
             planHtml += `<h4>⚔️ Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
             
-            const sortedRoster = [...roster].sort((a, b) => b.player.town_hall - a.player.town_hall);
+            const sortedRoster = [...roster].sort((a, b) => (b.player?.town_hall || 0) - (a.player?.town_hall || 0));
 
             planHtml += sortedRoster.length > 0
                 ? sortedRoster.map((p, i) => `
                     <div class="roster-player">
-                        <span>${i + 1}.</span>${p.player.name || '?'} (CV${p.player.town_hall || '?'}) - ${p.days_played}d
+                        <span>${i + 1}.</span>${p.player?.name || '?'} (CV${p.player?.town_hall || '?'}) - ${p.days_played || 0}d
                     </div>`).join('')
                 : '<p>Nenhum jogador na escalação.</p>';
             planHtml += `</div>`; 
@@ -781,15 +786,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeBench.length > 0) {
                 planHtml += '<h5>Ativos (Próximos a entrar):</h5>';
                 planHtml += activeBench
-                    .sort((a, b) => a.days_played - b.days_played) 
-                    .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
+                    .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
+                    .map((p, i) => `<p>${i+1}. ${p.player?.name || '?'} (CV${p.player?.town_hall || '?'}) - ${p.days_played || 0}d</p>`)
                     .join('');
             }
             if (backupBench.length > 0) {
                 planHtml += '<h5 style="margin-top: 10px;">Backups (Emergência):</h5>';
                 planHtml += backupBench
-                    .sort((a, b) => a.days_played - b.days_played) 
-                    .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
+                    .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
+                    .map((p, i) => `<p>${i+1}. ${p.player?.name || '?'} (CV${p.player?.town_hall || '?'}) - ${p.days_played || 0}d</p>`)
                     .join('');
             }
             if (activeBench.length === 0 && backupBench.length === 0) {
@@ -811,6 +816,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ========================================================
+    // >>> PREENCHIMENTO DA ABA CWL (INFO DA API SUPERCELL) <<<
+    // ========================================================
     async function populateCwlData(data) {
         if (!cwlPlannerSectionEl) return;
 
@@ -832,7 +840,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'flex'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
-        // === CORREÇÃO DO STATUS DE PREPARAÇÃO ===
+        // 1. CORREÇÃO: PREENCHE OS DADOS EM BRANCO ("-")
+        setText(cwlSeasonEl, data.season || '-');
+        
+        let statusReal = data.state === 'preparation' ? 'Preparação' : (data.state === 'inWar' ? 'Em Andamento' : (data.state || '-'));
+        setText(cwlGroupStateEl, statusReal);
+
+        // Preenche os clãs do grupo (com brasões)
+        if (cwlGroupClansEl) {
+            if (data.clans && Array.isArray(data.clans) && data.clans.length > 0) {
+                let clansHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px;">';
+                data.clans.forEach(c => {
+                    clansHtml += `<div style="display:flex; align-items:center;"><img src="${c.badge_url || DEFAULT_BADGE_URL}" style="width: 25px; margin-right: 8px;"> <span>${c.name}</span></div>`;
+                });
+                clansHtml += '</div>';
+                setHtml(cwlGroupClansEl, clansHtml);
+            } else {
+                setHtml(cwlGroupClansEl, "<p style='color:var(--color-text-secondary); margin-top:10px;'>Oponentes ainda não revelados.</p>");
+            }
+        }
+
+        // Preenche as rodadas (⏳, ⚔️, ✅)
+        if (cwlRoundsInfoEl) {
+            if (data.rounds && Array.isArray(data.rounds) && data.rounds.length > 0) {
+                let roundsText = data.rounds.map((r, i) => {
+                     let icon = r === 'warEnded' ? '✅' : (r === 'inWar' ? '⚔️' : '⏳');
+                     return `<span style="display:inline-block; margin-right:15px;">Dia ${i+1}: ${icon}</span>`;
+                }).join('');
+                setHtml(cwlRoundsInfoEl, `<div style="margin-top:10px;">${roundsText}</div>`);
+            } else {
+                setHtml(cwlRoundsInfoEl, "<p style='color:var(--color-text-secondary); margin-top:10px;'>Cronograma de dias indisponível.</p>");
+            }
+        }
+
+        // 2. CORREÇÃO: STATUS PRINCIPAL DE GUERRA/PREPARAÇÃO
         if (data.current_day >= 8) {
             setText(cwlStatusTextEl, "Finalizada");
         } else if (data.current_day >= 1) {
@@ -845,6 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setText(cwlStatusTextEl, "Em Preparação do Grupo"); 
         }
 
+        // Avisos da IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -852,7 +894,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
-        // Adiciona o Botão de Recalcular Rotação
+        // 3. BOTÃO DE RECALCULAR
         if (!document.getElementById('recalc-cwl-btn')) {
              const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold;">🧠 Recalcular Rotação Inteligente</button>`;
              if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
@@ -862,7 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
              });
         }
 
-        // Chama o planejador pesado apenas uma vez (ou quando clicar no botão)
+        // Carrega a Rotação apenas 1 vez (ou quando apertar o botão)
         if (!cwlPlanCached && !isFetchingCwlPlan) {
             loadCwlPlan();
         } else if (cwlPlanCached) {
@@ -1466,9 +1508,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
-            // ===============================================================
-            // CORREÇÃO APLICADA AQUI: O 5º Item agora é cwl_info, super rápido!
-            // ===============================================================
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
                 warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData, clanGamesData
