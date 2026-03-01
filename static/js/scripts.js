@@ -180,6 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+
+    // --- LÓGICA DA MÚSICA DE FUNDO ---
     if (backgroundMusicEl && muteButtonEl) {
         backgroundMusicEl.volume = 0.2;
         let musicStarted = false; 
@@ -212,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- FUNÇÕES HELPER ---
     function updateLastUpdated() {
         const now = new Date();
         setText(lastUpdatedEl, `Última atualização: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`);
@@ -235,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
     const initialSectionId = navLinks.length > 0 ? navLinks[0].dataset.section : 'clan-info-nav';
     let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
 
@@ -252,6 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSectionEl = document.getElementById(newSectionId);
 
         if (!newSectionEl) {
+            console.warn(`Section with ID "${newSectionId}" not found.`);
             return; 
         }
 
@@ -273,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
         if (!data || data.error || !data.name) {
             setText(clanNameHeaderEl, "Erro");
@@ -305,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setText(noHighlightsMessageEl, data?.error || "Não foi possível carregar os destaques.");
             }
             if(highlightsContentEl) highlightsContentEl.style.display = 'none'; 
+            console.error("Erro ao carregar destaques ou dados ausentes:", data?.error || "Dados ausentes"); 
             return;
         }
 
@@ -349,7 +356,9 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 activityChart.destroy();
                 activityChart = null; 
-            } catch(e) { }
+            } catch(e) {
+                 console.error("Erro ao destruir gráfico anterior:", e);
+            }
         }
 
         const chartData = data.activity_chart_data;
@@ -377,6 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } catch (e) {
+                console.error("Erro detalhado ao criar gráfico de atividade:", e);
                 if (activityChartCanvas) {
                     const ctx = activityChartCanvas.getContext('2d');
                     if (ctx) {
@@ -716,7 +726,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (score.length > 0) {
              score.sort((a, b) => (b.days_played || 0) - (a.days_played || 0));
              placarHtml += score.map(p => {
-                 // Busca o nome e o CV independente do formato que a API Python enviar
                  const name = p.name || (p.player && p.player.name) || 'Membro Oculto';
                  const th = p.town_hall || (p.player && p.player.town_hall) || '?';
                  return `<p>${name} (CV${th}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
@@ -911,7 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setText(cwlStatusTextEl, "Em Preparação do Grupo"); 
         }
 
-        // AVISO DE INATIVIDADE E DICAS
+        // AVISOS DA IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -923,13 +932,29 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!document.getElementById('recalc-cwl-btn')) {
              const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold;">🧠 Recalcular Rotação Inteligente</button>`;
              if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
-             document.getElementById('recalc-cwl-btn')?.addEventListener('click', () => {
+             
+             // O BOTÃO AGORA MANDA O 'FORCE: TRUE' PRO PYTHON
+             document.getElementById('recalc-cwl-btn')?.addEventListener('click', async () => {
                  cwlPlanCached = null;
-                 loadCwlPlan();
+                 if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">Recalculando toda a temporada...</p>`);
+                 
+                 const planData = await fetchData('cwl/generate_plan', { 
+                     method: 'POST', 
+                     headers: {'Content-Type': 'application/json'}, 
+                     body: JSON.stringify({force: true}) 
+                 });
+                 
+                 if (planData && !planData.error) {
+                     cwlPlanCached = planData; 
+                     populateCwlOverview(planData); 
+                     populateCwlSchedule(planData);
+                 } else {
+                     if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao recalcular: ${planData?.error || 'Tente novamente.'}</div>`);
+                 }
              });
         }
 
-        // EXECUTA A ROTAÇÃO
+        // EXECUTA A ROTAÇÃO NORMALMENTE SE NÃO ESTIVER NO CACHE
         if (!cwlPlanCached && !isFetchingCwlPlan) {
             loadCwlPlan();
         } else if (cwlPlanCached) {
@@ -1114,6 +1139,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const date = new Date(m.last_war_date);
                     lastWarDateFormatted = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
                 } catch (e) {
+                    console.warn(`Data inválida de última guerra para ${m.name}: ${m.last_war_date}`);
                     lastWarDateFormatted = 'Inválida';
                 }
             }
@@ -1533,6 +1559,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
+            // ===============================================================
+            // CORREÇÃO APLICADA AQUI: O 5º Item agora é cwl_info, super rápido!
+            // ===============================================================
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
                 warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData, clanGamesData
