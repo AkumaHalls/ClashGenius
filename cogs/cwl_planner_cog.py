@@ -442,19 +442,22 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 cwl_members = cwl_roster.members
 
             valid_cwl_tags = {m.tag for m in cwl_members}
+            all_relevant_tags = valid_cwl_tags.union(war_tags).union(curr_tags)
 
             db_cog = self.bot.get_cog("Banco de Dados")
             notes = await db_cog.load_player_notes_from_db() if db_cog else {}
             
             players = []
-            member_map = {m.tag: m for m in cwl_members}
-            all_relevant_tags = valid_cwl_tags.union(war_tags).union(curr_tags)
+            member_map = {m.tag: m for m in clan.members}
 
             for tag in all_relevant_tags:
                 m = member_map.get(tag)
-                if not m: m = next((x for x in clan.members if x.tag == tag), None)
+                if not m: m = next((x for x in cwl_members if x.tag == tag), None)
                 
-                if m and m.tag in valid_cwl_tags:
+                # --- CIRURGIA DE BLINDAGEM ---
+                # A IA não apaga o jogador. Se ele não está na liga, marca como "Não Inscrito"
+                # Se não está no clã, marca como "Saiu". Ambos recebem "forced_exclusion" para não sujar o plano
+                if m:
                     note = notes.get(m.tag, {})
                     try: 
                         status = PlayerStatus(note.get('cwl_status', 'active'))
@@ -465,12 +468,20 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                     forced_exclusion = note.get('forced_out', False)
                     display_name = m.name
 
-                    if m.tag not in curr_tags:
+                    is_in_league = m.tag in valid_cwl_tags
+                    is_in_clan = m.tag in curr_tags
+
+                    if not is_in_league:
                         status = PlayerStatus.UNAVAILABLE
-                        forced_exclusion = True 
-                        forced_inclusion = False 
-                        display_name = f"{m.name} 🛑 (SAIU)"
-                        
+                        forced_exclusion = True
+                        forced_inclusion = False
+                        display_name = f"{m.name} 🚫 (Não Inscrito)"
+                    elif not is_in_clan:
+                        status = PlayerStatus.UNAVAILABLE
+                        forced_exclusion = True
+                        forced_inclusion = False
+                        display_name = f"{m.name} 🛑 (Saiu)"
+
                     players.append(CWLPlayer(
                         tag=m.tag, name=display_name, town_hall=m.town_hall, status=status,
                         notes=note.get('notes', ''), forced_inclusion=forced_inclusion, forced_exclusion=forced_exclusion
@@ -627,7 +638,7 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 curr_r = new_r
                 schedule.append(sanitize_for_mongo(DayPlan(d, new_r, subs, curr_a, curr_b, strat, None, 0.8, warns).to_dict()))
             
-            # === DADOS VISUAIS DO CABEÇALHO PARA A UI ===
+            # EMPACOTAMENTO DOS DADOS EXTRAS PARA O FRONTEND NÃO CRASHAR
             clans_data = []
             if group and hasattr(group, 'clans'):
                 for c in group.clans:
@@ -643,7 +654,8 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                     if i < day:
                         rounds_list.append("warEnded")
                     elif i == day:
-                        is_prep = any(idx == day for w, idx, t, op in states.get('preparation', []))
+                        prep_states = states.get('preparation', [])
+                        is_prep = any(idx == day for w, idx, t, op in prep_states)
                         rounds_list.append("preparation" if is_prep else "inWar")
                     else:
                         rounds_list.append("unstarted")
