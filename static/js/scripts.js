@@ -76,12 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
-    const cwlStatusTextEl = document.getElementById('cwlStatusText'); 
+    // === ATENÇÃO AQUI: Nós pegamos o CONTAINER do Status, não só o texto!
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
-    const cwlSeasonEl = document.getElementById('cwlSeason');
-    const cwlGroupStateEl = document.getElementById('cwlGroupState');
-    const cwlGroupClansEl = document.getElementById('cwlGroupClans');
-    const cwlRoundsInfoEl = document.getElementById('cwlRoundsInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
 
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
@@ -138,11 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeProfileModalButton = memberProfileModal?.querySelector('.close-button'); 
     let memberTrophyChart = null;
 
-    // VARIÁVEIS DE CACHE DA CWL
     let cwlPlanCached = null;
     let isFetchingCwlPlan = false;
 
-    // --- FUNÇÃO DE FETCH MELHORADA ---
     async function fetchData(endpoint, options = {}) {
         try {
             const response = await fetch(`${API_BASE_URL}/api/${endpoint}`, options);
@@ -180,8 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
-    // --- LÓGICA DA MÚSICA DE FUNDO ---
     if (backgroundMusicEl && muteButtonEl) {
         backgroundMusicEl.volume = 0.2;
         let musicStarted = false; 
@@ -201,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.addEventListener('click', playMusic, { once: true });
         document.body.addEventListener('keydown', playMusic, { once: true });
 
-
         muteButtonEl.addEventListener('click', () => {
             backgroundMusicEl.muted = !backgroundMusicEl.muted;
             muteButtonEl.textContent = backgroundMusicEl.muted ? '🔇' : '🔊';
@@ -214,7 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- FUNÇÕES HELPER ---
     function updateLastUpdated() {
         const now = new Date();
         setText(lastUpdatedEl, `Última atualização: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`);
@@ -238,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
     const initialSectionId = navLinks.length > 0 ? navLinks[0].dataset.section : 'clan-info-nav';
     let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
 
@@ -256,7 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSectionEl = document.getElementById(newSectionId);
 
         if (!newSectionEl) {
-            console.warn(`Section with ID "${newSectionId}" not found.`);
             return; 
         }
 
@@ -278,7 +266,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
         if (!data || data.error || !data.name) {
             setText(clanNameHeaderEl, "Erro");
@@ -694,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const planData = await fetchData('cwl/generate_plan', { method: 'POST' });
             if (planData && !planData.error) {
                 cwlPlanCached = planData;
+                updateCwlHeaderUI(planData);
                 populateCwlOverview(planData);
                 populateCwlSchedule(planData);
             } else {
@@ -703,179 +691,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) {
-            console.error("Erro no JS ao gerar plano:", e);
             if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Falha interna na Rotação. Tente novamente mais tarde.</div>`);
         } finally {
             isFetchingCwlPlan = false;
         }
     }
 
-    // === SOLUÇÃO DEFINITIVA: BLINDAGEM DO NOME DO JOGADOR ===
-    function populateCwlOverview(planData) {
-        if (!cwlOverviewContainerEl) return;
-
-        const score = (planData && Array.isArray(planData.participation_score)) ? planData.participation_score : [];
+    // === FUNÇÃO DE DESENHO VISUAL DO CABEÇALHO DA CWL ===
+    function updateCwlHeaderUI(data) {
+        if (!cwlActiveInfoEl) return;
         
-        let placarHtml = '<h4>📊 Placar de Participação (Estimado)</h4>'; 
-        placarHtml += '<div class="cwl-overview-list-bench">'; 
-        
-        if (score.length > 0) {
-             score.sort((a, b) => (b.days_played || 0) - (a.days_played || 0));
-             placarHtml += score.map(p => {
-                 const name = p.name || (p.player && p.player.name) || 'Membro Oculto';
-                 const th = p.town_hall || (p.player && p.player.town_hall) || '?';
-                 const icon = p.status === 'priority' ? '⭐' : '';
-                 return `<p>${icon} ${name} (CV${th}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
-             }).join('');
-        } else {
-            placarHtml += '<p>Nenhum dado de participação gerado.</p>';
-        }
-        placarHtml += '</div>';
-
-        setHtml(cwlOverviewContainerEl, `<div class="cwl-overview-card" style="grid-column: 1 / -1;">${placarHtml}</div>`);
-        cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
-    }
-
-    function populateCwlSchedule(planData) {
-        if (!cwlPlanDaysTabsEl || !cwlPlanContentEl) return;
-
-        const schedule = (planData && Array.isArray(planData.schedule)) ? planData.schedule : [];
-        const currentDay = planData.current_day || 1;
-
-        if (schedule.length === 0) {
-             setHtml(cwlPlanDaysTabsEl, '');
-             setHtml(cwlPlanContentEl, '<p class="message-box">Não foi possível montar a escalação.</p>');
-             return;
-        }
-
-        const tabsHtml = schedule.map(dayPlan => {
-            const day = dayPlan.day || 1;
-            const isActive = day === currentDay;
-            return `<button class="cwl-plan-day-tab ${isActive ? 'active' : ''}" data-day="${day}">Dia ${day}</button>`;
-        }).join('');
-        setHtml(cwlPlanDaysTabsEl, tabsHtml);
-
-        const renderDayPlan = (day) => {
-            const dayData = schedule.find(d => d.day == day);
-            if (!dayData) {
-                setHtml(cwlPlanContentEl, `<p class="message-box">Plano para o dia ${day} não encontrado.</p>`);
-                return;
-            }
-
-            let planHtml = `<h4>Alterações na Equipa</h4>`;
-            planHtml += (dayData.substitutions && dayData.substitutions.length > 0)
-                ? dayData.substitutions.map(sub => {
-                    const outName = sub.out?.name || (sub.out?.player && sub.out.player.name) || '?';
-                    const outTh = sub.out?.town_hall || (sub.out?.player && sub.out.player.town_hall) || '?';
-                    const inName = sub.in?.name || (sub.in?.player && sub.in.player.name) || '?';
-                    const inTh = sub.in?.town_hall || (sub.in?.player && sub.in.player.town_hall) || '?';
-                    return `
-                    <div class="substitution-card">
-                        <p>🔴 <strong>Sai:</strong> ${outName} (CV${outTh})</p>
-                        <p>🟢 <strong>Entra:</strong> ${inName} (CV${inTh})</p>
-                        <p class="reason"><em>IA: ${sub.reason || '-'}</em></p>
-                    </div>`;
-                }).join('')
-                : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs e Titulares Fixos.' : 'A IA sugere manter a escalação do dia anterior.'}</p>`;
-
-            const roster = dayData.active_roster || [];
-            planHtml += `<h4>⚔️ Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
-            
-            const sortedRoster = [...roster].sort((a, b) => {
-                const thA = a.town_hall || (a.player && a.player.town_hall) || 0;
-                const thB = b.town_hall || (b.player && b.player.town_hall) || 0;
-                return thB - thA;
-            });
-
-            planHtml += sortedRoster.length > 0
-                ? sortedRoster.map((p, i) => {
-                    const name = p.name || (p.player && p.player.name) || '?';
-                    const th = p.town_hall || (p.player && p.player.town_hall) || '?';
-                    const icon = p.status === 'priority' ? '⭐' : '';
-                    return `
-                    <div class="roster-player" ${p.status === 'priority' ? 'style="border-left: 3px solid var(--color-accent);"' : ''}>
-                        <span>${i + 1}.</span>${icon} ${name} (CV${th}) - ${p.days_played || 0}d
-                    </div>`;
-                }).join('')
-                : '<p>Nenhum jogador na escalação.</p>';
-            planHtml += `</div>`; 
-            
-            const activeBench = dayData.active_bench || [];
-            const backupBench = dayData.backup_bench || [];
-
-            planHtml += `<h4 style="margin-top: 20px;"><span class="ai-indicator"></span>Banco de Reservas (Dia ${day})</h4>`;
-            planHtml += '<div class="cwl-overview-card" style="background-color: rgba(0,0,0,0.1);">'; 
-            planHtml += '<div class="cwl-overview-list-bench">'; 
-
-            if (activeBench.length > 0) {
-                planHtml += '<h5>Ativos (Próximos a entrar):</h5>';
-                planHtml += activeBench
-                    .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
-                    .map((p, i) => {
-                        const name = p.name || (p.player && p.player.name) || '?';
-                        const th = p.town_hall || (p.player && p.player.town_hall) || '?';
-                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
-                    })
-                    .join('');
-            }
-            if (backupBench.length > 0) {
-                planHtml += '<h5 style="margin-top: 10px;">Backups (Emergência):</h5>';
-                planHtml += backupBench
-                    .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
-                    .map((p, i) => {
-                        const name = p.name || (p.player && p.player.name) || '?';
-                        const th = p.town_hall || (p.player && p.player.town_hall) || '?';
-                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
-                    })
-                    .join('');
-            }
-            if (activeBench.length === 0 && backupBench.length === 0) {
-                 planHtml += '<p>Nenhum jogador no banco para este dia.</p>';
-            }
-            planHtml += '</div></div>';
-            
-            setHtml(cwlPlanContentEl, planHtml);
-        };
-
-        renderDayPlan(currentDay <= 7 ? currentDay : 1);
-
-        cwlPlanDaysTabsEl.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                cwlPlanDaysTabsEl.querySelector('.cwl-plan-day-tab.active')?.classList.remove('active');
-                tab.classList.add('active');
-                renderDayPlan(tab.dataset.day);
-            });
-        });
-    }
-
-    // ========================================================
-    // >>> PREENCHIMENTO DA ABA CWL (NOVO VISUAL AESTHETIC) <<<
-    // ========================================================
-    async function populateCwlData(data) {
-        if (!cwlPlannerSectionEl) return;
-
-        cwlPlannerSectionEl.style.display = 'block';
-
-        if (!data || data.error || data.status === "NotInCwl" || data.state === "not_in_season") {
-            if (noCwlMessageEl) {
-                noCwlMessageEl.style.display = 'block';
-                setText(noCwlMessageEl, data?.error || data?.message || "O clã não está em CWL no momento.");
-            }
-            if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
-            if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; 
-            
-            // GARANTE QUE O TEXTO VELHO APAGUE
-            if (cwlStatusTextEl) cwlStatusTextEl.style.display = 'none'; 
-            return;
-        }
-
-        if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
-        if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; 
-        if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
-        
-        // === CORREÇÃO: ESCONDE O TEXTO HTML ANTIGO PARA NÃO FICAR DUPLICADO ===
-        if (cwlStatusTextEl) cwlStatusTextEl.style.display = 'none'; 
-
         let mainStatusText = "";
         let statusColor = "var(--color-warning)";
         
@@ -883,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mainStatusText = "🏁 Liga Finalizada";
             statusColor = "var(--color-text-secondary)";
         } else if (data.current_day >= 1) {
-            if (data.state === 'preparation' || data.war_state === 'preparation') {
+            if (data.state === 'preparation' || data.war_state === 'preparation' || data.rounds[data.current_day - 1] === 'preparation') {
                 mainStatusText = `⏳ Preparação (Dia ${data.current_day})`;
             } else {
                 mainStatusText = `⚔️ Em Guerra (Dia ${data.current_day})`;
@@ -950,7 +775,176 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         setHtml(cwlActiveInfoEl, aestheticHeaderHtml);
+    }
 
+    function populateCwlOverview(planData) {
+        if (!cwlOverviewContainerEl) return;
+
+        const score = (planData && Array.isArray(planData.participation_score)) ? planData.participation_score : [];
+        
+        let placarHtml = '<h4>📊 Placar de Participação (Estimado)</h4>'; 
+        placarHtml += '<div class="cwl-overview-list-bench">'; 
+        
+        if (score.length > 0) {
+             score.sort((a, b) => (b.days_played || 0) - (a.days_played || 0));
+             placarHtml += score.map(p => {
+                 const name = p.name || (p.player && p.player.name) || 'Membro Oculto';
+                 const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                 const icon = p.status === 'priority' ? '⭐' : (p.status === 'unavailable' ? '🛑' : '');
+                 return `<p>${icon} ${name} (CV${th}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
+             }).join('');
+        } else {
+            placarHtml += '<p>Nenhum dado de participação gerado.</p>';
+        }
+        placarHtml += '</div>';
+
+        setHtml(cwlOverviewContainerEl, `<div class="cwl-overview-card" style="grid-column: 1 / -1;">${placarHtml}</div>`);
+        cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
+    }
+
+    function populateCwlSchedule(planData) {
+        if (!cwlPlanDaysTabsEl || !cwlPlanContentEl) return;
+
+        const schedule = (planData && Array.isArray(planData.schedule)) ? planData.schedule : [];
+        const currentDay = planData.current_day || 1;
+
+        if (schedule.length === 0) {
+             setHtml(cwlPlanDaysTabsEl, '');
+             setHtml(cwlPlanContentEl, '<p class="message-box">Não foi possível montar a escalação.</p>');
+             return;
+        }
+
+        const tabsHtml = schedule.map(dayPlan => {
+            const day = dayPlan.day || 1;
+            const isActive = day === currentDay;
+            return `<button class="cwl-plan-day-tab ${isActive ? 'active' : ''}" data-day="${day}">Dia ${day}</button>`;
+        }).join('');
+        setHtml(cwlPlanDaysTabsEl, tabsHtml);
+
+        const renderDayPlan = (day) => {
+            const dayData = schedule.find(d => d.day == day);
+            if (!dayData) {
+                setHtml(cwlPlanContentEl, `<p class="message-box">Plano para o dia ${day} não encontrado.</p>`);
+                return;
+            }
+
+            let planHtml = `<h4>Alterações na Equipa</h4>`;
+            planHtml += (dayData.substitutions && dayData.substitutions.length > 0)
+                ? dayData.substitutions.map(sub => {
+                    const outName = sub.out?.name || (sub.out?.player && sub.out.player.name) || '?';
+                    const outTh = sub.out?.town_hall || (sub.out?.player && sub.out.player.town_hall) || '?';
+                    const inName = sub.in?.name || (sub.in?.player && sub.in.player.name) || '?';
+                    const inTh = sub.in?.town_hall || (sub.in?.player && sub.in.player.town_hall) || '?';
+                    return `
+                    <div class="substitution-card">
+                        <p>🔴 <strong>Sai:</strong> ${outName} (CV${outTh})</p>
+                        <p>🟢 <strong>Entra:</strong> ${inName} (CV${inTh})</p>
+                        <p class="reason"><em>IA: ${sub.reason || '-'}</em></p>
+                    </div>`;
+                }).join('')
+                : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs e Titulares Fixos.' : 'A IA sugere manter a escalação do dia anterior.'}</p>`;
+
+            const roster = dayData.active_roster || [];
+            planHtml += `<h4>⚔️ Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
+            
+            const sortedRoster = [...roster].sort((a, b) => {
+                const thA = a.town_hall || (a.player && a.player.town_hall) || 0;
+                const thB = b.town_hall || (b.player && b.player.town_hall) || 0;
+                return thB - thA;
+            });
+
+            planHtml += sortedRoster.length > 0
+                ? sortedRoster.map((p, i) => {
+                    const name = p.name || (p.player && p.player.name) || '?';
+                    const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                    const icon = p.status === 'priority' ? '⭐' : (p.status === 'unavailable' ? '🛑' : '');
+                    return `
+                    <div class="roster-player" ${p.status === 'priority' ? 'style="border-left: 3px solid var(--color-accent);"' : ''}>
+                        <span>${i + 1}.</span>${icon} ${name} (CV${th}) - ${p.days_played || 0}d
+                    </div>`;
+                }).join('')
+                : '<p>Nenhum jogador na escalação.</p>';
+            planHtml += `</div>`; 
+            
+            const activeBench = dayData.active_bench || [];
+            const backupBench = dayData.backup_bench || [];
+
+            planHtml += `<h4 style="margin-top: 20px;"><span class="ai-indicator"></span>Banco de Reservas (Dia ${day})</h4>`;
+            planHtml += '<div class="cwl-overview-card" style="background-color: rgba(0,0,0,0.1);">'; 
+            planHtml += '<div class="cwl-overview-list-bench">'; 
+
+            if (activeBench.length > 0) {
+                planHtml += '<h5>Ativos (Próximos a entrar):</h5>';
+                planHtml += activeBench
+                    .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
+                    .map((p, i) => {
+                        const name = p.name || (p.player && p.player.name) || '?';
+                        const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
+                    })
+                    .join('');
+            }
+            if (backupBench.length > 0) {
+                planHtml += '<h5 style="margin-top: 10px;">Backups (Emergência):</h5>';
+                planHtml += backupBench
+                    .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
+                    .map((p, i) => {
+                        const name = p.name || (p.player && p.player.name) || '?';
+                        const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
+                    })
+                    .join('');
+            }
+            if (activeBench.length === 0 && backupBench.length === 0) {
+                 planHtml += '<p>Nenhum jogador no banco para este dia.</p>';
+            }
+            planHtml += '</div></div>';
+            
+            setHtml(cwlPlanContentEl, planHtml);
+        };
+
+        renderDayPlan(currentDay <= 7 ? currentDay : 1);
+
+        cwlPlanDaysTabsEl.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                cwlPlanDaysTabsEl.querySelector('.cwl-plan-day-tab.active')?.classList.remove('active');
+                tab.classList.add('active');
+                renderDayPlan(tab.dataset.day);
+            });
+        });
+    }
+
+    async function populateCwlData(data) {
+        if (!cwlPlannerSectionEl) return;
+
+        cwlPlannerSectionEl.style.display = 'block';
+
+        if (!data || data.error || data.status === "NotInCwl" || data.state === "not_in_season") {
+            if (noCwlMessageEl) {
+                noCwlMessageEl.style.display = 'block';
+                setText(noCwlMessageEl, data?.error || data?.message || "O clã não está em CWL no momento.");
+            }
+            if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
+            if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; 
+            
+            // GARANTE QUE O TEXTO VELHO APAGUE
+            const oldStatus = document.getElementById('cwlStatusText');
+            if (oldStatus) oldStatus.style.display = 'none'; 
+            return;
+        }
+
+        // ESCONDE OS ELEMENTOS ANTIGOS DO HTML (Se existirem)
+        const oldStatus = document.getElementById('cwlStatusText');
+        if (oldStatus) oldStatus.style.display = 'none'; 
+        
+        if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
+        if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; 
+        if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
+
+        // DESENHA O CABEÇALHO COM O QUE TEMOS DA API RÁPIDA
+        updateCwlHeaderUI(data);
+
+        // AVISOS DA IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -976,6 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      
                      if (planData && !planData.error) {
                          cwlPlanCached = planData; 
+                         updateCwlHeaderUI(planData); // Atualiza com os dados cheios
                          populateCwlOverview(planData); 
                          populateCwlSchedule(planData);
                      } else {
@@ -984,14 +979,15 @@ document.addEventListener('DOMContentLoaded', () => {
                  });
             }
         } else {
-            // Remove o botão se ele existir e o usuário não for mais admin
             const btn = document.getElementById('recalc-cwl-btn');
             if (btn) btn.remove();
         }
 
+        // EXECUTA A ROTAÇÃO SE NÃO ESTIVER NO CACHE
         if (!cwlPlanCached && !isFetchingCwlPlan) {
             loadCwlPlan();
         } else if (cwlPlanCached) {
+            updateCwlHeaderUI(cwlPlanCached); // Atualiza o header para ter os dados 100% corretos
             populateCwlOverview(cwlPlanCached);
             populateCwlSchedule(cwlPlanCached);
         }
