@@ -76,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
-    // === ATENÇÃO AQUI: Nós pegamos o CONTAINER do Status, não só o texto!
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
 
@@ -708,7 +707,16 @@ document.addEventListener('DOMContentLoaded', () => {
             mainStatusText = "🏁 Liga Finalizada";
             statusColor = "var(--color-text-secondary)";
         } else if (data.current_day >= 1) {
-            if (data.state === 'preparation' || data.war_state === 'preparation' || data.rounds[data.current_day - 1] === 'preparation') {
+            // LÓGICA DE DETECÇÃO DE STATUS À PROVA DE FALHAS
+            let isPrep = false;
+            if (data.state === 'preparation' || data.war_state === 'preparation') {
+                isPrep = true;
+            }
+            if (data.rounds && Array.isArray(data.rounds) && data.rounds.length >= data.current_day) {
+                if (data.rounds[data.current_day - 1] === 'preparation') isPrep = true;
+            }
+            
+            if (isPrep) {
                 mainStatusText = `⏳ Preparação (Dia ${data.current_day})`;
             } else {
                 mainStatusText = `⚔️ Em Guerra (Dia ${data.current_day})`;
@@ -927,13 +935,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
             if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; 
             
-            // GARANTE QUE O TEXTO VELHO APAGUE
             const oldStatus = document.getElementById('cwlStatusText');
             if (oldStatus) oldStatus.style.display = 'none'; 
             return;
         }
 
-        // ESCONDE OS ELEMENTOS ANTIGOS DO HTML (Se existirem)
         const oldStatus = document.getElementById('cwlStatusText');
         if (oldStatus) oldStatus.style.display = 'none'; 
         
@@ -941,10 +947,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
-        // DESENHA O CABEÇALHO COM O QUE TEMOS DA API RÁPIDA
         updateCwlHeaderUI(data);
 
-        // AVISOS DA IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -952,7 +956,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
-        // BOTÃO DE RECALCULAR COM BLINDAGEM DE ADMIN
         if (userIsAdmin) {
             if (!document.getElementById('recalc-cwl-btn')) {
                  const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">🧠 Recalcular Rotação Inteligente</button>`;
@@ -970,7 +973,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      
                      if (planData && !planData.error) {
                          cwlPlanCached = planData; 
-                         updateCwlHeaderUI(planData); // Atualiza com os dados cheios
+                         updateCwlHeaderUI(planData); 
                          populateCwlOverview(planData); 
                          populateCwlSchedule(planData);
                      } else {
@@ -983,11 +986,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn) btn.remove();
         }
 
-        // EXECUTA A ROTAÇÃO SE NÃO ESTIVER NO CACHE
         if (!cwlPlanCached && !isFetchingCwlPlan) {
             loadCwlPlan();
         } else if (cwlPlanCached) {
-            updateCwlHeaderUI(cwlPlanCached); // Atualiza o header para ter os dados 100% corretos
+            updateCwlHeaderUI(cwlPlanCached); 
             populateCwlOverview(cwlPlanCached);
             populateCwlSchedule(cwlPlanCached);
         }
