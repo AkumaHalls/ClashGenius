@@ -336,7 +336,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         try:
             data = await request.json()
             status = data.get('status')
-            if status not in ['active', 'backup']: return web.json_response({"error": "Invalid status. Must be 'active' or 'backup'."}, status=400)
+            
+            # --- AGORA ACEITA O STATUS DE PRIORIDADE ---
+            if status not in ['active', 'backup', 'priority']: 
+                return web.json_response({"error": "Status inválido."}, status=400)
+                
             if not db_cog: return web.json_response({"error": "Internal server error (DB Cog missing)."}, status=500)
             await db_cog.update_player_cwl_status(player_tag, status)
             bot_instance.web_api_cache.pop('members', None)
@@ -360,10 +364,21 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client: return web.json_response({"error": "API CoC temporariamente indisponível."}, status=503)
         player_tag = coc.utils.correct_tag(request.match_info['player_tag']); profile_data = await profile_cog.fetch_player_profile_data(player_tag)
         return web.json_response(profile_data, status=404 if "error" in profile_data else 200)
+
     async def api_cwl_generate_plan_handler(request):
-        if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client: return web.json_response({"error": "API CoC temporariamente indisponível."}, status=503)
-        bot_instance.web_api_cache.pop('cwl_plan', None); plan = await cwl_cog.generate_rotation_plan()
+        if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client: 
+            return web.json_response({"error": "API CoC temporariamente indisponível."}, status=503)
+        
+        bot_instance.web_api_cache.pop('cwl_plan', None)
+        
+        try: data = await request.json()
+        except: data = {}
+        
+        force = data.get("force", False)
+        
+        plan = await cwl_cog.generate_rotation_plan(force_recalculate=force)
         return web.json_response(plan)
+
     async def api_war_advisor_plan_handler(request):
         if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client: return web.json_response({"success": False, "error": "API CoC temporariamente indisponível."}, status=503)
         try:

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-1
 import logging
 import discord
 from discord.ext import commands, tasks
@@ -252,9 +252,15 @@ class IntelligentRotationEngine:
         total = 0.0
         for f in self.decision_factors:
             score = f.evaluate(p, ctx)
+            if p.status == PlayerStatus.PRIORITY and f.name == "Fairness":
+                score = 1.0 
             weighted = score * weights.get(f.name, f.weight)
             breakdown[f.name] = {"raw": score, "weight": weights.get(f.name), "weighted": weighted}
             total += weighted
+            
+        if p.status == PlayerStatus.PRIORITY:
+            total += 1000.0
+            
         if p.forced_inclusion: total += 10.0
         if p.forced_exclusion: total -= 10.0
         return total, breakdown
@@ -299,12 +305,12 @@ class IntelligentRotationEngine:
         if high_th < min(5, self.team_size // 3):
             warnings.append(f"⚠️ Poucos CVs altos ({high_th}) no roster")
             high_on_bench = sorted([p for p in new_bench if p.town_hall >= max_th - 1], key=lambda x: x.days_played)
-            low_in_roster = sorted([p for p in new_roster if p.town_hall < max_th - 1], key=lambda p: p.town_hall)
+            low_in_roster = sorted([p for p in new_roster if p.town_hall < max_th - 1 and p.status != PlayerStatus.PRIORITY and not p.forced_inclusion], key=lambda p: p.town_hall)
+            
             swaps = min(len(high_on_bench), len(low_in_roster), min(5, self.team_size // 3) - high_th)
             for i in range(swaps):
                 p_out = low_in_roster[i]
                 p_in = high_on_bench[i]
-                # Modificação de segurança: checar existência antes de remover
                 if p_out in new_roster and p_in in new_bench:
                     new_roster.remove(p_out)
                     new_roster.append(p_in)
@@ -347,7 +353,6 @@ class OpponentAnalyzer:
     def __init__(self, api_client): self.api = api_client
     async def analyze(self, tag, name, war=None) -> OpponentAnalysis:
         dist = defaultdict(int); strength = 0.0
-        # Modificação de segurança: Remoção do bare except e melhoria dos logs
         try:
             clan = war.opponent if war and war.clan.tag != tag else (war.clan if war else await self.api.get_clan(tag))
             for m in clan.members: dist[m.town_hall] += 1; strength += m.town_hall * 10
@@ -366,7 +371,6 @@ class OpponentAnalyzer:
 
 # ==================== COG PRINCIPAL ====================
 
-# ATENÇÃO: NOME SIMPLIFICADO 'CWLPlanner'
 class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -378,7 +382,7 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
         self.posted_daily_plans: Set[str] = set()
         self.season_state: Optional[SeasonState] = None
         self.config = {"min_participation_percent": 0.3, "auto_adjust_strategy": True}
-        self.is_generating_plan = False  # Lock para evitar tasks simultâneas
+        self.is_generating_plan = False  
         print(">>> [CWLPlanner] Plugin inicializado!")
 
     async def cog_load(self):
@@ -437,27 +441,39 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
             else:
                 cwl_members = cwl_roster.members
 
+            valid_cwl_tags = {m.tag for m in cwl_members}
+            all_relevant_tags = valid_cwl_tags.union(war_tags).union(curr_tags)
+
             db_cog = self.bot.get_cog("Banco de Dados")
             notes = await db_cog.load_player_notes_from_db() if db_cog else {}
             
             players = []
-            member_map = {m.tag: m for m in cwl_members}
-            all_relevant_tags = {m.tag for m in cwl_members}.union(war_tags).union(curr_tags)
+            member_map = {m.tag: m for m in clan.members}
 
             for tag in all_relevant_tags:
                 m = member_map.get(tag)
-                if not m: m = next((x for x in clan.members if x.tag == tag), None)
-                if m:
+                if not m: m = next((x for x in cwl_members if x.tag == tag), None)
+                
+                if m and m.tag in valid_cwl_tags:
                     note = notes.get(m.tag, {})
-                    # Modificação de segurança: Enum parse explícito
                     try: 
                         status = PlayerStatus(note.get('cwl_status', 'active'))
                     except ValueError: 
                         status = PlayerStatus.ACTIVE
                         
+                    forced_inclusion = note.get('forced_in', False)
+                    forced_exclusion = note.get('forced_out', False)
+                    display_name = m.name
+
+                    if not m.tag in curr_tags:
+                        status = PlayerStatus.UNAVAILABLE
+                        forced_exclusion = True 
+                        forced_inclusion = False 
+                        display_name = f"{m.name} 🛑 (Saiu)"
+                        
                     players.append(CWLPlayer(
-                        tag=m.tag, name=m.name, town_hall=m.town_hall, status=status,
-                        notes=note.get('notes', ''), forced_inclusion=note.get('forced_in', False), forced_exclusion=note.get('forced_out', False)
+                        tag=m.tag, name=display_name, town_hall=m.town_hall, status=status,
+                        notes=note.get('notes', ''), forced_inclusion=forced_inclusion, forced_exclusion=forced_exclusion
                     ))
             
             if len(players) < team_size:
@@ -501,18 +517,18 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 else: backup.append(p)
         return roster, active, backup
 
-    # Alias essencial
-    async def generate_rotation_plan(self) -> Dict[str, Any]:
-        return await self.generate_plan()
+    # ==================== CONTROLE DE PERSISTÊNCIA ====================
 
-    async def generate_plan(self) -> Dict:
+    async def generate_rotation_plan(self, force_recalculate: bool = False) -> Dict[str, Any]:
+        return await self.generate_plan(force_recalculate=force_recalculate)
+
+    async def generate_plan(self, force_recalculate: bool = False) -> Dict:
         if self.cwl_plan_collection is None: return {"error": "DB off"}
         if not self.bot.api_client: return {"error": "API off"}
         
         try:
             my_tag = normalize_tag(self.bot.clan_tag)
             
-            # 1. Busca grupo com tratamento de exceção (Evita o erro 404 Not Found)
             try:
                 group = await self.bot.api_client.get_league_group(my_tag)
             except coc.NotFound:
@@ -520,11 +536,15 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 
             if not group or group.state == "notInWar": return {"error": "CWL off", "status": "NotInCwl"}
             
-            # 2. Busca existente (fallback)
             existing = await self.cwl_plan_collection.find_one({"_id": group.season})
+            
+            if existing and not force_recalculate:
+                logger.info("Recuperando plano de Rotação CWL salvo no Banco de Dados...")
+                return sanitize_for_mongo(existing)
+
+            logger.info("Iniciando Cérebro de Rotação (Gerando novo plano)...")
             fallback_team_size = existing.get("team_size", 15) if existing else 15
 
-            # 3. Busca guerras em paralelo (robusto)
             tasks = [self.bot.api_client.get_league_war(t) for r in group.rounds for t in r if t != '#0']
             war_tags_list = [t for r in group.rounds for t in r if t != '#0']
             war_round_map = {t: i+1 for i, r in enumerate(group.rounds) for t in r if t != '#0'}
@@ -546,7 +566,6 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                     idx = war_round_map.get(w_tag, 0)
                     if st in states: states[st].append((w, idx, w_tag, op))
 
-            # 4. Determina dia
             if states['inWar']: war, day, tag, opp = states['inWar'][0]
             elif states['preparation']: 
                 states['preparation'].sort(key=lambda x: x[1])
@@ -555,18 +574,14 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 latest = max(states['warEnded'], key=lambda x: x[1])
                 war, day, tag, opp = latest; day = min(day + 1, 8)
             
-            # 5. Fallback se não achou estado claro
             used_fallback = False
             if not war:
                 if any_clan_war:
-                    logger.warning("Usando guerra fallback para metadados.")
                     war = any_clan_war; day = existing.get("current_day", 1) if existing else 1
                     used_fallback = True
                 elif existing:
                     day = existing.get("current_day", 1); fallback_team_size = existing.get("team_size", 15)
-                    logger.warning("Usando DB cache.")
                 else:
-                    logger.warning("Início de CWL detectado, assumindo Dia 1 de preparação.")
                     day = 1
                     used_fallback = True
 
@@ -578,9 +593,8 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                     return sanitize_for_mongo(existing)
                 return {"finished": True, "error": "CWL Finalizada."}
 
-            # 6. Gera Plano
             players, _ = await self._fetch_pool(war, team_size)
-            if not players: return {"error": "Roster vazio."}
+            if not players: return {"error": "Roster vazio. Ninguém cadastrado."}
             
             await self._init_logic(team_size)
             roster, active, backup = await self._build_state(players, war, day, existing, my_tag)
@@ -606,7 +620,6 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
             curr_plan = DayPlan(day, roster.copy(), [], active, backup, strat, None, 1.0, [], cont)
             schedule.append(sanitize_for_mongo(curr_plan.to_dict()))
             
-            # Simulação Futura
             curr_r = roster.copy(); curr_a = active.copy(); curr_b = backup.copy()
             for d in range(day+1, 8):
                 new_r, subs, warns = self.rotation_engine.calculate_rotation(curr_r, curr_a, curr_b, d, strat)
@@ -614,11 +627,41 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 curr_r = new_r
                 schedule.append(sanitize_for_mongo(DayPlan(d, new_r, subs, curr_a, curr_b, strat, None, 0.8, warns).to_dict()))
             
+            # ============================================================
+            # A CORREÇÃO QUE DEVOLVE A BELEZA AO PAINEL ESTÁ AQUI
+            # ============================================================
+            clans_data = []
+            if group and hasattr(group, 'clans'):
+                for c in group.clans:
+                    clans_data.append({
+                        "name": c.name, 
+                        "tag": c.tag, 
+                        "badge_url": c.badge.url if hasattr(c, 'badge') and c.badge else ""
+                    })
+
+            rounds_list = []
+            if group and hasattr(group, 'rounds'):
+                for i in range(1, len(group.rounds) + 1):
+                    if i < day:
+                        rounds_list.append("warEnded")
+                    elif i == day:
+                        prep_states = states.get('preparation', [])
+                        is_prep = any(idx == day for w, idx, t, op in prep_states)
+                        rounds_list.append("preparation" if is_prep else "inWar")
+                    else:
+                        rounds_list.append("unstarted")
+
             data = {
                 "schedule": schedule,
                 "participation_score": [sanitize_for_mongo(p.to_dict()) for p in players],
                 "warning": "Modo Fallback" if used_fallback else "",
-                "current_day": day, "team_size": team_size, "season": group.season, "status": "InCwl"
+                "current_day": day, 
+                "team_size": team_size, 
+                "season": group.season, 
+                "status": "InCwl",
+                "state": group.state, 
+                "clans": clans_data, 
+                "rounds": rounds_list
             }
             
             await self.cwl_plan_collection.update_one({"_id": group.season}, {"$set": sanitize_for_mongo(data)}, upsert=True)
@@ -628,19 +671,14 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
             logger.error(f"Generate error: {e}", exc_info=True)
             return {"error": f"Erro interno: {str(e)}"}
 
-    # --- TASKS ---
     @tasks.loop(minutes=15)
     async def monitor_task(self):
         if not self.bot.is_ready(): return
-        
-        # Modificação de segurança: Lock para evitar tasks encavaladas
-        if getattr(self, "is_generating_plan", False):
-            logger.warning("Monitoramento CWL pulado: geração anterior ainda em andamento.")
-            return
+        if getattr(self, "is_generating_plan", False): return
             
         self.is_generating_plan = True
         try:
-            await self.generate_plan()
+            await self.generate_plan(force_recalculate=False)
         finally:
             self.is_generating_plan = False
 
@@ -648,19 +686,18 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
     async def before_monitor_task(self):
         await self.bot.wait_until_ready()
 
-    # --- COMANDOS ---
     @commands.command(name='resetarplano')
     @commands.has_permissions(administrator=True)
     async def reset_plan_command(self, ctx):
         await self.cwl_plan_collection.delete_many({})
         self.posted_daily_plans.clear()
-        await ctx.send("✅ Plano resetado. Recalculando...")
-        await self.generate_plan()
+        await ctx.send("✅ Banco de dados resetado. Recalculando do zero...")
+        await self.generate_plan(force_recalculate=True)
 
     @commands.command(name='cwl_status_debug')
     async def cwl_debug(self, ctx):
-        await ctx.send("✅ O plugin CWLPlanner está carregado e funcionando!")
+        await ctx.send("✅ O plugin CWLPlanner está carregado e funcionando com persistência DB!")
 
 async def setup(bot: commands.Bot):
-    # FORÇA O CARREGAMENTO SEMPRE
     await bot.add_cog(CwlPlannerCog(bot))
+

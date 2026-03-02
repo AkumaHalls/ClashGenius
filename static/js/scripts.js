@@ -76,12 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
-    const cwlStatusTextEl = document.getElementById('cwlStatusText'); 
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
-    const cwlSeasonEl = document.getElementById('cwlSeason');
-    const cwlGroupStateEl = document.getElementById('cwlGroupState');
-    const cwlGroupClansEl = document.getElementById('cwlGroupClans');
-    const cwlRoundsInfoEl = document.getElementById('cwlRoundsInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
 
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
@@ -102,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterTHInput = document.getElementById('filterTH');
     const membersGridEl = document.getElementById('membersGrid');
 
-    // === ELEMENTOS DA CAPITAL ===
     const capitalContentEl = document.getElementById('capitalContent');
     const capStatusEl = document.getElementById('capStatus');
     const capTotalLootEl = document.getElementById('capTotalLoot');
@@ -113,7 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const capIncompleteAttacksListEl = document.getElementById('capIncompleteAttacksList');
     const noCapitalMessageEl = document.getElementById('noCapitalMessage');
 
-    // === ELEMENTOS DOS JOGOS DO CLÃ ===
     const cgContentEl = document.getElementById('cgContent');
     const cgTotalPointsEl = document.getElementById('cgTotalPoints');
     const cgMaxPointsEl = document.getElementById('cgMaxPoints');
@@ -309,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 setText(noHighlightsMessageEl, data?.error || "Não foi possível carregar os destaques.");
             }
             if(highlightsContentEl) highlightsContentEl.style.display = 'none'; 
-            console.error("Erro ao carregar destaques ou dados ausentes:", data?.error || "Dados ausentes"); 
             return;
         }
 
@@ -354,9 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 activityChart.destroy();
                 activityChart = null; 
-            } catch(e) {
-                 console.error("Erro ao destruir gráfico anterior:", e);
-            }
+            } catch(e) {}
         }
 
         const chartData = data.activity_chart_data;
@@ -384,7 +374,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } catch (e) {
-                console.error("Erro detalhado ao criar gráfico de atividade:", e);
                 if (activityChartCanvas) {
                     const ctx = activityChartCanvas.getContext('2d');
                     if (ctx) {
@@ -681,46 +670,138 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(textArea);
     }
 
+    // ========================================================
+    // >>> SISTEMA DE ROTAÇÃO CWL (CÉREBRO DA IA) E UI <<<
+    // ========================================================
+
+    function updateCwlHeaderUI(data) {
+        if (!cwlActiveInfoEl) return;
+        
+        let mainStatusText = "";
+        let statusColor = "var(--color-warning)";
+        
+        if (data.current_day >= 8) {
+            mainStatusText = "🏁 Liga Finalizada";
+            statusColor = "var(--color-text-secondary)";
+        } else if (data.current_day >= 1) {
+            let isPrep = false;
+            if (data.state === 'preparation' || data.war_state === 'preparation') {
+                isPrep = true;
+            }
+            if (data.rounds && Array.isArray(data.rounds) && data.rounds.length >= data.current_day) {
+                if (data.rounds[data.current_day - 1] === 'preparation') isPrep = true;
+            }
+            
+            if (isPrep) {
+                mainStatusText = `⏳ Preparação (Dia ${data.current_day})`;
+            } else {
+                mainStatusText = `⚔️ Em Guerra (Dia ${data.current_day})`;
+                statusColor = "var(--color-success)";
+            }
+        } else {
+            mainStatusText = "🔍 Buscando Oponentes..."; 
+            statusColor = "var(--color-info)";
+        }
+
+        let seasonStr = data.season || '-';
+        let groupStateStr = data.state === 'preparation' ? 'Formando Grupo' : (data.state === 'inWar' ? 'Em Andamento' : (data.state || '-'));
+
+        // --- BLINDAGEM DO JAVASCRIPT CONTRA CACHE VELHO (MUITO IMPORTANTE) ---
+        let clansHtml = '';
+        if (data.clans && Array.isArray(data.clans) && data.clans.length > 0) {
+            clansHtml = '<div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 15px;">';
+            data.clans.forEach(c => {
+                clansHtml += `<div style="background: rgba(0,0,0,0.3); padding: 8px 15px; border-radius: 20px; display:flex; align-items:center; font-size: 0.95em; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><img src="${c.badge_url || DEFAULT_BADGE_URL}" style="width: 24px; height: 24px; margin-right: 10px;"> <span style="font-weight: bold; letter-spacing: 0.5px;">${c.name}</span></div>`;
+            });
+            clansHtml += '</div>';
+        } else {
+            // Se o banco de dados enviou um plano velho sem a lista de clãs, ele avisa para clicar no botão:
+            clansHtml = "<p style='color:var(--color-warning); margin-top:10px; font-style: italic;'>⚠️ Dados do grupo ausentes no cache antigo. Clique em 'Recalcular Rotação Inteligente' para forçar a atualização.</p>";
+        }
+
+        let roundsText = '';
+        if (data.rounds && Array.isArray(data.rounds) && data.rounds.length > 0) {
+            roundsText = '<div style="display: flex; justify-content: center; gap: 10px; margin-top: 15px; flex-wrap: wrap;">';
+            data.rounds.forEach((r, i) => {
+                 let icon = r === 'warEnded' ? '✅' : (r === 'inWar' ? '⚔️' : '⏳');
+                 let color = r === 'warEnded' ? 'var(--color-success)' : (r === 'inWar' ? 'var(--color-accent)' : 'var(--color-text-secondary)');
+                 let bgColor = r === 'warEnded' ? 'rgba(46, 204, 113, 0.1)' : (r === 'inWar' ? 'rgba(231, 76, 60, 0.1)' : 'rgba(255, 255, 255, 0.05)');
+                 roundsText += `<div style="background: ${bgColor}; padding: 10px 15px; border-radius: 10px; border-bottom: 3px solid ${color}; font-weight: bold; font-size: 0.9em; text-align: center; min-width: 60px;">Dia ${i+1}<br><span style="font-size: 1.4em; display:block; margin-top: 8px;">${icon}</span></div>`;
+            });
+            roundsText += '</div>';
+        } else {
+            roundsText = "<p style='color:var(--color-warning); margin-top:10px; font-style: italic;'>⚠️ Cronograma ausente no cache antigo. Clique em 'Recalcular Rotação Inteligente'.</p>";
+        }
+
+        const aestheticHeaderHtml = `
+            <div class="status-badge" style="font-size: 1.3em; background-color: ${statusColor}1A; color: ${statusColor}; border: 1px solid ${statusColor}; margin-bottom: 25px; padding: 15px 20px; border-radius: 12px; text-align: center; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
+                ${mainStatusText}
+            </div>
+            
+            <div class="stats-grid" style="margin-bottom: 25px;">
+                <div class="stat-card" style="padding: 20px; text-align: center; background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%);">
+                    <h4 style="color: var(--color-text-secondary); font-size: 0.85em; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">Temporada</h4>
+                    <div class="stat-value" style="font-size: 1.5em; color: var(--color-text-main); font-weight: bold;">${seasonStr}</div>
+                </div>
+                <div class="stat-card" style="padding: 20px; text-align: center; background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%);">
+                    <h4 style="color: var(--color-text-secondary); font-size: 0.85em; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">Estado do Grupo</h4>
+                    <div class="stat-value" style="font-size: 1.5em; color: var(--color-text-main); font-weight: bold;">${groupStateStr}</div>
+                </div>
+            </div>
+
+            <div class="cwl-overview-card" style="margin-bottom: 25px; text-align: center; padding: 25px; border: 1px solid rgba(255,255,255,0.05); border-radius: 15px; background-color: rgba(0,0,0,0.15);">
+                <h3 style="margin-bottom: 5px; font-size: 1.2em; color: var(--color-text-main); text-transform: uppercase; letter-spacing: 1px;">🛡️ Clãs no Grupo</h3>
+                ${clansHtml}
+            </div>
+
+            <div class="cwl-overview-card" style="margin-bottom: 40px; text-align: center; padding: 25px; border-radius: 15px; background: rgba(0,0,0,0.2);">
+                <h3 style="margin-bottom: 5px; font-size: 1.2em; color: var(--color-text-main); text-transform: uppercase; letter-spacing: 1px;">📅 Cronograma Oficial</h3>
+                ${roundsText}
+            </div>
+        `;
+
+        setHtml(cwlActiveInfoEl, aestheticHeaderHtml);
+    }
+
     function populateCwlOverview(planData) {
         if (!cwlOverviewContainerEl) return;
 
-        if (!planData || !planData.participation_score) {
-            setHtml(cwlOverviewContainerEl, `<div class="cwl-overview-card" style="grid-column: 1 / -1;"><p>Dados de participação indisponíveis.</p></div>`);
-            cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
-            return;
-        }
-
-        const score = planData.participation_score || [];
+        const score = (planData && Array.isArray(planData.participation_score)) ? planData.participation_score : [];
         
-        let placarHtml = '<h4>📊 Placar de Participação (Final)</h4>'; 
+        let placarHtml = '<h4>📊 Placar de Participação (Estimado)</h4>'; 
         placarHtml += '<div class="cwl-overview-list-bench">'; 
         
         if (score.length > 0) {
-             score.sort((a, b) => b.days_played - a.days_played);
-
-             placarHtml += score.map(p => 
-                `<p>${p.player.name} (CV${p.player.town_hall}): <strong>${p.days_played} / 7 dias</strong></p>`
-             ).join('');
+             score.sort((a, b) => (b.days_played || 0) - (a.days_played || 0));
+             placarHtml += score.map(p => {
+                 const name = p.name || (p.player && p.player.name) || 'Membro Oculto';
+                 const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                 const icon = p.status === 'priority' ? '⭐' : (p.status === 'unavailable' ? '🛑' : '');
+                 return `<p>${icon} ${name} (CV${th}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
+             }).join('');
         } else {
-            placarHtml += '<p>Nenhum jogador "Ativo" encontrado.</p>';
+            placarHtml += '<p>Nenhum dado de participação gerado.</p>';
         }
         placarHtml += '</div>';
 
-        setHtml(cwlOverviewContainerEl, `
-            <div class="cwl-overview-card" style="grid-column: 1 / -1;">${placarHtml}</div>
-        `);
-        
+        setHtml(cwlOverviewContainerEl, `<div class="cwl-overview-card" style="grid-column: 1 / -1;">${placarHtml}</div>`);
         cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
     }
 
     function populateCwlSchedule(planData) {
         if (!cwlPlanDaysTabsEl || !cwlPlanContentEl) return;
 
-        const schedule = planData.schedule || [];
+        const schedule = (planData && Array.isArray(planData.schedule)) ? planData.schedule : [];
         const currentDay = planData.current_day || 1;
 
+        if (schedule.length === 0) {
+             setHtml(cwlPlanDaysTabsEl, '');
+             setHtml(cwlPlanContentEl, '<p class="message-box">Não foi possível montar a escalação.</p>');
+             return;
+        }
+
         const tabsHtml = schedule.map(dayPlan => {
-            const day = dayPlan.day;
+            const day = dayPlan.day || 1;
             const isActive = day === currentDay;
             return `<button class="cwl-plan-day-tab ${isActive ? 'active' : ''}" data-day="${day}">Dia ${day}</button>`;
         }).join('');
@@ -734,25 +815,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             let planHtml = `<h4>Alterações na Equipa</h4>`;
-            planHtml += dayData.substitutions?.length > 0
-                ? dayData.substitutions.map(sub => `
+            planHtml += (dayData.substitutions && dayData.substitutions.length > 0)
+                ? dayData.substitutions.map(sub => {
+                    const outName = sub.out?.name || (sub.out?.player && sub.out.player.name) || '?';
+                    const outTh = sub.out?.town_hall || (sub.out?.player && sub.out.player.town_hall) || '?';
+                    const inName = sub.in?.name || (sub.in?.player && sub.in.player.name) || '?';
+                    const inTh = sub.in?.town_hall || (sub.in?.player && sub.in.player.town_hall) || '?';
+                    return `
                     <div class="substitution-card">
-                        <p>🔴 <strong>Sai:</strong> ${sub.out?.name || '?'} (CV${sub.out?.town_hall || '?'})</p>
-                        <p>🟢 <strong>Entra:</strong> ${sub.in?.name || '?'} (CV${sub.in?.town_hall || '?'})</p>
+                        <p>🔴 <strong>Sai:</strong> ${outName} (CV${outTh})</p>
+                        <p>🟢 <strong>Entra:</strong> ${inName} (CV${inTh})</p>
                         <p class="reason"><em>IA: ${sub.reason || '-'}</em></p>
-                    </div>`).join('')
-                : `<p>${day == 1 ? 'Escalação inicial.' : 'Manter a escalação do dia anterior.'}</p>`;
+                    </div>`;
+                }).join('')
+                : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs e Titulares Fixos.' : 'A IA sugere manter a escalação do dia anterior.'}</p>`;
 
             const roster = dayData.active_roster || [];
-            planHtml += `<h4>⚔️ Escalação Ativa (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
+            planHtml += `<h4>⚔️ Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
             
-            const sortedRoster = [...roster].sort((a, b) => b.player.town_hall - a.player.town_hall);
+            const sortedRoster = [...roster].sort((a, b) => {
+                const thA = a.town_hall || (a.player && a.player.town_hall) || 0;
+                const thB = b.town_hall || (b.player && b.player.town_hall) || 0;
+                return thB - thA;
+            });
 
             planHtml += sortedRoster.length > 0
-                ? sortedRoster.map((p, i) => `
-                    <div class="roster-player">
-                        <span>${i + 1}.</span>${p.player.name || '?'} (CV${p.player.town_hall || '?'}) - ${p.days_played}d
-                    </div>`).join('')
+                ? sortedRoster.map((p, i) => {
+                    const name = p.name || (p.player && p.player.name) || '?';
+                    const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                    const icon = p.status === 'priority' ? '⭐' : (p.status === 'unavailable' ? '🛑' : '');
+                    return `
+                    <div class="roster-player" ${p.status === 'priority' ? 'style="border-left: 3px solid var(--color-accent);"' : ''}>
+                        <span>${i + 1}.</span>${icon} ${name} (CV${th}) - ${p.days_played || 0}d
+                    </div>`;
+                }).join('')
                 : '<p>Nenhum jogador na escalação.</p>';
             planHtml += `</div>`; 
             
@@ -766,15 +862,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeBench.length > 0) {
                 planHtml += '<h5>Ativos (Próximos a entrar):</h5>';
                 planHtml += activeBench
-                    .sort((a, b) => a.days_played - b.days_played) 
-                    .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
+                    .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
+                    .map((p, i) => {
+                        const name = p.name || (p.player && p.player.name) || '?';
+                        const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
+                    })
                     .join('');
             }
             if (backupBench.length > 0) {
                 planHtml += '<h5 style="margin-top: 10px;">Backups (Emergência):</h5>';
                 planHtml += backupBench
-                    .sort((a, b) => a.days_played - b.days_played) 
-                    .map((p, i) => `<p>${i+1}. ${p.player.name} (CV${p.player.town_hall}) - ${p.days_played}d</p>`)
+                    .sort((a, b) => (a.days_played || 0) - (b.days_played || 0)) 
+                    .map((p, i) => {
+                        const name = p.name || (p.player && p.player.name) || '?';
+                        const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
+                    })
                     .join('');
             }
             if (activeBench.length === 0 && backupBench.length === 0) {
@@ -798,32 +902,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function populateCwlData(data) {
         if (!cwlPlannerSectionEl) return;
+        cwlPlannerSectionEl.style.display = 'block';
 
-        if (!data || data.error || data.status === "NotInCwl") {
+        if (!data || data.error || data.status === "NotInCwl" || data.state === "not_in_season") {
             if (noCwlMessageEl) {
                 noCwlMessageEl.style.display = 'block';
                 setText(noCwlMessageEl, data?.error || data?.message || "O clã não está em CWL no momento.");
             }
-            cwlPlannerSectionEl.style.display = 'block'; 
-            
             if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
             if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; 
             
-            setText(cwlStatusTextEl, "Não está em CWL");
+            const oldStatus = document.getElementById('cwlStatusText');
+            if (oldStatus) oldStatus.style.display = 'none'; 
             return;
         }
 
+        const oldStatus = document.getElementById('cwlStatusText');
+        if (oldStatus) oldStatus.style.display = 'none'; 
+        
         if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
+        if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
-        if (data.current_day >= 8) {
-            setText(cwlStatusTextEl, "Finalizada");
-        } else if (data.current_day >= 1) {
-            setText(cwlStatusTextEl, `Em Guerra (Dia ${data.current_day})`);
-        } else {
-            setText(cwlStatusTextEl, "Em Preparação"); 
-        }
+        // DESENHA O CABEÇALHO VISUAL
+        updateCwlHeaderUI(data);
 
+        // AVISOS DA IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -831,6 +935,38 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
+        // === BOTÃO DE RECALCULAR COM AÇÃO FORÇADA ===
+        if (userIsAdmin) {
+            if (!document.getElementById('recalc-cwl-btn')) {
+                 const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">🧠 Recalcular Rotação Inteligente</button>`;
+                 if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
+                 
+                 document.getElementById('recalc-cwl-btn')?.addEventListener('click', async () => {
+                     if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">Recalculando e atualizando a base de dados...</p>`);
+                     if(cwlPlanDaysTabsEl) setHtml(cwlPlanDaysTabsEl, '');
+                     if(cwlPlanContentEl) setHtml(cwlPlanContentEl, '');
+
+                     const planData = await fetchData('cwl/generate_plan', { 
+                         method: 'POST', 
+                         headers: {'Content-Type': 'application/json'}, 
+                         body: JSON.stringify({force: true}) 
+                     });
+                     
+                     if (planData && !planData.error) {
+                         updateCwlHeaderUI(planData); 
+                         populateCwlOverview(planData); 
+                         populateCwlSchedule(planData);
+                     } else {
+                         if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao recalcular: ${planData?.error || 'Tente novamente.'}</div>`);
+                     }
+                 });
+            }
+        } else {
+            const btn = document.getElementById('recalc-cwl-btn');
+            if (btn) btn.remove();
+        }
+
+        // DESENHA A ROTAÇÃO (SEJA DO BANCO DE DADOS VELHO OU DO NOVO)
         populateCwlOverview(data);
         populateCwlSchedule(data);
     }
@@ -916,7 +1052,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // === NOVA FUNÇÃO: POPULA JOGOS DO CLÃ ===
     function populateClanGamesData(data) {
         if (!cgContentEl) return;
 
@@ -1048,8 +1183,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="member-cwl-status" data-player-tag="${m.tag || ''}">
                     <label>CWL:</label>
                     <div class="cwl-status-selector">
+                        <button class="cwl-status-btn ${m.cwl_status === 'priority' ? 'active' : ''}" data-status="priority" title="Titular Absoluto (IA fura-fila)">⭐ Fixo</button>
                         <button class="cwl-status-btn ${m.cwl_status === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
-                        <button class="cwl-status-btn ${m.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
+                        <button class="cwl-status-btn ${m.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Reserva</button>
                     </div>
                 </div>
             </div>`;
@@ -1150,7 +1286,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!success) {
                     alert('Erro ao salvar status. Tente novamente.');
                     e.target.classList.remove('active');
-                    selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); 
                 }
             });
         });
@@ -1215,17 +1350,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('') : '<p class="message-box" style="width:100%;">Nenhum herói da vila principal encontrado.</p>';
 
         const cwlStatus = profileData.cwl_status || 'active';
+        
         const cwlStatusHtml = userIsAdmin ? `
             <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}" style="margin-bottom: 20px;">
                 <label>Status na CWL:</label>
                 <div class="cwl-status-selector">
+                    <button class="cwl-status-btn ${cwlStatus === 'priority' ? 'active' : ''}" data-status="priority">⭐ Fixo</button>
                     <button class="cwl-status-btn ${cwlStatus === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
                     <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
                 </div>
             </div>` : `
             <div class="member-cwl-status" style="margin-bottom: 20px; justify-content: flex-start; gap: 15px;">
                 <label>Status CWL:</label>
-                <span style="color: ${cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)'}; font-weight:bold;">${cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas'}</span>
+                <span style="color: ${cwlStatus === 'priority' ? 'var(--color-accent)' : (cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)')}; font-weight:bold;">${cwlStatus === 'priority' ? '⭐ Titular Fixo' : (cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas')}</span>
             </div>`;
 
         const hitrate = profileData.hitrate || { total_wars: 0, attacks_made: 0, attacks_missed: 0, total_stars: 0, three_star_attacks: 0, avg_destruction: 0 };
@@ -1432,9 +1569,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
+            // AGORA BUSCA DIRETO DA ROTAÇÃO PARA EVITAR CONFLITO DE CACHE
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
-                warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData, clanGamesData
+                warLogData, cwlPlanData, highlightsData, warAdvisorData, capitalData, clanGamesData
             ] = await Promise.all([
                 fetchData('members'), fetchData('current_war_details'), fetchData('missed_attacks_history'),
                 fetchData('war_log'), fetchData('cwl/generate_plan', { method: 'POST' }), 
@@ -1446,11 +1584,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); 
             if (missedAttacksData && !missedAttacksData.error) populateMissedAttacksHistory(missedAttacksData);
             if (warLogData && !warLogData.error) populateWarLog(warLogData);
-            if (cwlInfoData) populateCwlData(cwlInfoData); 
+            if (cwlPlanData) populateCwlData(cwlPlanData); 
             if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); 
             if (capitalData) populateCapitalData(capitalData);
-            
-            // Renderiza Jogos do Clã
             if (clanGamesData) populateClanGamesData(clanGamesData);
 
             updateLastUpdated();
