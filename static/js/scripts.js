@@ -133,6 +133,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeProfileModalButton = memberProfileModal?.querySelector('.close-button'); 
     let memberTrophyChart = null;
 
+    // VARIÁVEIS DE CACHE DA CWL E MEMÓRIA DE ABA
+    let cwlPlanCached = null;
+    let isFetchingCwlPlan = false;
+    let activeCwlTabDay = null; // MEMÓRIA DA ABA
+
+    // --- INJEÇÃO CSS: CARTÃO VIP DOURADO ---
+    const vipStyle = document.createElement('style');
+    vipStyle.innerHTML = `
+        .vip-golden-card {
+            border: 1px solid #ffd700 !important;
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(20, 20, 20, 0.9) 100%) !important;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+        .vip-golden-card:hover {
+            box-shadow: 0 6px 20px rgba(255, 215, 0, 0.3);
+            border-color: #ffdf00 !important;
+        }
+        .vip-golden-card .member-info h4 {
+            color: #ffd700 !important;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+        }
+        .vip-ribbon {
+            position: absolute;
+            top: 12px;
+            right: -32px;
+            background: linear-gradient(90deg, #ff8c00, #ffd700);
+            color: #000;
+            font-weight: 900;
+            font-size: 0.65em;
+            padding: 4px 35px;
+            transform: rotate(45deg);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            letter-spacing: 1px;
+            z-index: 1;
+        }
+        .vip-golden-card .member-card-header, 
+        .vip-golden-card .member-card-stats,
+        .vip-golden-card .member-card-note,
+        .vip-golden-card .member-cwl-status {
+            position: relative;
+            z-index: 2;
+        }
+    `;
+    document.head.appendChild(vipStyle);
+
     // --- FUNÇÃO DE FETCH MELHORADA ---
     async function fetchData(endpoint, options = {}) {
         try {
@@ -171,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     // --- LÓGICA DA MÚSICA DE FUNDO ---
     if (backgroundMusicEl && muteButtonEl) {
         backgroundMusicEl.volume = 0.2;
@@ -191,7 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         document.body.addEventListener('click', playMusic, { once: true });
         document.body.addEventListener('keydown', playMusic, { once: true });
-
 
         muteButtonEl.addEventListener('click', () => {
             backgroundMusicEl.muted = !backgroundMusicEl.muted;
@@ -374,6 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } catch (e) {
+                console.error("Erro detalhado ao criar gráfico de atividade:", e);
                 if (activityChartCanvas) {
                     const ctx = activityChartCanvas.getContext('2d');
                     if (ctx) {
@@ -671,7 +717,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ========================================================
-    // >>> SISTEMA DE ROTAÇÃO CWL (CÉREBRO DA IA) E UI <<<
+    // >>> SISTEMA DE ROTAÇÃO CWL E UI VISUAL <<<
     // ========================================================
 
     function updateCwlHeaderUI(data) {
@@ -706,7 +752,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let seasonStr = data.season || '-';
         let groupStateStr = data.state === 'preparation' ? 'Formando Grupo' : (data.state === 'inWar' ? 'Em Andamento' : (data.state || '-'));
 
-        // --- BLINDAGEM DO JAVASCRIPT CONTRA CACHE VELHO (MUITO IMPORTANTE) ---
         let clansHtml = '';
         if (data.clans && Array.isArray(data.clans) && data.clans.length > 0) {
             clansHtml = '<div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 15px;">';
@@ -715,7 +760,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             clansHtml += '</div>';
         } else {
-            // Se o banco de dados enviou um plano velho sem a lista de clãs, ele avisa para clicar no botão:
             clansHtml = "<p style='color:var(--color-warning); margin-top:10px; font-style: italic;'>⚠️ Dados do grupo ausentes no cache antigo. Clique em 'Recalcular Rotação Inteligente' para forçar a atualização.</p>";
         }
 
@@ -800,9 +844,16 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
+        // === CORREÇÃO: MEMÓRIA DA ABA ===
+        let dayToRender = activeCwlTabDay ? parseInt(activeCwlTabDay) : currentDay;
+        // Validação de segurança se a aba guardada na memória não existir
+        if (!schedule.find(d => d.day === dayToRender)) {
+            dayToRender = currentDay;
+        }
+
         const tabsHtml = schedule.map(dayPlan => {
             const day = dayPlan.day || 1;
-            const isActive = day === currentDay;
+            const isActive = day === dayToRender;
             return `<button class="cwl-plan-day-tab ${isActive ? 'active' : ''}" data-day="${day}">Dia ${day}</button>`;
         }).join('');
         setHtml(cwlPlanDaysTabsEl, tabsHtml);
@@ -889,15 +940,46 @@ document.addEventListener('DOMContentLoaded', () => {
             setHtml(cwlPlanContentEl, planHtml);
         };
 
-        renderDayPlan(currentDay <= 7 ? currentDay : 1);
+        // Usa a Memória
+        renderDayPlan(dayToRender);
 
         cwlPlanDaysTabsEl.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 cwlPlanDaysTabsEl.querySelector('.cwl-plan-day-tab.active')?.classList.remove('active');
                 tab.classList.add('active');
+                activeCwlTabDay = tab.dataset.day; // GUARDA NA MEMÓRIA!
                 renderDayPlan(tab.dataset.day);
             });
         });
+    }
+
+    async function loadCwlPlan() {
+        if (isFetchingCwlPlan) return;
+        isFetchingCwlPlan = true;
+        
+        if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">A IA está calculando a rotação ideal...</p>`);
+        if(cwlPlanDaysTabsEl) setHtml(cwlPlanDaysTabsEl, '');
+        if(cwlPlanContentEl) setHtml(cwlPlanContentEl, '');
+        
+        try {
+            const planData = await fetchData('cwl/generate_plan', { method: 'POST' });
+            if (planData && !planData.error) {
+                cwlPlanCached = planData;
+                updateCwlHeaderUI(planData);
+                populateCwlOverview(planData);
+                populateCwlSchedule(planData);
+            } else {
+                if(cwlOverviewContainerEl) {
+                     setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao gerar rotação: ${planData?.error || 'Não há membros suficientes marcados como Ativos.'}</div>`);
+                     cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
+                }
+            }
+        } catch (e) {
+            console.error("Erro no JS ao gerar plano:", e);
+            if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Falha interna na Rotação. Tente novamente mais tarde.</div>`);
+        } finally {
+            isFetchingCwlPlan = false;
+        }
     }
 
     async function populateCwlData(data) {
@@ -924,10 +1006,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
-        // DESENHA O CABEÇALHO VISUAL
         updateCwlHeaderUI(data);
 
-        // AVISOS DA IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -935,13 +1015,13 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
-        // === BOTÃO DE RECALCULAR COM AÇÃO FORÇADA ===
         if (userIsAdmin) {
             if (!document.getElementById('recalc-cwl-btn')) {
                  const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">🧠 Recalcular Rotação Inteligente</button>`;
                  if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
                  
                  document.getElementById('recalc-cwl-btn')?.addEventListener('click', async () => {
+                     cwlPlanCached = null;
                      if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">Recalculando e atualizando a base de dados...</p>`);
                      if(cwlPlanDaysTabsEl) setHtml(cwlPlanDaysTabsEl, '');
                      if(cwlPlanContentEl) setHtml(cwlPlanContentEl, '');
@@ -966,7 +1046,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn) btn.remove();
         }
 
-        // DESENHA A ROTAÇÃO (SEJA DO BANCO DE DADOS VELHO OU DO NOVO)
         populateCwlOverview(data);
         populateCwlSchedule(data);
     }
@@ -1153,8 +1232,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">⚔️ ${lastWarDateFormatted}</span>`;
 
+            // === APLICAÇÃO DO VISUAL VIP DOURADO ===
+            const isPriority = m.cwl_status === 'priority';
+            const priorityClass = isPriority ? 'vip-golden-card' : '';
+            const vipRibbonHtml = isPriority ? `<div class="vip-ribbon">⭐ TITULAR</div>` : '';
+
             return `
-            <div class="member-card ${watchlistClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
+            <div class="member-card ${watchlistClass} ${priorityClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
+                ${vipRibbonHtml}
                 <div class="member-card-header" data-player-tag="${m.tag || ''}">
                     <img src="/static/images/townhall${m.town_hall || 1}.png" alt="CV${m.town_hall || '?'}" class="member-th-icon" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='40px';">
                     <div class="member-info">
@@ -1569,7 +1654,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
-            // AGORA BUSCA DIRETO DA ROTAÇÃO PARA EVITAR CONFLITO DE CACHE
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
                 warLogData, cwlPlanData, highlightsData, warAdvisorData, capitalData, clanGamesData
