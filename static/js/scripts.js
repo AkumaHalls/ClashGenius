@@ -256,6 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSectionEl = document.getElementById(newSectionId);
 
         if (!newSectionEl) {
+            console.warn(`Section with ID "${newSectionId}" not found.`);
             return; 
         }
 
@@ -354,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 activityChart.destroy();
                 activityChart = null; 
-            } catch(e) { }
+            } catch(e) {}
         }
 
         const chartData = data.activity_chart_data;
@@ -702,12 +703,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) {
+            console.error("Erro no JS ao gerar plano:", e);
             if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Falha interna na Rotação. Tente novamente mais tarde.</div>`);
         } finally {
             isFetchingCwlPlan = false;
         }
     }
 
+    // === SOLUÇÃO DEFINITIVA: BLINDAGEM DO NOME DO JOGADOR ===
     function populateCwlOverview(planData) {
         if (!cwlOverviewContainerEl) return;
 
@@ -955,28 +958,35 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
-        if (!document.getElementById('recalc-cwl-btn')) {
-             const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">🧠 Recalcular Rotação Inteligente</button>`;
-             if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
-             
-             document.getElementById('recalc-cwl-btn')?.addEventListener('click', async () => {
-                 cwlPlanCached = null;
-                 if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">Recalculando toda a temporada...</p>`);
+        // BOTÃO DE RECALCULAR COM BLINDAGEM DE ADMIN
+        if (userIsAdmin) {
+            if (!document.getElementById('recalc-cwl-btn')) {
+                 const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">🧠 Recalcular Rotação Inteligente</button>`;
+                 if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
                  
-                 const planData = await fetchData('cwl/generate_plan', { 
-                     method: 'POST', 
-                     headers: {'Content-Type': 'application/json'}, 
-                     body: JSON.stringify({force: true}) 
+                 document.getElementById('recalc-cwl-btn')?.addEventListener('click', async () => {
+                     cwlPlanCached = null;
+                     if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">Recalculando toda a temporada...</p>`);
+                     
+                     const planData = await fetchData('cwl/generate_plan', { 
+                         method: 'POST', 
+                         headers: {'Content-Type': 'application/json'}, 
+                         body: JSON.stringify({force: true}) 
+                     });
+                     
+                     if (planData && !planData.error) {
+                         cwlPlanCached = planData; 
+                         populateCwlOverview(planData); 
+                         populateCwlSchedule(planData);
+                     } else {
+                         if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao recalcular: ${planData?.error || 'Tente novamente.'}</div>`);
+                     }
                  });
-                 
-                 if (planData && !planData.error) {
-                     cwlPlanCached = planData; 
-                     populateCwlOverview(planData); 
-                     populateCwlSchedule(planData);
-                 } else {
-                     if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao recalcular: ${planData?.error || 'Tente novamente.'}</div>`);
-                 }
-             });
+            }
+        } else {
+            // Remove o botão se ele existir e o usuário não for mais admin
+            const btn = document.getElementById('recalc-cwl-btn');
+            if (btn) btn.remove();
         }
 
         if (!cwlPlanCached && !isFetchingCwlPlan) {
@@ -1302,7 +1312,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!success) {
                     alert('Erro ao salvar status. Tente novamente.');
                     e.target.classList.remove('active');
-                    selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); 
                 }
             });
         });
@@ -1586,9 +1595,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
-            // ===============================================================
-            // CORREÇÃO APLICADA AQUI: O 5º Item agora é cwl_info, super rápido!
-            // ===============================================================
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
                 warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData, clanGamesData
