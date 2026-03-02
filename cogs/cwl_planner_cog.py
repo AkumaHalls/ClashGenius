@@ -254,13 +254,12 @@ class IntelligentRotationEngine:
             score = f.evaluate(p, ctx)
             
             if p.status == PlayerStatus.PRIORITY and f.name == "Fairness":
-                score = 1.0 # Justiça máxima sempre!
+                score = 1.0 
                 
             weighted = score * weights.get(f.name, f.weight)
             breakdown[f.name] = {"raw": score, "weight": weights.get(f.name), "weighted": weighted}
             total += weighted
             
-        # BLINDAGEM 1: Nota brutal para garantir o primeiro lugar nas escolhas
         if p.status == PlayerStatus.PRIORITY:
             total += 1000.0
             
@@ -305,12 +304,10 @@ class IntelligentRotationEngine:
         max_th = max(th_counts.keys()) if th_counts else 17
         high_th = sum(v for k, v in th_counts.items() if k >= max_th - 1)
         
-        # O SISTEMA ANTI-MASSACRE DA IA
         if high_th < min(5, self.team_size // 3):
             warnings.append(f"⚠️ Poucos CVs altos ({high_th}) no roster")
             high_on_bench = sorted([p for p in new_bench if p.town_hall >= max_th - 1], key=lambda x: x.days_played)
             
-            # BLINDAGEM 2: Proíbe a IA de arrancar jogadores FIXOS (PRIORITY) do roster só porque são de CV baixo
             low_in_roster = sorted([p for p in new_roster if p.town_hall < max_th - 1 and p.status != PlayerStatus.PRIORITY and not p.forced_inclusion], key=lambda p: p.town_hall)
             
             swaps = min(len(high_on_bench), len(low_in_roster), min(5, self.team_size // 3) - high_th)
@@ -467,9 +464,20 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                     except ValueError: 
                         status = PlayerStatus.ACTIVE
                         
+                    forced_inclusion = note.get('forced_in', False)
+                    forced_exclusion = note.get('forced_out', False)
+                    display_name = m.name
+
+                    # --- RADAR DE DESERÇÃO (BANIU OU SAIU) ---
+                    if m.tag not in curr_tags:
+                        status = PlayerStatus.UNAVAILABLE
+                        forced_exclusion = True # Proíbe a IA de escalar ele pra sempre
+                        forced_inclusion = False # Arranca a carteirinha VIP se ele for Fixo
+                        display_name = f"{m.name} 🛑 (SAIU)"
+                        
                     players.append(CWLPlayer(
-                        tag=m.tag, name=m.name, town_hall=m.town_hall, status=status,
-                        notes=note.get('notes', ''), forced_inclusion=note.get('forced_in', False), forced_exclusion=note.get('forced_out', False)
+                        tag=m.tag, name=display_name, town_hall=m.town_hall, status=status,
+                        notes=note.get('notes', ''), forced_inclusion=forced_inclusion, forced_exclusion=forced_exclusion
                     ))
             
             if len(players) < team_size:
