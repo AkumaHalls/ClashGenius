@@ -253,7 +253,6 @@ class IntelligentRotationEngine:
         for f in self.decision_factors:
             score = f.evaluate(p, ctx)
             
-            # BLINDAGEM DO CRAQUE: Se for Fixo (Priority), a IA ignora a punição de rodízio (Fairness)
             if p.status == PlayerStatus.PRIORITY and f.name == "Fairness":
                 score = 1.0 # Justiça máxima sempre!
                 
@@ -261,9 +260,9 @@ class IntelligentRotationEngine:
             breakdown[f.name] = {"raw": score, "weight": weights.get(f.name), "weighted": weighted}
             total += weighted
             
-        # Garante que os fixos tenham vantagem brutal na nota final da IA
+        # BLINDAGEM 1: Nota brutal para garantir o primeiro lugar nas escolhas
         if p.status == PlayerStatus.PRIORITY:
-            total += 5.0
+            total += 1000.0
             
         if p.forced_inclusion: total += 10.0
         if p.forced_exclusion: total -= 10.0
@@ -306,10 +305,14 @@ class IntelligentRotationEngine:
         max_th = max(th_counts.keys()) if th_counts else 17
         high_th = sum(v for k, v in th_counts.items() if k >= max_th - 1)
         
+        # O SISTEMA ANTI-MASSACRE DA IA
         if high_th < min(5, self.team_size // 3):
             warnings.append(f"⚠️ Poucos CVs altos ({high_th}) no roster")
             high_on_bench = sorted([p for p in new_bench if p.town_hall >= max_th - 1], key=lambda x: x.days_played)
-            low_in_roster = sorted([p for p in new_roster if p.town_hall < max_th - 1], key=lambda p: p.town_hall)
+            
+            # BLINDAGEM 2: Proíbe a IA de arrancar jogadores FIXOS (PRIORITY) do roster só porque são de CV baixo
+            low_in_roster = sorted([p for p in new_roster if p.town_hall < max_th - 1 and p.status != PlayerStatus.PRIORITY and not p.forced_inclusion], key=lambda p: p.town_hall)
+            
             swaps = min(len(high_on_bench), len(low_in_roster), min(5, self.team_size // 3) - high_th)
             for i in range(swaps):
                 p_out = low_in_roster[i]
