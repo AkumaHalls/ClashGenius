@@ -76,12 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
-    const cwlStatusTextEl = document.getElementById('cwlStatusText'); 
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
-    const cwlSeasonEl = document.getElementById('cwlSeason');
-    const cwlGroupStateEl = document.getElementById('cwlGroupState');
-    const cwlGroupClansEl = document.getElementById('cwlGroupClans');
-    const cwlRoundsInfoEl = document.getElementById('cwlRoundsInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
 
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
@@ -727,7 +722,8 @@ document.addEventListener('DOMContentLoaded', () => {
              placarHtml += score.map(p => {
                  const name = p.name || (p.player && p.player.name) || 'Membro Oculto';
                  const th = p.town_hall || (p.player && p.player.town_hall) || '?';
-                 return `<p>${name} (CV${th}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
+                 const icon = p.status === 'priority' ? '⭐' : '';
+                 return `<p>${icon} ${name} (CV${th}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
              }).join('');
         } else {
             placarHtml += '<p>Nenhum dado de participação gerado.</p>';
@@ -778,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <p class="reason"><em>IA: ${sub.reason || '-'}</em></p>
                     </div>`;
                 }).join('')
-                : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs.' : 'A IA sugere manter a escalação do dia anterior.'}</p>`;
+                : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs e Titulares Fixos.' : 'A IA sugere manter a escalação do dia anterior.'}</p>`;
 
             const roster = dayData.active_roster || [];
             planHtml += `<h4>⚔️ Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
@@ -793,9 +789,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? sortedRoster.map((p, i) => {
                     const name = p.name || (p.player && p.player.name) || '?';
                     const th = p.town_hall || (p.player && p.player.town_hall) || '?';
+                    const icon = p.status === 'priority' ? '⭐' : '';
                     return `
-                    <div class="roster-player">
-                        <span>${i + 1}.</span>${name} (CV${th}) - ${p.days_played || 0}d
+                    <div class="roster-player" ${p.status === 'priority' ? 'style="border-left: 3px solid var(--color-accent);"' : ''}>
+                        <span>${i + 1}.</span>${icon} ${name} (CV${th}) - ${p.days_played || 0}d
                     </div>`;
                 }).join('')
                 : '<p>Nenhum jogador na escalação.</p>';
@@ -849,6 +846,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ========================================================
+    // >>> PREENCHIMENTO DA ABA CWL (NOVO VISUAL AESTHETIC) <<<
+    // ========================================================
     async function populateCwlData(data) {
         if (!cwlPlannerSectionEl) return;
 
@@ -862,56 +862,90 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
             if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; 
             
-            setText(cwlStatusTextEl, "Não está em CWL");
             return;
         }
 
         if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
-        if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'flex'; 
+        if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
-        setText(cwlSeasonEl, data.season || '-');
+        // === REDESIGN VISUAL DO CABEÇALHO ===
+        let mainStatusText = "";
+        let statusColor = "var(--color-warning)";
         
-        let statusReal = data.state === 'preparation' ? 'Preparação' : (data.state === 'inWar' ? 'Em Andamento' : (data.state || '-'));
-        setText(cwlGroupStateEl, statusReal);
-
-        if (cwlGroupClansEl) {
-            if (data.clans && Array.isArray(data.clans) && data.clans.length > 0) {
-                let clansHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px;">';
-                data.clans.forEach(c => {
-                    clansHtml += `<div style="display:flex; align-items:center;"><img src="${c.badge_url || DEFAULT_BADGE_URL}" style="width: 25px; margin-right: 8px;"> <span>${c.name}</span></div>`;
-                });
-                clansHtml += '</div>';
-                setHtml(cwlGroupClansEl, clansHtml);
-            } else {
-                setHtml(cwlGroupClansEl, "<p style='color:var(--color-text-secondary); margin-top:10px;'>Oponentes ainda não revelados.</p>");
-            }
-        }
-
-        if (cwlRoundsInfoEl) {
-            if (data.rounds && Array.isArray(data.rounds) && data.rounds.length > 0) {
-                let roundsText = data.rounds.map((r, i) => {
-                     let icon = r === 'warEnded' ? '✅' : (r === 'inWar' ? '⚔️' : '⏳');
-                     return `<span style="display:inline-block; margin-right:15px;">Dia ${i+1}: ${icon}</span>`;
-                }).join('');
-                setHtml(cwlRoundsInfoEl, `<div style="margin-top:10px;">${roundsText}</div>`);
-            } else {
-                setHtml(cwlRoundsInfoEl, "<p style='color:var(--color-text-secondary); margin-top:10px;'>Cronograma de dias indisponível.</p>");
-            }
-        }
-
         if (data.current_day >= 8) {
-            setText(cwlStatusTextEl, "Finalizada");
+            mainStatusText = "🏁 Liga Finalizada";
+            statusColor = "var(--color-text-secondary)";
         } else if (data.current_day >= 1) {
             if (data.state === 'preparation' || data.war_state === 'preparation') {
-                setText(cwlStatusTextEl, `Preparação (Dia ${data.current_day})`);
+                mainStatusText = `⏳ Preparação (Dia ${data.current_day})`;
             } else {
-                setText(cwlStatusTextEl, `Em Guerra (Dia ${data.current_day})`);
+                mainStatusText = `⚔️ Em Guerra (Dia ${data.current_day})`;
+                statusColor = "var(--color-success)";
             }
         } else {
-            setText(cwlStatusTextEl, "Em Preparação do Grupo"); 
+            mainStatusText = "🔍 Buscando Oponentes..."; 
+            statusColor = "var(--color-info)";
         }
 
+        let seasonStr = data.season || '-';
+        let groupStateStr = data.state === 'preparation' ? 'Formando Grupo' : (data.state === 'inWar' ? 'Em Andamento' : (data.state || '-'));
+
+        let clansHtml = '';
+        if (data.clans && Array.isArray(data.clans) && data.clans.length > 0) {
+            clansHtml = '<div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 15px;">';
+            data.clans.forEach(c => {
+                clansHtml += `<div style="background: rgba(0,0,0,0.3); padding: 8px 15px; border-radius: 20px; display:flex; align-items:center; font-size: 0.95em; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><img src="${c.badge_url || DEFAULT_BADGE_URL}" style="width: 24px; height: 24px; margin-right: 10px;"> <span style="font-weight: bold; letter-spacing: 0.5px;">${c.name}</span></div>`;
+            });
+            clansHtml += '</div>';
+        } else {
+            clansHtml = "<p style='color:var(--color-text-secondary); margin-top:10px; font-style: italic;'>Os clãs inimigos ainda não foram revelados pela Supercell.</p>";
+        }
+
+        let roundsText = '';
+        if (data.rounds && Array.isArray(data.rounds) && data.rounds.length > 0) {
+            roundsText = '<div style="display: flex; justify-content: center; gap: 10px; margin-top: 15px; flex-wrap: wrap;">';
+            data.rounds.forEach((r, i) => {
+                 let icon = r === 'warEnded' ? '✅' : (r === 'inWar' ? '⚔️' : '⏳');
+                 let color = r === 'warEnded' ? 'var(--color-success)' : (r === 'inWar' ? 'var(--color-accent)' : 'var(--color-text-secondary)');
+                 let bgColor = r === 'warEnded' ? 'rgba(46, 204, 113, 0.1)' : (r === 'inWar' ? 'rgba(231, 76, 60, 0.1)' : 'rgba(255, 255, 255, 0.05)');
+                 roundsText += `<div style="background: ${bgColor}; padding: 10px 15px; border-radius: 10px; border-bottom: 3px solid ${color}; font-weight: bold; font-size: 0.9em; text-align: center; min-width: 60px;">Dia ${i+1}<br><span style="font-size: 1.4em; display:block; margin-top: 8px;">${icon}</span></div>`;
+            });
+            roundsText += '</div>';
+        } else {
+            roundsText = "<p style='color:var(--color-text-secondary); margin-top:10px; font-style: italic;'>Cronograma de dias indisponível no momento.</p>";
+        }
+
+        const aestheticHeaderHtml = `
+            <div class="status-badge" style="font-size: 1.3em; background-color: ${statusColor}1A; color: ${statusColor}; border: 1px solid ${statusColor}; margin-bottom: 25px; padding: 15px 20px; border-radius: 12px; text-align: center; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
+                ${mainStatusText}
+            </div>
+            
+            <div class="stats-grid" style="margin-bottom: 25px;">
+                <div class="stat-card" style="padding: 20px; text-align: center; background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%);">
+                    <h4 style="color: var(--color-text-secondary); font-size: 0.85em; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">Temporada</h4>
+                    <div class="stat-value" style="font-size: 1.5em; color: var(--color-text-main); font-weight: bold;">${seasonStr}</div>
+                </div>
+                <div class="stat-card" style="padding: 20px; text-align: center; background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%);">
+                    <h4 style="color: var(--color-text-secondary); font-size: 0.85em; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">Estado do Grupo</h4>
+                    <div class="stat-value" style="font-size: 1.5em; color: var(--color-text-main); font-weight: bold;">${groupStateStr}</div>
+                </div>
+            </div>
+
+            <div class="cwl-overview-card" style="margin-bottom: 25px; text-align: center; padding: 25px; border: 1px solid rgba(255,255,255,0.05); border-radius: 15px; background-color: rgba(0,0,0,0.15);">
+                <h3 style="margin-bottom: 5px; font-size: 1.2em; color: var(--color-text-main); text-transform: uppercase; letter-spacing: 1px;">🛡️ Clãs no Grupo</h3>
+                ${clansHtml}
+            </div>
+
+            <div class="cwl-overview-card" style="margin-bottom: 40px; text-align: center; padding: 25px; border-radius: 15px; background: rgba(0,0,0,0.2);">
+                <h3 style="margin-bottom: 5px; font-size: 1.2em; color: var(--color-text-main); text-transform: uppercase; letter-spacing: 1px;">📅 Cronograma Oficial</h3>
+                ${roundsText}
+            </div>
+        `;
+
+        setHtml(cwlActiveInfoEl, aestheticHeaderHtml);
+
+        // AVISOS DA IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -919,8 +953,9 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
+        // BOTÃO DE RECALCULAR O CÉREBRO
         if (!document.getElementById('recalc-cwl-btn')) {
-             const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold;">🧠 Recalcular Rotação Inteligente</button>`;
+             const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">🧠 Recalcular Rotação Inteligente</button>`;
              if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
              
              document.getElementById('recalc-cwl-btn')?.addEventListener('click', async () => {
@@ -943,6 +978,7 @@ document.addEventListener('DOMContentLoaded', () => {
              });
         }
 
+        // EXECUTA A ROTAÇÃO NORMALMENTE SE NÃO ESTIVER NO CACHE
         if (!cwlPlanCached && !isFetchingCwlPlan) {
             loadCwlPlan();
         } else if (cwlPlanCached) {
@@ -1133,7 +1169,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">⚔️ ${lastWarDateFormatted}</span>`;
 
-            // === AQUI ESTÁ O NOVO BOTÃO DE PRIORIDADE (FIXO) ===
             return `
             <div class="member-card ${watchlistClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
                 <div class="member-card-header" data-player-tag="${m.tag || ''}">
@@ -1332,7 +1367,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const cwlStatus = profileData.cwl_status || 'active';
         
-        // === BOTÃO FIXO NO MODAL TAMBÉM ===
         const cwlStatusHtml = userIsAdmin ? `
             <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}" style="margin-bottom: 20px;">
                 <label>Status na CWL:</label>
