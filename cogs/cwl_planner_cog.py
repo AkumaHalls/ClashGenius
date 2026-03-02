@@ -454,10 +454,7 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 m = member_map.get(tag)
                 if not m: m = next((x for x in cwl_members if x.tag == tag), None)
                 
-                # --- CIRURGIA DE BLINDAGEM ---
-                # A IA não apaga o jogador. Se ele não está na liga, marca como "Não Inscrito"
-                # Se não está no clã, marca como "Saiu". Ambos recebem "forced_exclusion" para não sujar o plano
-                if m:
+                if m and m.tag in valid_cwl_tags:
                     note = notes.get(m.tag, {})
                     try: 
                         status = PlayerStatus(note.get('cwl_status', 'active'))
@@ -468,20 +465,12 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                     forced_exclusion = note.get('forced_out', False)
                     display_name = m.name
 
-                    is_in_league = m.tag in valid_cwl_tags
-                    is_in_clan = m.tag in curr_tags
-
-                    if not is_in_league:
+                    if not m.tag in curr_tags:
                         status = PlayerStatus.UNAVAILABLE
-                        forced_exclusion = True
-                        forced_inclusion = False
-                        display_name = f"{m.name} 🚫 (Não Inscrito)"
-                    elif not is_in_clan:
-                        status = PlayerStatus.UNAVAILABLE
-                        forced_exclusion = True
-                        forced_inclusion = False
+                        forced_exclusion = True 
+                        forced_inclusion = False 
                         display_name = f"{m.name} 🛑 (Saiu)"
-
+                        
                     players.append(CWLPlayer(
                         tag=m.tag, name=display_name, town_hall=m.town_hall, status=status,
                         notes=note.get('notes', ''), forced_inclusion=forced_inclusion, forced_exclusion=forced_exclusion
@@ -638,7 +627,9 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 curr_r = new_r
                 schedule.append(sanitize_for_mongo(DayPlan(d, new_r, subs, curr_a, curr_b, strat, None, 0.8, warns).to_dict()))
             
-            # EMPACOTAMENTO DOS DADOS EXTRAS PARA O FRONTEND NÃO CRASHAR
+            # ============================================================
+            # A CORREÇÃO QUE DEVOLVE A BELEZA AO PAINEL ESTÁ AQUI
+            # ============================================================
             clans_data = []
             if group and hasattr(group, 'clans'):
                 for c in group.clans:
@@ -664,8 +655,13 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 "schedule": schedule,
                 "participation_score": [sanitize_for_mongo(p.to_dict()) for p in players],
                 "warning": "Modo Fallback" if used_fallback else "",
-                "current_day": day, "team_size": team_size, "season": group.season, "status": "InCwl",
-                "state": group.state, "clans": clans_data, "rounds": rounds_list
+                "current_day": day, 
+                "team_size": team_size, 
+                "season": group.season, 
+                "status": "InCwl",
+                "state": group.state, 
+                "clans": clans_data, 
+                "rounds": rounds_list
             }
             
             await self.cwl_plan_collection.update_one({"_id": group.season}, {"$set": sanitize_for_mongo(data)}, upsert=True)
