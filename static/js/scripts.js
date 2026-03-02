@@ -714,7 +714,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // === SOLUÇÃO DEFINITIVA: BLINDAGEM DO NOME DO JOGADOR ===
     function populateCwlOverview(planData) {
         if (!cwlOverviewContainerEl) return;
 
@@ -850,9 +849,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ========================================================
-    // >>> PREENCHIMENTO DA ABA CWL (INFO DA API SUPERCELL) <<<
-    // ========================================================
     async function populateCwlData(data) {
         if (!cwlPlannerSectionEl) return;
 
@@ -874,13 +870,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'flex'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
-        // PREENCHE A TEMPORADA E O ESTADO
         setText(cwlSeasonEl, data.season || '-');
         
         let statusReal = data.state === 'preparation' ? 'Preparação' : (data.state === 'inWar' ? 'Em Andamento' : (data.state || '-'));
         setText(cwlGroupStateEl, statusReal);
 
-        // PREENCHE OS CLÃS DO GRUPO (Com os brasões)
         if (cwlGroupClansEl) {
             if (data.clans && Array.isArray(data.clans) && data.clans.length > 0) {
                 let clansHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px;">';
@@ -894,7 +888,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // PREENCHE O CRONOGRAMA DE RODADAS
         if (cwlRoundsInfoEl) {
             if (data.rounds && Array.isArray(data.rounds) && data.rounds.length > 0) {
                 let roundsText = data.rounds.map((r, i) => {
@@ -907,7 +900,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // STATUS PRINCIPAL DE GUERRA/PREPARAÇÃO
         if (data.current_day >= 8) {
             setText(cwlStatusTextEl, "Finalizada");
         } else if (data.current_day >= 1) {
@@ -920,7 +912,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setText(cwlStatusTextEl, "Em Preparação do Grupo"); 
         }
 
-        // AVISOS DA IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -928,12 +919,10 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
-        // BOTÃO DE RECALCULAR O CÉREBRO
         if (!document.getElementById('recalc-cwl-btn')) {
              const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold;">🧠 Recalcular Rotação Inteligente</button>`;
              if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
              
-             // O BOTÃO AGORA MANDA O 'FORCE: TRUE' PRO PYTHON
              document.getElementById('recalc-cwl-btn')?.addEventListener('click', async () => {
                  cwlPlanCached = null;
                  if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">Recalculando toda a temporada...</p>`);
@@ -954,7 +943,6 @@ document.addEventListener('DOMContentLoaded', () => {
              });
         }
 
-        // EXECUTA A ROTAÇÃO NORMALMENTE SE NÃO ESTIVER NO CACHE
         if (!cwlPlanCached && !isFetchingCwlPlan) {
             loadCwlPlan();
         } else if (cwlPlanCached) {
@@ -1145,6 +1133,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">⚔️ ${lastWarDateFormatted}</span>`;
 
+            // === AQUI ESTÁ O NOVO BOTÃO DE PRIORIDADE (FIXO) ===
             return `
             <div class="member-card ${watchlistClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
                 <div class="member-card-header" data-player-tag="${m.tag || ''}">
@@ -1175,8 +1164,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="member-cwl-status" data-player-tag="${m.tag || ''}">
                     <label>CWL:</label>
                     <div class="cwl-status-selector">
+                        <button class="cwl-status-btn ${m.cwl_status === 'priority' ? 'active' : ''}" data-status="priority" title="Titular Absoluto (IA fura-fila)">⭐ Fixo</button>
                         <button class="cwl-status-btn ${m.cwl_status === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
-                        <button class="cwl-status-btn ${m.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
+                        <button class="cwl-status-btn ${m.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Reserva</button>
                     </div>
                 </div>
             </div>`;
@@ -1277,7 +1267,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!success) {
                     alert('Erro ao salvar status. Tente novamente.');
                     e.target.classList.remove('active');
-                    selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); 
                 }
             });
         });
@@ -1342,17 +1331,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('') : '<p class="message-box" style="width:100%;">Nenhum herói da vila principal encontrado.</p>';
 
         const cwlStatus = profileData.cwl_status || 'active';
+        
+        // === BOTÃO FIXO NO MODAL TAMBÉM ===
         const cwlStatusHtml = userIsAdmin ? `
             <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}" style="margin-bottom: 20px;">
                 <label>Status na CWL:</label>
                 <div class="cwl-status-selector">
+                    <button class="cwl-status-btn ${cwlStatus === 'priority' ? 'active' : ''}" data-status="priority">⭐ Fixo</button>
                     <button class="cwl-status-btn ${cwlStatus === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
                     <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
                 </div>
             </div>` : `
             <div class="member-cwl-status" style="margin-bottom: 20px; justify-content: flex-start; gap: 15px;">
                 <label>Status CWL:</label>
-                <span style="color: ${cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)'}; font-weight:bold;">${cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas'}</span>
+                <span style="color: ${cwlStatus === 'priority' ? 'var(--color-accent)' : (cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)')}; font-weight:bold;">${cwlStatus === 'priority' ? '⭐ Titular Fixo' : (cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas')}</span>
             </div>`;
 
         const hitrate = profileData.hitrate || { total_wars: 0, attacks_made: 0, attacks_missed: 0, total_stars: 0, three_star_attacks: 0, avg_destruction: 0 };
@@ -1559,9 +1551,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
-            // ===============================================================
-            // CORREÇÃO APLICADA AQUI: O 5º Item agora é cwl_info, super rápido!
-            // ===============================================================
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
                 warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData, clanGamesData
