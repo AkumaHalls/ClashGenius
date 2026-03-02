@@ -133,9 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeProfileModalButton = memberProfileModal?.querySelector('.close-button'); 
     let memberTrophyChart = null;
 
-    let cwlPlanCached = null;
-    let isFetchingCwlPlan = false;
-
+    // --- FUNÇÃO DE FETCH MELHORADA ---
     async function fetchData(endpoint, options = {}) {
         try {
             const response = await fetch(`${API_BASE_URL}/api/${endpoint}`, options);
@@ -173,6 +171,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+
+    // --- LÓGICA DA MÚSICA DE FUNDO ---
     if (backgroundMusicEl && muteButtonEl) {
         backgroundMusicEl.volume = 0.2;
         let musicStarted = false; 
@@ -192,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.addEventListener('click', playMusic, { once: true });
         document.body.addEventListener('keydown', playMusic, { once: true });
 
+
         muteButtonEl.addEventListener('click', () => {
             backgroundMusicEl.muted = !backgroundMusicEl.muted;
             muteButtonEl.textContent = backgroundMusicEl.muted ? '🔇' : '🔊';
@@ -204,6 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- FUNÇÕES HELPER ---
     function updateLastUpdated() {
         const now = new Date();
         setText(lastUpdatedEl, `Última atualização: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`);
@@ -227,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
     const initialSectionId = navLinks.length > 0 ? navLinks[0].dataset.section : 'clan-info-nav';
     let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
 
@@ -244,6 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSectionEl = document.getElementById(newSectionId);
 
         if (!newSectionEl) {
+            console.warn(`Section with ID "${newSectionId}" not found.`);
             return; 
         }
 
@@ -265,6 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
         if (!data || data.error || !data.name) {
             setText(clanNameHeaderEl, "Erro");
@@ -666,37 +671,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ========================================================
-    // >>> SISTEMA DE ROTAÇÃO CWL (CÉREBRO DA IA) <<<
+    // >>> SISTEMA DE ROTAÇÃO CWL (CÉREBRO DA IA) E UI <<<
     // ========================================================
-    async function loadCwlPlan() {
-        if (isFetchingCwlPlan) return;
-        isFetchingCwlPlan = true;
-        
-        if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">A IA está calculando a rotação ideal...</p>`);
-        if(cwlPlanDaysTabsEl) setHtml(cwlPlanDaysTabsEl, '');
-        if(cwlPlanContentEl) setHtml(cwlPlanContentEl, '');
-        
-        try {
-            const planData = await fetchData('cwl/generate_plan', { method: 'POST' });
-            if (planData && !planData.error) {
-                cwlPlanCached = planData;
-                updateCwlHeaderUI(planData);
-                populateCwlOverview(planData);
-                populateCwlSchedule(planData);
-            } else {
-                if(cwlOverviewContainerEl) {
-                     setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao gerar rotação: ${planData?.error || 'Não há membros suficientes marcados como Ativos.'}</div>`);
-                     cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
-                }
-            }
-        } catch (e) {
-            if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Falha interna na Rotação. Tente novamente mais tarde.</div>`);
-        } finally {
-            isFetchingCwlPlan = false;
-        }
-    }
 
-    // === FUNÇÃO DE DESENHO VISUAL DO CABEÇALHO DA CWL ===
     function updateCwlHeaderUI(data) {
         if (!cwlActiveInfoEl) return;
         
@@ -707,7 +684,6 @@ document.addEventListener('DOMContentLoaded', () => {
             mainStatusText = "🏁 Liga Finalizada";
             statusColor = "var(--color-text-secondary)";
         } else if (data.current_day >= 1) {
-            // LÓGICA DE DETECÇÃO DE STATUS À PROVA DE FALHAS
             let isPrep = false;
             if (data.state === 'preparation' || data.war_state === 'preparation') {
                 isPrep = true;
@@ -730,6 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let seasonStr = data.season || '-';
         let groupStateStr = data.state === 'preparation' ? 'Formando Grupo' : (data.state === 'inWar' ? 'Em Andamento' : (data.state || '-'));
 
+        // --- BLINDAGEM DO JAVASCRIPT CONTRA CACHE VELHO (MUITO IMPORTANTE) ---
         let clansHtml = '';
         if (data.clans && Array.isArray(data.clans) && data.clans.length > 0) {
             clansHtml = '<div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 15px;">';
@@ -738,7 +715,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             clansHtml += '</div>';
         } else {
-            clansHtml = "<p style='color:var(--color-text-secondary); margin-top:10px; font-style: italic;'>Os clãs inimigos ainda não foram revelados pela Supercell.</p>";
+            // Se o banco de dados enviou um plano velho sem a lista de clãs, ele avisa para clicar no botão:
+            clansHtml = "<p style='color:var(--color-warning); margin-top:10px; font-style: italic;'>⚠️ Dados do grupo ausentes no cache antigo. Clique em 'Recalcular Rotação Inteligente' para forçar a atualização.</p>";
         }
 
         let roundsText = '';
@@ -752,7 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             roundsText += '</div>';
         } else {
-            roundsText = "<p style='color:var(--color-text-secondary); margin-top:10px; font-style: italic;'>Cronograma de dias indisponível no momento.</p>";
+            roundsText = "<p style='color:var(--color-warning); margin-top:10px; font-style: italic;'>⚠️ Cronograma ausente no cache antigo. Clique em 'Recalcular Rotação Inteligente'.</p>";
         }
 
         const aestheticHeaderHtml = `
@@ -924,7 +902,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function populateCwlData(data) {
         if (!cwlPlannerSectionEl) return;
-
         cwlPlannerSectionEl.style.display = 'block';
 
         if (!data || data.error || data.status === "NotInCwl" || data.state === "not_in_season") {
@@ -947,8 +924,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
+        // DESENHA O CABEÇALHO VISUAL
         updateCwlHeaderUI(data);
 
+        // AVISOS DA IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -956,15 +935,17 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
+        // === BOTÃO DE RECALCULAR COM AÇÃO FORÇADA ===
         if (userIsAdmin) {
             if (!document.getElementById('recalc-cwl-btn')) {
                  const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">🧠 Recalcular Rotação Inteligente</button>`;
                  if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
                  
                  document.getElementById('recalc-cwl-btn')?.addEventListener('click', async () => {
-                     cwlPlanCached = null;
-                     if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">Recalculando toda a temporada...</p>`);
-                     
+                     if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="loading-spinner" style="margin: 20px auto;"></div><p style="text-align:center; grid-column: 1/-1;">Recalculando e atualizando a base de dados...</p>`);
+                     if(cwlPlanDaysTabsEl) setHtml(cwlPlanDaysTabsEl, '');
+                     if(cwlPlanContentEl) setHtml(cwlPlanContentEl, '');
+
                      const planData = await fetchData('cwl/generate_plan', { 
                          method: 'POST', 
                          headers: {'Content-Type': 'application/json'}, 
@@ -972,7 +953,6 @@ document.addEventListener('DOMContentLoaded', () => {
                      });
                      
                      if (planData && !planData.error) {
-                         cwlPlanCached = planData; 
                          updateCwlHeaderUI(planData); 
                          populateCwlOverview(planData); 
                          populateCwlSchedule(planData);
@@ -986,13 +966,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn) btn.remove();
         }
 
-        if (!cwlPlanCached && !isFetchingCwlPlan) {
-            loadCwlPlan();
-        } else if (cwlPlanCached) {
-            updateCwlHeaderUI(cwlPlanCached); 
-            populateCwlOverview(cwlPlanCached);
-            populateCwlSchedule(cwlPlanCached);
-        }
+        // DESENHA A ROTAÇÃO (SEJA DO BANCO DE DADOS VELHO OU DO NOVO)
+        populateCwlOverview(data);
+        populateCwlSchedule(data);
     }
 
     function populateWarLog(data) {
@@ -1593,12 +1569,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
+            // AGORA BUSCA DIRETO DA ROTAÇÃO PARA EVITAR CONFLITO DE CACHE
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
-                warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData, clanGamesData
+                warLogData, cwlPlanData, highlightsData, warAdvisorData, capitalData, clanGamesData
             ] = await Promise.all([
                 fetchData('members'), fetchData('current_war_details'), fetchData('missed_attacks_history'),
-                fetchData('war_log'), fetchData('cwl_info'), 
+                fetchData('war_log'), fetchData('cwl/generate_plan', { method: 'POST' }), 
                 fetchData('highlights'), fetchData('war_advisor_plan'), fetchData('capital'), fetchData('clan_games')
             ]);
 
@@ -1607,7 +1584,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); 
             if (missedAttacksData && !missedAttacksData.error) populateMissedAttacksHistory(missedAttacksData);
             if (warLogData && !warLogData.error) populateWarLog(warLogData);
-            if (cwlInfoData) populateCwlData(cwlInfoData); 
+            if (cwlPlanData) populateCwlData(cwlPlanData); 
             if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); 
             if (capitalData) populateCapitalData(capitalData);
             if (clanGamesData) populateClanGamesData(clanGamesData);
