@@ -76,7 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
+    const cwlStatusTextEl = document.getElementById('cwlStatusText'); 
     const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
+    const cwlSeasonEl = document.getElementById('cwlSeason');
+    const cwlGroupStateEl = document.getElementById('cwlGroupState');
+    const cwlGroupClansEl = document.getElementById('cwlGroupClans');
+    const cwlRoundsInfoEl = document.getElementById('cwlRoundsInfo');
     const noCwlMessageEl = document.getElementById('noCwlMessage');
 
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
@@ -251,7 +256,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSectionEl = document.getElementById(newSectionId);
 
         if (!newSectionEl) {
-            console.warn(`Section with ID "${newSectionId}" not found.`);
             return; 
         }
 
@@ -306,7 +310,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 setText(noHighlightsMessageEl, data?.error || "Não foi possível carregar os destaques.");
             }
             if(highlightsContentEl) highlightsContentEl.style.display = 'none'; 
-            console.error("Erro ao carregar destaques ou dados ausentes:", data?.error || "Dados ausentes"); 
             return;
         }
 
@@ -351,9 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 activityChart.destroy();
                 activityChart = null; 
-            } catch(e) {
-                 console.error("Erro ao destruir gráfico anterior:", e);
-            }
+            } catch(e) { }
         }
 
         const chartData = data.activity_chart_data;
@@ -381,7 +382,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } catch (e) {
-                console.error("Erro detalhado ao criar gráfico de atividade:", e);
                 if (activityChartCanvas) {
                     const ctx = activityChartCanvas.getContext('2d');
                     if (ctx) {
@@ -702,7 +702,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) {
-            console.error("Erro no JS ao gerar plano:", e);
             if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Falha interna na Rotação. Tente novamente mais tarde.</div>`);
         } finally {
             isFetchingCwlPlan = false;
@@ -862,14 +861,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
             if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; 
             
+            // GARANTE QUE O TEXTO VELHO APAGUE
+            if (cwlStatusTextEl) cwlStatusTextEl.style.display = 'none'; 
             return;
         }
 
         if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
         if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
+        
+        // === CORREÇÃO: ESCONDE O TEXTO HTML ANTIGO PARA NÃO FICAR DUPLICADO ===
+        if (cwlStatusTextEl) cwlStatusTextEl.style.display = 'none'; 
 
-        // === REDESIGN VISUAL DO CABEÇALHO ===
         let mainStatusText = "";
         let statusColor = "var(--color-warning)";
         
@@ -945,7 +948,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setHtml(cwlActiveInfoEl, aestheticHeaderHtml);
 
-        // AVISOS DA IA
         if (data.warning) {
             setHtml(cwlPlanWarningEl, `<strong>Aviso da IA:</strong> ${data.warning}`);
             cwlPlanWarningEl.style.display = 'block';
@@ -953,7 +955,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cwlPlanWarningEl.style.display = 'none';
         }
 
-        // BOTÃO DE RECALCULAR O CÉREBRO
         if (!document.getElementById('recalc-cwl-btn')) {
              const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">🧠 Recalcular Rotação Inteligente</button>`;
              if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
@@ -978,7 +979,6 @@ document.addEventListener('DOMContentLoaded', () => {
              });
         }
 
-        // EXECUTA A ROTAÇÃO NORMALMENTE SE NÃO ESTIVER NO CACHE
         if (!cwlPlanCached && !isFetchingCwlPlan) {
             loadCwlPlan();
         } else if (cwlPlanCached) {
@@ -1302,6 +1302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!success) {
                     alert('Erro ao salvar status. Tente novamente.');
                     e.target.classList.remove('active');
+                    selector?.querySelector(`[data-status="${newStatus === 'active' ? 'backup' : 'active'}"]`)?.classList.add('active'); 
                 }
             });
         });
@@ -1585,6 +1586,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
+            // ===============================================================
+            // CORREÇÃO APLICADA AQUI: O 5º Item agora é cwl_info, super rápido!
+            // ===============================================================
             const [
                 membersData, currentWarDetailsData, missedAttacksData,
                 warLogData, cwlInfoData, highlightsData, warAdvisorData, capitalData, clanGamesData
