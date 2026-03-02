@@ -252,10 +252,8 @@ class IntelligentRotationEngine:
         total = 0.0
         for f in self.decision_factors:
             score = f.evaluate(p, ctx)
-            
             if p.status == PlayerStatus.PRIORITY and f.name == "Fairness":
                 score = 1.0 
-                
             weighted = score * weights.get(f.name, f.weight)
             breakdown[f.name] = {"raw": score, "weight": weights.get(f.name), "weighted": weighted}
             total += weighted
@@ -307,7 +305,6 @@ class IntelligentRotationEngine:
         if high_th < min(5, self.team_size // 3):
             warnings.append(f"⚠️ Poucos CVs altos ({high_th}) no roster")
             high_on_bench = sorted([p for p in new_bench if p.town_hall >= max_th - 1], key=lambda x: x.days_played)
-            
             low_in_roster = sorted([p for p in new_roster if p.town_hall < max_th - 1 and p.status != PlayerStatus.PRIORITY and not p.forced_inclusion], key=lambda p: p.town_hall)
             
             swaps = min(len(high_on_bench), len(low_in_roster), min(5, self.team_size // 3) - high_th)
@@ -468,11 +465,10 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                     forced_exclusion = note.get('forced_out', False)
                     display_name = m.name
 
-                    # --- RADAR DE DESERÇÃO (BANIU OU SAIU) ---
                     if m.tag not in curr_tags:
                         status = PlayerStatus.UNAVAILABLE
-                        forced_exclusion = True # Proíbe a IA de escalar ele pra sempre
-                        forced_inclusion = False # Arranca a carteirinha VIP se ele for Fixo
+                        forced_exclusion = True 
+                        forced_inclusion = False 
                         display_name = f"{m.name} 🛑 (SAIU)"
                         
                     players.append(CWLPlayer(
@@ -631,11 +627,33 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
                 curr_r = new_r
                 schedule.append(sanitize_for_mongo(DayPlan(d, new_r, subs, curr_a, curr_b, strat, None, 0.8, warns).to_dict()))
             
+            # === DADOS VISUAIS DO CABEÇALHO PARA A UI ===
+            clans_data = []
+            if group and hasattr(group, 'clans'):
+                for c in group.clans:
+                    clans_data.append({
+                        "name": c.name, 
+                        "tag": c.tag, 
+                        "badge_url": c.badge.url if hasattr(c, 'badge') and c.badge else ""
+                    })
+
+            rounds_list = []
+            if group and hasattr(group, 'rounds'):
+                for i in range(1, len(group.rounds) + 1):
+                    if i < day:
+                        rounds_list.append("warEnded")
+                    elif i == day:
+                        is_prep = any(idx == day for w, idx, t, op in states.get('preparation', []))
+                        rounds_list.append("preparation" if is_prep else "inWar")
+                    else:
+                        rounds_list.append("unstarted")
+
             data = {
                 "schedule": schedule,
                 "participation_score": [sanitize_for_mongo(p.to_dict()) for p in players],
                 "warning": "Modo Fallback" if used_fallback else "",
-                "current_day": day, "team_size": team_size, "season": group.season, "status": "InCwl"
+                "current_day": day, "team_size": team_size, "season": group.season, "status": "InCwl",
+                "state": group.state, "clans": clans_data, "rounds": rounds_list
             }
             
             await self.cwl_plan_collection.update_one({"_id": group.season}, {"$set": sanitize_for_mongo(data)}, upsert=True)
