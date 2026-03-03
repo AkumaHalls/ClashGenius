@@ -36,6 +36,11 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         guild_id = session.get('guild_id')
         guild = self.bot.get_guild(int(guild_id)) if guild_id else None
         
+        # === A CURA DOS CANAIS: AUTO-FALLBACK ===
+        # Se ele não achar o ID do servidor na sessão, ele pega o primeiro servidor que o bot está conectado!
+        if not guild and len(self.bot.guilds) > 0:
+            guild = self.bot.guilds[0]
+
         channels = [{"id": str(c.id), "name": c.name} for c in guild.text_channels] if guild else []
         roles = [{"id": str(r.id), "name": r.name} for r in guild.roles] if guild else []
 
@@ -49,7 +54,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "watchlist_alert_channel_id": str(self.bot.watchlist_alert_channel_id),
             "low_performance_channel_id": str(self.bot.low_performance_channel_id),
             "capital_report_channel_id": str(self.bot.capital_report_channel_id),
-            "smurf_log_channel_id": str(self.bot.smurf_log_channel_id), # NOVO CANAL ADICIONADO AQUI
+            "smurf_log_channel_id": str(self.bot.smurf_log_channel_id), 
             "role_id_1star_alert": str(self.bot.role_id_1star_alert),
             "role_id_missed_attack": str(self.bot.role_id_missed_attack),
             "leader_role_id": str(self.bot.leader_role_id),
@@ -72,7 +77,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                 "watchlist_alert_channel_id": int(data.get("watchlist_alert_channel_id", self.bot.watchlist_alert_channel_id) or 0),
                 "low_performance_channel_id": int(data.get("low_performance_channel_id", self.bot.low_performance_channel_id) or 0),
                 "capital_report_channel_id": int(data.get("capital_report_channel_id", self.bot.capital_report_channel_id) or 0),
-                "smurf_log_channel_id": int(data.get("smurf_log_channel_id", self.bot.smurf_log_channel_id) or 0), # NOVO CANAL ADICIONADO AQUI
+                "smurf_log_channel_id": int(data.get("smurf_log_channel_id", self.bot.smurf_log_channel_id) or 0),
                 "role_id_1star_alert": int(data.get("role_id_1star_alert", self.bot.role_id_1star_alert) or 0),
                 "role_id_missed_attack": int(data.get("role_id_missed_attack", self.bot.role_id_missed_attack) or 0),
                 "leader_role_id": int(data.get("leader_role_id", self.bot.leader_role_id) or 0),
@@ -122,7 +127,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                        "added_by": doc.get("added_by", "Sistema"),
                        "added_at": doc.get("added_at", "").isoformat() if isinstance(doc.get("added_at"), datetime.datetime) else str(doc.get("added_at", ""))
                   })
-             return watchlist
+             return {"watchlist": watchlist} # Melhorado o empacotamento
         except Exception as e:
              logger.error(f"Erro ao buscar watchlist pro admin: {e}")
              return {"error": "Erro interno."}
