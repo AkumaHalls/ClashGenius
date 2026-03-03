@@ -30,7 +30,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         
         # Variáveis de Memória Temporária para a Matriz Comportamental
         self.last_clan_state: Dict[str, Dict[str, int]] = {}
-        self.last_war_attacks: Set[str] = set()
+        self.last_war_attacks: set = set()
 
     async def cog_load(self):
         self.behavior_monitor_task.start()
@@ -93,7 +93,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         return int(difflib.SequenceMatcher(None, n1, n2).ratio() * 100)
 
     async def _add_suspicion_points(self, p1: coc.ClanMember, p2: coc.ClanMember, points: int, reason: str):
-        if self.db is None: return # CORREÇÃO AQUI (PyMongo Anti-Crash)
+        if self.db is None: return 
         if p1.tag == p2.tag: return
         
         pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
@@ -117,21 +117,18 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     # ==================== O LIXEIRO DA IA (GARBAGE COLLECTOR) ====================
     @tasks.loop(hours=24)
     async def garbage_collector_task(self):
-        if not self.bot.is_ready() or self.db is None: return # CORREÇÃO AQUI (PyMongo Anti-Crash)
+        if not self.bot.is_ready() or self.db is None: return 
         
         try:
             cutoff_date = datetime.datetime.now(pytz.utc) - datetime.timedelta(days=self.EVIDENCE_EXPIRY_DAYS)
             
-            # Encontra quem vai ser apagado para colocar no log
             cursor = self.db.smurf_evidence.find({"last_updated": {"$lt": cutoff_date}})
             docs_to_delete = await cursor.to_list(length=None)
             
             if not docs_to_delete: return
             
-            # Apaga do Banco
             result = await self.db.smurf_evidence.delete_many({"last_updated": {"$lt": cutoff_date}})
             
-            # Prepara e Envia o Log
             log_channel_id = getattr(self.bot, 'smurf_log_channel_id', 0)
             if not log_channel_id: 
                 log_channel_id = getattr(self.bot, 'ai_log_channel_id', getattr(self.bot, 'channel_id', 0))
@@ -139,7 +136,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             channel = self.bot.get_channel(int(log_channel_id))
             if channel:
                 desc = f"Apagadas **{result.deleted_count}** evidências comportamentais inativas há mais de {self.EVIDENCE_EXPIRY_DAYS} dias.\n\n"
-                for doc in docs_to_delete[:10]: # Mostra no máximo 10 para não floodar
+                for doc in docs_to_delete[:10]: 
                     desc += f"▫️ `{doc['name1']}` & `{doc['name2']}` (Perderam {doc.get('score', 0)} Pts de suspeita)\n"
                 
                 if len(docs_to_delete) > 10:
@@ -162,7 +159,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         await self.bot.wait_until_ready()
 
     # ==================== O RADAR COMPORTAMENTAL ====================
-    @tasks.loop(minutes=5) # Executa de 5 em 5 minutos (A Janela de Sincronia definida)
+    @tasks.loop(minutes=5)
     async def behavior_monitor_task(self):
         if not self.bot.is_ready() or not self.bot.api_client: return
         
@@ -172,7 +169,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
             current_state = {m.tag: {"donations": m.donations, "received": m.received, "member": m} for m in clan.members}
             
-            # 1. RADAR DE DOAÇÃO CRUZADA (Falso Altruísmo)
+            # 1. RADAR DE DOAÇÃO CRUZADA
             if self.last_clan_state:
                 donors = []
                 receivers = []
@@ -185,11 +182,9 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                         if diff_donated > 0: donors.append((state["member"], diff_donated))
                         if diff_received > 0: receivers.append((state["member"], diff_received))
                 
-                # Se alguém doou e alguém recebeu na mesma janela de 5 minutos
                 if donors and receivers:
                     for d_member, d_amount in donors:
                         for r_member, r_amount in receivers:
-                            # Se a quantia bate ou é próxima, suspeita fortíssima de doação entre próprias contas
                             if abs(d_amount - r_amount) <= 5: 
                                 await self._add_suspicion_points(
                                     d_member, r_member, 15, 
@@ -203,7 +198,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
                 if war and war.state == "inWar":
                     current_attacks = set()
-                    my_clan = war.clan if normalize_tag(war.clan.tag) == normalize_tag(self.bot.clan_tag) else war.opponent
+                    my_clan = war.clan if coc.utils.correct_tag(war.clan.tag) == coc.utils.correct_tag(self.bot.clan_tag) else war.opponent
                     
                     for m in my_clan.members:
                         for atk in m.attacks:
@@ -212,12 +207,10 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     if self.last_war_attacks:
                         new_attacks = current_attacks - self.last_war_attacks
                         
-                        # Se 2 ou mais pessoas atacaram nesta exata janela de 5 minutos
                         if len(new_attacks) >= 2:
                             attackers = [current_state.get(tag, {}).get("member") for tag in new_attacks]
                             attackers = [a for a in attackers if a is not None]
                             
-                            # Combina todos os pares que atacaram juntos
                             for i in range(len(attackers)):
                                 for j in range(i+1, len(attackers)):
                                     await self._add_suspicion_points(
@@ -235,7 +228,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     @behavior_monitor_task.before_loop
     async def before_behavior_monitor(self):
         await self.bot.wait_until_ready()
-        await asyncio.sleep(10) # Espera a API inicializar
+        await asyncio.sleep(10)
 
 
     # ==================== O TRIBUNAL DA IA (DOSSIÊ DINÂMICO) ====================
@@ -254,23 +247,19 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         confidence = name_sim
         reasons = []
 
-        # Puxa o Score Comportamental
         behavior_score = db_evidence.get('score', 0)
         if behavior_score > 0:
-            confidence += min(40, behavior_score) # Maximo de 40% de confiança extra vinda do comportamento
+            confidence += min(40, behavior_score)
             reasons.append(f"🔥 ALERTA COMPORTAMENTAL: Acumularam {behavior_score} pontos de suspeita nos radares de Sincronia e Doação.")
-            # Puxa os motivos exatos do DB para provar
-            for r in db_evidence.get('reasons', [])[-3:]: # Mostra as 3 ultimas evidencias
+            for r in db_evidence.get('reasons', [])[-3:]: 
                 reasons.append(f"  └ {r}")
 
-        # Fatores Matemáticos Exatos
         mass_ratio = main_s['mass'] / max(smurf_s['mass'], 1)
         gold_diff = main_s['gold_grab'] - smurf_s['gold_grab']
         obs_diff = main_s['obstacles'] - smurf_s['obstacles']
         th_diff = main_s['th'] - smurf_s['th']
         hero_diff = main_s['heroes'] - smurf_s['heroes']
 
-        # Montagem Dinâmica de Frases 
         if name_sim >= 90:
             reasons.append(random.choice([
                 "Assinatura nominal virtualmente idêntica detectada.",
@@ -326,24 +315,21 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
             p_stats = {p.tag: self._extract_account_stats(p) for p in players_full}
 
-            # Link DB Exato (Discord Link)
             db_owners = defaultdict(list)
             if self.db is not None:
                 cursor = self.db.users.find({"player_tag": {"$in": member_tags}})
                 async for doc in cursor:
                     if doc.get("discord_id"): db_owners[doc.get("discord_id")].append(doc.get("player_tag"))
 
-            # Puxa toda a matriz de comportamento ativa
             behavior_matrix = {}
             if self.db is not None:
-                cursor = self.db.smurf_evidence.find({"score": {"$gt": 10}}) # Só puxa pares com suspeita considerável
+                cursor = self.db.smurf_evidence.find({"score": {"$gt": 10}})
                 async for doc in cursor:
                     behavior_matrix[doc["_id"]] = doc
 
             investigations = []
             processed_tags = set()
 
-            # 1. Processa DB Absoluta (Link do Discord)
             for d_id, tags in db_owners.items():
                 if len(tags) > 1:
                     group = [p for p in players_full if p.tag in tags]
@@ -354,7 +340,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     })
                     for p in group: processed_tags.add(p.tag)
 
-            # 2. Processa IA (Lexical + Comportamental)
             candidates = [p for p in players_full if p.tag not in processed_tags]
             for i in range(len(candidates)):
                 p1 = candidates[i]
@@ -374,7 +359,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     
                     sim = self._get_identity_match(p1.name, p2.name)
                     
-                    # SE a similaridade do nome for alta OU se o score comportamental for altíssimo (>30)
                     if sim >= self.MIN_SIMILARITY_TO_INVESTIGATE or evidence_doc.get("score", 0) >= 30:
                         is_smurf, conf, reason, m_p, s_p = self._judge_relationship(p1, p_stats[p1.tag], p2, p_stats[p2.tag], sim, evidence_doc)
                         if is_smurf:
@@ -396,7 +380,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 await interaction.followup.send("✅ **Clã Limpo:** A IA não detectou contas suspeitas baseadas em nomes ou telemetria nas últimas semanas.")
                 return
 
-            # HEADER DO RELATÓRIO
             embed = discord.Embed(
                 title="📂 DOSSIÊ PERICIAL: MÚLTIPLAS CONTAS",
                 description="Este relatório cruza telemetria de jogo, radares comportamentais de guerra/doação e lexicologia para determinar a posse de contas secundárias.",
@@ -440,6 +423,57 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         except Exception as e:
             logger.error(f"Erro no dossie smurf: {e}", exc_info=True)
             await interaction.followup.send("❌ Erro fatal ao gerar o dossiê.")
+
+    # ==================== FUNÇÕES PARA O PAINEL WEB (API) ====================
+
+    async def get_web_dossier(self) -> List[Dict[str, Any]]:
+        """Busca todas as evidências comportamentais ativas no banco de dados para a tela de Radar Pericial."""
+        if self.db is None: return []
+        try:
+            cursor = self.db.smurf_evidence.find({"score": {"$gt": 0}}).sort("score", -1)
+            docs = await cursor.to_list(length=None)
+            return docs
+        except Exception as e:
+            logger.error(f"Erro ao buscar dossiê web: {e}")
+            return []
+
+    async def absolve_pair(self, pair_id: str) -> Dict[str, str]:
+        """Classifica o par como Falso Positivo e apaga do banco."""
+        if self.db is None: return {"status": "error", "message": "Banco de dados offline."}
+        try:
+            result = await self.db.smurf_evidence.delete_one({"_id": pair_id})
+            if result.deleted_count > 0:
+                return {"status": "success", "message": "Contas absolvidas! Ficha comportamental limpa."}
+            return {"status": "error", "message": "Par não encontrado ou já apagado."}
+        except Exception as e:
+            logger.error(f"Erro ao absolver smurfs {pair_id}: {e}")
+            return {"status": "error", "message": "Falha ao processar absolvição no banco."}
+
+    async def condemn_pair(self, pair_id: str) -> Dict[str, str]:
+        """Apaga o registro do comportamento e lança ambas as tags diretamente na Watchlist."""
+        if self.db is None: return {"status": "error", "message": "Banco de dados offline."}
+        watchlist_cog = self.bot.get_cog("Lista de Observação")
+        if not watchlist_cog: return {"status": "error", "message": "Módulo de Watchlist não carregado."}
+        
+        try:
+            doc = await self.db.smurf_evidence.find_one({"_id": pair_id})
+            if not doc: return {"status": "error", "message": "Documento não encontrado."}
+            
+            # Adiciona as duas tags à Watchlist
+            reason = "Condenado pela IA como Smurf"
+            details = f"Vínculo detectado entre {doc.get('name1')} e {doc.get('name2')} (Score: {doc.get('score', 0)})"
+            
+            await watchlist_cog.add_to_watchlist(doc.get('tag1'), doc.get('name1'), reason, details)
+            await watchlist_cog.add_to_watchlist(doc.get('tag2'), doc.get('name2'), reason, details)
+            
+            # Limpa do Radar Pericial
+            await self.db.smurf_evidence.delete_one({"_id": pair_id})
+            
+            return {"status": "success", "message": "Contas condenadas e adicionadas à Watchlist com sucesso!"}
+        except Exception as e:
+            logger.error(f"Erro ao condenar smurfs {pair_id}: {e}")
+            return {"status": "error", "message": "Falha ao processar a condenação."}
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SmurfDetectionCog(bot))
