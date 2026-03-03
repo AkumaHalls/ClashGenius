@@ -41,6 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const watchlistListFeedback = document.getElementById('watchlist-list-feedback');
     const watchlistFilterName = document.getElementById('watchlist-filter-name');
     const watchlistFilterTag = document.getElementById('watchlist-filter-tag');
+    
+    const radarFeedback = document.getElementById('radar-feedback'); // NOVO
 
     const navLinks = document.querySelectorAll('.admin-nav .nav-link');
     const contentSections = document.querySelectorAll('.admin-section');
@@ -73,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (currentActiveSectionId === 'admin-watchlist') feedbackEl = watchlistListFeedback || watchlistAddFeedback;
             else if (currentActiveSectionId === 'admin-geral') feedbackEl = geralFeedback;
             else if (currentActiveSectionId === 'admin-db') feedbackEl = dbFeedback;
+            else if (currentActiveSectionId === 'admin-radar') feedbackEl = radarFeedback; // NOVO
 
             displayFeedback(feedbackEl, `Erro: ${error.message}`, true);
             throw error; 
@@ -110,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateDiscordDropdowns(discordData) {
         if (!discordData || discordData.error) return;
 
+        // INJEÇÃO DA VARIÁVEL DE SMURFS AQUI NO ARRAY
         const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id', 'smurf_log_channel_id'];
         const roleSelects = ['role_id_1star_alert', 'role_id_missed_attack', 'leader_role_id', 'coleader_role_id'];
 
@@ -253,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  displayFeedback(watchlistListFeedback, `Erro: ${response.error}`, true);
                  return;
             }
-            const watchlist = Array.isArray(response) ? response : (response.watchlist || []);
+            const watchlist = Array.isArray(response) ? response : [];
 
             if (watchlist.length === 0) {
                  watchlistTableBody.innerHTML = '<tr><td colspan="6">Nenhum jogador na lista de observação.</td></tr>';
@@ -261,24 +265,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             watchlistTableBody.innerHTML = watchlist.map(player => {
                 let dateStr = '-';
-                const rawDate = player.date_added || player.added_at;
-                if (rawDate) {
-                     try { dateStr = new Date(rawDate).toLocaleDateString('pt-BR'); }
-                     catch(e) { dateStr = rawDate; } 
+                if (player.date_added) {
+                     try { dateStr = new Date(player.date_added).toLocaleDateString('pt-BR'); }
+                     catch(e) { dateStr = player.date_added; } 
                 }
-                
-                // RESTAURADO OS CAMPOS EXATOS QUE O SEU BANCO DE DADOS (MONGO) RETORNA!
-                const pName = player.name || player.player_name || 'N/A';
-                const pTag = player._id || player.player_tag || 'N/A';
-
                 return `
                 <tr>
-                    <td><strong>${pName}</strong></td>
-                    <td style="font-family: monospace; color: var(--color-accent);">${pTag}</td>
+                    <td><strong>${player.name || 'N/A'}</strong></td>
+                    <td style="font-family: monospace; color: var(--color-accent);">${player._id || 'N/A'}</td>
                     <td>${player.reason || '-'}</td>
                     <td>${player.details || '-'}</td>
                     <td>${dateStr}</td>
-                    <td><button class="admin-remove-btn btn-admin btn-danger" data-tag="${pTag}" style="padding: 5px 10px;">Remover</button></td>
+                    <td><button class="admin-remove-btn btn-admin btn-danger" data-tag="${player._id || ''}" style="padding: 5px 10px;">Remover</button></td>
                 </tr>`;
             }).join('');
 
@@ -351,6 +349,96 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // =========================================================
+    // LÓGICA DO RADAR PERICIAL DE IA (MESA DE EVIDÊNCIAS)
+    // =========================================================
+    async function loadRadarDossier() {
+        const container = document.getElementById('radar-dossier-container');
+        if(!container) return;
+        container.innerHTML = '<div style="text-align:center;"><div class="loading-spinner" style="margin: 20px auto;"></div></div>';
+        
+        try {
+            const response = await fetchAdminAPI('actions', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'get_smurf_dossier', payload: {}})
+            });
+            
+            if(response.error) {
+                container.innerHTML = `<p class="error-text">${response.error}</p>`;
+                return;
+            }
+            
+            const dossier = response.dossier || [];
+            if(dossier.length === 0) {
+                container.innerHTML = '<p style="text-align:center; padding: 20px; background: rgba(46, 204, 113, 0.1); border-radius: 8px; color: var(--color-success); font-weight: bold; font-size: 1.1em;">✅ Nenhuma atividade de doação suspeita ou ataque sincronizado detectado recentemente. O clã está limpo!</p>';
+                return;
+            }
+            
+            let html = '<div class="dossier-grid" style="display: grid; gap: 15px;">';
+            dossier.forEach(doc => {
+                let riskColor = "var(--color-warning)";
+                let riskLabel = "Suspeito";
+                let percentage = Math.min((doc.score / 50) * 100, 100);
+                
+                if(doc.score >= 30) { riskColor = "var(--color-danger)"; riskLabel = "Risco Extremo"; }
+                else if(doc.score <= 15) { riskColor = "var(--color-info)"; riskLabel = "Em Observação"; }
+                
+                const reasonsHtml = doc.reasons && doc.reasons.length > 0 ? doc.reasons.map(r => `<div style="font-size:0.85em; margin-bottom:4px; padding-left:10px; border-left: 2px solid ${riskColor};">${r}</div>`).join('') : '<span style="font-style:italic;">Sem anotações detalhadas no banco.</span>';
+
+                html += `
+                <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border-light); border-radius: 8px; padding: 15px;">
+                    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin:0; font-size:1.1em;">🕵️ ${doc.name1} <span style="color:var(--color-text-secondary);font-size:0.8em;">(${doc.tag1})</span> <span style="margin:0 10px;">↔️</span> ${doc.name2} <span style="color:var(--color-text-secondary);font-size:0.8em;">(${doc.tag2})</span></h4>
+                        <span style="background: ${riskColor}33; color: ${riskColor}; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:0.8em;">${doc.score} Pts - ${riskLabel}</span>
+                    </div>
+                    
+                    <div style="background: var(--color-background); height: 8px; border-radius: 4px; margin-bottom: 15px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);">
+                        <div style="height: 100%; width: ${percentage}%; background: ${riskColor}; transition: width 0.5s ease;"></div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <strong style="font-size:0.85em; color:var(--color-text-secondary); text-transform:uppercase;">Elos Comportamentais (Gravações do Bot):</strong><br>
+                        <div style="margin-top: 8px; max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.1); padding: 10px; border-radius: 4px; font-family: monospace; line-height: 1.4;">
+                            ${reasonsHtml}
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="judgeSmurf('${doc._id}', 'absolve_smurf')" class="btn-admin" style="background: var(--color-success); flex: 1;">🟢 Absolver (Falso Positivo)</button>
+                        <button onclick="judgeSmurf('${doc._id}', 'condemn_smurf')" class="btn-admin btn-danger" style="flex: 1;">🔴 Condenar (Watchlist Automática)</button>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+            
+        } catch(e) {
+            container.innerHTML = '<p class="error-text">Erro fatal ao carregar o Cérebro Pericial.</p>';
+        }
+    }
+    
+    window.judgeSmurf = async (pairId, action) => {
+        const isCondemn = action === 'condemn_smurf';
+        if(!confirm(isCondemn ? '⚠️ TEM CERTEZA?\n\nAmbas as contas serão enviadas permanentemente para a Watchlist como Contas Secundárias (Smurfs) e a IA apagará este log.' : 'Tudo certo. Deseja classificar como Falso Positivo e limpar a ficha destas contas?')) return;
+        
+        const feedback = document.getElementById('radar-feedback');
+        displayFeedback(feedback, 'Processando sentença na base de dados...');
+        
+        try {
+            const response = await fetchAdminAPI('actions', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: action, payload: {pair_id: pairId}})
+            });
+            displayFeedback(feedback, response.message);
+            loadRadarDossier(); 
+        } catch (e) {
+             displayFeedback(feedback, 'Erro ao processar veredito.', true);
+        }
+    };
+
+
     function setActiveAdminSection(newSectionId) {
         if (!newSectionId || newSectionId === currentActiveSectionId) return;
 
@@ -371,7 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadDataForCurrentTab() {
-        [settingsFeedback, actionsFeedback, geralFeedback, dbFeedback, watchlistAddFeedback, watchlistListFeedback].forEach(el => {
+        [settingsFeedback, actionsFeedback, geralFeedback, dbFeedback, watchlistAddFeedback, watchlistListFeedback, radarFeedback].forEach(el => {
              if (el) el.textContent = '';
         });
         try {
@@ -405,6 +493,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'admin-watchlist':
                      await loadWatchlist();
+                    break;
+                case 'admin-radar':
+                     await loadRadarDossier();
                     break;
                  case 'admin-acoes':
                      break;
