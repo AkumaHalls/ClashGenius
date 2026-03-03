@@ -41,6 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const watchlistListFeedback = document.getElementById('watchlist-list-feedback');
     const watchlistFilterName = document.getElementById('watchlist-filter-name');
     const watchlistFilterTag = document.getElementById('watchlist-filter-tag');
+    
+    const radarFeedback = document.getElementById('radar-feedback');
 
     const navLinks = document.querySelectorAll('.admin-nav .nav-link');
     const contentSections = document.querySelectorAll('.admin-section');
@@ -73,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (currentActiveSectionId === 'admin-watchlist') feedbackEl = watchlistListFeedback || watchlistAddFeedback;
             else if (currentActiveSectionId === 'admin-geral') feedbackEl = geralFeedback;
             else if (currentActiveSectionId === 'admin-db') feedbackEl = dbFeedback;
+            else if (currentActiveSectionId === 'admin-radar') feedbackEl = radarFeedback;
 
             displayFeedback(feedbackEl, `Erro: ${error.message}`, true);
             throw error; 
@@ -110,8 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateDiscordDropdowns(discordData) {
         if (!discordData || discordData.error) return;
 
-        // <<< ARRAY ATUALIZADO COM O capital_report_channel_id >>>
-        const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id'];
+        const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id', 'smurf_log_channel_id'];
         const roleSelects = ['role_id_1star_alert', 'role_id_missed_attack', 'leader_role_id', 'coleader_role_id'];
 
         channelSelects.forEach(id => {
@@ -268,12 +270,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return `
                 <tr>
-                    <td>${player.name || 'N/A'}</td>
-                    <td>${player._id || 'N/A'}</td>
+                    <td><strong>${player.name || 'N/A'}</strong></td>
+                    <td style="font-family: monospace; color: var(--color-accent);">${player._id || 'N/A'}</td>
                     <td>${player.reason || '-'}</td>
                     <td>${player.details || '-'}</td>
                     <td>${dateStr}</td>
-                    <td><button class="admin-remove-btn" data-tag="${player._id || ''}">Remover</button></td>
+                    <td><button class="admin-remove-btn btn-admin btn-danger" data-tag="${player._id || ''}" style="padding: 5px 10px;">Remover</button></td>
                 </tr>`;
             }).join('');
 
@@ -346,6 +348,122 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // =========================================================
+    // RENDERIZADOR XAI (EXPLAINABLE AI) - TERMINAL FORENSE
+    // =========================================================
+    async function loadRadarDossier() {
+        const container = document.getElementById('radar-dossier-container');
+        if(!container) return;
+        container.innerHTML = '<div style="text-align:center;"><div class="loading-spinner" style="margin: 20px auto;"></div><p style="color:var(--color-text-secondary);font-family:monospace;margin-top:10px;">Processando Matriz de Telemetria e Forense...</p></div>';
+        
+        try {
+            const response = await fetchAdminAPI('actions', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'get_smurf_dossier', payload: {}})
+            });
+            
+            if(response.error) {
+                container.innerHTML = `<p class="error-text">${response.error}</p>`;
+                return;
+            }
+            
+            const dossier = response.dossier || [];
+            
+            if(dossier.length === 0) {
+                container.innerHTML = `
+                <div style="text-align:center; padding: 30px; background: rgba(46, 204, 113, 0.05); border: 1px solid rgba(46, 204, 113, 0.2); border-radius: 8px;">
+                    <h3 style="color: var(--color-success); margin-bottom:10px;">🛡️ Clã Limpo (Status Verde)</h3>
+                    <p style="color: var(--color-text-secondary);">A Inteligência Forense cruzou todos os eixos de guerra, doação, laboratório e lexicologia nas últimas horas e não encontrou elos suspeitos.</p>
+                </div>`;
+                return;
+            }
+            
+            let html = '<div class="dossier-grid" style="display: grid; gap: 20px;">';
+            
+            dossier.forEach(doc => {
+                const color = doc.risk_color;
+                
+                // Constrói o Terminal de Pensamentos da IA
+                let terminalHtml = '';
+                if(doc.thoughts && doc.thoughts.length > 0) {
+                    doc.thoughts.forEach(t => {
+                        let weightBadge = '';
+                        if(t.weight !== "Info") {
+                            weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; font-weight:bold; color: ${color};">[Peso: ${t.weight}]</span>`;
+                        } else {
+                            weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; color: #a0aec0;">[${t.axis}]</span>`;
+                        }
+                        terminalHtml += `<div style="margin-bottom: 8px; padding-left: 10px; border-left: 2px solid ${color}55;">${weightBadge} ${t.text}</div>`;
+                    });
+                }
+                
+                html += `
+                <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                    <div style="padding: 15px 20px; background: linear-gradient(90deg, ${color}22 0%, transparent 100%); border-bottom: 1px solid ${color}44; display:flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; color: ${color}; font-weight: bold;">Identificação XAI</span>
+                            <h4 style="margin: 5px 0 0 0; font-size: 1.2em; display:flex; align-items:center; gap: 10px;">
+                                👑 ${doc.main_name} <span style="font-size:0.7em; color:var(--color-text-secondary);">${doc.main_tag}</span>
+                                <span style="color:${color};">↔️</span>
+                                👶 ${doc.smurf_name} <span style="font-size:0.7em; color:var(--color-text-secondary);">${doc.smurf_tag}</span>
+                            </h4>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.8em; font-weight: 900; color: ${color}; line-height: 1;">${doc.confidence}%</div>
+                            <div style="font-size: 0.8em; color: var(--color-text-secondary); text-transform:uppercase;">${doc.risk_label}</div>
+                        </div>
+                    </div>
+                    
+                    <div style="height: 4px; background: rgba(255,255,255,0.05); width: 100%;">
+                        <div style="height: 100%; width: ${doc.confidence}%; background: ${color}; box-shadow: 0 0 10px ${color};"></div>
+                    </div>
+                    
+                    <div style="padding: 20px;">
+                        <div style="margin-bottom: 8px; font-size: 0.85em; color: var(--color-text-secondary); text-transform:uppercase; font-weight:bold; letter-spacing: 1px;">🧠 Dossiê de Pensamento (Cadeia Lógica)</div>
+                        <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 15px; font-family: 'Courier New', monospace; font-size: 0.9em; line-height: 1.5; color: #e2e8f0; max-height: 250px; overflow-y: auto;">
+                            ${terminalHtml}
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 15px 20px; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(255,255,255,0.05); display: flex; gap: 15px;">
+                        <button onclick="judgeSmurf('${doc.pair_id}', 'absolve_smurf')" class="btn-admin" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid #2ecc71; flex: 1; transition: all 0.2s;">🟢 Falso Positivo (Limpar)</button>
+                        <button onclick="judgeSmurf('${doc.pair_id}', 'condemn_smurf')" class="btn-admin" style="background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid #e74c3c; flex: 1; transition: all 0.2s;">🔴 Condenar p/ Watchlist</button>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+            
+        } catch(e) {
+            container.innerHTML = '<p class="error-text">Falha de comunicação com o Módulo XAI Forense.</p>';
+        }
+    }
+    
+    window.judgeSmurf = async (pairId, action) => {
+        const isCondemn = action === 'condemn_smurf';
+        const msg = isCondemn 
+            ? '⚠️ TEM CERTEZA?\n\nA Matriz Forense enviará ambas as contas para a Watchlist como "Smurfs Confirmadas" e apagará o dossiê da tela principal.' 
+            : 'Absolver Contas?\n\nA IA aprenderá que este padrão é falso positivo e atenuará a pontuação desta ligação.';
+            
+        if(!confirm(msg)) return;
+        
+        const feedback = document.getElementById('radar-feedback');
+        displayFeedback(feedback, 'Processando veredito na Base de Dados...');
+        
+        try {
+            const response = await fetchAdminAPI('actions', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: action, payload: {pair_id: pairId}})
+            });
+            displayFeedback(feedback, response.message || 'Sentença aplicada!');
+            loadRadarDossier(); 
+        } catch (e) {
+             displayFeedback(feedback, 'Erro ao comunicar com a Matriz Central.', true);
+        }
+    };
+
     function setActiveAdminSection(newSectionId) {
         if (!newSectionId || newSectionId === currentActiveSectionId) return;
 
@@ -366,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadDataForCurrentTab() {
-        [settingsFeedback, actionsFeedback, geralFeedback, dbFeedback, watchlistAddFeedback, watchlistListFeedback].forEach(el => {
+        [settingsFeedback, actionsFeedback, geralFeedback, dbFeedback, watchlistAddFeedback, watchlistListFeedback, radarFeedback].forEach(el => {
              if (el) el.textContent = '';
         });
         try {
@@ -400,6 +518,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'admin-watchlist':
                      await loadWatchlist();
+                    break;
+                case 'admin-radar':
+                     await loadRadarDossier();
                     break;
                  case 'admin-acoes':
                      break;

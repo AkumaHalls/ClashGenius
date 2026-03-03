@@ -275,32 +275,49 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             logger.debug("check_api_status_task: Pulando execução - Manutenção ou Cliente CoC não pronto.")
             return
 
-        admin_cog = self.bot.get_cog("Painel de Administração Avançado")
-        if not admin_cog:
-            logger.warning("check_api_status_task: Admin Cog não encontrado.")
-            return
-
         try:
-            api_status_data = await admin_cog.get_api_status()
-            current_status = api_status_data.get("status", "error")
-            status_message = api_status_data.get("message", "N/A")
+            current_status = "error"
+            status_message = "Desconhecido"
+
+            # O Módulo de Tarefas agora verifica a API por conta própria, sem depender do AdminCog!
+            if not self.bot.api_client:
+                current_status = "error"
+                status_message = "Cliente CoC não inicializado."
+            else:
+                try:
+                    await self.bot.api_client.get_clan(self.bot.clan_tag)
+                    current_status = "ok"
+                    status_message = "API CoC Online"
+                except coc.Maintenance:
+                    current_status = "maintenance"
+                    status_message = "Os servidores do Clash of Clans estão em manutenção."
+                except coc.NotFound:
+                    current_status = "error"
+                    status_message = "Clã não encontrado (Tag inválida?)."
+                except coc.LoginError:
+                    current_status = "error"
+                    status_message = "Erro de login na API da Supercell."
+                except Exception as e:
+                    current_status = "error"
+                    status_message = f"Falha na comunicação: {str(e)}"
 
             if current_status != self.bot.last_api_status:
                 logger.info(f"Status API CoC mudou: '{self.bot.last_api_status}' -> '{current_status}'. Notificando.")
-                if current_status=="maintenance" or current_status=="error":
-                    embed_color=discord.Color.orange(); title="🚨 Alerta API Supercell 🚨"
-                    description="Acesso à API Clash of Clans instável/manutenção."
-                    impact="**Painel Web:** Indisponível.\n**Alertas Discord:** Podem ser afetados."
+                if current_status == "maintenance" or current_status == "error":
+                    embed_color = discord.Color.orange()
+                    title = "🚨 Alerta API Supercell 🚨"
+                    description = "Acesso à API Clash of Clans instável/manutenção."
+                    impact = "**Painel Web:** Indisponível.\n**Alertas Discord:** Podem ser afetados."
                 else: 
-                    embed_color=discord.Color.green(); title="✅ API Supercell Operacional"
-                    description="API Clash of Clans voltou ao normal."
-                    impact="**Painel Web:** Acesso restaurado.\n**Alertas Discord:** Normais."
+                    embed_color = discord.Color.green()
+                    title = "✅ API Supercell Operacional"
+                    description = "API Clash of Clans voltou ao normal."
+                    impact = "**Painel Web:** Acesso restaurado.\n**Alertas Discord:** Normais."
 
-                embed = discord.Embed(title=title,description=description,color=embed_color)
+                embed = discord.Embed(title=title, description=description, color=embed_color)
                 embed.add_field(name="Motivo", value=status_message, inline=False)
                 embed.add_field(name="Impacto", value=impact, inline=False)
                 
-                # Envia para Logs Gerais (channel_id)
                 await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
                 self.bot.last_api_status = current_status
             else:

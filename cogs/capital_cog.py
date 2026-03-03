@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-2
+# -*- coding: utf-8 -*-
 import logging
 import discord
 from discord import app_commands
@@ -345,4 +345,5 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(CapitalCog(bot))
+
 

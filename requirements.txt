@@ -12,3 +12,4 @@ pandas
 xgboost
 lightgbm
 Pillow>=10.0.0
+psutil
