@@ -354,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadRadarDossier() {
         const container = document.getElementById('radar-dossier-container');
         if(!container) return;
-        container.innerHTML = '<div style="text-align:center;"><div class="loading-spinner" style="margin: 20px auto;"></div><p style="color:var(--color-text-secondary);font-family:monospace;margin-top:10px;">Processando Matriz de Telemetria e Forense...</p></div>';
+        container.innerHTML = '<div style="text-align:center;"><div class="loading-spinner" style="margin: 20px auto;"></div><p style="color:var(--color-text-secondary);font-family:monospace;margin-top:10px;">Executando DBSCAN e Varredura Forense ao vivo...</p></div>';
         
         try {
             const response = await fetchAdminAPI('actions', {
@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.innerHTML = `
                 <div style="text-align:center; padding: 30px; background: rgba(46, 204, 113, 0.05); border: 1px solid rgba(46, 204, 113, 0.2); border-radius: 8px;">
                     <h3 style="color: var(--color-success); margin-bottom:10px;">🛡️ Clã Limpo (Status Verde)</h3>
-                    <p style="color: var(--color-text-secondary);">A Inteligência Forense cruzou todos os eixos de guerra, doação, laboratório e lexicologia nas últimas horas e não encontrou elos suspeitos.</p>
+                    <p style="color: var(--color-text-secondary);">O Motor de Machine Learning cruzou as distâncias vetoriais e a lógica Fuzzy de todos os membros nas últimas horas e não detectou satélites anômalos.</p>
                 </div>`;
                 return;
             }
@@ -389,12 +389,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(doc.thoughts && doc.thoughts.length > 0) {
                     doc.thoughts.forEach(t => {
                         let weightBadge = '';
-                        if(t.weight !== "Info") {
+                        if(t.weight !== "Info" && t.weight !== "Trace") {
                             weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; font-weight:bold; color: ${color};">[Peso: ${t.weight}]</span>`;
                         } else {
                             weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; color: #a0aec0;">[${t.axis}]</span>`;
                         }
-                        terminalHtml += `<div style="margin-bottom: 8px; padding-left: 10px; border-left: 2px solid ${color}55;">${weightBadge} ${t.text}</div>`;
+                        terminalHtml += `<div style="margin-bottom: 8px; padding-left: 10px; border-left: 2px solid ${color}55;">${weightBadge} <span style="color: #e2e8f0;">${t.text}</span></div>`;
                     });
                 }
                 
@@ -420,8 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     
                     <div style="padding: 20px;">
-                        <div style="margin-bottom: 8px; font-size: 0.85em; color: var(--color-text-secondary); text-transform:uppercase; font-weight:bold; letter-spacing: 1px;">🧠 Dossiê de Pensamento (Cadeia Lógica)</div>
-                        <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 15px; font-family: 'Courier New', monospace; font-size: 0.9em; line-height: 1.5; color: #e2e8f0; max-height: 250px; overflow-y: auto;">
+                        <div style="margin-bottom: 8px; font-size: 0.85em; color: var(--color-text-secondary); text-transform:uppercase; font-weight:bold; letter-spacing: 1px;">🧠 Motor de Inferência (Cadeia Lógica)</div>
+                        <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 15px; font-family: 'Courier New', monospace; font-size: 0.9em; line-height: 1.5; max-height: 250px; overflow-y: auto;">
                             ${terminalHtml}
                         </div>
                     </div>
@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isCondemn = action === 'condemn_smurf';
         const msg = isCondemn 
             ? '⚠️ TEM CERTEZA?\n\nA Matriz Forense enviará ambas as contas para a Watchlist como "Smurfs Confirmadas" e apagará o dossiê da tela principal.' 
-            : 'Absolver Contas?\n\nA IA aprenderá que este padrão é falso positivo e atenuará a pontuação desta ligação.';
+            : 'Absolver Contas?\n\nA IA aprenderá que este padrão é falso positivo e atenuará a pontuação vetorial desta ligação.';
             
         if(!confirm(msg)) return;
         
@@ -460,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
             displayFeedback(feedback, response.message || 'Sentença aplicada!');
             loadRadarDossier(); 
         } catch (e) {
-             displayFeedback(feedback, 'Erro ao comunicar com a Matriz Central.', true);
+             displayFeedback(feedback, 'Erro ao comunicar com o Kernel Central.', true);
         }
     };
 
