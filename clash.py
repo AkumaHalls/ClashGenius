@@ -54,6 +54,7 @@ POST_WAR_ANALYSIS_CHANNEL_ID = int(os.getenv("POST_WAR_ANALYSIS_CHANNEL_ID", 0))
 CLAN_GAMES_CHANNEL_ID = int(os.getenv("CLAN_GAMES_CHANNEL_ID", 0))
 CWL_PLANNER_CHANNEL_ID = int(os.getenv("CWL_PLANNER_CHANNEL_ID", 0))
 DONATIONS_CHANNEL_ID = int(os.getenv("DONATIONS_CHANNEL_ID", 0))
+SMURF_LOG_CHANNEL_ID = int(os.getenv("SMURF_LOG_CHANNEL_ID", 0)) # NOVO CANAL AQUI
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
@@ -82,6 +83,7 @@ class ClashGeniusBot(commands.Bot):
         self.clan_games_channel_id = CLAN_GAMES_CHANNEL_ID
         self.cwl_planner_channel_id = CWL_PLANNER_CHANNEL_ID
         self.donations_channel_id = DONATIONS_CHANNEL_ID
+        self.smurf_log_channel_id = SMURF_LOG_CHANNEL_ID # SALVO NA MEMÓRIA
         self.role_id_1star_alert = ROLE_ID_1STAR_ALERT
         self.role_id_missed_attack = ROLE_ID_MISSED_ATTACK
         self.watchlist_alert_channel_id = WATCHLIST_ALERT_CHANNEL_ID if WATCHLIST_ALERT_CHANNEL_ID else CHANNEL_ID
@@ -174,6 +176,7 @@ class ClashGeniusBot(commands.Bot):
                 self.clan_games_channel_id = bot_settings.get("clan_games_channel_id", self.clan_games_channel_id)
                 self.cwl_planner_channel_id = bot_settings.get("cwl_planner_channel_id", self.cwl_planner_channel_id)
                 self.donations_channel_id = bot_settings.get("donations_channel_id", self.donations_channel_id)
+                self.smurf_log_channel_id = bot_settings.get("smurf_log_channel_id", self.smurf_log_channel_id) # NOVO CANAL AQUI
                 self.watchlist_alert_channel_id = bot_settings.get("watchlist_alert_channel_id", self.watchlist_alert_channel_id)
                 self.low_performance_channel_id = bot_settings.get("low_performance_channel_id", self.low_performance_channel_id)
                 self.capital_report_channel_id = bot_settings.get("capital_report_channel_id", self.capital_report_channel_id)
@@ -336,11 +339,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         try:
             data = await request.json()
             status = data.get('status')
-            
-            # --- AGORA ACEITA O STATUS DE PRIORIDADE ---
-            if status not in ['active', 'backup', 'priority']: 
-                return web.json_response({"error": "Status inválido."}, status=400)
-                
+            if status not in ['active', 'backup', 'priority']: return web.json_response({"error": "Invalid status."}, status=400)
             if not db_cog: return web.json_response({"error": "Internal server error (DB Cog missing)."}, status=500)
             await db_cog.update_player_cwl_status(player_tag, status)
             bot_instance.web_api_cache.pop('members', None)
@@ -370,12 +369,9 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             return web.json_response({"error": "API CoC temporariamente indisponível."}, status=503)
         
         bot_instance.web_api_cache.pop('cwl_plan', None)
-        
         try: data = await request.json()
         except: data = {}
-        
         force = data.get("force", False)
-        
         plan = await cwl_cog.generate_rotation_plan(force_recalculate=force)
         return web.json_response(plan)
 
