@@ -110,8 +110,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateDiscordDropdowns(discordData) {
         if (!discordData || discordData.error) return;
 
-        // <<< ARRAY ATUALIZADO COM O capital_report_channel_id >>>
-        const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id'];
+        // <<< ARRAY ATUALIZADO COM O smurf_log_channel_id >>>
+        const channelSelects = [
+            'channel_id', 'post_war_analysis_channel_id', 'clan_games_channel_id', 
+            'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 
+            'low_performance_channel_id', 'capital_report_channel_id', 'smurf_log_channel_id'
+        ];
         const roleSelects = ['role_id_1star_alert', 'role_id_missed_attack', 'leader_role_id', 'coleader_role_id'];
 
         channelSelects.forEach(id => {
@@ -205,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      row.innerHTML = `<td>${w.opponent || 'N/A'}</td><td>${formatDbDate(w.end_time)}</td>`;
                      row.appendChild(createClickToCopyCell(w.id)); 
                      return row.outerHTML;
-                  }).join('')
+                 }).join('')
                 : '<tr><td colspan="3">Nenhum registro de guerra encontrado.</td></tr>';
         } else if (dbWarsTableBody) {
              dbWarsTableBody.innerHTML = '<tr><td colspan="3">Erro ao carregar guerras.</td></tr>';
@@ -254,26 +258,36 @@ document.addEventListener('DOMContentLoaded', () => {
                  displayFeedback(watchlistListFeedback, `Erro: ${response.error}`, true);
                  return;
             }
-            const watchlist = Array.isArray(response) ? response : [];
+            
+            // CORREÇÃO: A API de Python atual envia {"watchlist": [...] } ou um array direto
+            const watchlist = Array.isArray(response) ? response : (response.watchlist || []);
 
             if (watchlist.length === 0) {
                  watchlistTableBody.innerHTML = '<tr><td colspan="6">Nenhum jogador na lista de observação.</td></tr>';
                  return;
             }
+            
             watchlistTableBody.innerHTML = watchlist.map(player => {
                 let dateStr = '-';
-                if (player.date_added) {
-                     try { dateStr = new Date(player.date_added).toLocaleDateString('pt-BR'); }
-                     catch(e) { dateStr = player.date_added; } 
+                // CORREÇÃO: Resgata a data corretamente independente da versão da API
+                const rawDate = player.date_added || player.added_at;
+                if (rawDate) {
+                     try { dateStr = new Date(rawDate).toLocaleDateString('pt-BR'); }
+                     catch(e) { dateStr = rawDate; } 
                 }
+                
+                // CORREÇÃO: Resgata os nomes e tags de forma robusta
+                const pName = player.player_name || player.name || 'N/A';
+                const pTag = player.player_tag || player._id || 'N/A';
+
                 return `
                 <tr>
-                    <td>${player.name || 'N/A'}</td>
-                    <td>${player._id || 'N/A'}</td>
+                    <td><strong>${pName}</strong></td>
+                    <td style="font-family: monospace; color: var(--color-accent);">${pTag}</td>
                     <td>${player.reason || '-'}</td>
                     <td>${player.details || '-'}</td>
                     <td>${dateStr}</td>
-                    <td><button class="admin-remove-btn" data-tag="${player._id || ''}">Remover</button></td>
+                    <td><button class="admin-remove-btn btn-admin btn-danger" data-tag="${pTag}" style="padding: 5px 10px;">Remover</button></td>
                 </tr>`;
             }).join('');
 
