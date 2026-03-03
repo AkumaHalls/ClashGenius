@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dossier.forEach(doc => {
                 const color = doc.risk_color;
                 
-                // Constrói o Terminal de Pensamentos
+                // Constrói o Terminal de Pensamentos da IA
                 let terminalHtml = '';
                 if(doc.thoughts && doc.thoughts.length > 0) {
                     doc.thoughts.forEach(t => {
@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isCondemn = action === 'condemn_smurf';
         const msg = isCondemn 
             ? '⚠️ TEM CERTEZA?\n\nA Matriz Forense enviará ambas as contas para a Watchlist como "Smurfs Confirmadas" e apagará o dossiê da tela principal.' 
-            : 'Absolver Contas?\n\nA IA aprenderá que este padrão é falso positivo e reiniciará a pontuação forense do zero.';
+            : 'Absolver Contas?\n\nA IA aprenderá que este padrão é falso positivo e atenuará a pontuação desta ligação.';
             
         if(!confirm(msg)) return;
         
