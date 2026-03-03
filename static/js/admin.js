@@ -349,12 +349,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =========================================================
-    // LÓGICA DO RADAR PERICIAL DE IA (MESA DE EVIDÊNCIAS)
+    // RENDERIZADOR XAI (EXPLAINABLE AI) - TERMINAL FORENSE
     // =========================================================
     async function loadRadarDossier() {
         const container = document.getElementById('radar-dossier-container');
         if(!container) return;
-        container.innerHTML = '<div style="text-align:center;"><div class="loading-spinner" style="margin: 20px auto;"></div></div>';
+        container.innerHTML = '<div style="text-align:center;"><div class="loading-spinner" style="margin: 20px auto;"></div><p style="color:var(--color-text-secondary);font-family:monospace;margin-top:10px;">Processando Matriz de Telemetria e Forense...</p></div>';
         
         try {
             const response = await fetchAdminAPI('actions', {
@@ -368,48 +368,67 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            // CORREÇÃO: Garante que caso a resposta seja um array do MongoDB, ele seja processado corretamente
-            const dossier = Array.isArray(response) ? response : (response.dossier || []);
+            const dossier = response.dossier || [];
             
             if(dossier.length === 0) {
-                container.innerHTML = '<p style="text-align:center; padding: 20px; background: rgba(46, 204, 113, 0.1); border-radius: 8px; color: var(--color-success); font-weight: bold; font-size: 1.1em;">✅ Nenhuma atividade de doação suspeita ou ataque sincronizado detectado recentemente. O clã está limpo!</p>';
+                container.innerHTML = `
+                <div style="text-align:center; padding: 30px; background: rgba(46, 204, 113, 0.05); border: 1px solid rgba(46, 204, 113, 0.2); border-radius: 8px;">
+                    <h3 style="color: var(--color-success); margin-bottom:10px;">🛡️ Clã Limpo (Status Verde)</h3>
+                    <p style="color: var(--color-text-secondary);">A Inteligência Forense cruzou todos os eixos de guerra, doação, laboratório e lexicologia nas últimas horas e não encontrou elos suspeitos.</p>
+                </div>`;
                 return;
             }
             
-            let html = '<div class="dossier-grid" style="display: grid; gap: 15px;">';
+            let html = '<div class="dossier-grid" style="display: grid; gap: 20px;">';
+            
             dossier.forEach(doc => {
-                // CORREÇÃO: Adicionado fallback robusto na pontuação e nos textos para prevenir falhas de quebra de tela
-                const score = doc.score || 0;
-                let riskColor = "var(--color-warning)";
-                let riskLabel = "Suspeito";
-                let percentage = Math.min((score / 50) * 100, 100);
+                const color = doc.risk_color;
                 
-                if(score >= 30) { riskColor = "var(--color-danger)"; riskLabel = "Risco Extremo"; }
-                else if(score <= 15) { riskColor = "var(--color-info)"; riskLabel = "Em Observação"; }
+                // Constrói o Terminal de Pensamentos
+                let terminalHtml = '';
+                if(doc.thoughts && doc.thoughts.length > 0) {
+                    doc.thoughts.forEach(t => {
+                        let weightBadge = '';
+                        if(t.weight !== "Info") {
+                            weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; font-weight:bold; color: ${color};">[Peso: ${t.weight}]</span>`;
+                        } else {
+                            weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; color: #a0aec0;">[${t.axis}]</span>`;
+                        }
+                        terminalHtml += `<div style="margin-bottom: 8px; padding-left: 10px; border-left: 2px solid ${color}55;">${weightBadge} ${t.text}</div>`;
+                    });
+                }
                 
-                const reasonsHtml = doc.reasons && doc.reasons.length > 0 ? doc.reasons.map(r => `<div style="font-size:0.85em; margin-bottom:4px; padding-left:10px; border-left: 2px solid ${riskColor};">${r}</div>`).join('') : '<span style="font-style:italic;">Sem anotações detalhadas no banco.</span>';
-
                 html += `
-                <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border-light); border-radius: 8px; padding: 15px;">
-                    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h4 style="margin:0; font-size:1.1em;">🕵️ ${doc.name1 || 'Desconhecido'} <span style="color:var(--color-text-secondary);font-size:0.8em;">(${doc.tag1 || '#?'})</span> <span style="margin:0 10px;">↔️</span> ${doc.name2 || 'Desconhecido'} <span style="color:var(--color-text-secondary);font-size:0.8em;">(${doc.tag2 || '#?'})</span></h4>
-                        <span style="background: ${riskColor}33; color: ${riskColor}; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:0.8em;">${score} Pts - ${riskLabel}</span>
-                    </div>
-                    
-                    <div style="background: var(--color-background); height: 8px; border-radius: 4px; margin-bottom: 15px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);">
-                        <div style="height: 100%; width: ${percentage}%; background: ${riskColor}; transition: width 0.5s ease;"></div>
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <strong style="font-size:0.85em; color:var(--color-text-secondary); text-transform:uppercase;">Elos Comportamentais (Gravações do Bot):</strong><br>
-                        <div style="margin-top: 8px; max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.1); padding: 10px; border-radius: 4px; font-family: monospace; line-height: 1.4;">
-                            ${reasonsHtml}
+                <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                    <div style="padding: 15px 20px; background: linear-gradient(90deg, ${color}22 0%, transparent 100%); border-bottom: 1px solid ${color}44; display:flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; color: ${color}; font-weight: bold;">Identificação XAI</span>
+                            <h4 style="margin: 5px 0 0 0; font-size: 1.2em; display:flex; align-items:center; gap: 10px;">
+                                👑 ${doc.main_name} <span style="font-size:0.7em; color:var(--color-text-secondary);">${doc.main_tag}</span>
+                                <span style="color:${color};">↔️</span>
+                                👶 ${doc.smurf_name} <span style="font-size:0.7em; color:var(--color-text-secondary);">${doc.smurf_tag}</span>
+                            </h4>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.8em; font-weight: 900; color: ${color}; line-height: 1;">${doc.confidence}%</div>
+                            <div style="font-size: 0.8em; color: var(--color-text-secondary); text-transform:uppercase;">${doc.risk_label}</div>
                         </div>
                     </div>
                     
-                    <div style="display: flex; gap: 10px;">
-                        <button onclick="judgeSmurf('${doc._id}', 'absolve_smurf')" class="btn-admin" style="background: var(--color-success); flex: 1;">🟢 Absolver (Falso Positivo)</button>
-                        <button onclick="judgeSmurf('${doc._id}', 'condemn_smurf')" class="btn-admin btn-danger" style="flex: 1;">🔴 Condenar (Watchlist Automática)</button>
+                    <div style="height: 4px; background: rgba(255,255,255,0.05); width: 100%;">
+                        <div style="height: 100%; width: ${doc.confidence}%; background: ${color}; box-shadow: 0 0 10px ${color};"></div>
+                    </div>
+                    
+                    <div style="padding: 20px;">
+                        <div style="margin-bottom: 8px; font-size: 0.85em; color: var(--color-text-secondary); text-transform:uppercase; font-weight:bold; letter-spacing: 1px;">🧠 Dossiê de Pensamento (Cadeia Lógica)</div>
+                        <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 15px; font-family: 'Courier New', monospace; font-size: 0.9em; line-height: 1.5; color: #e2e8f0; max-height: 250px; overflow-y: auto;">
+                            ${terminalHtml}
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 15px 20px; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(255,255,255,0.05); display: flex; gap: 15px;">
+                        <button onclick="judgeSmurf('${doc.pair_id}', 'absolve_smurf')" class="btn-admin" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid #2ecc71; flex: 1; transition: all 0.2s;">🟢 Falso Positivo (Limpar)</button>
+                        <button onclick="judgeSmurf('${doc.pair_id}', 'condemn_smurf')" class="btn-admin" style="background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid #e74c3c; flex: 1; transition: all 0.2s;">🔴 Condenar p/ Watchlist</button>
                     </div>
                 </div>`;
             });
@@ -417,16 +436,20 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = html;
             
         } catch(e) {
-            container.innerHTML = '<p class="error-text">Erro fatal ao carregar o Cérebro Pericial.</p>';
+            container.innerHTML = '<p class="error-text">Falha de comunicação com o Módulo XAI Forense.</p>';
         }
     }
     
     window.judgeSmurf = async (pairId, action) => {
         const isCondemn = action === 'condemn_smurf';
-        if(!confirm(isCondemn ? '⚠️ TEM CERTEZA?\n\nAmbas as contas serão enviadas permanentemente para a Watchlist como Contas Secundárias (Smurfs) e a IA apagará este log.' : 'Tudo certo. Deseja classificar como Falso Positivo e limpar a ficha destas contas?')) return;
+        const msg = isCondemn 
+            ? '⚠️ TEM CERTEZA?\n\nA Matriz Forense enviará ambas as contas para a Watchlist como "Smurfs Confirmadas" e apagará o dossiê da tela principal.' 
+            : 'Absolver Contas?\n\nA IA aprenderá que este padrão é falso positivo e reiniciará a pontuação forense do zero.';
+            
+        if(!confirm(msg)) return;
         
         const feedback = document.getElementById('radar-feedback');
-        displayFeedback(feedback, 'Processando sentença na base de dados...');
+        displayFeedback(feedback, 'Processando veredito na Base de Dados...');
         
         try {
             const response = await fetchAdminAPI('actions', {
@@ -434,14 +457,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({action: action, payload: {pair_id: pairId}})
             });
-            // CORREÇÃO: Garante exibição de texto de sucesso caso o 'message' falhe e evita 'undefined'
-            displayFeedback(feedback, response.message || 'Sentença aplicada com sucesso!');
+            displayFeedback(feedback, response.message || 'Sentença aplicada!');
             loadRadarDossier(); 
         } catch (e) {
-             displayFeedback(feedback, 'Erro ao processar veredito.', true);
+             displayFeedback(feedback, 'Erro ao comunicar com a Matriz Central.', true);
         }
     };
-
 
     function setActiveAdminSection(newSectionId) {
         if (!newSectionId || newSectionId === currentActiveSectionId) return;
