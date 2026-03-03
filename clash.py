@@ -457,12 +457,14 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
                 guild=bot_instance.get_guild(int(guild_id)) if guild_id else None
                 return web.json_response(await admin_cog.sync_commands(payload.get("scope","guild"),guild))
             # ==== INJEÇÃO DOS COMANDOS DO RADAR PERICIAL ====
-            elif action=="get_smurf_dossier": return web.json_response(await admin_cog.get_smurf_dossier())
-            elif action=="absolve_smurf": return web.json_response(await admin_cog.absolve_smurf(payload.get("pair_id")))
-            elif action=="condemn_smurf": return web.json_response(await admin_cog.condemn_smurf(payload.get("pair_id")))
+            elif action=="get_smurf_dossier": return web.json_response(await admin_cog.get_smurf_dossier(), dumps=lambda v: json.dumps(v, default=str))
+            elif action=="absolve_smurf": return web.json_response(await admin_cog.absolve_smurf(payload.get("pair_id")), dumps=lambda v: json.dumps(v, default=str))
+            elif action=="condemn_smurf": return web.json_response(await admin_cog.condemn_smurf(payload.get("pair_id")), dumps=lambda v: json.dumps(v, default=str))
             # ================================================
             else: return web.json_response({"status":"error","message":"Ação desconhecida."},status=400)
-        except Exception as e: return web.json_response({"status":"error","message": f"Erro interno ao processar '{action}'."}, status=500)
+        except Exception as e:
+            logger.error(f"Erro em api_admin_actions (Ação: {action}): {e}", exc_info=True)
+            return web.json_response({"status":"error","message": f"Erro interno ao processar '{action}'."}, status=500)
         
     async def api_admin_discord_data(r): return web.json_response(await admin_cog.get_discord_data())
 
