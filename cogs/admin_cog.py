@@ -36,8 +36,6 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         guild_id = session.get('guild_id')
         guild = self.bot.get_guild(int(guild_id)) if guild_id else None
         
-        # === A CURA DOS CANAIS: AUTO-FALLBACK ===
-        # Se ele não achar o ID do servidor na sessão, ele pega o primeiro servidor que o bot está conectado!
         if not guild and len(self.bot.guilds) > 0:
             guild = self.bot.guilds[0]
 
@@ -54,7 +52,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "watchlist_alert_channel_id": str(self.bot.watchlist_alert_channel_id),
             "low_performance_channel_id": str(self.bot.low_performance_channel_id),
             "capital_report_channel_id": str(self.bot.capital_report_channel_id),
-            "smurf_log_channel_id": str(self.bot.smurf_log_channel_id), 
+            "smurf_log_channel_id": str(getattr(self.bot, 'smurf_log_channel_id', 0)), 
             "role_id_1star_alert": str(self.bot.role_id_1star_alert),
             "role_id_missed_attack": str(self.bot.role_id_missed_attack),
             "leader_role_id": str(self.bot.leader_role_id),
@@ -77,13 +75,13 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                 "watchlist_alert_channel_id": int(data.get("watchlist_alert_channel_id", self.bot.watchlist_alert_channel_id) or 0),
                 "low_performance_channel_id": int(data.get("low_performance_channel_id", self.bot.low_performance_channel_id) or 0),
                 "capital_report_channel_id": int(data.get("capital_report_channel_id", self.bot.capital_report_channel_id) or 0),
-                "smurf_log_channel_id": int(data.get("smurf_log_channel_id", self.bot.smurf_log_channel_id) or 0),
+                "smurf_log_channel_id": int(data.get("smurf_log_channel_id", getattr(self.bot, 'smurf_log_channel_id', 0)) or 0), 
                 "role_id_1star_alert": int(data.get("role_id_1star_alert", self.bot.role_id_1star_alert) or 0),
                 "role_id_missed_attack": int(data.get("role_id_missed_attack", self.bot.role_id_missed_attack) or 0),
                 "leader_role_id": int(data.get("leader_role_id", self.bot.leader_role_id) or 0),
                 "coleader_role_id": int(data.get("coleader_role_id", self.bot.coleader_role_id) or 0),
                 "maintenance_message": data.get("maintenance_message", self.bot.maintenance_message),
-                "auto_add_watchlist_enabled": data.get("auto_add_watchlist_enabled", self.bot.auto_add_watchlist_enabled)
+                "auto_add_watchlist_enabled": str(data.get("auto_add_watchlist_enabled", self.bot.auto_add_watchlist_enabled)).lower() in ['true', '1', 'yes']
             }
 
             for key, value in settings_to_update.items():
@@ -107,11 +105,18 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
     async def get_db_viewer_data(self):
         if self.bot.db is None: return {"error": "Banco Offline"}
         data = {}
-        collections = await self.bot.db.list_collection_names()
-        for coll_name in collections:
-            cursor = self.bot.db[coll_name].find().limit(50)
-            data[coll_name] = [doc async for doc in cursor]
-        return data
+        try:
+             collections = await self.bot.db.list_collection_names()
+             for coll_name in collections:
+                 cursor = self.bot.db[coll_name].find().limit(50)
+                 docs = []
+                 async for doc in cursor:
+                      docs.append(doc)
+                 data[coll_name] = docs
+             return data
+        except Exception as e:
+             logger.error(f"Erro no db_viewer: {e}")
+             return {"error": "Falha ao carregar banco."}
 
     async def get_watchlist_admin(self):
         if self.bot.db is None: return {"error": "Banco Offline"}
@@ -127,7 +132,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                        "added_by": doc.get("added_by", "Sistema"),
                        "added_at": doc.get("added_at", "").isoformat() if isinstance(doc.get("added_at"), datetime.datetime) else str(doc.get("added_at", ""))
                   })
-             return {"watchlist": watchlist} # Melhorado o empacotamento
+             return {"watchlist": watchlist} 
         except Exception as e:
              logger.error(f"Erro ao buscar watchlist pro admin: {e}")
              return {"error": "Erro interno."}
