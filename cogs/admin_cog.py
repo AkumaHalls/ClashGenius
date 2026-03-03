@@ -93,7 +93,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "watchlist_alert_channel_id": getattr(self.bot, 'watchlist_alert_channel_id', getattr(self.bot, 'channel_id', 0)),
             "low_performance_channel_id": getattr(self.bot, 'low_performance_channel_id', 0),
             "capital_report_channel_id": getattr(self.bot, 'capital_report_channel_id', 0),
-            "smurf_log_channel_id": getattr(self.bot, 'smurf_log_channel_id', 0), # CIRURGIA 1: Adicionado aqui!
+            "smurf_log_channel_id": getattr(self.bot, 'smurf_log_channel_id', 0), # INJEÇÃO DA VARIÁVEL
             "role_id_1star_alert": getattr(self.bot, 'role_id_1star_alert', 0),
             "role_id_missed_attack": getattr(self.bot, 'role_id_missed_attack', 0),
             "leader_role_id": getattr(self.bot, 'leader_role_id', 0),
@@ -208,6 +208,24 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         if not watchlist_cog: return False
         try: return await watchlist_cog.remove_from_watchlist(player_tag)
         except Exception: return False
+
+    # =========================================================
+    # AÇÕES DO RADAR PERICIAL DA IA
+    # =========================================================
+    async def get_smurf_dossier(self):
+        smurf_cog = self.bot.get_cog("Detetor de Smurfs IA")
+        if not smurf_cog: return {"error": "Smurf Cog não carregado."}
+        return await smurf_cog.get_web_dossier()
+
+    async def absolve_smurf(self, pair_id):
+        smurf_cog = self.bot.get_cog("Detetor de Smurfs IA")
+        if not smurf_cog: return {"status": "error", "message": "Módulo offline."}
+        return await smurf_cog.absolve_pair(pair_id)
+
+    async def condemn_smurf(self, pair_id):
+        smurf_cog = self.bot.get_cog("Detetor de Smurfs IA")
+        if not smurf_cog: return {"status": "error", "message": "Módulo offline."}
+        return await smurf_cog.condemn_pair(pair_id)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))
