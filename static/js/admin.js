@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const watchlistFilterName = document.getElementById('watchlist-filter-name');
     const watchlistFilterTag = document.getElementById('watchlist-filter-tag');
     
-    const radarFeedback = document.getElementById('radar-feedback'); // NOVO
+    const radarFeedback = document.getElementById('radar-feedback');
 
     const navLinks = document.querySelectorAll('.admin-nav .nav-link');
     const contentSections = document.querySelectorAll('.admin-section');
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (currentActiveSectionId === 'admin-watchlist') feedbackEl = watchlistListFeedback || watchlistAddFeedback;
             else if (currentActiveSectionId === 'admin-geral') feedbackEl = geralFeedback;
             else if (currentActiveSectionId === 'admin-db') feedbackEl = dbFeedback;
-            else if (currentActiveSectionId === 'admin-radar') feedbackEl = radarFeedback; // NOVO
+            else if (currentActiveSectionId === 'admin-radar') feedbackEl = radarFeedback;
 
             displayFeedback(feedbackEl, `Erro: ${error.message}`, true);
             throw error; 
@@ -113,7 +113,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateDiscordDropdowns(discordData) {
         if (!discordData || discordData.error) return;
 
-        // INJEÇÃO DA VARIÁVEL DE SMURFS AQUI NO ARRAY
         const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id', 'smurf_log_channel_id'];
         const roleSelects = ['role_id_1star_alert', 'role_id_missed_attack', 'leader_role_id', 'coleader_role_id'];
 
@@ -369,7 +368,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            const dossier = response.dossier || [];
+            // CORREÇÃO: Garante que caso a resposta seja um array do MongoDB, ele seja processado corretamente
+            const dossier = Array.isArray(response) ? response : (response.dossier || []);
+            
             if(dossier.length === 0) {
                 container.innerHTML = '<p style="text-align:center; padding: 20px; background: rgba(46, 204, 113, 0.1); border-radius: 8px; color: var(--color-success); font-weight: bold; font-size: 1.1em;">✅ Nenhuma atividade de doação suspeita ou ataque sincronizado detectado recentemente. O clã está limpo!</p>';
                 return;
@@ -377,20 +378,22 @@ document.addEventListener('DOMContentLoaded', () => {
             
             let html = '<div class="dossier-grid" style="display: grid; gap: 15px;">';
             dossier.forEach(doc => {
+                // CORREÇÃO: Adicionado fallback robusto na pontuação e nos textos para prevenir falhas de quebra de tela
+                const score = doc.score || 0;
                 let riskColor = "var(--color-warning)";
                 let riskLabel = "Suspeito";
-                let percentage = Math.min((doc.score / 50) * 100, 100);
+                let percentage = Math.min((score / 50) * 100, 100);
                 
-                if(doc.score >= 30) { riskColor = "var(--color-danger)"; riskLabel = "Risco Extremo"; }
-                else if(doc.score <= 15) { riskColor = "var(--color-info)"; riskLabel = "Em Observação"; }
+                if(score >= 30) { riskColor = "var(--color-danger)"; riskLabel = "Risco Extremo"; }
+                else if(score <= 15) { riskColor = "var(--color-info)"; riskLabel = "Em Observação"; }
                 
                 const reasonsHtml = doc.reasons && doc.reasons.length > 0 ? doc.reasons.map(r => `<div style="font-size:0.85em; margin-bottom:4px; padding-left:10px; border-left: 2px solid ${riskColor};">${r}</div>`).join('') : '<span style="font-style:italic;">Sem anotações detalhadas no banco.</span>';
 
                 html += `
                 <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border-light); border-radius: 8px; padding: 15px;">
                     <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h4 style="margin:0; font-size:1.1em;">🕵️ ${doc.name1} <span style="color:var(--color-text-secondary);font-size:0.8em;">(${doc.tag1})</span> <span style="margin:0 10px;">↔️</span> ${doc.name2} <span style="color:var(--color-text-secondary);font-size:0.8em;">(${doc.tag2})</span></h4>
-                        <span style="background: ${riskColor}33; color: ${riskColor}; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:0.8em;">${doc.score} Pts - ${riskLabel}</span>
+                        <h4 style="margin:0; font-size:1.1em;">🕵️ ${doc.name1 || 'Desconhecido'} <span style="color:var(--color-text-secondary);font-size:0.8em;">(${doc.tag1 || '#?'})</span> <span style="margin:0 10px;">↔️</span> ${doc.name2 || 'Desconhecido'} <span style="color:var(--color-text-secondary);font-size:0.8em;">(${doc.tag2 || '#?'})</span></h4>
+                        <span style="background: ${riskColor}33; color: ${riskColor}; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:0.8em;">${score} Pts - ${riskLabel}</span>
                     </div>
                     
                     <div style="background: var(--color-background); height: 8px; border-radius: 4px; margin-bottom: 15px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);">
@@ -431,7 +434,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({action: action, payload: {pair_id: pairId}})
             });
-            displayFeedback(feedback, response.message);
+            // CORREÇÃO: Garante exibição de texto de sucesso caso o 'message' falhe e evita 'undefined'
+            displayFeedback(feedback, response.message || 'Sentença aplicada com sucesso!');
             loadRadarDossier(); 
         } catch (e) {
              displayFeedback(feedback, 'Erro ao processar veredito.', true);
