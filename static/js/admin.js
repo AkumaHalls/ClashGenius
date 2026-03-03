@@ -110,7 +110,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateDiscordDropdowns(discordData) {
         if (!discordData || discordData.error) return;
 
-        // <<< CIRURGIA 2: ARRAY ATUALIZADO COM O smurf_log_channel_id >>>
         const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id', 'smurf_log_channel_id'];
         const roleSelects = ['role_id_1star_alert', 'role_id_missed_attack', 'leader_role_id', 'coleader_role_id'];
 
@@ -254,7 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  displayFeedback(watchlistListFeedback, `Erro: ${response.error}`, true);
                  return;
             }
-            const watchlist = Array.isArray(response) ? response : [];
+            const watchlist = Array.isArray(response) ? response : (response.watchlist || []);
 
             if (watchlist.length === 0) {
                  watchlistTableBody.innerHTML = '<tr><td colspan="6">Nenhum jogador na lista de observação.</td></tr>';
@@ -262,14 +261,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             watchlistTableBody.innerHTML = watchlist.map(player => {
                 let dateStr = '-';
-                if (player.date_added) {
-                     try { dateStr = new Date(player.date_added).toLocaleDateString('pt-BR'); }
-                     catch(e) { dateStr = player.date_added; } 
+                const rawDate = player.date_added || player.added_at;
+                if (rawDate) {
+                     try { dateStr = new Date(rawDate).toLocaleDateString('pt-BR'); }
+                     catch(e) { dateStr = rawDate; } 
                 }
                 
-                // CIRURGIA 3: Usando os nomes corretos que a sua base de dados utiliza!
-                const pName = player.player_name || 'N/A';
-                const pTag = player.player_tag || 'N/A';
+                // RESTAURADO OS CAMPOS EXATOS QUE O SEU BANCO DE DADOS (MONGO) RETORNA!
+                const pName = player.name || player.player_name || 'N/A';
+                const pTag = player._id || player.player_tag || 'N/A';
 
                 return `
                 <tr>
