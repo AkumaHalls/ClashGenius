@@ -76,7 +76,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     def _analyze_mula_signature(self, player: coc.Player) -> Tuple[bool, int, str]:
         """Eixo 2: Analisa se a conta existe apenas para doar tropas pesadas (Conta Mula)."""
         if player.town_hall < 12:
-            return False, 0, "" # CVs baixos são ignorados nesta métrica
+            return False, 0, "" 
             
         donation_troops = ["Electro Dragon", "Balloon", "Yeti", "Rage Spell", "Freeze Spell"]
         basic_troops = ["Barbarian", "Archer", "Giant", "Goblin"]
@@ -97,7 +97,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         avg_don = sum(don_levels) / len(don_levels)
         avg_bas = sum(bas_levels) / len(bas_levels)
         
-        # Se as tropas de doação estão perto do máximo (>80%) e as básicas estão abandonadas (<40%)
         if avg_don > 0.80 and avg_bas < 0.40:
             score = int((avg_don - avg_bas) * 100)
             return True, score, f"Assinatura 'Mula' detectada. Tropas de suporte (Dragão Elétrico/Balão) estão {avg_don*100:.0f}% maximizadas, enquanto tropas básicas estão sucateadas ({avg_bas*100:.0f}%)."
@@ -154,7 +153,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         try:
             decay_date = datetime.datetime.now(pytz.utc) - datetime.timedelta(days=self.DECAY_DAYS)
             
-            # Puxa contas que não interagem há 7 dias
             cursor = self.db.smurf_evidence.find({"last_updated": {"$lt": decay_date}, "score": {"$gt": 0}})
             async for doc in cursor:
                 new_score = int(doc["score"] * (1.0 - self.DECAY_PERCENTAGE))
@@ -190,7 +188,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
             current_state = {m.tag: {"donations": m.donations, "received": m.received, "member": m} for m in clan.members}
             
-            # RADAR: DOAÇÃO CRUZADA (Falso Altruísmo)
+            # RADAR: DOAÇÃO CRUZADA
             if self.last_clan_state:
                 donors, receivers = [], []
                 for tag, state in current_state.items():
@@ -256,14 +254,14 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         # [EIXO 1]: Lexical
         sim = self._get_identity_match(main_p.name, smurf_p.name)
         if sim >= self.MIN_SIMILARITY:
-            weight = int(sim * 0.35) # Até 35% de peso
+            weight = int(sim * 0.35) 
             confidence += weight
             thoughts.append({"axis": "Lexical", "weight": f"{weight}%", "text": f"Correlação semântica detectada. Radical dos apelidos compartilha {sim}% de identidade."})
 
         # [EIXO 2]: Mutex / Comportamento (Telemetria do Banco)
         behavior_score = telemetry.get('score', 0)
         if behavior_score > 0:
-            weight = min(behavior_score, 45) # Até 45% de peso
+            weight = min(behavior_score, 45) 
             confidence += weight
             thoughts.append({"axis": "Comportamento (Mutex)", "weight": f"{weight}%", "text": f"Sincronia fantasma detectada. Contas acumularam {behavior_score} pontos de telemetria operando juntas."})
             for log in telemetry.get('logs', [])[-2:]:
@@ -272,7 +270,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         # [EIXO 3]: Forense de Laboratório (Conta Mula)
         is_mula, mula_score, mula_reason = self._analyze_mula_signature(smurf_p)
         if is_mula:
-            weight = 20 # 20% de peso cravado
+            weight = 20 
             confidence += weight
             thoughts.append({"axis": "Forense Lab (Mula)", "weight": f"{weight}%", "text": mula_reason})
 
@@ -283,16 +281,13 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             thoughts.append({"axis": "Massa Bruta", "weight": "10%", "text": f"Desnível evolutivo colossal. A conta principal é {mass_ratio:.1f}x mais pesada que a secundária."})
         elif mass_ratio < 1.15 and behavior_score < 15:
             confidence -= 30
-            thoughts.append({"axis": "Atenuante", "weight": "-30%", "text": "Risco de Falso Positivo. Evolução paralela quase idêntica, sugerindo dois jogadores reais distintos (ex: amigos/irmãos)."})
+            thoughts.append({"axis": "Atenuante", "weight": "-30%", "text": "Risco de Falso Positivo. Evolução paralela quase idêntica, sugerindo dois jogadores reais distintos."})
 
-        # Limites matemáticos
         confidence = min(max(int(confidence), 0), 99)
         
-        # Filtro de Saída: Só acusa se tiver confiança considerável ou se teve pico de sincronia recente
         if confidence < 50 and behavior_score < 20:
             return None
 
-        # Monta a estrutura para o Frontend
         risk_label = "Risco Extremo" if confidence >= 85 else ("Alta Suspeita" if confidence >= 65 else "Em Observação")
         risk_color = "var(--color-danger)" if confidence >= 85 else ("var(--color-warning)" if confidence >= 65 else "var(--color-info)")
 
@@ -320,7 +315,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             member_tags = [m.tag for m in clan.members]
             players_full = [p async for p in self.bot.api_client.get_players(member_tags)]
 
-            # Puxa a Telemetria da RAM do Banco
             telemetry_matrix = {}
             if self.db is not None:
                 cursor = self.db.smurf_evidence.find({})
@@ -340,7 +334,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
                     telemetry = telemetry_matrix.get(pair_id, {})
                     
-                    # Corta caminho para poupar processamento se não há similaridade nem telemetria
                     if self._get_identity_match(p1.name, p2.name) >= self.MIN_SIMILARITY or telemetry.get("score", 0) > 0:
                         dossier = self._generate_xai_dossier(p1, p2, telemetry)
                         if dossier:
@@ -353,7 +346,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             results.sort(key=lambda x: x['confidence'], reverse=True)
 
             embed = discord.Embed(title="📂 XAI FORENSE: DETECÇÃO DE MÚLTIPLAS CONTAS", color=0x2b2d31)
-            for r in results[:5]: # Mostra os 5 piores no discord
+            for r in results[:5]: 
                 body = f"👑 **[MAIN] {r['main_name']}** (`{r['main_tag']}`)\n👶 **[SMURF] {r['smurf_name']}** (`{r['smurf_tag']}`)\n\n"
                 body += "**🧠 Pensamentos da IA:**\n" + "\n".join([f"▫️ `{t['axis']}`: {t['text']}" for t in r['thoughts']])
                 embed.add_field(name=f"Risco: {r['confidence']}% - {r['risk_label']}", value=body, inline=False)
@@ -367,16 +360,14 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     # ==================== APIs PARA O PAINEL WEB (XAI EXPORT) ====================
 
     async def get_web_dossier(self) -> List[Dict[str, Any]]:
-        """API que varre a base de dados, processa a XAI em tempo real e entrega o dossiê formatado para o HTML."""
+        """API que varre a base de dados, processa a XAI e entrega o dossiê formatado para o HTML."""
         if self.db is None or not self.bot.api_client: return []
         try:
-            # Puxa TODOS os pares que têm telemetria (Score > 0)
             cursor = self.db.smurf_evidence.find({"score": {"$gt": 0}})
             db_docs = await cursor.to_list(length=None)
             
             if not db_docs: return []
             
-            # Precisamos baixar os profiles reais da Supercell para gerar a matemática fina
             tags_to_fetch = set()
             for doc in db_docs:
                 tags_to_fetch.add(doc["tag1"])
@@ -392,7 +383,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     dossier = self._generate_xai_dossier(p1, p2, doc)
                     if dossier: xai_results.append(dossier)
                     
-            # Retorna do mais perigoso para o menos perigoso
             xai_results.sort(key=lambda x: x['confidence'], reverse=True)
             return xai_results
             
@@ -417,7 +407,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             doc = await self.db.smurf_evidence.find_one({"_id": pair_id})
             if not doc: return {"status": "error", "message": "Dossiê não encontrado."}
             
-            # Aplica a Sentença
             reason = "Condenado pela IA XAI (Contas Vinculadas)"
             await w_cog.add_to_watchlist(doc['tag1'], "Desconhecido", reason, f"Vinculado a {doc['tag2']}")
             await w_cog.add_to_watchlist(doc['tag2'], "Desconhecido", reason, f"Vinculado a {doc['tag1']}")
