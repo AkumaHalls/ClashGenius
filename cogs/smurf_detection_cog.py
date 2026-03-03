@@ -107,7 +107,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         n2 = re.sub(r'[^\w\s]', '', name2.lower())
         
         # O Token Set Ratio ignora ordem de palavras e foca na raiz cruzada.
-        # Ex: "Lorena Sec" e "Lorena" vai retornar 100 aqui.
         score = fuzz.token_set_ratio(n1, n2)
         return score
 
@@ -316,7 +315,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             results = []
             processed = set()
 
-            # Executa a inferência em Thread separada para não travar o bot de música/guerra
+            # Executa a inferência em Thread separada para não travar o bot
             def run_batch_inference():
                 batch_res = []
                 for i in range(len(players_full)):
@@ -360,32 +359,46 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     # ==================== APIs PARA O PAINEL WEB (XAI EXPORT) ====================
 
     async def get_web_dossier(self) -> List[Dict[str, Any]]:
-        """API Web: Retorna JSON processado pelo motor do Scikit-Learn."""
+        """API Web: Escaneia o clã em tempo real e processa a XAI usando Scikit-Learn e FuzzyLogic."""
         if self.db is None or not self.bot.api_client: return []
         try:
-            cursor = self.db.smurf_evidence.find({"score": {"$gt": 0}})
-            db_docs = await cursor.to_list(length=None)
+            # 1. Busca os membros atuais do clã na Supercell (Em tempo real)
+            clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
+            if not clan: return []
             
-            if not db_docs: return []
+            member_tags = [m.tag for m in clan.members]
+            players_full = [p async for p in self.bot.api_client.get_players(member_tags)]
             
-            tags_to_fetch = set()
-            for doc in db_docs:
-                tags_to_fetch.add(doc["tag1"])
-                tags_to_fetch.add(doc["tag2"])
-                
-            players = {p.tag: p async for p in self.bot.api_client.get_players(tags_to_fetch)}
+            # 2. Busca a Telemetria Histórica do Banco de Dados
+            telemetry_matrix = {}
+            cursor = self.db.smurf_evidence.find({})
+            async for doc in cursor: telemetry_matrix[doc["_id"]] = doc
             
+            # 3. Processa a IA em uma Thread separada (para não lagar o bot/web)
             def run_web_inference():
                 xai_res = []
-                for doc in db_docs:
-                    p1 = players.get(doc["tag1"])
-                    p2 = players.get(doc["tag2"])
-                    if p1 and p2:
-                        dossier = self._run_ml_inference(p1, p2, doc)
-                        if dossier: xai_res.append(dossier)
+                processed = set()
+                
+                for i in range(len(players_full)):
+                    p1 = players_full[i]
+                    if p1.tag in processed: continue
+                    
+                    for j in range(i + 1, len(players_full)):
+                        p2 = players_full[j]
+                        if p2.tag in processed: continue
+                        
+                        pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
+                        telemetry = telemetry_matrix.get(pair_id, {})
+                        
+                        # Roda a IA se o nome for parecido OU se já existe telemetria registrada
+                        if self._phonetic_lexical_analysis(p1.name, p2.name) >= self.MIN_FUZZY_RATIO or telemetry.get("score", 0) > 0:
+                            dossier = self._run_ml_inference(p1, p2, telemetry)
+                            if dossier:
+                                xai_res.append(dossier)
+                                processed.add(dossier["smurf_tag"])
                 return xai_res
 
-            # Delega a matemática pesada para a Thread
+            # Executa e ordena os resultados do mais perigoso para o menos
             xai_results = await asyncio.to_thread(run_web_inference)
             xai_results.sort(key=lambda x: x['confidence'], reverse=True)
             return xai_results
@@ -409,7 +422,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         
         try:
             doc = await self.db.smurf_evidence.find_one({"_id": pair_id})
-            if not doc: return {"status": "error", "message": "Dossiê não encontrado."}
+            if not doc: return {"status": "error", "message": "Dossiê não encontrado no Banco (Ele foi gerado apenas pela Análise de Nome ao vivo). Cancele e adicione manualmente."}
             
             reason = "Condenado pela IA XAI (Contas Vinculadas)"
             await w_cog.add_to_watchlist(doc['tag1'], "Desconhecido", reason, f"Vinculado a {doc['tag2']}")
