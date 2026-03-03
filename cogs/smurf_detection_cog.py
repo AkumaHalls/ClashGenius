@@ -93,7 +93,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         return int(difflib.SequenceMatcher(None, n1, n2).ratio() * 100)
 
     async def _add_suspicion_points(self, p1: coc.ClanMember, p2: coc.ClanMember, points: int, reason: str):
-        if not self.db: return
+        if self.db is None: return # CORREÇÃO AQUI (PyMongo Anti-Crash)
         if p1.tag == p2.tag: return
         
         pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
@@ -117,7 +117,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     # ==================== O LIXEIRO DA IA (GARBAGE COLLECTOR) ====================
     @tasks.loop(hours=24)
     async def garbage_collector_task(self):
-        if not self.bot.is_ready() or not self.db: return
+        if not self.bot.is_ready() or self.db is None: return # CORREÇÃO AQUI (PyMongo Anti-Crash)
         
         try:
             cutoff_date = datetime.datetime.now(pytz.utc) - datetime.timedelta(days=self.EVIDENCE_EXPIRY_DAYS)
