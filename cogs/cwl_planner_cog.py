@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-1
+# -*- coding: utf-8 -*-
 import logging
 import discord
 from discord.ext import commands, tasks
@@ -700,4 +700,5 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(CwlPlannerCog(bot))
+
 
