@@ -118,10 +118,11 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
         now = datetime.datetime.now(pytz.utc)
         
+        # Correção do MongoDB: Removidos "score" e "logs" do $setOnInsert para evitar conflito de path
         await self.db.smurf_evidence.update_one(
             {"_id": pair_id},
             {
-                "$setOnInsert": {"tag1": p1.tag, "tag2": p2.tag, "score": 0, "logs": []},
+                "$setOnInsert": {"tag1": p1.tag, "tag2": p2.tag},
                 "$inc": {"score": points},
                 "$set": {"last_updated": now},
                 "$push": {"logs": {"$each": [{"time": now.timestamp(), "msg": f"[{now.strftime('%d/%m %H:%M')}] {log_msg}", "axis": axis}], "$slice": -10}}
