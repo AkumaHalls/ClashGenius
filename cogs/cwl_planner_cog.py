@@ -455,9 +455,9 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
             notes = await db_cog.load_player_notes_from_db() if db_cog else {}
             
             # --- INTEGRAÇÃO COM HITRATE PARA INFERÊNCIA BAYESIANA ---
-            hist_cursor = self.db.war_history.find({"war_data.is_cwl": True}).sort("war_data.end_time_iso", -1).limit(10) if self.db else []
+            hist_cursor = self.db.war_history.find({"war_data.is_cwl": True}).sort("war_data.end_time_iso", -1).limit(10) if self.db is not None else []
             hitrates = defaultdict(lambda: {"missed": 0, "made": 0})
-            if self.db:
+            if self.db is not None:
                 async for h_war in hist_cursor:
                     for atk in h_war.get("all_attacks", []):
                         tag = normalize_tag(atk.get("attacker_tag", ""))
