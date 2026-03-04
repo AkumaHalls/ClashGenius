@@ -21,8 +21,9 @@ logger = logging.getLogger("cwl_planner_cog")
 # ==================== FUNÇÕES AUXILIARES ====================
 
 def sanitize_for_mongo(data: Any) -> Any:
+    """Higienizador recursivo para garantir que o MongoDB não dê crash com chaves não-string ou objetos complexos."""
     if isinstance(data, dict):
-        return {k: sanitize_for_mongo(v) for k, v in data.items()}
+        return {str(k): sanitize_for_mongo(v) for k, v in data.items()} # FORÇA A CHAVE SER STRING AQUI
     elif isinstance(data, list):
         return [sanitize_for_mongo(v) for v in data]
     elif isinstance(data, Enum):
@@ -134,13 +135,15 @@ class OpponentAnalysis:
     clan_tag: str
     clan_name: str
     estimated_strength: float
-    th_distribution: Dict[int, int]
+    th_distribution: Dict[str, int] # <--- Alterado de int para str para proteger o MongoDB
     threat_level: str
     recommended_strategy: RotationStrategy
     
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d['recommended_strategy'] = self.recommended_strategy.name if hasattr(self.recommended_strategy, 'name') else self.recommended_strategy
+        # Garante que a chave de distribuição de CV é string
+        d['th_distribution'] = {str(k): v for k, v in self.th_distribution.items()}
         return d
 
 @dataclass 
@@ -366,7 +369,7 @@ class OpponentAnalyzerML:
         try:
             clan = war.opponent if war and war.clan.tag != tag else (war.clan if war else await self.api.get_clan(tag))
             for m in clan.members: 
-                dist[m.town_hall] += 1
+                dist[str(m.town_hall)] += 1 # Convertido para STR para não bugar MongoDB
                 strength += m.town_hall * 10
         except: pass
         
