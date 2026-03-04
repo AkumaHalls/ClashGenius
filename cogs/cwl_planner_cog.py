@@ -330,7 +330,7 @@ class OpponentAnalyzerML:
     def __init__(self, api_client): 
         self.api = api_client
         
-    async def run_kmeans_clustering(self, league_group: coc.LeagueGroup) -> Dict[str, str]:
+    async def run_kmeans_clustering(self, league_group: Any) -> Dict[str, str]:
         """Usa Scikit-Learn para clusterizar a força dos clãs em 3 categorias de ameaça."""
         clan_weights = {}
         for clan in league_group.clans:
