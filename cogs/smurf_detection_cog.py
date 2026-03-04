@@ -279,44 +279,119 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             "thoughts": thoughts
         }
 
-    # ==================== APIs PARA O PAINEL WEB (XAI EXPORT) ====================
+    # ==================== COMANDO DISCORD (CORRIGIDO) ====================
 
-    async def get_web_dossier(self) -> List[Dict[str, Any]]:
-        """API Web Segura: Escaneia o banco e a Supercell sem travar."""
-        logger.info("XAI: Iniciando varredura do Painel Web...")
-        if self.db is None or not self.bot.api_client: 
-            logger.warning("XAI: Banco de dados ou API Client offline.")
-            return []
-            
+    @app_commands.command(name="smurfs", description="🕵️ Executa a Matriz Forense XAI no Clã.")
+    @app_commands.default_permissions(administrator=True)
+    async def slash_analyze_smurfs(self, interaction: discord.Interaction):
+        await interaction.response.defer(thinking=True)
+
         try:
-            # 1. Puxa as conexões ativas do banco de dados (ignorando scores zerados)
+            # Puxa o clã direto da API
+            clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
+            if not clan: 
+                return await interaction.followup.send("❌ Erro de comunicação com a Supercell.")
+
+            member_tags = {m.tag for m in clan.members}
             telemetry_matrix = {}
-            member_tags = set()
             
-            cursor = self.db.smurf_evidence.find({"score": {"$gt": 10}}) # Só avalia quem tem indício
-            async for doc in cursor: 
-                telemetry_matrix[doc["_id"]] = doc
-                if doc.get("tag1"): member_tags.add(doc.get("tag1"))
-                if doc.get("tag2"): member_tags.add(doc.get("tag2"))
-            
-            if not member_tags: 
-                logger.info("XAI: Nenhuma evidência grave no banco. Painel verde.")
-                return []
-                
-            logger.info(f"XAI: Analisando {len(member_tags)} contas suspeitas registradas no banco...")
-            
-            # 2. Busca segura jogador por jogador (evita crash se um foi banido)
+            # Puxa do banco para não esquecer quem saiu do clã
+            if self.db is not None:
+                cursor = self.db.smurf_evidence.find({"score": {"$gt": 10}})
+                async for doc in cursor: 
+                    telemetry_matrix[doc["_id"]] = doc
+                    if doc.get("tag1"): member_tags.add(doc.get("tag1"))
+                    if doc.get("tag2"): member_tags.add(doc.get("tag2"))
+
+            member_tags = {t for t in member_tags if t}
+            if not member_tags:
+                return await interaction.followup.send("✅ **Clã Limpo:** A XAI não detectou matrizes anômalas.")
+
+            # Busca segura para não quebrar em contas banidas
             players_full = []
             for tag in member_tags:
                 try:
                     p = await self.bot.api_client.get_player(tag)
                     players_full.append(p)
-                except Exception as e:
-                    logger.warning(f"XAI: Não foi possível obter dados da tag {tag}: {e}")
+                except Exception: pass
+
+            results = []
+            processed = set()
+
+            # Processamento Nativo (Sem Threading) para evitar crash do coc.py
+            for i in range(len(players_full)):
+                p1 = players_full[i]
+                if p1.tag in processed: continue
+
+                for j in range(i + 1, len(players_full)):
+                    p2 = players_full[j]
+                    if p2.tag in processed: continue
+
+                    pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
+                    telemetry = telemetry_matrix.get(pair_id)
+                    
+                    if telemetry or self._phonetic_lexical_analysis(p1.name, p2.name) >= self.MIN_FUZZY_RATIO:
+                        dossier = self._run_ml_inference(p1, p2, telemetry or {})
+                        if dossier:
+                            results.append(dossier)
+                            processed.add(dossier["smurf_tag"])
+
+            if not results:
+                return await interaction.followup.send("✅ **Clã Limpo:** A Inteligência Artificial cruzou os dados e não detectou smurfs atuando.")
+
+            results.sort(key=lambda x: x['confidence'], reverse=True)
+
+            embed = discord.Embed(title="📂 XAI FORENSE: RELATÓRIO DO MOTOR DE INFERÊNCIA", description="Cruzamento via Dynamic Time Warping, Distância de Cossenos e Lógica Fuzzy.", color=0x2b2d31)
+            
+            for r in results[:5]: # Mostra os 5 piores casos
+                body = f"👑 **[MAIN]** {r['main_name']} (`{r['main_tag']}`)\n👶 **[SMURF]** {r['smurf_name']} (`{r['smurf_tag']}`)\n\n"
+                
+                # Prepara os pensamentos e evita estourar limite do Discord
+                thoughts_text = "\n".join([f"▫️ `{t['axis']}`: {t['text']}" for t in r['thoughts']])
+                if len(thoughts_text) > 750:
+                    thoughts_text = thoughts_text[:750] + "...\n*[Laudo completo disponível no Painel Web]*"
+                    
+                body += "**🧠 Explicabilidade (Por que a IA acha isso?):**\n" + thoughts_text
+                embed.add_field(name=f"Grau de Certeza: {r['confidence']}% - {r['risk_label']}", value=body, inline=False)
+                
+            await interaction.followup.send(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Erro Crítico ML no Slash Command: {traceback.format_exc()}")
+            await interaction.followup.send("❌ Erro fatal ao rodar a Matriz de Clusterização no Discord.")
+
+    # ==================== APIs PARA O PAINEL WEB (XAI EXPORT) ====================
+
+    async def get_web_dossier(self) -> List[Dict[str, Any]]:
+        """API Web Segura: Escaneia o banco e a Supercell sem travar."""
+        if self.db is None or not self.bot.api_client: return []
+            
+        try:
+            telemetry_matrix = {}
+            member_tags = set()
+            
+            clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
+            if clan:
+                for m in clan.members: member_tags.add(m.tag)
+            
+            cursor = self.db.smurf_evidence.find({"score": {"$gt": 10}}) 
+            async for doc in cursor: 
+                telemetry_matrix[doc["_id"]] = doc
+                if doc.get("tag1"): member_tags.add(doc.get("tag1"))
+                if doc.get("tag2"): member_tags.add(doc.get("tag2"))
+            
+            member_tags = {t for t in member_tags if t}
+            if not member_tags: return []
+            
+            players_full = []
+            for tag in member_tags:
+                try:
+                    p = await self.bot.api_client.get_player(tag)
+                    players_full.append(p)
+                except Exception: pass
                     
             if len(players_full) < 2: return []
 
-            # 3. Cruzamento direto e limpo (Removido asyncio.to_thread para evitar corrupção de memória)
             xai_res = []
             processed = set()
             
@@ -331,7 +406,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
                     telemetry = telemetry_matrix.get(pair_id)
                     
-                    # Roda a IA se o par estiver no banco com score alto, OU se o nome for parecido
                     if telemetry or self._phonetic_lexical_analysis(p1.name, p2.name) >= self.MIN_FUZZY_RATIO:
                         dossier = self._run_ml_inference(p1, p2, telemetry or {})
                         if dossier:
@@ -339,7 +413,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                             processed.add(dossier["smurf_tag"])
                             
             xai_res.sort(key=lambda x: x['confidence'], reverse=True)
-            logger.info(f"XAI: Varredura concluída. {len(xai_res)} dossiês gerados para o Painel Web.")
             return xai_res
             
         except Exception as e:
