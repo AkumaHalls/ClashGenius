@@ -363,18 +363,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({action: 'get_smurf_dossier', payload: {}})
             });
             
-            if(response.error) {
+            if(response && response.error) {
                 container.innerHTML = `<p class="error-text">${response.error}</p>`;
                 return;
             }
             
-            const dossier = response.dossier || [];
+            // CORREÇÃO: O Python pode enviar a lista de várias formas dependendo da rota. Isso garante que a variável dossier seja a lista certa.
+            let dossier = [];
+            if (Array.isArray(response)) {
+                dossier = response;
+            } else if (response && Array.isArray(response.dossier)) {
+                dossier = response.dossier;
+            } else if (response && Array.isArray(response.data)) {
+                dossier = response.data;
+            } else if (response && Array.isArray(response.message)) {
+                dossier = response.message;
+            }
             
             if(dossier.length === 0) {
                 container.innerHTML = `
                 <div style="text-align:center; padding: 30px; background: rgba(46, 204, 113, 0.05); border: 1px solid rgba(46, 204, 113, 0.2); border-radius: 8px;">
                     <h3 style="color: var(--color-success); margin-bottom:10px;">🛡️ Clã Limpo (Status Verde)</h3>
-                    <p style="color: var(--color-text-secondary);">O Motor de Machine Learning cruzou as distâncias vetoriais e a lógica Fuzzy de todos os membros nas últimas horas e não detectou satélites anômalos.</p>
+                    <p style="color: var(--color-text-secondary);">A Inteligência Forense cruzou todos os eixos de guerra, doação, laboratório e lexicologia nas últimas horas e não encontrou elos suspeitos.</p>
                 </div>`;
                 return;
             }
