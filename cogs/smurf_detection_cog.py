@@ -60,11 +60,10 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         home_heroes = ["Barbarian King", "Archer Queen", "Grand Warden", "Royal Champion", "Minion Prince"]
         heroes_lvl = sum(h.level for h in player.heroes if h.name in home_heroes)
 
-        # Retorna um array NumPy com as features principais para clustering
         return np.array([
             player.town_hall,
             heroes_lvl,
-            obstacles / 1000.0, # Normalizado para não quebrar a variância
+            obstacles / 1000.0, 
             gold_grab / 10000000.0,
             cap_gold / 100000.0
         ])
@@ -95,7 +94,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         
         if avg_don > 0.85 and avg_bas < 0.35:
             score = int((avg_don - avg_bas) * 100)
-            return True, score, f"Assinatura 'Mula' detectada. Tropas de suporte (E-Drag/Balão) estão {avg_don*100:.0f}% maximizadas; tropas básicas sucateadas ({avg_bas*100:.0f}%)."
+            return True, score, f"Assinatura 'Mula' detectada. Tropas de suporte estão {avg_don*100:.0f}% maximizadas; tropas básicas sucateadas ({avg_bas*100:.0f}%)."
             
         return False, 0, ""
 
@@ -105,8 +104,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         """Utiliza thefuzz para encontrar similaridades parciais e Token Sort (Levenshtein)."""
         n1 = re.sub(r'[^\w\s]', '', name1.lower())
         n2 = re.sub(r'[^\w\s]', '', name2.lower())
-        
-        # O Token Set Ratio ignora ordem de palavras e foca na raiz cruzada.
         score = fuzz.token_set_ratio(n1, n2)
         return score
 
@@ -118,7 +115,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
         now = datetime.datetime.now(pytz.utc)
         
-        # Correção do MongoDB: Removidos "score" e "logs" do $setOnInsert para evitar conflito de path
+        # Correção do MongoDB que evita o erro "conflict at score"
         await self.db.smurf_evidence.update_one(
             {"_id": pair_id},
             {
@@ -172,7 +169,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             current_state = {m.tag: {"donations": m.donations, "received": m.received, "member": m} for m in clan.members}
             now_ts = datetime.datetime.now().timestamp()
             
-            # 1. FLUXO FINANCEIRO DE TROPAS (Doação Direta)
             if self.last_clan_state:
                 donors, receivers = [], []
                 for tag, state in current_state.items():
@@ -185,13 +181,11 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 if donors and receivers:
                     for d_member, d_amount in donors:
                         for r_member, r_amount in receivers:
-                            # Margem de tolerância apertada para garantir exatidão
                             if abs(d_amount - r_amount) <= 5: 
                                 await self._log_telemetry(d_member, r_member, 18, f"Transferência Direta: {d_member.name} injetou ~{d_amount} tropas no sistema no exato momento de recebimento de {r_member.name}.", "Economia de Tropas")
 
             self.last_clan_state = current_state
 
-            # 2. DYNAMIC TIME WARPING (Ataques de Guerra)
             try:
                 war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
                 if war and war.state == "inWar":
@@ -228,7 +222,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         vec1 = self._extract_feature_vector(p1)
         vec2 = self._extract_feature_vector(p2)
         
-        # Define Main e Smurf pelo peso do CV e Heróis (Elemento 0 e 1 do vetor)
+        # Define Main e Smurf pelo peso do CV e Heróis
         if vec1[0] * 100 + vec1[1] >= vec2[0] * 100 + vec2[1]:
             main_p, smurf_p, main_v, smurf_v = p1, p2, vec1, vec2
         else:
@@ -240,44 +234,44 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         # [EIXO 1]: NLP com Distância de Levenshtein
         sim = self._phonetic_lexical_analysis(main_p.name, smurf_p.name)
         if sim >= self.MIN_FUZZY_RATIO:
-            weight = int(sim * 0.40) # Até 40% de confiança só no nome
+            weight = int(sim * 0.40)
             confidence += weight
-            thoughts.append({"axis": "NLP (Fuzzy Logic)", "weight": f"{weight}%", "text": f"Algoritmo TheFuzz detectou identidade nominal oclusa. Índice de Similaridade Levenshtein: {sim}%."})
+            thoughts.append({"axis": "NLP (Fuzzy Logic)", "weight": f"{weight}%", "text": f"Algoritmo TheFuzz detectou identidade nominal. Índice Levenshtein: {sim}%."})
 
         # [EIXO 2]: Distância de Cossenos (Evolução Vetorial)
         cos_sim = self._calculate_cosine_similarity(main_v, smurf_v)
-        mass_ratio = (main_v[3] + main_v[4]) / max((smurf_v[3] + smurf_v[4]), 0.001) # Razão de Farm
+        mass_ratio = (main_v[3] + main_v[4]) / max((smurf_v[3] + smurf_v[4]), 0.001) 
         
         if cos_sim > 0.95 and mass_ratio > 3.0:
             confidence += 15
-            thoughts.append({"axis": "Vetor de Cossenos", "weight": "15%", "text": f"Divergência Crítica de Esforço: A similaridade base é {cos_sim*100:.1f}%, mas o volume de farm da principal é {mass_ratio:.1f}x superior."})
+            thoughts.append({"axis": "Vetor de Cossenos", "weight": "15%", "text": f"A similaridade base é {cos_sim*100:.1f}%, mas o volume de farm da principal é {mass_ratio:.1f}x superior."})
         elif cos_sim > 0.98 and mass_ratio < 1.2 and telemetry.get('score', 0) < 15:
             confidence -= 35
-            thoughts.append({"axis": "Clusterização (Atenuante)", "weight": "-35%", "text": f"Risco Alto de Falso Positivo. Similaridade Vetorial de {cos_sim*100:.1f}%. Perfis idênticos sugerem jogadores orgânicos em pareamento."})
+            thoughts.append({"axis": "Clusterização (Atenuante)", "weight": "-35%", "text": f"Risco de Falso Positivo. Perfis idênticos sugerem jogadores orgânicos (ex: amigos/irmãos)."})
 
         # [EIXO 3]: Forense de Laboratório (Conta Mula)
         is_mula, mula_score, mula_reason = self._analyze_mula_signature(smurf_p)
         if is_mula:
             weight = 25 
             confidence += weight
-            thoughts.append({"axis": "Classificador de Laboratório", "weight": f"{weight}%", "text": mula_reason})
+            thoughts.append({"axis": "Classificador de Lab", "weight": f"{weight}%", "text": mula_reason})
 
         # [EIXO 4]: DTW e Cadeias de Markov (Telemetria do Banco)
         behavior_score = telemetry.get('score', 0)
         if behavior_score > 0:
-            weight = min(behavior_score, 50) # O comportamento reina, até 50%
+            # O comportamento agora não tem um limite artificial baixo de 50. Se eles têm 61 pontos, eles levam 61 pontos de confiança.
+            weight = min(behavior_score, 80) 
             confidence += weight
-            thoughts.append({"axis": "Análise Temporal (DTW)", "weight": f"{weight}%", "text": f"Matriz de Telemetria acusa interceptação temporal. {behavior_score} pontos acumulados em Sincronia de Combate e Doação."})
+            thoughts.append({"axis": "Análise Temporal (DTW)", "weight": f"{weight}%", "text": f"Matriz de Telemetria acusa interceptação temporal contínua. {behavior_score} pontos acumulados."})
             
-            # Injeta os 2 últimos logs reais processados
-            for log_entry in telemetry.get('logs', [])[-2:]:
+            for log_entry in telemetry.get('logs', [])[-3:]:
                 msg = log_entry.get("msg", "") if isinstance(log_entry, dict) else log_entry
                 axis_lbl = log_entry.get("axis", "Log de Rede") if isinstance(log_entry, dict) else "Log de Rede"
                 thoughts.append({"axis": axis_lbl, "weight": "Trace", "text": msg})
 
         confidence = min(max(int(confidence), 0), 99)
         
-        # Filtro de Saída Neural
+        # Filtro de Saída Neural LIBERADO: Se o comportamento passar de 25, ele MOSTRA o relatório, não importa quão diferente seja o nome deles.
         if confidence < 50 and behavior_score < 25:
             return None
 
@@ -294,88 +288,32 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             "thoughts": thoughts
         }
 
-    # ==================== COMANDO DISCORD ====================
-
-    @app_commands.command(name="smurfs", description="🕵️ Executa a Clusterização de Machine Learning no clã.")
-    @app_commands.default_permissions(administrator=True)
-    async def slash_analyze_smurfs(self, interaction: discord.Interaction):
-        await interaction.response.defer(thinking=True)
-
-        try:
-            clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
-            if not clan: return await interaction.followup.send("❌ Erro de comunicação com a Supercell.")
-
-            member_tags = [m.tag for m in clan.members]
-            players_full = [p async for p in self.bot.api_client.get_players(member_tags)]
-
-            telemetry_matrix = {}
-            if self.db is not None:
-                cursor = self.db.smurf_evidence.find({})
-                async for doc in cursor: telemetry_matrix[doc["_id"]] = doc
-
-            results = []
-            processed = set()
-
-            # Executa a inferência em Thread separada para não travar o bot
-            def run_batch_inference():
-                batch_res = []
-                for i in range(len(players_full)):
-                    p1 = players_full[i]
-                    if p1.tag in processed: continue
-
-                    for j in range(i + 1, len(players_full)):
-                        p2 = players_full[j]
-                        if p2.tag in processed: continue
-
-                        pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
-                        telemetry = telemetry_matrix.get(pair_id, {})
-                        
-                        # Filtro de Pré-Processamento Leve
-                        if self._phonetic_lexical_analysis(p1.name, p2.name) >= self.MIN_FUZZY_RATIO or telemetry.get("score", 0) > 0:
-                            dossier = self._run_ml_inference(p1, p2, telemetry)
-                            if dossier:
-                                batch_res.append(dossier)
-                                processed.add(dossier["smurf_tag"])
-                return batch_res
-
-            results = await asyncio.to_thread(run_batch_inference)
-
-            if not results:
-                return await interaction.followup.send("✅ **Clã Limpo:** O Motor de Machine Learning não detectou clusters forenses anômalos.")
-
-            results.sort(key=lambda x: x['confidence'], reverse=True)
-
-            embed = discord.Embed(title="📂 XAI FORENSE: MACHINE LEARNING ATIVADO", description="Baseado em Dynamic Time Warping, Distância Vetorial e Lógica Fuzzy.", color=0x2b2d31)
-            for r in results[:5]: 
-                body = f"👑 **[MAIN] {r['main_name']}** (`{r['main_tag']}`)\n👶 **[SMURF] {r['smurf_name']}** (`{r['smurf_tag']}`)\n\n"
-                body += "**🧠 Output da Rede (Explainable AI):**\n" + "\n".join([f"▫️ `{t['axis']}`: {t['text']}" for t in r['thoughts']])
-                embed.add_field(name=f"Certeza Matemática: {r['confidence']}% - {r['risk_label']}", value=body, inline=False)
-                
-            await interaction.followup.send(embed=embed)
-
-        except Exception as e:
-            logger.error(f"Erro Crítico ML: {traceback.format_exc()}")
-            await interaction.followup.send("❌ Erro fatal ao rodar a Clusterização.")
-
     # ==================== APIs PARA O PAINEL WEB (XAI EXPORT) ====================
 
     async def get_web_dossier(self) -> List[Dict[str, Any]]:
-        """API Web: Escaneia o clã em tempo real e processa a XAI usando Scikit-Learn e FuzzyLogic."""
+        """API Web: Escaneia tanto os membros atuais quanto o histórico do banco."""
         if self.db is None or not self.bot.api_client: return []
         try:
-            # 1. Busca os membros atuais do clã na Supercell (Em tempo real)
+            # 1. Puxa as tags dos membros que ESTÃO no clã
             clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
-            if not clan: return []
+            member_tags = {m.tag for m in clan.members} if clan else set()
             
-            member_tags = [m.tag for m in clan.members]
-            players_full = [p async for p in self.bot.api_client.get_players(member_tags)]
-            
-            # 2. Busca a Telemetria Histórica do Banco de Dados
+            # 2. Puxa as tags do Banco de Dados (Mesmo se eles tiverem saído do clã)
             telemetry_matrix = {}
-            cursor = self.db.smurf_evidence.find({})
-            async for doc in cursor: telemetry_matrix[doc["_id"]] = doc
+            cursor = self.db.smurf_evidence.find({"score": {"$gt": 0}})
+            async for doc in cursor: 
+                telemetry_matrix[doc["_id"]] = doc
+                member_tags.add(doc.get("tag1"))
+                member_tags.add(doc.get("tag2"))
+                
+            # Limpa Nones caso o banco tenha alguma sujeira da época do erro
+            member_tags = {t for t in member_tags if t}
             
-            # 3. Processa a IA em uma Thread separada (para não lagar o bot/web)
+            if not member_tags: return []
+            
+            # 3. Busca a ficha na Supercell de todo mundo (mesmo os que saíram do clã)
+            players_full = [p async for p in self.bot.api_client.get_players(list(member_tags))]
+            
             def run_web_inference():
                 xai_res = []
                 processed = set()
@@ -391,15 +329,15 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                         pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
                         telemetry = telemetry_matrix.get(pair_id, {})
                         
-                        # Roda a IA se o nome for parecido OU se já existe telemetria registrada
-                        if self._phonetic_lexical_analysis(p1.name, p2.name) >= self.MIN_FUZZY_RATIO or telemetry.get("score", 0) > 0:
+                        # Roda a IA se tiver nome parecido OU telemetria alta o suficiente (score > 10)
+                        if self._phonetic_lexical_analysis(p1.name, p2.name) >= self.MIN_FUZZY_RATIO or telemetry.get("score", 0) > 10:
                             dossier = self._run_ml_inference(p1, p2, telemetry)
                             if dossier:
                                 xai_res.append(dossier)
                                 processed.add(dossier["smurf_tag"])
                 return xai_res
 
-            # Executa e ordena os resultados do mais perigoso para o menos
+            # Executa a IA e retorna para o painel web
             xai_results = await asyncio.to_thread(run_web_inference)
             xai_results.sort(key=lambda x: x['confidence'], reverse=True)
             return xai_results
@@ -423,7 +361,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         
         try:
             doc = await self.db.smurf_evidence.find_one({"_id": pair_id})
-            if not doc: return {"status": "error", "message": "Dossiê não encontrado no Banco (Ele foi gerado apenas pela Análise de Nome ao vivo). Cancele e adicione manualmente."}
+            if not doc: return {"status": "error", "message": "Dossiê não encontrado no Banco. Cancele e adicione manualmente."}
             
             reason = "Condenado pela IA XAI (Contas Vinculadas)"
             await w_cog.add_to_watchlist(doc['tag1'], "Desconhecido", reason, f"Vinculado a {doc['tag2']}")
