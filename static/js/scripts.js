@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isFetchingCwlPlan = false;
     let activeCwlTabDay = null; // MEMÓRIA DA ABA
 
-    // --- INJEÇÃO CSS: CARTÃO VIP DOURADO ---
+    // --- INJEÇÃO CSS: CARTÃO VIP DOURADO + ESTILOS XAI ---
     const vipStyle = document.createElement('style');
     vipStyle.innerHTML = `
         .vip-golden-card {
@@ -177,6 +177,8 @@ document.addEventListener('DOMContentLoaded', () => {
             position: relative;
             z-index: 2;
         }
+        .xai-badge { display: inline-block; font-size: 0.8em; padding: 2px 6px; background: rgba(54, 162, 235, 0.2); border: 1px solid #36a2eb; color: #36a2eb; border-radius: 4px; margin-top: 5px; font-family: monospace; }
+        .xai-sub { background: rgba(0,0,0,0.3); padding: 10px; border-left: 3px solid var(--color-warning); margin-bottom: 10px; font-size: 0.9em; border-radius: 4px;}
     `;
     document.head.appendChild(vipStyle);
 
@@ -717,7 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ========================================================
-    // >>> SISTEMA DE ROTAÇÃO CWL E UI VISUAL <<<
+    // >>> SISTEMA DE ROTAÇÃO CWL E UI VISUAL XAI <<<
     // ========================================================
 
     function updateCwlHeaderUI(data) {
@@ -865,7 +867,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            let planHtml = `<h4>Alterações na Equipa</h4>`;
+            let planHtml = ``;
+
+            // XAI: Info do Oponente (K-Means)
+            if (dayData.opponent_analysis) {
+                const opp = dayData.opponent_analysis;
+                let tColor = opp.threat_level.includes("Extremo") ? "#e74c3c" : (opp.threat_level.includes("Baixa") ? "#2ecc71" : "#f1c40f");
+                planHtml += `
+                <div style="background: rgba(0,0,0,0.3); border-left: 4px solid ${tColor}; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                    <h4 style="margin: 0 0 5px 0; color: ${tColor};">Análise ML: vs ${opp.clan_name}</h4>
+                    <p style="margin: 0; font-size: 0.9em;">Classificação: <strong>${opp.threat_level}</strong> | Tática IA: ${dayData.strategy_used}</p>
+                </div>`;
+            }
+
+            planHtml += `<h4>Alterações XAI na Equipe</h4>`;
             planHtml += (dayData.substitutions && dayData.substitutions.length > 0)
                 ? dayData.substitutions.map(sub => {
                     const outName = sub.out?.name || (sub.out?.player && sub.out.player.name) || '?';
@@ -873,16 +888,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const inName = sub.in?.name || (sub.in?.player && sub.in.player.name) || '?';
                     const inTh = sub.in?.town_hall || (sub.in?.player && sub.in.player.town_hall) || '?';
                     return `
-                    <div class="substitution-card">
-                        <p>🔴 <strong>Sai:</strong> ${outName} (CV${outTh})</p>
-                        <p>🟢 <strong>Entra:</strong> ${inName} (CV${inTh})</p>
-                        <p class="reason"><em>IA: ${sub.reason || '-'}</em></p>
+                    <div class="xai-sub">
+                        <p style="color: #e74c3c; margin-bottom:2px;">⬇️ <strong>Sai:</strong> ${outName} (CV${outTh}) - <em>${sub.out_reason || 'Rotação'}</em></p>
+                        <p style="color: #2ecc71; margin-bottom:5px;">⬆️ <strong>Entra:</strong> ${inName} (CV${inTh})</p>
+                        <div class="xai-badge">IA: ${sub.reason || 'Escalado pela matriz.'}</div>
                     </div>`;
                 }).join('')
                 : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs e Titulares Fixos.' : 'A IA sugere manter a escalação do dia anterior.'}</p>`;
 
             const roster = dayData.active_roster || [];
-            planHtml += `<h4>⚔️ Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
+            planHtml += `<h4 style="margin-top:20px;">⚔️ Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
             
             const sortedRoster = [...roster].sort((a, b) => {
                 const thA = a.town_hall || (a.player && a.player.town_hall) || 0;
@@ -897,7 +912,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const icon = p.status === 'priority' ? '⭐' : (p.status === 'unavailable' ? '🛑' : '');
                     return `
                     <div class="roster-player" ${p.status === 'priority' ? 'style="border-left: 3px solid var(--color-accent);"' : ''}>
-                        <span>${i + 1}.</span>${icon} ${name} (CV${th}) - ${p.days_played || 0}d
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>${i + 1}. ${icon} ${name} (CV${th})</span>
+                            <span style="color:var(--color-text-secondary); font-size:0.8em;">${p.days_played || 0}d</span>
+                        </div>
+                        ${p.xai_justification ? `<div style="font-size: 0.7em; color: #a0aec0; margin-top: 5px; font-family: monospace;">> ${p.xai_justification}</div>` : ''}
                     </div>`;
                 }).join('')
                 : '<p>Nenhum jogador na escalação.</p>';
