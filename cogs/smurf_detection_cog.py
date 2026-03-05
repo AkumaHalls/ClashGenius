@@ -118,13 +118,14 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
         now = datetime.datetime.now(pytz.utc)
         
+        # Aumentado o limite de memória do BD de 10 para 30 logs consecutivos
         await self.db.smurf_evidence.update_one(
             {"_id": pair_id},
             {
                 "$setOnInsert": {"tag1": p1.tag, "tag2": p2.tag},
                 "$inc": {"score": points},
                 "$set": {"last_updated": now},
-                "$push": {"logs": {"$each": [{"time": now.timestamp(), "msg": f"[{now.strftime('%d/%m %H:%M')}] {log_msg}", "axis": axis}], "$slice": -10}}
+                "$push": {"logs": {"$each": [{"time": now.timestamp(), "msg": f"[{now.strftime('%d/%m %H:%M')}] {log_msg}", "axis": axis}], "$slice": -30}}
             },
             upsert=True
         )
@@ -147,7 +148,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                         {"_id": doc["_id"]}, 
                         {
                             "$set": {"score": new_score, "last_updated": datetime.datetime.now(pytz.utc)},
-                            "$push": {"logs": {"$each": [{"time": datetime.datetime.now(pytz.utc).timestamp(), "msg": f"[{datetime.datetime.now().strftime('%d/%m')}] 📉 Atenuação: Score caiu para {new_score}.", "axis": "Regeneração"}], "$slice": -10}}
+                            "$push": {"logs": {"$each": [{"time": datetime.datetime.now(pytz.utc).timestamp(), "msg": f"[{datetime.datetime.now().strftime('%d/%m')}] 📉 Atenuação: Score caiu para {new_score}.", "axis": "Regeneração"}], "$slice": -30}}
                         }
                     )
         except Exception as e: pass
@@ -251,11 +252,12 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
         # EIXO 4: Telemetria Real (O MAIS IMPORTANTE)
         if behavior_score > 0:
-            weight = min(behavior_score, 80) # Se chegou a 80 de score, ganha 80% de certeza direto!
+            weight = min(behavior_score, 80)
             confidence += weight
             thoughts.append({"axis": "Telemetria (DTW)", "weight": f"{weight}%", "text": f"O banco de dados capturou interceptação temporal contínua. Score acumulado: {behavior_score}."})
             
-            for log_entry in telemetry.get('logs', [])[-3:]:
+            # Exibição total liberada: Roda todos os logs disponíveis no BD (até 30) em vez de só os 3 últimos.
+            for log_entry in telemetry.get('logs', []):
                 msg = log_entry.get("msg", "") if isinstance(log_entry, dict) else log_entry
                 axis_lbl = log_entry.get("axis", "Log de Rede") if isinstance(log_entry, dict) else "Log de Rede"
                 thoughts.append({"axis": axis_lbl, "weight": "Trace", "text": msg})
@@ -279,7 +281,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             "thoughts": thoughts
         }
 
-    # ==================== COMANDO DISCORD (CORRIGIDO) ====================
+    # ==================== COMANDO DISCORD ====================
 
     @app_commands.command(name="smurfs", description="🕵️ Executa a Matriz Forense XAI no Clã.")
     @app_commands.default_permissions(administrator=True)
@@ -287,7 +289,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         await interaction.response.defer(thinking=True)
 
         try:
-            # Puxa o clã direto da API
             clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
             if not clan: 
                 return await interaction.followup.send("❌ Erro de comunicação com a Supercell.")
@@ -295,7 +296,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             member_tags = {m.tag for m in clan.members}
             telemetry_matrix = {}
             
-            # Puxa do banco para não esquecer quem saiu do clã
             if self.db is not None:
                 cursor = self.db.smurf_evidence.find({"score": {"$gt": 10}})
                 async for doc in cursor: 
@@ -307,7 +307,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             if not member_tags:
                 return await interaction.followup.send("✅ **Clã Limpo:** A XAI não detectou matrizes anômalas.")
 
-            # Busca segura para não quebrar em contas banidas
             players_full = []
             for tag in member_tags:
                 try:
@@ -318,7 +317,6 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             results = []
             processed = set()
 
-            # Processamento Nativo (Sem Threading) para evitar crash do coc.py
             for i in range(len(players_full)):
                 p1 = players_full[i]
                 if p1.tag in processed: continue
@@ -343,13 +341,12 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
             embed = discord.Embed(title="📂 XAI FORENSE: RELATÓRIO DO MOTOR DE INFERÊNCIA", description="Cruzamento via Dynamic Time Warping, Distância de Cossenos e Lógica Fuzzy.", color=0x2b2d31)
             
-            for r in results[:5]: # Mostra os 5 piores casos
+            for r in results[:5]: 
                 body = f"👑 **[MAIN]** {r['main_name']} (`{r['main_tag']}`)\n👶 **[SMURF]** {r['smurf_name']} (`{r['smurf_tag']}`)\n\n"
                 
-                # Prepara os pensamentos e evita estourar limite do Discord
                 thoughts_text = "\n".join([f"▫️ `{t['axis']}`: {t['text']}" for t in r['thoughts']])
                 if len(thoughts_text) > 750:
-                    thoughts_text = thoughts_text[:750] + "...\n*[Laudo completo disponível no Painel Web]*"
+                    thoughts_text = thoughts_text[:750] + "...\n*[Laudo completo com histórico integral disponível no Painel Web]*"
                     
                 body += "**🧠 Explicabilidade (Por que a IA acha isso?):**\n" + thoughts_text
                 embed.add_field(name=f"Grau de Certeza: {r['confidence']}% - {r['risk_label']}", value=body, inline=False)
