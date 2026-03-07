@@ -118,7 +118,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
         now = datetime.datetime.now(pytz.utc)
         
-        # Aumentado o limite de memória do BD de 10 para 30 logs consecutivos
+        # Limite de memória do BD de 30 logs consecutivos
         await self.db.smurf_evidence.update_one(
             {"_id": pair_id},
             {
@@ -429,15 +429,37 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         if self.db is None: return {"status": "error", "message": "Banco offline."}
         w_cog = self.bot.get_cog("Lista de Observação")
         if not w_cog: return {"status": "error", "message": "Módulo de Watchlist desativado."}
+        
         try:
             doc = await self.db.smurf_evidence.find_one({"_id": pair_id})
             if not doc: return {"status": "error", "message": "Dossiê não encontrado no Banco."}
+            
+            # --- NOVO: Puxar os nomes reais da API da Supercell ---
+            name1, name2 = "Desconhecido", "Desconhecido"
+            if self.bot.api_client:
+                try:
+                    p1 = await self.bot.api_client.get_player(doc['tag1'])
+                    name1 = p1.name
+                except Exception: pass
+                
+                try:
+                    p2 = await self.bot.api_client.get_player(doc['tag2'])
+                    name2 = p2.name
+                except Exception: pass
+            # ------------------------------------------------------
+            
             reason = "Condenado pela IA XAI (Contas Vinculadas)"
-            await w_cog.add_to_watchlist(doc['tag1'], "Desconhecido", reason, f"Vinculado a {doc['tag2']}")
-            await w_cog.add_to_watchlist(doc['tag2'], "Desconhecido", reason, f"Vinculado a {doc['tag1']}")
+            
+            # Envia para a Watchlist com os nomes reais e cruza os dados nos detalhes
+            await w_cog.add_to_watchlist(doc['tag1'], name1, reason, f"Vinculado a {name2} ({doc['tag2']})")
+            await w_cog.add_to_watchlist(doc['tag2'], name2, reason, f"Vinculado a {name1} ({doc['tag1']})")
+            
+            # Apaga as evidências do radar
             await self.db.smurf_evidence.delete_one({"_id": pair_id})
+            
             return {"status": "success", "message": "Contas enviadas para a Watchlist com sucesso."}
-        except Exception as e: return {"status": "error", "message": str(e)}
+        except Exception as e: 
+            return {"status": "error", "message": str(e)}
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SmurfDetectionCog(bot))
