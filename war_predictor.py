@@ -1,7 +1,8 @@
-# -*- coding: utf-8 -*-3
+# -*- coding: utf-8 -*-
 """
-Sistema Avançado de Machine Learning para Predição de Guerras - ClashGenius v3.0
+Sistema Avançado de Machine Learning para Predição de Guerras - ClashGenius v4.0
 Arquitetura modular com ensemble learning, feature engineering avançada e aprendizado contínuo.
+Atualizado com Geração de Linguagem Natural Dinâmica (NLG) para relatórios orgânicos.
 """
 
 import logging
@@ -306,7 +307,7 @@ class WarPredictionSystemV3:
             opponent = war.opponent if war.clan.tag == clan_tag else war.clan
             
             if war.state == 'preparation':
-                 return {"summary_panel": "Análise disponível quando a batalha começar.", "probability": 50.0, "confidence": 20.0}
+                 return {"summary_panel": "Análise preditiva ficará disponível quando o campo de batalha for aberto.", "probability": 50.0, "confidence": 20.0}
             
             definitive = self._check_definitive_scenarios(war, our_clan, opponent)
             if definitive:
@@ -314,12 +315,12 @@ class WarPredictionSystemV3:
             
             features = await self.feature_engineer.extract_all_features(war, our_clan, opponent, clan_tag)
             if features is None:
-                return {"summary_panel": "Aguardando dados para iniciar a análise...", "probability": 50.0, "confidence": 10.0}
+                return {"summary_panel": "Aguardando volume de dados balísticos para iniciar a inferência...", "probability": 50.0, "confidence": 10.0}
 
             probability = self.ml_system.predict(features)
             confidence, tactical_insights, risk_factors = self._generate_qualitative_analysis(features, probability)
             
-            summaries = self._generate_summaries(features, probability, our_clan.name)
+            summaries = self._generate_summaries(features, probability, our_clan.name, tactical_insights, risk_factors)
             
             return {
                 "probability": probability,
@@ -380,45 +381,80 @@ class WarPredictionSystemV3:
         return None
 
     def _generate_qualitative_analysis(self, features: AdvancedWarFeatures, probability: float) -> Tuple[float, List[str], List[str]]:
-        """Gera a confiança, insights e fatores de risco."""
+        """Extrai os dados matemáticos brutos para serem transformados em texto orgânico."""
         confidence = 50.0
         confidence += min(features.war_progress_percentage, 80) * 0.4
         confidence -= abs(probability - 50) * 0.2
         confidence = np.clip(confidence, 10, 95)
         
         insights = []
-        if features.momentum_indicator > 0.6: insights.append("O momentum está a nosso favor nos ataques recentes.")
-        if features.clan_synergy_score > 0.7: insights.append("A eficiência nos cleanups está alta, mostrando boa coordenação.")
-        if probability > 75: insights.append("A prioridade agora é administrar a vantagem com ataques seguros.")
-        if probability < 25: insights.append("É necessário arriscar em ataques de 3 estrelas para buscar a virada.")
+        if features.momentum_indicator > 0.55: 
+            insights.append(f"o ritmo atual de estrelas sugere um forte 'momentum' a nosso favor (índice de {features.momentum_indicator:.2f})")
+        elif features.momentum_indicator < 0.45:
+            insights.append(f"nossa cadência de ataques desacelerou (momentum de {features.momentum_indicator:.2f})")
+            
+        if features.clan_synergy_score > 0.6: 
+            insights.append(f"estamos operando com uma alta sinergia de {features.clan_synergy_score*100:.0f}% nas limpezas de mapa")
+            
+        if features.efficiency_ratio > 1.1:
+            insights.append(f"a nossa eficiência de destruição por ataque está {(features.efficiency_ratio - 1)*100:.0f}% superior à do oponente")
 
         risks = []
-        if features.attacks_remaining_difference < -2: risks.append("Oponente possui mais ataques restantes.")
-        if features.unused_member_strength_diff < -10: risks.append("Oponente tem jogadores mais fortes para atacar no final.")
-        if features.pressure_index > 0.7: risks.append("A pressão sobre os nossos atacantes é muito alta.")
+        if features.attacks_remaining_difference < -1: 
+            risks.append(f"o adversário ainda retém {abs(features.attacks_remaining_difference)} ataques a mais que nós na manga")
+        if features.unused_member_strength_diff < -100: 
+            risks.append("o peso bélico (Heróis e CVs) que o inimigo ainda não usou é preocupantemente maior que a nossa reserva atual")
+        if features.pressure_index > 0.65: 
+            risks.append(f"o sistema acusa uma pressão matemática severa ({features.pressure_index:.1f}/1.0) sobre os nossos próximos atacantes")
 
-        return confidence, insights[:2], risks[:2]
+        return confidence, insights, risks
 
-    def _generate_summaries(self, features: AdvancedWarFeatures, probability: float, our_clan_name: str) -> Dict[str, str]:
-        """Gera os textos de resumo para o painel e para o Discord."""
-        if probability >= 85: title = "🎯 Vitória Altamente Provável"
-        elif probability >= 65: title = "✅ Vantagem Clara"
-        elif probability >= 55: title = "📈 Ligeira Vantagem"
-        elif probability <= 15: title = "🚨 Situação Crítica"
-        elif probability <= 35: title = "⚠️ Desvantagem Clara"
-        else: title = "⚖️ Guerra em Equilíbrio"
+    def _generate_summaries(self, features: AdvancedWarFeatures, probability: float, our_clan_name: str, insights: List[str], risks: List[str]) -> Dict[str, str]:
+        """Constrói uma narrativa orgânica, fluida e única baseada nas variáveis do Machine Learning."""
         
+        prog = int(features.war_progress_percentage)
+        prob = int(probability)
         star_diff = int(features.star_difference)
-        if star_diff < 0:
-            detail = f"Para virar, {our_clan_name} precisa de {abs(star_diff) + 1}★ a mais que o oponente."
-        elif star_diff > 0:
-            detail = f"O oponente ainda pode virar se conseguir {star_diff + 1}★ a mais."
+        dest_diff = features.destruction_difference
+        
+        # 1. Abertura Baseada no Progresso e ML
+        if prog < 20:
+            texto = f"A guerra ainda está no início ({prog}% de progresso), mas o modelo preditivo já projeta nossa chance de vitória em {prob}%. "
+        elif prog > 85:
+            texto = f"Entramos na reta final do confronto. Com os dados consolidados, a probabilidade atual de sairmos vitoriosos cravou em {prob}%. "
         else:
-            detail = "A vitória será decidida na destruição ou nos próximos ataques."
+            texto = f"Com o campo de batalha em {prog}% de andamento, a Inteligência Artificial calcula {prob}% de chance de vitória para nós. "
+            
+        # 2. Leitura Real do Placar
+        if star_diff > 0:
+            texto += f"No momento, sustentamos uma vantagem de {star_diff} estrelas. "
+        elif star_diff < 0:
+            texto += f"Estamos correndo atrás de um déficit de {abs(star_diff)} estrelas. "
+        else:
+            if dest_diff > 0:
+                texto += f"O placar de estrelas está empatado, mas levamos vantagem de {dest_diff:.1f}% na destruição total. "
+            else:
+                texto += f"O placar está empatado e estamos levemente atrás na destruição por {abs(dest_diff):.1f}%. "
+
+        # 3. Costurando as Bibliotecas Inteligentes (Insights)
+        if insights:
+            texto += f"O algoritmo destaca que {insights[0]}, o que tem impactado diretamente o nosso resultado. "
+            if len(insights) > 1:
+                texto += f"Além disso, {insights[1]}. "
+                
+        # 4. Injetando a Realidade dos Riscos
+        if risks:
+            texto += f"No entanto, é fundamental ter cuidado: a telemetria aponta que {risks[0]}, o que pode causar uma virada surpresa no final. "
+
+        # 5. Diretriz Tática Orgânica
+        if probability >= 75:
+            texto += "O foco agora é pura administração: priorizem ataques seguros em bases já mapeadas para não dar margem de erro ao adversário."
+        elif probability <= 35:
+            texto += "O cenário exige agressividade extrema. Para quebrar a probabilidade atual, precisaremos arriscar estratégias de 3 estrelas nas bases mais difíceis."
+        else:
+            texto += "A guerra está totalmente em aberto e cada estrela conquistada a partir de agora mudará drasticamente essa projeção matemática."
             
         return {
-            "panel": f"{title}. {detail}",
-            "discord": f"**{title}**\n{detail}"
+            "panel": texto,
+            "discord": f"**📊 Projeção em Tempo Real**\n{texto}"
         }
-
-
