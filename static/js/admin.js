@@ -368,7 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            // CORREÇÃO: O Python pode enviar a lista de várias formas dependendo da rota. Isso garante que a variável dossier seja a lista certa.
             let dossier = [];
             if (Array.isArray(response)) {
                 dossier = response;
@@ -394,7 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dossier.forEach(doc => {
                 const color = doc.risk_color;
                 
-                // Constrói o Terminal de Pensamentos da IA
                 let terminalHtml = '';
                 if(doc.thoughts && doc.thoughts.length > 0) {
                     doc.thoughts.forEach(t => {
@@ -671,4 +669,93 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial load
     loadDataForCurrentTab();
+
+    // =========================================================
+    // NOVO: SISTEMA DE GAVETA E RADAR DE INATIVIDADE
+    // =========================================================
+    window.toggleRadarDrawer = function() {
+        document.getElementById('radar-drawer').classList.toggle('open');
+    };
+
+    window.updateRadarNotifications = function(members) {
+        const drawerContent = document.getElementById('radar-content');
+        const badge = document.getElementById('radar-badge');
+        if (!drawerContent || !badge) return;
+
+        drawerContent.innerHTML = '';
+        let alertCount = 0;
+        const now = new Date();
+
+        members.forEach(member => {
+            if (!member.last_war_date) return; 
+            
+            const lastWar = new Date(member.last_war_date);
+            const diffTime = Math.abs(now - lastWar);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays >= 15) {
+                alertCount++;
+                let alertType, icon, message, colorClass;
+
+                if (diffDays >= 30) {
+                    alertType = "Infração de Regra (30+ dias)";
+                    icon = "⚠️";
+                    colorClass = "alert-critical";
+                    message = `<strong>${member.name}</strong> violou a diretriz máxima do clã! Já se passaram <strong>${diffDays} dias</strong> desde a sua última guerra. Sujeito a banimento.`;
+                } else if (diffDays >= 22) {
+                    alertType = "Risco Crítico (22+ dias)";
+                    icon = "🚨";
+                    colorClass = "alert-danger";
+                    message = `<strong>${member.name}</strong> está na zona vermelha. Com <strong>${diffDays} dias</strong> de inatividade, o risco de desligamento na próxima faxina é altíssimo.`;
+                } else {
+                    alertType = "Atenção Tática (15+ dias)";
+                    icon = "🎯";
+                    colorClass = "alert-warning";
+                    message = `<strong>${member.name}</strong> entrou no radar de inatividade. O sistema registra <strong>${diffDays} dias</strong> exatos sem participação no campo de batalha.`;
+                }
+
+                const alertHTML = `
+                    <div class="radar-alert ${colorClass}">
+                        <div class="alert-icon">${icon}</div>
+                        <div class="alert-text">
+                            <strong>${alertType}</strong>
+                            <span>${message}</span>
+                        </div>
+                    </div>
+                `;
+                drawerContent.innerHTML += alertHTML;
+            }
+        });
+
+        if (alertCount === 0) {
+            drawerContent.innerHTML = `
+                <div class="radar-empty">
+                    <div style="font-size: 3rem; margin-bottom: 10px;">✅</div>
+                    <p>Nenhuma anomalia detectada.<br>Clã operando com 100% de atividade bélica!</p>
+                </div>`;
+            badge.style.display = 'none';
+        } else {
+            badge.textContent = alertCount;
+            badge.style.display = 'flex';
+        }
+    };
+
+    window.fetchRadarInactivityData = async function() {
+        try {
+            // Acessa a API pública principal que já tem as datas guardadas para a aba de membros
+            const response = await fetch('/api/clan_data');
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.members) {
+                    updateRadarNotifications(data.members);
+                }
+            }
+        } catch (e) {
+            console.error('Falha ao acionar o radar de inatividade:', e);
+        }
+    };
+
+    // Dispara a leitura do radar assim que entra no painel e checa a cada 30min
+    fetchRadarInactivityData();
+    setInterval(fetchRadarInactivityData, 30 * 60 * 1000);
 });
