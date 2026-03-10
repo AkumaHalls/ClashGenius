@@ -1,5 +1,118 @@
+// =========================================================
+// GAVETA GLOBAL DO RADAR DE INATIVIDADE (À PROVA DE FALHAS)
+// =========================================================
+
+// Função global para abrir e fechar a gaveta a qualquer momento
+window.toggleRadarDrawer = function() {
+    const drawer = document.getElementById('radar-drawer');
+    if (drawer) drawer.classList.toggle('open');
+};
+
+// A Mente da IA: Faz a leitura das datas e julga as penalidades
+window.updateRadarNotifications = function(members) {
+    const drawerContent = document.getElementById('radar-content');
+    const badge = document.getElementById('radar-badge');
+    if (!drawerContent || !badge) return;
+
+    drawerContent.innerHTML = '';
+    let alertCount = 0;
+    const now = new Date();
+
+    members.forEach(member => {
+        let lastWarStr = member.last_war_date;
+        
+        // Pula quem nunca participou
+        if (!lastWarStr || lastWarStr === 'Nunca participou' || lastWarStr === 'Nunca' || lastWarStr === 'N/A') return;
+        
+        let lastWar = new Date(lastWarStr);
+
+        // TRADUTOR DE DATAS DE EMERGÊNCIA (Caso venha como DD/MM/YYYY)
+        if (isNaN(lastWar.getTime()) && lastWarStr.includes('/')) {
+            let datePart = lastWarStr.split(' ')[0];
+            let parts = datePart.split('/');
+            if(parts.length === 3) {
+                lastWar = new Date(parts[2], parts[1] - 1, parts[0]);
+            }
+        }
+
+        // Se a data continuar inválida, a IA ignora para não quebrar a tela
+        if (isNaN(lastWar.getTime())) return;
+
+        // Calcula quantos dias exatos se passaram
+        const diffTime = now.getTime() - lastWar.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays >= 15) {
+            alertCount++;
+            let alertType, icon, message, colorClass;
+
+            // O Cérebro Explicativo da IA entra em ação aqui
+            if (diffDays >= 30) {
+                alertType = "INFRAÇÃO GRAVE (30+ dias)";
+                icon = "⛔";
+                colorClass = "alert-critical";
+                message = `Atenção: O membro <strong>${member.name}</strong> violou a diretriz principal do clã. O sistema forense registra exatos <strong>${diffDays} dias</strong> sem qualquer participação no campo de guerra. Remoção recomendada.`;
+            } else if (diffDays >= 22) {
+                alertType = "ALERTA VERMELHO (22+ dias)";
+                icon = "🚨";
+                colorClass = "alert-danger";
+                message = `Risco altíssimo de desligamento: A conta de <strong>${member.name}</strong> está congelada há <strong>${diffDays} dias</strong>. Sugere-se intervenção imediata da liderança para cobrança.`;
+            } else {
+                alertType = "ATENÇÃO TÁTICA (15+ dias)";
+                icon = "🎯";
+                colorClass = "alert-warning";
+                message = `A conta <strong>${member.name}</strong> acaba de entrar no radar de ociosidade. A nossa telemetria aponta <strong>${diffDays} dias</strong> sem se voluntariar para o confronto.`;
+            }
+
+            const alertHTML = `
+                <div class="radar-alert ${colorClass}">
+                    <div class="alert-icon">${icon}</div>
+                    <div class="alert-text">
+                        <strong>${alertType}</strong>
+                        <span>${message}</span>
+                    </div>
+                </div>
+            `;
+            drawerContent.innerHTML += alertHTML;
+        }
+    });
+
+    if (alertCount === 0) {
+        drawerContent.innerHTML = `
+            <div class="radar-empty">
+                <div style="font-size: 3rem; margin-bottom: 10px;">✅</div>
+                <p>O radar está limpo.<br>Nenhum membro detectado em inatividade bélica no momento!</p>
+            </div>`;
+        badge.style.display = 'none';
+    } else {
+        badge.textContent = alertCount;
+        badge.style.display = 'flex';
+    }
+};
+
+window.fetchRadarInactivityData = async function() {
+    try {
+        // Agora mirando no endpoint correto que retorna os dados dos membros (API nativa)
+        const response = await fetch('/api/members');
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.members) {
+                window.updateRadarNotifications(data.members);
+            }
+        }
+    } catch (e) {
+        console.error('Falha de leitura térmica do radar:', e);
+    }
+};
+
+// Dispara a leitura do radar imediatamente
+window.fetchRadarInactivityData();
+setInterval(window.fetchRadarInactivityData, 30 * 60 * 1000);
+
+// =========================================================
+// RESTANTE DO CÓDIGO PADRÃO DO PAINEL ADMIN
+// =========================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Lógica para a página de login
     const loginForm = document.querySelector('form[action="/admin/login"]');
     if (loginForm) {
         const urlParams = new URLSearchParams(window.location.search);
@@ -14,7 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    if (!window.location.pathname.includes('/admin/panel')) return;
+    // Se houver trava de URL, ela não afeta mais o sino pois ele está global
+    if (!window.location.pathname.includes('/admin')) return;
 
     // --- Seletores ---
     const toggleBtn = document.getElementById('toggle-maintenance-btn');
@@ -669,124 +783,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial load
     loadDataForCurrentTab();
-
-    // =========================================================
-    // NOVO: SISTEMA DE GAVETA E RADAR DE INATIVIDADE
-    // =========================================================
-    const bellBtn = document.getElementById('radar-bell-btn');
-    const radarDrawer = document.getElementById('radar-drawer');
-    const closeRadarBtn = document.getElementById('close-radar-btn');
-
-    // Associa os cliques para abrir/fechar a gaveta sem conflitos de HTML
-    if (bellBtn && radarDrawer) {
-        bellBtn.addEventListener('click', () => { radarDrawer.classList.toggle('open'); });
-    }
-    if (closeRadarBtn && radarDrawer) {
-        closeRadarBtn.addEventListener('click', () => { radarDrawer.classList.remove('open'); });
-    }
-
-    // A Mente da IA: Faz a leitura das datas, traduz do PT-BR e julga as penalidades
-    function updateRadarNotifications(members) {
-        const drawerContent = document.getElementById('radar-content');
-        const badge = document.getElementById('radar-badge');
-        if (!drawerContent || !badge) return;
-
-        drawerContent.innerHTML = '';
-        let alertCount = 0;
-        const now = new Date();
-
-        members.forEach(member => {
-            let lastWarStr = member.last_war_date;
-            
-            // Pula quem nunca participou (você pode mudar isso depois se quiser alertar novatos)
-            if (!lastWarStr || lastWarStr === 'Nunca participou' || lastWarStr === 'Nunca') return;
-            
-            let lastWar = null;
-            
-            // TRADUTOR DE DATAS: O JS gringo chora com "15/02/2026", então nós separamos e mastigamos para ele.
-            if (lastWarStr.includes('/')) {
-                let datePart = lastWarStr.split(' ')[0]; // Pega só "15/02/2026" e ignora horas se tiver
-                let parts = datePart.split('/');
-                if(parts.length === 3) {
-                    // O mês no JS começa em 0 (Janeiro = 0), por isso o "- 1" no meio.
-                    lastWar = new Date(parts[2], parts[1] - 1, parts[0]);
-                }
-            } else {
-                lastWar = new Date(lastWarStr); // Se vier formato de banco de dados nativo
-            }
-
-            // Se ainda assim a data der errado, a IA ignora para não quebrar a tela.
-            if (!lastWar || isNaN(lastWar.getTime())) return;
-
-            // Calcula quantos dias exatos se passaram
-            const diffTime = now.getTime() - lastWar.getTime();
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays >= 15) {
-                alertCount++;
-                let alertType, icon, message, colorClass;
-
-                // O Cérebro Explicativo da IA entra em ação aqui
-                if (diffDays >= 30) {
-                    alertType = "INFRAÇÃO GRAVE (30+ dias)";
-                    icon = "⛔";
-                    colorClass = "alert-critical";
-                    message = `Atenção: O membro <strong>${member.name}</strong> violou a diretriz principal do clã. O sistema forense registra exatos <strong>${diffDays} dias</strong> sem qualquer participação no campo de guerra. Remoção recomendada.`;
-                } else if (diffDays >= 22) {
-                    alertType = "ALERTA VERMELHO (22+ dias)";
-                    icon = "🚨";
-                    colorClass = "alert-danger";
-                    message = `Risco altíssimo de desligamento: A conta de <strong>${member.name}</strong> está congelada há <strong>${diffDays} dias</strong>. Sugere-se intervenção imediata da liderança para cobrança.`;
-                } else {
-                    alertType = "ATENÇÃO TÁTICA (15+ dias)";
-                    icon = "🎯";
-                    colorClass = "alert-warning";
-                    message = `A conta <strong>${member.name}</strong> acaba de entrar no radar de ociosidade. A nossa telemetria aponta <strong>${diffDays} dias</strong> sem se voluntariar para o confronto.`;
-                }
-
-                const alertHTML = `
-                    <div class="radar-alert ${colorClass}">
-                        <div class="alert-icon">${icon}</div>
-                        <div class="alert-text">
-                            <strong>${alertType}</strong>
-                            <span>${message}</span>
-                        </div>
-                    </div>
-                `;
-                drawerContent.innerHTML += alertHTML;
-            }
-        });
-
-        // Se o clã for de ouro e ninguém estiver moscando
-        if (alertCount === 0) {
-            drawerContent.innerHTML = `
-                <div class="radar-empty">
-                    <div style="font-size: 3rem; margin-bottom: 10px;">✅</div>
-                    <p>O radar está limpo.<br>Nenhum membro detectado em inatividade bélica no momento!</p>
-                </div>`;
-            badge.style.display = 'none';
-        } else {
-            badge.textContent = alertCount;
-            badge.style.display = 'flex';
-        }
-    }
-
-    async function fetchRadarInactivityData() {
-        try {
-            // A IA puxa as informações secretamente da rota principal do site
-            const response = await fetch('/api/clan_data');
-            if (response.ok) {
-                const data = await response.json();
-                if (data && data.members) {
-                    updateRadarNotifications(data.members);
-                }
-            }
-        } catch (e) {
-            console.error('Falha de leitura térmica do radar:', e);
-        }
-    }
-
-    // Dispara a leitura do radar assim que entra no painel e continua vigiando a cada 30min
-    fetchRadarInactivityData();
-    setInterval(fetchRadarInactivityData, 30 * 60 * 1000);
 });
