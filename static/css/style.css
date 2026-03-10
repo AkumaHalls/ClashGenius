@@ -2381,3 +2381,86 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 
 .radar-empty { text-align: center; color: #a1a1aa; margin-top: 50px; }
 .radar-empty i { font-size: 3rem; color: #2ed573; margin-bottom: 15px; }
+
+/* ================= RADAR DE INATIVIDADE ================= */
+.radar-bell-container {
+    position: relative;
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: var(--color-text-main, #fff);
+    transition: transform 0.2s;
+    user-select: none;
+    padding: 5px;
+}
+.radar-bell-container:hover { transform: scale(1.1); }
+.radar-badge {
+    position: absolute;
+    top: -2px;
+    right: -5px;
+    background: #ff4757;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 8px rgba(255, 71, 87, 0.8);
+}
+
+.radar-drawer {
+    position: fixed;
+    top: 0;
+    right: -420px;
+    width: 380px;
+    height: 100vh;
+    background: #1a202c;
+    border-left: 2px solid var(--color-border);
+    box-shadow: -5px 0 25px rgba(0,0,0,0.8);
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+}
+.radar-drawer.open { right: 0; }
+
+.radar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    background: #2d3748;
+    border-bottom: 2px solid var(--color-border);
+}
+.radar-header h3 { margin: 0; color: #fff; font-size: 1.3rem; }
+.close-radar { background: none; border: none; color: #a1a1aa; font-size: 1.5rem; cursor: pointer; transition: color 0.2s;}
+.close-radar:hover { color: #ff4757; }
+
+.radar-content { padding: 15px; overflow-y: auto; flex-grow: 1; }
+
+.radar-alert {
+    display: flex;
+    align-items: flex-start;
+    padding: 15px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.25);
+    border-left: 5px solid #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.alert-icon { font-size: 1.5rem; margin-right: 15px; margin-top: 2px; }
+.alert-text strong { display: block; font-size: 1.05rem; margin-bottom: 5px; color: #fff; }
+.alert-text span { font-size: 0.9rem; color: #cbd5e0; line-height: 1.4; display: block; }
+.alert-text span strong { display: inline; font-size: 1em; color: #fff;}
+
+/* Níveis de Alerta */
+.alert-warning { border-left-color: #f1c40f; }
+.alert-warning .alert-icon { color: #f1c40f; }
+.alert-danger { border-left-color: #e67e22; }
+.alert-danger .alert-icon { color: #e67e22; }
+.alert-critical { border-left-color: #e74c3c; background: rgba(231, 76, 60, 0.1); border-top: 1px solid rgba(231, 76, 60, 0.3); border-right: 1px solid rgba(231, 76, 60, 0.3); border-bottom: 1px solid rgba(231, 76, 60, 0.3);}
+.alert-critical .alert-icon { color: #e74c3c; }
+
+.radar-empty { text-align: center; color: #a1a1aa; margin-top: 50px; }
+.radar-empty p { font-size: 1.1rem; line-height: 1.5; margin-top: 15px;}
