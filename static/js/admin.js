@@ -2,7 +2,6 @@
 // GAVETA GLOBAL DO RADAR DE INATIVIDADE (À PROVA DE FALHAS)
 // =========================================================
 
-// Função global para abrir e fechar a gaveta a qualquer momento
 window.toggleRadarDrawer = function() {
     const drawer = document.getElementById('radar-drawer');
     if (drawer) drawer.classList.toggle('open');
@@ -21,21 +20,14 @@ window.updateRadarNotifications = function(members) {
     members.forEach(member => {
         let lastWarStr = member.last_war_date;
         
-        // Pula quem nunca participou
-        if (!lastWarStr || lastWarStr === 'Nunca participou' || lastWarStr === 'Nunca' || lastWarStr === 'N/A') return;
+        // Pula quem nunca participou (não possui data)
+        if (!lastWarStr) return;
         
+        // Como o seu web_api_cog envia "last_war_date" em formato ISO (ex: 2026-03-01T22:00:00Z),
+        // o JavaScript entende perfeitamente e converte para data.
         let lastWar = new Date(lastWarStr);
 
-        // TRADUTOR DE DATAS DE EMERGÊNCIA (Caso venha como DD/MM/YYYY)
-        if (isNaN(lastWar.getTime()) && lastWarStr.includes('/')) {
-            let datePart = lastWarStr.split(' ')[0];
-            let parts = datePart.split('/');
-            if(parts.length === 3) {
-                lastWar = new Date(parts[2], parts[1] - 1, parts[0]);
-            }
-        }
-
-        // Se a data continuar inválida, a IA ignora para não quebrar a tela
+        // Se a data for inválida, ignora para não quebrar a tela
         if (isNaN(lastWar.getTime())) return;
 
         // Calcula quantos dias exatos se passaram
@@ -46,7 +38,6 @@ window.updateRadarNotifications = function(members) {
             alertCount++;
             let alertType, icon, message, colorClass;
 
-            // O Cérebro Explicativo da IA entra em ação aqui
             if (diffDays >= 30) {
                 alertType = "INFRAÇÃO GRAVE (30+ dias)";
                 icon = "⛔";
@@ -91,21 +82,29 @@ window.updateRadarNotifications = function(members) {
 };
 
 window.fetchRadarInactivityData = async function() {
+    const drawerContent = document.getElementById('radar-content');
+    
     try {
-        // Agora mirando no endpoint correto que retorna os dados dos membros (API nativa)
-        const response = await fetch('/api/members');
+        // CORREÇÃO: Apontando para a rota EXATA definida no seu arquivo clash.py (api_members_handler)
+        let response = await fetch('/api/members');
+        
         if (response.ok) {
             const data = await response.json();
             if (data && data.members) {
                 window.updateRadarNotifications(data.members);
+            } else {
+                if (drawerContent) drawerContent.innerHTML = '<div class="radar-empty"><p style="color:#f1c40f;">Nenhum membro encontrado na API.</p></div>';
             }
+        } else {
+             if (drawerContent) drawerContent.innerHTML = `<div class="radar-empty"><p style="color:#e74c3c;">Erro de conexão com o Banco de Dados (Código ${response.status}).</p></div>`;
         }
     } catch (e) {
         console.error('Falha de leitura térmica do radar:', e);
+        if (drawerContent) drawerContent.innerHTML = `<div class="radar-empty"><p style="color:#e74c3c;">Falha crítica ao tentar buscar as datas de inatividade.</p></div>`;
     }
 };
 
-// Dispara a leitura do radar imediatamente
+// Dispara a leitura assim que a página carrega
 window.fetchRadarInactivityData();
 setInterval(window.fetchRadarInactivityData, 30 * 60 * 1000);
 
@@ -127,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Se houver trava de URL, ela não afeta mais o sino pois ele está global
     if (!window.location.pathname.includes('/admin')) return;
 
     // --- Seletores ---
