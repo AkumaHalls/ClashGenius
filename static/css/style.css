@@ -2301,3 +2301,83 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
         text-align: center;
     }
 }
+
+/* ================= RADAR DE INATIVIDADE ================= */
+.radar-bell-container {
+    position: relative;
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: var(--text-color, #fff);
+    transition: transform 0.2s;
+    user-select: none;
+}
+.radar-bell-container:hover { transform: scale(1.1); }
+.radar-badge {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    background: #ff4757;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 5px rgba(255, 71, 87, 0.5);
+}
+
+.radar-drawer {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 350px;
+    height: 100vh;
+    background: #1e1e24;
+    border-left: 2px solid #2b2d31;
+    box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+}
+.radar-drawer.open { right: 0; }
+
+.radar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    background: #2b2d31;
+    border-bottom: 1px solid #3f4147;
+}
+.radar-header h3 { margin: 0; color: #fff; font-size: 1.2rem; }
+.close-radar { background: none; border: none; color: #a1a1aa; font-size: 1.5rem; cursor: pointer; }
+.close-radar:hover { color: #ff4757; }
+
+.radar-content { padding: 15px; overflow-y: auto; flex-grow: 1; }
+
+.radar-alert {
+    display: flex;
+    align-items: flex-start;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    background: #2b2d31;
+    border-left: 4px solid #fff;
+}
+.alert-icon { font-size: 1.2rem; margin-right: 12px; margin-top: 2px; }
+.alert-text strong { display: block; font-size: 0.95rem; margin-bottom: 3px; }
+.alert-text span { font-size: 0.85rem; color: #a1a1aa; line-height: 1.3; }
+
+/* Níveis de Alerta */
+.alert-warning { border-left-color: #ffa502; }
+.alert-warning .alert-icon { color: #ffa502; }
+.alert-danger { border-left-color: #ff6348; }
+.alert-danger .alert-icon { color: #ff6348; }
+.alert-critical { border-left-color: #ff4757; background: rgba(255, 71, 87, 0.1); }
+.alert-critical .alert-icon { color: #ff4757; }
+
+.radar-empty { text-align: center; color: #a1a1aa; margin-top: 50px; }
+.radar-empty i { font-size: 3rem; color: #2ed573; margin-bottom: 15px; }
