@@ -98,8 +98,15 @@
     <canvas id="particle-background"></canvas>
     <div class="admin-panel-container">
         <div class="admin-card">
+            
             <div class="admin-header">
-                <h2>Painel do Administrador</h2>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <h2>Painel do Administrador</h2>
+                    <div class="radar-bell-container" onclick="toggleRadarDrawer()" title="Radar de Engajamento">
+                        <span>🔔</span>
+                        <span id="radar-badge" class="radar-badge" style="display: none;">0</span>
+                    </div>
+                </div>
                 <a href="/admin/logout" class="logout-btn">Sair</a>
             </div>
 
@@ -354,8 +361,19 @@
                          <p id="db-feedback" class="feedback-text" style="margin-top: 15px;"></p>
                     </div>
                 </div>
-            </div> </div>
+            </div> 
+        </div>
     </div>
+
+    <div id="radar-drawer" class="radar-drawer">
+        <div class="radar-header">
+            <h3>📡 Radar de Inatividade</h3>
+            <button onclick="toggleRadarDrawer()" class="close-radar">✖</button>
+        </div>
+        <div id="radar-content" class="radar-content">
+            </div>
+    </div>
+
     <script src="/static/js/admin.js"></script>
 </body>
 </html>
