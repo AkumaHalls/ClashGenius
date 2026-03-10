@@ -12,82 +12,18 @@
         .admin-nav a:hover { color: #ffffff; background-color: var(--color-accent-hover); }
         .admin-nav a.active-nav-link { color: #ffffff; background-color: var(--color-accent); }
         .admin-sections-wrapper { position: relative; overflow: hidden; width: 100%;}
-        .admin-section {
-            display: none;
-            opacity: 0;
-            transition: opacity 0.3s ease-in-out;
-         }
-        .admin-section.active-section {
-            display: block;
-            opacity: 1;
-            animation: fadeIn 0.3s;
-         }
-
-         @keyframes fadeIn {
-             from { opacity: 0; }
-             to { opacity: 1; }
-         }
-
-        .admin-input, .admin-textarea, .settings-input, .settings-textarea {
-            width: 100%;
-            padding: 10px 12px;
-            margin-bottom: 10px;
-            border: 1px solid var(--color-border-light);
-            border-radius: var(--border-radius-base);
-            background-color: var(--color-background);
-            color: var(--color-text-main);
-            font-family: var(--font-body);
-            font-size: 0.95em;
-            box-sizing: border-box;
-            transition: border-color 0.2s, background-color 0.2s;
-        }
-        .admin-input:focus, .admin-textarea:focus, .settings-input:focus, .settings-textarea:focus {
-            border-color: var(--color-accent);
-            background-color: #2d3748;
-            outline: none;
-        }
-
-        select.settings-input {
-            appearance: none;
-            background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="292.4" height="292.4"><path fill="%23a0aec0" d="M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.4-12.8z"/></svg>');
-            background-repeat: no-repeat;
-            background-position: right 15px top 50%;
-            background-size: 12px auto;
-            padding-right: 40px;
-            cursor: pointer;
-        }
-        select.settings-input option {
-            background-color: var(--color-card-background);
-            color: var(--color-text-main);
-            padding: 10px;
-        }
-
-        .settings-textarea, .admin-textarea {
-            min-height: 80px;
-            resize: vertical;
-        }
-        .form-group {
-             margin-bottom: 15px;
-        }
-
-        #settings-form .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-            color: var(--color-text-secondary);
-            text-align: left;
-        }
-
-        .form-group.full-width {
-            grid-column: 1 / -1;
-        }
-
+        .admin-section { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .admin-section.active-section { display: block; opacity: 1; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .admin-input, .admin-textarea, .settings-input, .settings-textarea { width: 100%; padding: 10px 12px; margin-bottom: 10px; border: 1px solid var(--color-border-light); border-radius: var(--border-radius-base); background-color: var(--color-background); color: var(--color-text-main); font-family: var(--font-body); font-size: 0.95em; box-sizing: border-box; transition: border-color 0.2s, background-color 0.2s; }
+        .admin-input:focus, .admin-textarea:focus, .settings-input:focus, .settings-textarea:focus { border-color: var(--color-accent); background-color: #2d3748; outline: none; }
+        select.settings-input { appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="292.4" height="292.4"><path fill="%23a0aec0" d="M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.4-12.8z"/></svg>'); background-repeat: no-repeat; background-position: right 15px top 50%; background-size: 12px auto; padding-right: 40px; cursor: pointer; }
+        select.settings-input option { background-color: var(--color-card-background); color: var(--color-text-main); padding: 10px; }
+        .settings-textarea, .admin-textarea { min-height: 80px; resize: vertical; }
+        .form-group { margin-bottom: 15px; }
+        #settings-form .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 0.9em; color: var(--color-text-secondary); text-align: left; }
+        .form-group.full-width { grid-column: 1 / -1; }
         #admin-watchlist .table-container-admin { max-height: 450px; }
         #admin-watchlist table { font-size: 0.95em; }
         .watchlist-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
@@ -102,7 +38,7 @@
             <div class="admin-header">
                 <div style="display: flex; align-items: center; gap: 20px;">
                     <h2>Painel do Administrador</h2>
-                    <div class="radar-bell-container" onclick="toggleRadarDrawer()" title="Radar de Engajamento">
+                    <div class="radar-bell-container" id="radar-bell-btn" title="Radar de Inatividade">
                         <span>🔔</span>
                         <span id="radar-badge" class="radar-badge" style="display: none;">0</span>
                     </div>
@@ -166,79 +102,36 @@
                         <form id="settings-form">
                             <h4>Arquitetura de Canais (Setores)</h4>
                             <div class="form-grid">
-                                <div class="form-group">
-                                    <label for="channel_id">📝 Canal: Logs Gerais (Troféus, Ligas, Status API)</label>
-                                    <select id="channel_id" name="channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="post_war_analysis_channel_id">🛡️ Canal: Alertas de Guerra (Ataques, Resultados, Fails)</label>
-                                    <select id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
-                                <div class="form-group">
-                                     <label for="watchlist_alert_channel_id">👥 Canal: RH do Clã (Entradas, Saídas, Cargos, Watchlist)</label>
-                                     <select id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label for="low_performance_channel_id">📉 Canal: Relatório de Faxina (Sanguessugas e Desertores)</label>
-                                    <select id="low_performance_channel_id" name="low_performance_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="clan_games_channel_id">🏰 Canal: Eventos Secundários (Avisos Gerais e Jogos)</label>
-                                    <select id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="capital_report_channel_id">🖼️ Canal: Imagem de Resumo da Capital</label>
-                                    <select id="capital_report_channel_id" name="capital_report_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="cwl_planner_channel_id">🔮 Canal: Cérebro CWL (Planejamento Tático)</label>
-                                    <select id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="donations_channel_id">🎁 Canal: Notificações de Doação (Pode desativar)</label>
-                                    <select id="donations_channel_id" name="donations_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="smurf_log_channel_id" style="color: #ffd700;">🕵️ Canal: Logs Smurfs (Lixeiro da IA)</label>
-                                    <select id="smurf_log_channel_id" name="smurf_log_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select>
-                                </div>
+                                <div class="form-group"><label for="channel_id">📝 Canal: Logs Gerais (Troféus, Ligas, Status API)</label><select id="channel_id" name="channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="post_war_analysis_channel_id">🛡️ Canal: Alertas de Guerra</label><select id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="watchlist_alert_channel_id">👥 Canal: RH do Clã</label><select id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="low_performance_channel_id">📉 Canal: Relatório de Faxina</label><select id="low_performance_channel_id" name="low_performance_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="clan_games_channel_id">🏰 Canal: Eventos Secundários</label><select id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="capital_report_channel_id">🖼️ Canal: Imagem Capital</label><select id="capital_report_channel_id" name="capital_report_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="cwl_planner_channel_id">🔮 Canal: Cérebro CWL</label><select id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="donations_channel_id">🎁 Canal: Notificações de Doação</label><select id="donations_channel_id" name="donations_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="smurf_log_channel_id" style="color: #ffd700;">🕵️ Canal: Logs Smurfs</label><select id="smurf_log_channel_id" name="smurf_log_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
                             </div>
                             
                             <h4>Cargos (Roles)</h4>
                             <div class="form-grid">
-                                <div class="form-group">
-                                    <label for="role_id_1star_alert">Cargo (Aviso): Fazer apenas 1 Estrela</label>
-                                    <select id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input"><option value="0">Carregando cargos...</option></select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="role_id_missed_attack">Cargo (Aviso): Esquecer de Atacar</label>
-                                    <select id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input"><option value="0">Carregando cargos...</option></select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="leader_role_id">Cargo Liderança: Líder (Acesso Root ao Bot)</label>
-                                    <select id="leader_role_id" name="leader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="coleader_role_id">Cargo Liderança: Co-Líder</label>
-                                    <select id="coleader_role_id" name="coleader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select>
-                                </div>
+                                <div class="form-group"><label for="role_id_1star_alert">Cargo (Aviso): Fazer apenas 1 Estrela</label><select id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
+                                <div class="form-group"><label for="role_id_missed_attack">Cargo (Aviso): Esquecer de Atacar</label><select id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
+                                <div class="form-group"><label for="leader_role_id">Cargo Liderança: Líder</label><select id="leader_role_id" name="leader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
+                                <div class="form-group"><label for="coleader_role_id">Cargo Liderança: Co-Líder</label><select id="coleader_role_id" name="coleader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
                             </div>
 
                             <h4>Avisos e Funções</h4>
                             <div class="form-grid">
                                  <div class="form-group full-width">
-                                    <label for="auto_add_watchlist_enabled">Vigiar jogadores automaticamente após esquecer ataque na Guerra?</label>
+                                    <label for="auto_add_watchlist_enabled">Vigiar jogadores automaticamente após esquecer ataque?</label>
                                     <select id="auto_add_watchlist_enabled" name="auto_add_watchlist_enabled" class="settings-input" style="width: 250px;">
                                         <option value="true">Ativado (Sim)</option>
                                         <option value="false">Desativado (Não)</option>
                                     </select>
                                  </div>
                                 <div class="form-group full-width">
-                                    <label for="maintenance_message">Mensagem de Manutenção exibida no Painel Web</label>
+                                    <label for="maintenance_message">Mensagem de Manutenção (Web)</label>
                                     <textarea id="maintenance_message" name="maintenance_message" rows="3" class="settings-textarea"></textarea>
                                 </div>
                             </div>
@@ -311,18 +204,15 @@
                         <div class="action-buttons-group">
                             <h4>Cache</h4>
                             <button class="control-btn action-btn" data-action="clear_cache" data-payload='{"cache_key": "all"}'>Limpar Todo o Cache Web</button>
-                            <p class="control-description">Força o painel a buscar dados novos da API na próxima atualização.</p>
                         </div>
                         <div class="action-buttons-group">
                             <h4>Guerras</h4>
                             <button class="control-btn action-btn" data-action="force_sync_war" data-payload='{}'>Forçar Sincronização de Guerra</button>
-                            <p class="control-description">Verifica imediatamente se alguma guerra terminou e processa.</p>
                         </div>
                         <div class="action-buttons-group">
                             <h4>Comandos Slash (/ )</h4>
-                            <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "guild"}'>Sincronizar Comandos (Servidor)</button>
-                            <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "global"}'>Sincronizar Comandos (Global)</button>
-                            <p class="control-description">Atualiza os comandos de barra no Discord.</p>
+                            <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "guild"}'>Sincronizar (Servidor)</button>
+                            <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "global"}'>Sincronizar (Global)</button>
                         </div>
                         <div class="announcement-section">
                             <h4>Enviar Anúncio Global</h4>
@@ -368,7 +258,7 @@
     <div id="radar-drawer" class="radar-drawer">
         <div class="radar-header">
             <h3>📡 Radar de Inatividade</h3>
-            <button onclick="toggleRadarDrawer()" class="close-radar">✖</button>
+            <button id="close-radar-btn" class="close-radar">✖</button>
         </div>
         <div id="radar-content" class="radar-content">
             </div>
