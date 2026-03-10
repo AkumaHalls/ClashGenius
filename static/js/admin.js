@@ -673,11 +673,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================
     // NOVO: SISTEMA DE GAVETA E RADAR DE INATIVIDADE
     // =========================================================
-    window.toggleRadarDrawer = function() {
-        document.getElementById('radar-drawer').classList.toggle('open');
-    };
+    const bellBtn = document.getElementById('radar-bell-btn');
+    const radarDrawer = document.getElementById('radar-drawer');
+    const closeRadarBtn = document.getElementById('close-radar-btn');
 
-    window.updateRadarNotifications = function(members) {
+    // Associa os cliques para abrir/fechar a gaveta sem conflitos de HTML
+    if (bellBtn && radarDrawer) {
+        bellBtn.addEventListener('click', () => { radarDrawer.classList.toggle('open'); });
+    }
+    if (closeRadarBtn && radarDrawer) {
+        closeRadarBtn.addEventListener('click', () => { radarDrawer.classList.remove('open'); });
+    }
+
+    // A Mente da IA: Faz a leitura das datas, traduz do PT-BR e julga as penalidades
+    function updateRadarNotifications(members) {
         const drawerContent = document.getElementById('radar-content');
         const badge = document.getElementById('radar-badge');
         if (!drawerContent || !badge) return;
@@ -687,31 +696,52 @@ document.addEventListener('DOMContentLoaded', () => {
         const now = new Date();
 
         members.forEach(member => {
-            if (!member.last_war_date) return; 
+            let lastWarStr = member.last_war_date;
             
-            const lastWar = new Date(member.last_war_date);
-            const diffTime = Math.abs(now - lastWar);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            // Pula quem nunca participou (você pode mudar isso depois se quiser alertar novatos)
+            if (!lastWarStr || lastWarStr === 'Nunca participou' || lastWarStr === 'Nunca') return;
+            
+            let lastWar = null;
+            
+            // TRADUTOR DE DATAS: O JS gringo chora com "15/02/2026", então nós separamos e mastigamos para ele.
+            if (lastWarStr.includes('/')) {
+                let datePart = lastWarStr.split(' ')[0]; // Pega só "15/02/2026" e ignora horas se tiver
+                let parts = datePart.split('/');
+                if(parts.length === 3) {
+                    // O mês no JS começa em 0 (Janeiro = 0), por isso o "- 1" no meio.
+                    lastWar = new Date(parts[2], parts[1] - 1, parts[0]);
+                }
+            } else {
+                lastWar = new Date(lastWarStr); // Se vier formato de banco de dados nativo
+            }
+
+            // Se ainda assim a data der errado, a IA ignora para não quebrar a tela.
+            if (!lastWar || isNaN(lastWar.getTime())) return;
+
+            // Calcula quantos dias exatos se passaram
+            const diffTime = now.getTime() - lastWar.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
             if (diffDays >= 15) {
                 alertCount++;
                 let alertType, icon, message, colorClass;
 
+                // O Cérebro Explicativo da IA entra em ação aqui
                 if (diffDays >= 30) {
-                    alertType = "Infração de Regra (30+ dias)";
-                    icon = "⚠️";
+                    alertType = "INFRAÇÃO GRAVE (30+ dias)";
+                    icon = "⛔";
                     colorClass = "alert-critical";
-                    message = `<strong>${member.name}</strong> violou a diretriz máxima do clã! Já se passaram <strong>${diffDays} dias</strong> desde a sua última guerra. Sujeito a banimento.`;
+                    message = `Atenção: O membro <strong>${member.name}</strong> violou a diretriz principal do clã. O sistema forense registra exatos <strong>${diffDays} dias</strong> sem qualquer participação no campo de guerra. Remoção recomendada.`;
                 } else if (diffDays >= 22) {
-                    alertType = "Risco Crítico (22+ dias)";
+                    alertType = "ALERTA VERMELHO (22+ dias)";
                     icon = "🚨";
                     colorClass = "alert-danger";
-                    message = `<strong>${member.name}</strong> está na zona vermelha. Com <strong>${diffDays} dias</strong> de inatividade, o risco de desligamento na próxima faxina é altíssimo.`;
+                    message = `Risco altíssimo de desligamento: A conta de <strong>${member.name}</strong> está congelada há <strong>${diffDays} dias</strong>. Sugere-se intervenção imediata da liderança para cobrança.`;
                 } else {
-                    alertType = "Atenção Tática (15+ dias)";
+                    alertType = "ATENÇÃO TÁTICA (15+ dias)";
                     icon = "🎯";
                     colorClass = "alert-warning";
-                    message = `<strong>${member.name}</strong> entrou no radar de inatividade. O sistema registra <strong>${diffDays} dias</strong> exatos sem participação no campo de batalha.`;
+                    message = `A conta <strong>${member.name}</strong> acaba de entrar no radar de ociosidade. A nossa telemetria aponta <strong>${diffDays} dias</strong> sem se voluntariar para o confronto.`;
                 }
 
                 const alertHTML = `
@@ -727,22 +757,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // Se o clã for de ouro e ninguém estiver moscando
         if (alertCount === 0) {
             drawerContent.innerHTML = `
                 <div class="radar-empty">
                     <div style="font-size: 3rem; margin-bottom: 10px;">✅</div>
-                    <p>Nenhuma anomalia detectada.<br>Clã operando com 100% de atividade bélica!</p>
+                    <p>O radar está limpo.<br>Nenhum membro detectado em inatividade bélica no momento!</p>
                 </div>`;
             badge.style.display = 'none';
         } else {
             badge.textContent = alertCount;
             badge.style.display = 'flex';
         }
-    };
+    }
 
-    window.fetchRadarInactivityData = async function() {
+    async function fetchRadarInactivityData() {
         try {
-            // Acessa a API pública principal que já tem as datas guardadas para a aba de membros
+            // A IA puxa as informações secretamente da rota principal do site
             const response = await fetch('/api/clan_data');
             if (response.ok) {
                 const data = await response.json();
@@ -751,11 +782,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) {
-            console.error('Falha ao acionar o radar de inatividade:', e);
+            console.error('Falha de leitura térmica do radar:', e);
         }
-    };
+    }
 
-    // Dispara a leitura do radar assim que entra no painel e checa a cada 30min
+    // Dispara a leitura do radar assim que entra no painel e continua vigiando a cada 30min
     fetchRadarInactivityData();
     setInterval(fetchRadarInactivityData, 30 * 60 * 1000);
 });
