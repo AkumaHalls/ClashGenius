@@ -8,13 +8,11 @@ import coc
 from discord.ext import commands
 from pymongo import DESCENDING
 
-# Importa a função diretamente
 try:
     from formatting import format_war_time_details
 except ImportError:
     format_war_time_details = None
     logging.getLogger("web_api_cog").error("Falha ao importar format_war_time_details de formatting")
-
 
 logger = logging.getLogger("web_api_cog")
 
@@ -171,36 +169,20 @@ class WebApiCog(commands.Cog, name="Web API"):
             logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
             return {"error": "Erro interno ao processar dados da guerra."}
 
-    # >>> NOVA FUNÇÃO ADICIONADA: BUSCA PERFIL DETALHADO INDIVIDUAL <<<
     async def fetch_player_profile_for_web(self, player_tag: str):
         try:
             player = await self.bot.api_client.get_player(player_tag)
-            if not player:
-                return {"error": "Jogador não encontrado na Supercell."}
-
+            if not player: return {"error": "Jogador não encontrado na Supercell."}
             home_heroes = ["Barbarian King", "Archer Queen", "Grand Warden", "Royal Champion", "Minion Prince"]
             heroes_data = [{"name": h.name, "level": h.level, "max_level": h.max_level} for h in player.heroes if h.name in home_heroes]
-            
-            league_icon = None
-            if player.league and player.league.icon:
-                league_icon = player.league.icon.url
-
+            league_icon = player.league.icon.url if player.league and player.league.icon else None
             return {
-                "name": player.name,
-                "tag": player.tag,
-                "town_hall": player.town_hall,
-                "trophies": player.trophies,
-                "league": player.league.name if player.league else "Sem Liga",
-                "league_icon": league_icon,
-                "donations": player.donations,
-                "received": player.received,
-                "heroes": heroes_data,
+                "name": player.name, "tag": player.tag, "town_hall": player.town_hall, "trophies": player.trophies,
+                "league": player.league.name if player.league else "Sem Liga", "league_icon": league_icon,
+                "donations": player.donations, "received": player.received, "heroes": heroes_data,
                 "role": player.role.name.capitalize() if hasattr(player, 'role') and hasattr(player.role, 'name') else "Membro"
             }
-        except Exception as e:
-            logger.error(f"Erro ao buscar perfil detalhado web do jogador {player_tag}: {e}")
-            return {"error": "Falha de conexão com a API da Supercell."}
-    # >>> FIM NOVA FUNÇÃO <<<
+        except Exception as e: return {"error": "Falha de conexão com a API da Supercell."}
 
     async def fetch_clan_members_for_web(self):
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
@@ -225,8 +207,7 @@ class WebApiCog(commands.Cog, name="Web API"):
                 ]
                 results = await self.db.war_history.aggregate(pipeline).to_list(length=None)
                 last_war_dates = {item["_id"]: item["last_war_date"] for item in results}
-            except Exception as e:
-                logger.error(f"Erro ao buscar últimas datas de guerra: {e}")
+            except Exception as e: pass
 
         for member in clan.members:
             note_data = player_notes.get(member.tag, {})
@@ -277,7 +258,7 @@ class WebApiCog(commands.Cog, name="Web API"):
                     try:
                         end_time_dt = datetime.datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
                         end_date_formatted = end_time_dt.astimezone(self.bot.timezone).strftime('%d/%m/%y')
-                    except ValueError: logger.warning(f"Formato de data inválido no histórico: {end_date_str}")
+                    except ValueError: pass
                 wars_with_missed_attacks.append({
                     "opponent_name": war_data.get("opponent_name", "Oponente Desconhecido"),
                     "end_date": end_date_formatted,
@@ -341,52 +322,135 @@ class WebApiCog(commands.Cog, name="Web API"):
                             })
                     except coc.NotFound:
                         round_data["wars"].append({
-                            "war_tag": war_tag,
-                            "clan_name": "N/A", "clan_badge_url": None, "clan_stars": 0,
+                            "war_tag": war_tag, "clan_name": "N/A", "clan_badge_url": None, "clan_stars": 0,
                             "opponent_name": "N/A", "opponent_badge_url": None, "opponent_stars": 0,
-                            "state_description": "Não Iniciada",
-                            "error": "Guerra não encontrada (Round Futuro)."
+                            "state_description": "Não Iniciada", "error": "Guerra não encontrada."
                         })
                     except Exception as e:
-                         logger.warning(f"Erro ao buscar guerra CWL {war_tag}: {e}")
                          round_data["wars"].append({
-                            "war_tag": war_tag,
-                            "clan_name": "Erro", "clan_badge_url": None, "clan_stars": 0,
+                            "war_tag": war_tag, "clan_name": "Erro", "clan_badge_url": None, "clan_stars": 0,
                             "opponent_name": "Erro", "opponent_badge_url": None, "opponent_stars": 0,
-                            "state_description": "Erro",
-                            "error": str(e)
+                            "state_description": "Erro", "error": str(e)
                         })
                 rounds_info.append(round_data)
             return {"status": "InCwl", "season": cwl_group.season, "state": str(cwl_group.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
         except coc.NotFound: return {"status": "NotInCwl", "message": "O clã não está inscrito na CWL."}
-        except Exception as e:
-            logger.error(f"Erro inesperado ao buscar dados da CWL: {e}", exc_info=True)
-            return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
+        except Exception as e: return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
 
+    # =========================================================================================
+    # NOVA FUNÇÃO DE DESTAQUES XAI (MURALHA, MVP E CARRASCO)
+    # =========================================================================================
     async def fetch_highlights_for_web(self):
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
         if not clan: return {"error": "Não foi possível carregar destaques."}
-        top_donors_data = [{"name": m.name, "donations": m.donations, "town_hall": m.town_hall} for m in sorted(clan.members, key=lambda m: m.donations, reverse=True)[:3]]
-        war_heroes, war_end_date_str = [], ""
+        
+        xai_cards = []
+
+        # 1. MOTOR LOGÍSTICO (Maior Doador)
+        active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)
+        if active_members and active_members[0].donations > 0:
+            top_donor = active_members[0]
+            ratio = (top_donor.donations / max(top_donor.received, 1))
+            xai_cards.append({
+                "id": "logistica",
+                "icon": "📦",
+                "title": "Motor Logístico",
+                "name": top_donor.name,
+                "town_hall": top_donor.town_hall,
+                "metric": f"{top_donor.donations} Tropas",
+                "reason": f"Sustentou a economia bélica da aliança. Injetou volume massivo no sistema com uma taxa de eficiência de doação/recebimento de {ratio:.1f}x."
+            })
+
+        war_end_date_str = ""
         if self.db is not None:
             latest_war_doc = await self.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             if latest_war_doc:
-                try:
-                     from cogs.post_war_analysis import _calculate_post_war_stats
-                     analysis = _calculate_post_war_stats(latest_war_doc)
-                     war_heroes = analysis.get("war_heroes", [])
-                except ImportError: logger.error("Falha ao importar _calculate_post_war_stats.")
-                except Exception as e: logger.error(f"Erro ao calcular heróis: {e}")
-
                 end_time_str = latest_war_doc.get("war_data", {}).get("end_time_iso")
                 if end_time_str:
                     try:
                          end_time = datetime.datetime.fromisoformat(end_time_str.replace("Z", "+00:00"))
                          war_end_date_str = end_time.astimezone(self.bot.timezone).strftime('%d/%m')
-                    except ValueError: war_end_date_str = "Data Inv."
-        active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)[:10]
-        chart_data = {"labels": [m.name for m in active_members], "donations": [m.donations for m in active_members], "received": [m.received for m in active_members]}
-        return {"top_donors": top_donors_data, "war_heroes": war_heroes, "activity_chart_data": chart_data, "clan_name": clan.name, "war_date": war_end_date_str}
+                    except ValueError: pass
+
+                our_members = latest_war_doc.get("our_clan_members_in_war", [])
+
+                # 2. MVP DE GUERRA
+                best_attacker = None
+                best_score = -1
+                for m in our_members:
+                    stars = sum(a.get("stars", 0) for a in m.get("attacks_made", []))
+                    dest = sum(a.get("destruction", 0) for a in m.get("attacks_made", []))
+                    score = (stars * 100) + dest
+                    if score > best_score and stars > 0:
+                        best_score = score
+                        best_attacker = m
+
+                if best_attacker:
+                    total_stars = sum(a.get("stars", 0) for a in best_attacker.get("attacks_made", []))
+                    xai_cards.append({
+                        "id": "mvp",
+                        "icon": "🎯",
+                        "title": "MVP de Guerra",
+                        "name": best_attacker.get("name"),
+                        "town_hall": best_attacker.get("townhall"),
+                        "metric": f"{total_stars} Estrelas",
+                        "reason": "Letalidade máxima confirmada. Executou ataques com conversão perfeita, eliminando alvos críticos e consolidando o momentum da guerra."
+                    })
+
+                # 3. A MURALHA (Maior Defensor)
+                best_defender = None
+                best_def_score = -999
+                for m in our_members:
+                    defs = m.get("defenses_received", [])
+                    if len(defs) > 0:
+                        stars_lost = sum(d.get("stars", 0) for d in defs)
+                        score = (len(defs) * 50) - (stars_lost * 25)
+                        if score > best_def_score:
+                            best_def_score = score
+                            best_defender = m
+
+                if best_defender:
+                    defs_count = len(best_defender.get("defenses_received", []))
+                    stars_lost = sum(d.get("stars", 0) for d in best_defender.get("defenses_received", []))
+                    xai_cards.append({
+                        "id": "muralha",
+                        "icon": "🛡️",
+                        "title": "A Muralha",
+                        "name": best_defender.get("name"),
+                        "town_hall": best_defender.get("townhall"),
+                        "metric": f"{defs_count} Defesas",
+                        "reason": f"Resiliência extrema detectada. Absorveu o impacto de {defs_count} ataques inimigos seguidos, cedendo apenas {stars_lost} estrelas e sangrando a munição do oponente."
+                    })
+
+                # 4. O CARRASCO (Maior número de 3 estrelas que não é o MVP)
+                best_cleanup = None
+                best_cleanup_score = -1
+                for m in our_members:
+                    if best_attacker and m.get("tag") == best_attacker.get("tag"): continue
+                    
+                    cleanup_stars_gained = 0
+                    for a in m.get("attacks_made", []):
+                        if a.get("stars") == 3: cleanup_stars_gained += 1
+                    
+                    if cleanup_stars_gained > best_cleanup_score:
+                        best_cleanup_score = cleanup_stars_gained
+                        best_cleanup = m
+                
+                if best_cleanup and best_cleanup_score > 0:
+                    xai_cards.append({
+                        "id": "carrasco",
+                        "icon": "🧹",
+                        "title": "O Carrasco",
+                        "name": best_cleanup.get("name"),
+                        "town_hall": best_cleanup.get("townhall"),
+                        "metric": f"{best_cleanup_score} PTs Táticos",
+                        "reason": "Frieza matemática em campo. Atuou como força de varredura letal, finalizando bases abertas e resgatando estrelas perdidas no mapa."
+                    })
+
+        top_10 = active_members[:10]
+        chart_data = {"labels": [m.name for m in top_10], "donations": [m.donations for m in top_10], "received": [m.received for m in top_10]}
+        
+        return {"clan_name": clan.name, "war_date": war_end_date_str, "xai_cards": xai_cards, "activity_chart_data": chart_data}
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WebApiCog(bot))
