@@ -340,6 +340,9 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(botVersionEl, data.version, '?');
     }
 
+    // =========================================================================
+    // INÍCIO DO NOVO SISTEMA XAI PARA A ABA DE DESTAQUES (populateHighlights)
+    // =========================================================================
     function populateHighlights(data) {
         const highlightsContentEl = document.getElementById('highlightsContent'); 
 
@@ -356,44 +359,45 @@ document.addEventListener('DOMContentLoaded', () => {
         if (highlightsContentEl) highlightsContentEl.style.display = 'block';
 
         setText(highlightsClanNameEl, data.clan_name);
-        setText(warDateHighlightEl, data.war_date ? `(${data.war_date})` : ''); 
+        setText(warDateHighlightEl, data.war_date ? `(Balanço da Guerra de ${data.war_date})` : ''); 
 
-        setHtml(topDonorsListEl, data.top_donors?.length > 0 ? data.top_donors.map((donor, index) => {
-            const medals = ['gold', 'silver', 'bronze'];
-            const medal_icons = ['🥇', '🥈', '🥉'];
-            const rankIcon = medal_icons[index] || `${index + 1}.`; 
-            return `<div class="podium-item ${medals[index] || ''}">
-                        <span class="podium-rank">${rankIcon}</span>
-                        <div class="podium-details">
-                            <div class="member-name">${donor.name || 'N/A'} (CV${donor.town_hall || '?'})</div>
-                            <div class="donation-count"><strong>${(donor.donations || 0).toLocaleString()}</strong> tropas doadas</div>
+        // === NOVO RENDERIZADOR DOS CARDS DE TÍTULOS (XAI) ===
+        const oldGridContainer = highlightsContentEl.querySelector('.highlights-grid');
+        
+        if (oldGridContainer) {
+            const xaiGridHtml = document.createElement('div');
+            xaiGridHtml.className = 'xai-highlights-grid';
+            
+            if (data.xai_cards && data.xai_cards.length > 0) {
+                xaiGridHtml.innerHTML = data.xai_cards.map(card => `
+                    <div class="xai-card xai-${card.id}">
+                        <div class="xai-card-header">
+                            <span class="xai-icon">${card.icon}</span>
+                            <span class="xai-title">${card.title}</span>
                         </div>
-                    </div>`;
-        }).join('') : '<p>Nenhum doador encontrado.</p>');
+                        <div class="xai-card-body">
+                            <h4 class="xai-player-name">${card.name || '?'} <span>CV${card.town_hall || '?'}</span></h4>
+                            <div class="xai-metric">${card.metric}</div>
+                        </div>
+                        <div class="xai-reason">
+                            <strong>🧠 Laudo Forense (IA):</strong> ${card.reason}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                xaiGridHtml.innerHTML = '<p class="message-box">A IA ainda está coletando as cápsulas deflagradas desta guerra para emitir o laudo de destaques.</p>';
+            }
 
-        const warHeroTitleEl = document.getElementById('warHeroTitle');
-        setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra'); 
-        setHtml(bestAttacksListEl, data.war_heroes?.length > 0 ? data.war_heroes.map(hero => {
-            const isMvp = hero.rank === 1;
-            const heroClass = isMvp ? 'mvp-card' : 'attack-item';
-            const medals = ['🥇', '🥈', '🥉'];
-            const rankIcon = medals[hero.rank - 1] || `${hero.rank}.`; 
+            // Limpa o grid antigo e insere o novo painel sem quebrar o gráfico de atividade
+            oldGridContainer.innerHTML = '';
+            oldGridContainer.appendChild(xaiGridHtml);
+            oldGridContainer.style.display = 'block'; 
+        }
+        // ===================================================
 
-            const titleHtml = isMvp
-                ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p><h4 class="mvp-name">${hero.name || 'N/A'} <span>(CV${hero.town_hall || '?'})</span></h4>`
-                : `<div class="attack-header">${rankIcon} ${hero.name || 'N/A'} (CV${hero.town_hall || '?'})</div>`;
-
-            return `<div class="${heroClass}">
-                        ${titleHtml}
-                        <span class="tooltip-text">${hero.reason || 'Sem detalhes'}</span>
-                    </div>`;
-        }).join('') : '<p>Nenhum herói para destacar na última guerra ou análise indisponível.</p>'); 
-
+        // Atualização do Gráfico de Barras de Doações
         if (activityChart) {
-            try {
-                activityChart.destroy();
-                activityChart = null; 
-            } catch(e) {}
+            try { activityChart.destroy(); activityChart = null; } catch(e) {}
         }
 
         const chartData = data.activity_chart_data;
@@ -407,8 +411,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: {
                         labels: chartData.labels,
                         datasets: [
-                            { label: 'Tropas Doadas', data: chartData.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
-                            { label: 'Tropas Recebidas', data: chartData.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
+                            { label: 'Tropas Doadas', data: chartData.donations, backgroundColor: 'rgba(54, 162, 235, 0.8)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 },
+                            { label: 'Tropas Recebidas', data: chartData.received, backgroundColor: 'rgba(255, 99, 132, 0.8)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 }
                         ]
                     },
                     options: {
@@ -421,31 +425,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } catch (e) {
-                console.error("Erro detalhado ao criar gráfico de atividade:", e);
                 if (activityChartCanvas) {
                     const ctx = activityChartCanvas.getContext('2d');
                     if (ctx) {
                         ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
-                        ctx.fillStyle = 'rgba(255, 100, 100, 0.8)'; 
-                        ctx.textAlign = 'center';
-                        ctx.font = '14px Open Sans';
+                        ctx.fillStyle = 'rgba(255, 100, 100, 0.8)'; ctx.textAlign = 'center'; ctx.font = '14px Open Sans';
                         ctx.fillText('Erro ao renderizar o gráfico.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
                     }
                 }
             }
-        } else if (activityChartCanvas) {
-            try {
-                const ctx = activityChartCanvas.getContext('2d');
-                if (ctx) {
-                    ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-                    ctx.textAlign = 'center';
-                    ctx.font = '14px Open Sans';
-                    ctx.fillText('Dados de atividade indisponíveis para o gráfico.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
-                }
-            } catch(e) {}
         }
     }
+    // =========================================================================
+    // FIM DA FUNÇÃO populateHighlights XAI
+    // =========================================================================
 
     function createStarString(stars) {
         const starCount = parseInt(stars, 10); 
