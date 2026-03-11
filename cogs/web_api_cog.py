@@ -337,31 +337,22 @@ class WebApiCog(commands.Cog, name="Web API"):
         except coc.NotFound: return {"status": "NotInCwl", "message": "O clã não está inscrito na CWL."}
         except Exception as e: return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
 
-    # =========================================================================================
-    # NOVA FUNÇÃO DE DESTAQUES XAI (MURALHA, MVP E CARRASCO)
-    # =========================================================================================
     async def fetch_highlights_for_web(self):
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
         if not clan: return {"error": "Não foi possível carregar destaques."}
         
-        xai_cards = []
-
-        # 1. MOTOR LOGÍSTICO (Maior Doador)
+        # 1. TOP DOADORES (Formato Antigo para não quebrar a tela)
         active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)
-        if active_members and active_members[0].donations > 0:
-            top_donor = active_members[0]
-            ratio = (top_donor.donations / max(top_donor.received, 1))
-            xai_cards.append({
-                "id": "logistica",
-                "icon": "📦",
-                "title": "Motor Logístico",
-                "name": top_donor.name,
-                "town_hall": top_donor.town_hall,
-                "metric": f"{top_donor.donations} Tropas",
-                "reason": f"Sustentou a economia bélica da aliança. Injetou volume massivo no sistema com uma taxa de eficiência de doação/recebimento de {ratio:.1f}x."
+        top_donors = []
+        for i, m in enumerate(active_members[:3]):
+            ratio = (m.donations / max(m.received, 1)) if m.received > 0 else m.donations
+            reason = f"🧠 Análise Logística: Sustentou a economia bélica do clã. Injetou tropas com taxa de eficiência de {ratio:.1f}x." if i == 0 else f"Fornecedor de recursos ativo: {m.donations} doadas."
+            top_donors.append({
+                "name": m.name, "town_hall": m.town_hall, "donations": m.donations, "reason": reason
             })
 
         war_end_date_str = ""
+        war_heroes = []
         if self.db is not None:
             latest_war_doc = await self.db.war_history.find_one({}, sort=[("war_data.end_time_iso", DESCENDING)])
             if latest_war_doc:
@@ -374,7 +365,7 @@ class WebApiCog(commands.Cog, name="Web API"):
 
                 our_members = latest_war_doc.get("our_clan_members_in_war", [])
 
-                # 2. MVP DE GUERRA
+                # O MVP
                 best_attacker = None
                 best_score = -1
                 for m in our_members:
@@ -386,18 +377,12 @@ class WebApiCog(commands.Cog, name="Web API"):
                         best_attacker = m
 
                 if best_attacker:
-                    total_stars = sum(a.get("stars", 0) for a in best_attacker.get("attacks_made", []))
-                    xai_cards.append({
-                        "id": "mvp",
-                        "icon": "🎯",
-                        "title": "MVP de Guerra",
-                        "name": best_attacker.get("name"),
-                        "town_hall": best_attacker.get("townhall"),
-                        "metric": f"{total_stars} Estrelas",
-                        "reason": "Letalidade máxima confirmada. Executou ataques com conversão perfeita, eliminando alvos críticos e consolidando o momentum da guerra."
+                    war_heroes.append({
+                        "name": best_attacker.get("name"), "town_hall": best_attacker.get("townhall"),
+                        "rank": 1, "reason": "🎯 Precisão Balística (MVP): Letalidade máxima atingida. Executou ataques perfeitos que consolidaram o momentum da guerra para a equipe."
                     })
 
-                # 3. A MURALHA (Maior Defensor)
+                # A MURALHA
                 best_defender = None
                 best_def_score = -999
                 for m in our_members:
@@ -405,52 +390,43 @@ class WebApiCog(commands.Cog, name="Web API"):
                     if len(defs) > 0:
                         stars_lost = sum(d.get("stars", 0) for d in defs)
                         score = (len(defs) * 50) - (stars_lost * 25)
-                        if score > best_def_score:
+                        if score > best_def_score and (not best_attacker or m.get("tag") != best_attacker.get("tag")):
                             best_def_score = score
                             best_defender = m
 
                 if best_defender:
                     defs_count = len(best_defender.get("defenses_received", []))
-                    stars_lost = sum(d.get("stars", 0) for d in best_defender.get("defenses_received", []))
-                    xai_cards.append({
-                        "id": "muralha",
-                        "icon": "🛡️",
-                        "title": "A Muralha",
-                        "name": best_defender.get("name"),
-                        "town_hall": best_defender.get("townhall"),
-                        "metric": f"{defs_count} Defesas",
-                        "reason": f"Resiliência extrema detectada. Absorveu o impacto de {defs_count} ataques inimigos seguidos, cedendo apenas {stars_lost} estrelas e sangrando a munição do oponente."
+                    war_heroes.append({
+                        "name": best_defender.get("name"), "town_hall": best_defender.get("townhall"),
+                        "rank": 2, "reason": f"🛡️ A Muralha: Resiliência extrema detectada. Absorveu {defs_count} ataques inimigos, blindando o mapa e forçando o oponente a desperdiçar munição vital."
                     })
 
-                # 4. O CARRASCO (Maior número de 3 estrelas que não é o MVP)
+                # O CARRASCO
                 best_cleanup = None
                 best_cleanup_score = -1
                 for m in our_members:
-                    if best_attacker and m.get("tag") == best_attacker.get("tag"): continue
+                    if (best_attacker and m.get("tag") == best_attacker.get("tag")) or \
+                       (best_defender and m.get("tag") == best_defender.get("tag")): continue
                     
-                    cleanup_stars_gained = 0
-                    for a in m.get("attacks_made", []):
-                        if a.get("stars") == 3: cleanup_stars_gained += 1
-                    
+                    cleanup_stars_gained = sum(1 for a in m.get("attacks_made", []) if a.get("stars") == 3)
                     if cleanup_stars_gained > best_cleanup_score:
                         best_cleanup_score = cleanup_stars_gained
                         best_cleanup = m
-                
+
                 if best_cleanup and best_cleanup_score > 0:
-                    xai_cards.append({
-                        "id": "carrasco",
-                        "icon": "🧹",
-                        "title": "O Carrasco",
-                        "name": best_cleanup.get("name"),
-                        "town_hall": best_cleanup.get("townhall"),
-                        "metric": f"{best_cleanup_score} PTs Táticos",
-                        "reason": "Frieza matemática em campo. Atuou como força de varredura letal, finalizando bases abertas e resgatando estrelas perdidas no mapa."
+                    war_heroes.append({
+                        "name": best_cleanup.get("name"), "town_hall": best_cleanup.get("townhall"),
+                        "rank": 3, "reason": "🧹 Especialista em Varredura: Frieza matemática. Atuou como força de resgate letal, finalizando bases abertas e varrendo as estrelas restantes do mapa."
                     })
 
         top_10 = active_members[:10]
         chart_data = {"labels": [m.name for m in top_10], "donations": [m.donations for m in top_10], "received": [m.received for m in top_10]}
         
-        return {"clan_name": clan.name, "war_date": war_end_date_str, "xai_cards": xai_cards, "activity_chart_data": chart_data}
+        return {
+            "clan_name": clan.name, "war_date": war_end_date_str, 
+            "top_donors": top_donors, "war_heroes": war_heroes, 
+            "activity_chart_data": chart_data
+        }
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WebApiCog(bot))
