@@ -6,15 +6,20 @@
     <title>Painel Admin - Clash Genius</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
+        /* Estilos do Menu de Navegação */
         .admin-nav ul { list-style: none; padding: 0; margin: 0 0 20px 0; display: flex; flex-wrap: wrap; background-color: rgba(0,0,0,0.2); border-radius: var(--border-radius-base); padding: 5px; }
         .admin-nav li { margin: 5px; }
         .admin-nav a { font-family: var(--font-body); color: var(--color-text-secondary); text-decoration: none; font-size: 0.9em; padding: 8px 12px; border-radius: var(--border-radius-base); transition: background-color 0.2s, color 0.2s; white-space: nowrap; font-weight: 500; display: block; cursor: pointer; }
         .admin-nav a:hover { color: #ffffff; background-color: var(--color-accent-hover); }
         .admin-nav a.active-nav-link { color: #ffffff; background-color: var(--color-accent); }
+        
+        /* Comportamento das Abas */
         .admin-sections-wrapper { position: relative; overflow: hidden; width: 100%;}
         .admin-section { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
         .admin-section.active-section { display: block; opacity: 1; animation: fadeIn 0.3s; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Formulários Padrão */
         .admin-input, .admin-textarea, .settings-input, .settings-textarea { width: 100%; padding: 10px 12px; margin-bottom: 10px; border: 1px solid var(--color-border-light); border-radius: var(--border-radius-base); background-color: var(--color-background); color: var(--color-text-main); font-family: var(--font-body); font-size: 0.95em; box-sizing: border-box; transition: border-color 0.2s, background-color 0.2s; }
         .admin-input:focus, .admin-textarea:focus, .settings-input:focus, .settings-textarea:focus { border-color: var(--color-accent); background-color: #2d3748; outline: none; }
         select.settings-input { appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="292.4" height="292.4"><path fill="%23a0aec0" d="M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.4-12.8z"/></svg>'); background-repeat: no-repeat; background-position: right 15px top 50%; background-size: 12px auto; padding-right: 40px; cursor: pointer; }
@@ -24,42 +29,68 @@
         #settings-form .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; font-size: 0.9em; color: var(--color-text-secondary); text-align: left; }
         .form-group.full-width { grid-column: 1 / -1; }
-        #admin-watchlist .table-container-admin { max-height: 450px; overflow-y: auto; }
-        #admin-watchlist table { font-size: 0.95em; }
         .watchlist-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
         .watchlist-filters input[type="text"] { flex-grow: 1; min-width: 200px; margin-bottom: 0; }
-        
-        /* ESTILO CORRETO DA TABELA ANALYTICS */
-        #admin-analytics .table-container-admin { 
-            width: 100%; 
-            overflow-x: auto; /* Permite rolagem horizontal se necessário */
-            display: block; 
-            margin-top: 15px; 
+
+        /* =========================================================
+           >>> CORREÇÕES DE ESTÉTICA E SCROLL (O FIM DO ESTICADO) <<<
+           ========================================================= */
+
+        /* 1. Impede que as abas simples fiquem esticadas feias na largura de 1400px */
+        #admin-geral .control-section,
+        #admin-diagnostico .control-section,
+        #admin-configuracoes .control-section,
+        #admin-acoes .control-section {
+            max-width: 850px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* 2. Mantém o Radar Pericial elegante */
+        #radar-dossier-container {
+            max-width: 1050px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* 3. O FIM da Tabela "3 em 3"! Aumenta a altura para liberar espaço vertical */
+        #admin-analytics .table-container-admin,
+        #admin-db .table-container-admin,
+        #admin-watchlist .table-container-admin {
+            max-height: 650px !important; /* Salva-vidas da rolagem */
+            height: auto;
+            overflow-y: auto;
+            overflow-x: auto;
             border: 1px solid var(--color-border);
             border-radius: var(--border-radius-base);
         }
-        #analytics-table { 
-            width: 100%; 
-            min-width: 800px; /* Garante que as colunas não se esmaguem */
-            border-collapse: collapse; 
-            background-color: rgba(0,0,0,0.15); 
+
+        /* 4. Estilo da Tabela Analytics e cabeçalho congelado */
+        #analytics-table {
+            width: 100%;
+            min-width: 800px;
+            border-collapse: collapse;
+            background-color: rgba(0,0,0,0.15);
         }
-        #analytics-table th, #analytics-table td { 
-            padding: 12px 15px; 
-            text-align: left; 
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05); 
-            white-space: nowrap; 
+        #analytics-table th, #analytics-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            white-space: nowrap;
         }
-        #analytics-table th { 
-            background-color: rgba(0, 0, 0, 0.4); 
-            color: #a0aec0; 
-            font-weight: 600; 
-            font-size: 0.85em; 
-            text-transform: uppercase; 
-            letter-spacing: 1px; 
+        #analytics-table th {
+            background-color: rgba(20, 25, 35, 0.95); /* Escuro para o texto rolar por baixo invisível */
+            color: #a0aec0;
+            font-weight: 600;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
-        #analytics-table tbody tr:hover { 
-            background-color: rgba(255, 255, 255, 0.05); 
+        #analytics-table tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.05);
         }
     </style>
 </head>
@@ -209,7 +240,7 @@
                         </div>
 
                          <div class="table-container-admin">
-                            <table id="admin-watchlist-table">
+                            <table id="admin-watchlist-table" style="width: 100%;">
                                 <thead><tr><th>Nome</th><th>Tag</th><th>Motivo</th><th>Detalhes</th><th>Data Adição</th><th>Ação</th></tr></thead>
                                 <tbody><tr><td colspan="6">Carregando lista...</td></tr></tbody>
                             </table>
@@ -291,14 +322,14 @@
                         <h3>Visualizador da Base de Dados (Últimos 5)</h3>
                         <h4>Histórico de Guerras</h4>
                         <div class="table-container-admin">
-                            <table id="db-wars-table">
+                            <table id="db-wars-table" style="width: 100%;">
                                 <thead><tr><th>Oponente</th><th>Data Fim</th><th>ID (Clique para copiar)</th></tr></thead>
                                 <tbody><tr><td colspan="3">Carregando...</td></tr></tbody>
                             </table>
                         </div>
                         <h4>Notas de Jogadores</h4>
-                        <div class="table-container-admin">
-                            <table id="db-notes-table">
+                        <div class="table-container-admin" style="margin-top: 20px;">
+                            <table id="db-notes-table" style="width: 100%;">
                                 <thead><tr><th>Tag do Jogador</th><th>Nota</th><th>Prioridade</th></tr></thead>
                                 <tbody><tr><td colspan="3">Carregando...</td></tr></tbody>
                             </table>
