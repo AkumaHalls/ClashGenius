@@ -450,4 +450,12 @@ class WebApiCog(commands.Cog, name="Web API"):
         }
 
 async def setup(bot: commands.Bot):
+    # Carrega o cog de Analytics dinamicamente para não precisarmos alterar o clash.py!
+    if 'cogs.player_analytics_cog' not in bot.extensions:
+        try:
+            await bot.load_extension('cogs.player_analytics_cog')
+            logger.info("Player Analytics Cog carregado dinamicamente com sucesso!")
+        except Exception as e:
+            logger.error(f"Falha ao carregar Player Analytics Cog: {e}")
+            
     await bot.add_cog(WebApiCog(bot))
