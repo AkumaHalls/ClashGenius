@@ -103,6 +103,7 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
                 "player_tag": tag,
                 "name": group["name"].iloc[-1], # Pega o nome mais atualizado
                 "wars_played": past_wars,
+                "past_wars": past_wars, # CORREÇÃO: O Random Forest precisa do nome exato 'past_wars' para prever
                 "hist_attendance": hist_att,
                 "recent_attendance": recent_att,
                 "hist_stars": hist_str,
@@ -114,7 +115,7 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
         # 4. INFERÊNCIA: PREVENDO A PRÓXIMA GUERRA
         if model_ready:
             # A IA calcula a probabilidade preditiva com base nas árvores de decisão
-            X_current = current_df[["wars_played", "hist_attendance", "recent_attendance", "hist_stars"]]
+            X_current = current_df[["past_wars", "hist_attendance", "recent_attendance", "hist_stars"]]
             raw_probability = self.rf_model.predict(X_current)
         else:
             # Fallback seguro caso o clã seja recém-criado
