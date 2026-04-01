@@ -26,8 +26,8 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
         if self.bot.db is None:
             return pd.DataFrame()
 
-        # Busca as guerras ordenadas da MAIS ANTIGA (1) para a MAIS RECENTE (-1)
-        cursor = self.bot.db.war_history.find({}).sort("war_data.end_time_iso", 1).limit(50)
+        # Busca as guerras ordenadas da MAIS ANTIGA (1) para a MAIS RECENTE (-1) e puxa até 150
+        cursor = self.bot.db.war_history.find({}).sort("war_data.end_time_iso", 1).limit(150)
         
         records = []
         war_idx = 0
@@ -103,7 +103,7 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
                 "player_tag": tag,
                 "name": group["name"].iloc[-1], # Pega o nome mais atualizado
                 "wars_played": past_wars,
-                "past_wars": past_wars, # CORREÇÃO: O Random Forest precisa do nome exato 'past_wars' para prever
+                "past_wars": past_wars,
                 "hist_attendance": hist_att,
                 "recent_attendance": recent_att,
                 "hist_stars": hist_str,
@@ -121,7 +121,7 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
             # Fallback seguro caso o clã seja recém-criado
             raw_probability = current_df["hist_attendance"]
 
-        # Aplica a Curva de Confiança: Impede que 1 guerra resulte em 100% de probabilidade
+        # Aplica a Curva de Confiança
         confidence_penalty = 1.0 - np.exp(-current_df["wars_played"] / 4.0)
         current_df["probability"] = (raw_probability * confidence_penalty) * 100.0
 
@@ -132,14 +132,11 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
             scaled_features = self.scaler.fit_transform(cluster_features)
             current_df["cluster"] = self.kmeans.fit_predict(scaled_features)
             
-            # IA identifica qual cluster é o melhor matematicamente (Centroides)
             cluster_centers = current_df.groupby("cluster")[["probability", "hist_stars"]].mean()
-            # Cria um "Score de Força" para ordenar as patentes do melhor para o pior
             cluster_centers["power_score"] = (cluster_centers["probability"] / 100.0) * 0.6 + (cluster_centers["hist_stars"] / 3.0) * 0.4
             
             ranked_clusters = cluster_centers.sort_values("power_score", ascending=False).index.tolist()
             
-            # Mapeia dinamicamente os nomes para garantir que o melhor grupo receba a tag Elite
             tier_map = {
                 ranked_clusters[0]: "General (Elite)",
                 ranked_clusters[1]: "Especialista Confiável",
@@ -148,7 +145,6 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
             }
             current_df["tier_label"] = current_df["cluster"].map(tier_map)
             
-            # Regra Inquebrável de Experiência (Fim dos "Generais de 1 Ataque")
             current_df.loc[current_df["wars_played"] < 4, "tier_label"] = "Novato (Em Avaliação)"
         else:
             current_df["tier_label"] = "Aguardando Dados"
@@ -177,7 +173,6 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
                     "avg_stars": round(r["hist_stars"], 2)
                 })
             else:
-                # Tratamento limpo para jogadores recém-chegados que não estão no banco
                 results.append({
                     "tag": tag,
                     "name": "Novo Membro",
