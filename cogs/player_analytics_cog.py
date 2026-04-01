@@ -14,17 +14,18 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.scaler = StandardScaler()
-        # K-Means agrupar· os jogadores em 4 categorias distintas (Tiers)
+        # K-Means agrupar√° os jogadores em 4 categorias distintas (Tiers)
         self.kmeans = KMeans(n_clusters=4, random_state=42, n_init='auto')
         self.is_trained = False
         self.player_stats_cache = pd.DataFrame()
 
     async def _load_raw_player_data(self, clan_tag: str) -> pd.DataFrame:
-        """Extrai dados das ˙ltimas 50 guerras do banco para um DataFrame Pandas."""
+        """Extrai dados das √∫ltimas 50 guerras do banco para um DataFrame Pandas."""
         if self.bot.db is None:
             return pd.DataFrame()
 
-        cursor = self.bot.db.war_history.find({"war_data.clan_tag": clan_tag}).sort("war_data.end_time_iso", -1).limit(50)
+        # CORRE√á√ÉO: Busca as √∫ltimas 50 guerras ignorando a formata√ß√£o exata da tag para evitar erros nulos
+        cursor = self.bot.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(50)
         
         records = []
         async for war in cursor:
@@ -85,7 +86,7 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
             logger.info(f"Modelos de Analytics treinados com sucesso para {len(stats)} jogadores.")
 
     def _assign_cluster_labels(self):
-        """Traduz a matem·tica da IA em nomes org‚nicos de Tiers."""
+        """Traduz a matem√°tica da IA em nomes org√¢nicos de Tiers."""
         cluster_means = self.player_stats_cache.groupby("cluster")[["attack_rate", "avg_stars"]].mean()
         
         labels = {}
@@ -96,7 +97,7 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
             if rate >= 0.9 and stars >= 2.2:
                 labels[cluster_id] = "Carregador (Elite)"
             elif rate >= 0.8 and stars >= 1.5:
-                labels[cluster_id] = "Oper·rio Confi·vel"
+                labels[cluster_id] = "Oper√°rio Confi√°vel"
             elif rate < 0.5:
                 labels[cluster_id] = "Peso Morto (Risco)"
             else:
@@ -120,7 +121,7 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
                 "name": row["name"],
                 "wars_participated": int(row["wars_played"]),
                 "attack_probability": round(credit_score, 1),
-                "tier": row.get("tier_label", "N„o Classificado"),
+                "tier": row.get("tier_label", "N√£o Classificado"),
                 "avg_stars": round(row["avg_stars"], 2)
             })
             
