@@ -1228,11 +1228,15 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     min-height: 1.2em;
 }
 
+/* ========================================================
+   >>> CORREÇÃO DA LARGURA MÁXIMA DO PAINEL ADMIN <<<
+   ======================================================== */
 .admin-panel-container {
     width: 100%;
-    max-width: 900px;
+    max-width: 1400px; /* Alterado de 900px para 1400px para caber as tabelas IA */
     padding: 20px;
 }
+
 .admin-card {
     background-color: var(--color-card-background);
     padding: 30px;
