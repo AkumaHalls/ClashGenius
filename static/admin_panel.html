@@ -29,9 +29,12 @@
         .watchlist-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
         .watchlist-filters input[type="text"] { flex-grow: 1; min-width: 200px; margin-bottom: 0; }
         
-        /* CORREÇÃO DE DESIGN DA TABELA ANALYTICS */
-        #analytics-table { width: 100%; border-collapse: collapse; margin-top: 15px; background-color: rgba(0,0,0,0.15); border-radius: var(--border-radius-base); overflow: hidden; }
-        #analytics-table th, #analytics-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        /* CORREÇÃO DEFINITIVA DE DESIGN DA TABELA ANALYTICS */
+        #admin-analytics { width: 100%; box-sizing: border-box; }
+        #admin-analytics .control-section { width: 100%; max-width: 100%; box-sizing: border-box; overflow: hidden; }
+        #admin-analytics .table-container-admin { width: 100%; overflow-x: auto; display: block; margin-top: 15px; }
+        #analytics-table { width: 100%; min-width: 800px; border-collapse: collapse; background-color: rgba(0,0,0,0.15); border-radius: var(--border-radius-base); }
+        #analytics-table th, #analytics-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.05); white-space: nowrap; }
         #analytics-table th { background-color: rgba(0, 0, 0, 0.4); color: #a0aec0; font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px; }
         #analytics-table tbody tr:hover { background-color: rgba(255, 255, 255, 0.05); }
     </style>
