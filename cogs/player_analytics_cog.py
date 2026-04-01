@@ -24,7 +24,6 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
         if self.bot.db is None:
             return pd.DataFrame()
 
-        # CORREÇÃO: Busca as últimas 50 guerras ignorando a formatação exata da tag para evitar erros nulos
         cursor = self.bot.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(50)
         
         records = []
@@ -34,7 +33,8 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
             
             for member in members:
                 tag = member.get("tag")
-                attacks = member.get("attacks", [])
+                # CORREÇÃO: O nome correto do campo no seu banco de dados é "attacks_made"
+                attacks = member.get("attacks_made", [])
                 attacks_used = len(attacks)
                 stars = sum(a.get("stars", 0) for a in attacks)
                 destruction = sum(a.get("destruction", 0) for a in attacks)
