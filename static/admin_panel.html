@@ -24,19 +24,43 @@
         #settings-form .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; font-size: 0.9em; color: var(--color-text-secondary); text-align: left; }
         .form-group.full-width { grid-column: 1 / -1; }
-        #admin-watchlist .table-container-admin { max-height: 450px; }
+        #admin-watchlist .table-container-admin { max-height: 450px; overflow-y: auto; }
         #admin-watchlist table { font-size: 0.95em; }
         .watchlist-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
         .watchlist-filters input[type="text"] { flex-grow: 1; min-width: 200px; margin-bottom: 0; }
         
-        /* CORREÇÃO DEFINITIVA DE DESIGN DA TABELA ANALYTICS */
-        #admin-analytics { width: 100%; box-sizing: border-box; }
-        #admin-analytics .control-section { width: 100%; max-width: 100%; box-sizing: border-box; overflow: hidden; }
-        #admin-analytics .table-container-admin { width: 100%; overflow-x: auto; display: block; margin-top: 15px; }
-        #analytics-table { width: 100%; min-width: 800px; border-collapse: collapse; background-color: rgba(0,0,0,0.15); border-radius: var(--border-radius-base); }
-        #analytics-table th, #analytics-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.05); white-space: nowrap; }
-        #analytics-table th { background-color: rgba(0, 0, 0, 0.4); color: #a0aec0; font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px; }
-        #analytics-table tbody tr:hover { background-color: rgba(255, 255, 255, 0.05); }
+        /* ESTILO CORRETO DA TABELA ANALYTICS */
+        #admin-analytics .table-container-admin { 
+            width: 100%; 
+            overflow-x: auto; /* Permite rolagem horizontal se necessário */
+            display: block; 
+            margin-top: 15px; 
+            border: 1px solid var(--color-border);
+            border-radius: var(--border-radius-base);
+        }
+        #analytics-table { 
+            width: 100%; 
+            min-width: 800px; /* Garante que as colunas não se esmaguem */
+            border-collapse: collapse; 
+            background-color: rgba(0,0,0,0.15); 
+        }
+        #analytics-table th, #analytics-table td { 
+            padding: 12px 15px; 
+            text-align: left; 
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05); 
+            white-space: nowrap; 
+        }
+        #analytics-table th { 
+            background-color: rgba(0, 0, 0, 0.4); 
+            color: #a0aec0; 
+            font-weight: 600; 
+            font-size: 0.85em; 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+        }
+        #analytics-table tbody tr:hover { 
+            background-color: rgba(255, 255, 255, 0.05); 
+        }
     </style>
 </head>
 <body class="admin-page">
