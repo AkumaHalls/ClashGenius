@@ -53,6 +53,7 @@
                     <li><a href="#" class="nav-link" data-section="admin-configuracoes">Configurações</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-watchlist">Watchlist</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-radar" style="color: #ffd700;">🧠 Radar Pericial</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-analytics" style="color: #00ffcc;">📊 Analytics IA</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-acoes">Ações</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-db">Base de Dados</a></li>
                 </ul>
@@ -195,6 +196,28 @@
                             <div style="text-align:center;"><div class="loading-spinner" style="margin: 20px auto;"></div></div>
                         </div>
                         <p id="radar-feedback" class="feedback-text" style="margin-top: 15px;"></p>
+                    </div>
+                </div>
+
+                <div id="admin-analytics" class="admin-section">
+                    <div class="control-section">
+                        <h3>Analytics de Jogadores (Machine Learning)</h3>
+                        <p class="control-description">A Inteligência Artificial analisa as últimas 50 guerras para classificar o desempenho e prever matematicamente a chance de um jogador atacar na próxima guerra.</p>
+                        
+                        <div class="table-container-admin">
+                            <table id="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Tag</th>
+                                        <th>Classificação (Tier IA)</th>
+                                        <th>Chance de Atacar</th>
+                                        <th>Guerras Lidas</th>
+                                    </tr>
+                                </thead>
+                                <tbody><tr><td colspan="5">Processando dados com Inteligência Artificial...</td></tr></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
