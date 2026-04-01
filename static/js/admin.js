@@ -603,6 +603,51 @@ document.addEventListener('DOMContentLoaded', () => {
         currentActiveSectionId = newSectionId;
     }
 
+    async function loadAnalyticsData() {
+        const tbody = document.querySelector('#analytics-table tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="5"><div class="loading-spinner" style="margin: 10px auto; width: 20px; height: 20px;"></div></td></tr>';
+
+        try {
+            // A IA já injetou os dados mágicos aqui dentro da sua rota de membros!
+            const response = await fetch('/api/members');
+            if (!response.ok) throw new Error('Falha ao buscar dados da IA');
+            const data = await response.json();
+
+            if (!data.members || data.members.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">Nenhum membro encontrado.</td></tr>';
+                return;
+            }
+
+            // Ordena os jogadores: dos mais confiáveis para os menos confiáveis
+            const sortedMembers = data.members.sort((a, b) => (b.attack_probability || 0) - (a.attack_probability || 0));
+
+            tbody.innerHTML = sortedMembers.map(m => {
+                const prob = m.attack_probability !== undefined ? `${m.attack_probability}%` : 'Aguardando Guerras...';
+                const tier = m.tier || 'Sem Dados Suficientes';
+                const wars = m.wars_participated_ml || 0;
+
+                // Colore a porcentagem baseada na confiabilidade
+                let probColor = 'var(--color-text-main)';
+                if (m.attack_probability >= 90) probColor = '#2ecc71'; // Verde (Confiável)
+                else if (m.attack_probability >= 60) probColor = '#f1c40f'; // Amarelo (Atenção)
+                else if (m.attack_probability !== undefined) probColor = '#e74c3c'; // Vermelho (Risco)
+
+                return `
+                <tr>
+                    <td><strong>${m.name}</strong></td>
+                    <td style="font-family: monospace; color: var(--color-accent);">${m.tag}</td>
+                    <td style="font-weight: bold;">${tier}</td>
+                    <td style="color: ${probColor}; font-weight: 900; font-size: 1.1em;">${prob}</td>
+                    <td>${wars} / 50</td>
+                </tr>`;
+            }).join('');
+
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan="5" class="error-text">Erro ao carregar Analytics: ${error.message}</td></tr>`;
+        }
+    }
+
     async function loadDataForCurrentTab() {
         [settingsFeedback, actionsFeedback, geralFeedback, dbFeedback, watchlistAddFeedback, watchlistListFeedback, radarFeedback].forEach(el => {
              if (el) el.textContent = '';
@@ -641,6 +686,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'admin-radar':
                      await loadRadarDossier();
+                    break;
+                case 'admin-analytics':
+                     await loadAnalyticsData();
                     break;
                  case 'admin-acoes':
                      break;
