@@ -28,6 +28,12 @@
         #admin-watchlist table { font-size: 0.95em; }
         .watchlist-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
         .watchlist-filters input[type="text"] { flex-grow: 1; min-width: 200px; margin-bottom: 0; }
+        
+        /* CORREÇÃO DE DESIGN DA TABELA ANALYTICS */
+        #analytics-table { width: 100%; border-collapse: collapse; margin-top: 15px; background-color: rgba(0,0,0,0.15); border-radius: var(--border-radius-base); overflow: hidden; }
+        #analytics-table th, #analytics-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        #analytics-table th { background-color: rgba(0, 0, 0, 0.4); color: #a0aec0; font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px; }
+        #analytics-table tbody tr:hover { background-color: rgba(255, 255, 255, 0.05); }
     </style>
 </head>
 <body class="admin-page">
@@ -205,7 +211,7 @@
                         <p class="control-description">A Inteligência Artificial analisa as últimas 50 guerras para classificar o desempenho e prever matematicamente a chance de um jogador atacar na próxima guerra.</p>
                         
                         <div class="table-container-admin">
-                            <table id="analytics-table" style="width: 100%; min-width: 800px; border-collapse: collapse; text-align: left;">
+                            <table id="analytics-table">
                                 <thead>
                                     <tr>
                                         <th>Nome</th>
