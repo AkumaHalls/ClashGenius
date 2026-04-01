@@ -428,5 +428,33 @@ class WebApiCog(commands.Cog, name="Web API"):
             "activity_chart_data": chart_data
         }
 
+# --- ADICIONE ESTE BLOCO NO FINAL DO ARQUIVO cogs/web_api_cog.py ---
+
+@routes.get('/api/admin/player_insights')
+async def get_player_insights(request):
+    cog = request.app['bot'].get_cog('WebApiCog')
+    
+    # Resgata o novo Cog de Analytics que criamos
+    analytics_cog = cog.bot.get_cog('Player Analytics')
+    
+    if not analytics_cog:
+        return web.json_response({"error": "Módulo de Analytics não carregado."}, status=500)
+
+    try:
+        # Pega os membros atuais do clã
+        clan = await cog.bot.coc_client.get_clan(cog.bot.clan_tag)
+        current_tags = [member.tag for member in clan.members]
+        
+        # Manda a IA processar os dados históricos
+        await analytics_cog.process_and_train(cog.bot.clan_tag)
+        
+        # Retorna o relatório formatado
+        insights = await analytics_cog.get_player_insights(current_tags)
+        
+        return web.json_response(insights)
+    except Exception as e:
+        logger.error(f"Erro na rota de insights: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(WebApiCog(bot))
