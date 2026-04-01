@@ -190,6 +190,7 @@ class WebApiCog(commands.Cog, name="Web API"):
 
         db_cog = self.bot.get_cog("Banco de Dados")
         watchlist_cog = self.bot.get_cog("Lista de Observação")
+        analytics_cog = self.bot.get_cog("Player Analytics")
 
         player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
         members_list = []
@@ -209,10 +210,25 @@ class WebApiCog(commands.Cog, name="Web API"):
                 last_war_dates = {item["_id"]: item["last_war_date"] for item in results}
             except Exception as e: pass
 
+        # --- Integração com o Machine Learning ---
+        insights_dict = {}
+        if analytics_cog:
+            try:
+                await analytics_cog.process_and_train(self.bot.clan_tag)
+                current_tags = [m.tag for m in clan.members]
+                insights_data = await analytics_cog.get_player_insights(current_tags)
+                if "insights" in insights_data:
+                    for insight in insights_data["insights"]:
+                        insights_dict[insight["tag"]] = insight
+            except Exception as e:
+                logger.error(f"Erro ao processar ML Analytics em members_for_web: {e}")
+        # -----------------------------------------
+
         for member in clan.members:
             note_data = player_notes.get(member.tag, {})
             watchlist_entry = await watchlist_cog.is_on_watchlist(member.tag) if watchlist_cog else None
             last_war_date_iso = last_war_dates.get(member.tag)
+            player_insight = insights_dict.get(member.tag, {})
 
             members_list.append({
                 "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
@@ -225,8 +241,13 @@ class WebApiCog(commands.Cog, name="Web API"):
                 "isOnWatchlist": bool(watchlist_entry),
                 "watchlistReason": watchlist_entry.get('reason', None) if watchlist_entry else None,
                 "watchlistDetails": watchlist_entry.get('details', None) if watchlist_entry else None,
-                "last_war_date": last_war_date_iso
+                "last_war_date": last_war_date_iso,
+                # Dados da IA
+                "attack_probability": player_insight.get("attack_probability"),
+                "tier": player_insight.get("tier", "Não Classificado"),
+                "wars_participated_ml": player_insight.get("wars_participated", 0)
             })
+            
         role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
         sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
         return {"clan_name": clan.name, "members": sorted_members, "version": self.bot.bot_version}
@@ -427,34 +448,6 @@ class WebApiCog(commands.Cog, name="Web API"):
             "top_donors": top_donors, "war_heroes": war_heroes, 
             "activity_chart_data": chart_data
         }
-
-# --- ADICIONE ESTE BLOCO NO FINAL DO ARQUIVO cogs/web_api_cog.py ---
-
-@routes.get('/api/admin/player_insights')
-async def get_player_insights(request):
-    cog = request.app['bot'].get_cog('WebApiCog')
-    
-    # Resgata o novo Cog de Analytics que criamos
-    analytics_cog = cog.bot.get_cog('Player Analytics')
-    
-    if not analytics_cog:
-        return web.json_response({"error": "Módulo de Analytics não carregado."}, status=500)
-
-    try:
-        # Pega os membros atuais do clã
-        clan = await cog.bot.coc_client.get_clan(cog.bot.clan_tag)
-        current_tags = [member.tag for member in clan.members]
-        
-        # Manda a IA processar os dados históricos
-        await analytics_cog.process_and_train(cog.bot.clan_tag)
-        
-        # Retorna o relatório formatado
-        insights = await analytics_cog.get_player_insights(current_tags)
-        
-        return web.json_response(insights)
-    except Exception as e:
-        logger.error(f"Erro na rota de insights: {e}")
-        return web.json_response({"error": str(e)}, status=500)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WebApiCog(bot))
