@@ -340,7 +340,8 @@ class WarPredictionSystemV3:
         """Carrega e processa dados históricos do MongoDB para treinamento."""
         if self.db is None: return []
         try:
-            cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(50)
+            # Aumentado de 50 para 500 para permitir aprendizado profundo
+            cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(500)
             processed_wars = []
             async for doc in cursor:
                 try:
