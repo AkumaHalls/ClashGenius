@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
     const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
     let phaseTimerInterval = null; 
+    let globalMembersList = []; // <-- VARIAVEL GLOBAL ADICIONADA PARA SALVAR OS MEMBROS DO CLÃ
 
     // --- ELEMENTOS DO DOM ---
     const loadingOverlayEl = document.getElementById('loading-overlay');
@@ -24,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanBadgeEl = document.getElementById('clanBadge');
     const clanCapitalPointsEl = document.getElementById('clanCapitalPoints');
     const clanCapitalLeagueEl = document.getElementById('clanCapitalLeague');
-    const clanCapitalDistrictsEl = document.getElementById('clanCapitalDistricts'); 
 
     const highlightsClanNameEl = document.getElementById('highlightsClanName');
     const topDonorsListEl = document.getElementById('topDonorsList');
@@ -76,18 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const missedAttacksContainerEl = document.getElementById('missedAttacksContainer');
     const noMissedAttacksMessageEl = document.getElementById('noMissedAttacksMessage');
 
-    const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
-    const noCwlMessageEl = document.getElementById('noCwlMessage');
-
     const cwlPlannerSectionEl = document.getElementById('cwlPlannerSection');
+    const cwlActiveInfoEl = document.getElementById('cwlActiveInfo');
     const cwlPlanResultEl = document.getElementById('cwlPlanResult');
     const cwlPlanContentEl = document.getElementById('cwlPlanContent');
-    const cwlInactivityAlertEl = document.getElementById('cwlInactivityAlert');
-    const cwlInactivityTextEl = document.getElementById('cwlInactivityText');
     const cwlOverviewContainerEl = document.getElementById('cwlOverviewContainer'); 
     const cwlPlanDaysTabsEl = document.getElementById('cwlPlanDaysTabs'); 
     const cwlPlanWarningEl = document.getElementById('cwlPlanWarning'); 
-
+    
     const warLogLimitEl = document.getElementById('warLogLimit');
     const warLogTableBodyEl = document.getElementById('warLogTableBody');
     const noWarLogMessageEl = document.getElementById('noWarLogMessage');
@@ -97,7 +93,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterTHInput = document.getElementById('filterTH');
     const membersGridEl = document.getElementById('membersGrid');
 
-    const capitalContentEl = document.getElementById('capitalContent');
+    // DOM ELEMENTS - EFEITOS BLUR E CADEADO (Adicionados CWL e Capital)
+    const cwlBlurContentEl = document.getElementById('cwlBlurContent');
+    const noCwlOverlayEl = document.getElementById('noCwlOverlay');
+    
+    const capitalBlurContentEl = document.getElementById('capitalBlurContent');
     const capStatusEl = document.getElementById('capStatus');
     const capTotalLootEl = document.getElementById('capTotalLoot');
     const capTotalAttacksEl = document.getElementById('capTotalAttacks');
@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const capTopAttackersListEl = document.getElementById('capTopAttackersList');
     const capZeroAttacksListEl = document.getElementById('capZeroAttacksList');
     const capIncompleteAttacksListEl = document.getElementById('capIncompleteAttacksList');
-    const noCapitalMessageEl = document.getElementById('noCapitalMessage');
+    const noCapitalOverlayEl = document.getElementById('noCapitalOverlay');
 
     const cgContentEl = document.getElementById('cgContent');
     const cgTotalPointsEl = document.getElementById('cgTotalPoints');
@@ -953,27 +953,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function populateCwlData(data) {
+    // === FUNÇÃO CWL COM EFEITO BLUR ===
+    function populateCwlData(data) {
         if (!cwlPlannerSectionEl) return;
         cwlPlannerSectionEl.style.display = 'block';
 
         if (!data || data.error || data.status === "NotInCwl" || data.state === "not_in_season") {
-            if (noCwlMessageEl) {
-                noCwlMessageEl.style.display = 'block';
-                setText(noCwlMessageEl, data?.error || data?.message || "O clã não está em CWL no momento.");
-            }
-            if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'none';
-            if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'none'; 
+            if (noCwlOverlayEl) noCwlOverlayEl.style.display = 'flex';
+            if (cwlBlurContentEl) cwlBlurContentEl.classList.add('cg-blurred-state');
             
+            // Oculta alertas padrão que quebram o layout bonito
             const oldStatus = document.getElementById('cwlStatusText');
             if (oldStatus) oldStatus.style.display = 'none'; 
             return;
         }
 
+        if (noCwlOverlayEl) noCwlOverlayEl.style.display = 'none';
+        if (cwlBlurContentEl) cwlBlurContentEl.classList.remove('cg-blurred-state');
+
         const oldStatus = document.getElementById('cwlStatusText');
         if (oldStatus) oldStatus.style.display = 'none'; 
         
-        if (noCwlMessageEl) noCwlMessageEl.style.display = 'none';
         if (cwlActiveInfoEl) cwlActiveInfoEl.style.display = 'block'; 
         if (cwlPlanResultEl) cwlPlanResultEl.style.display = 'block'; 
 
@@ -1046,20 +1046,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join(''));
     }
 
+    // === FUNÇÃO CAPITAL COM EFEITO BLUR E CORREÇÃO DE AUSENTES ===
     function populateCapitalData(data) {
-        if (!capitalContentEl) return;
+        if (!capitalBlurContentEl) return;
 
-        if (!data || data.error || !data.raid) {
-            if (noCapitalMessageEl) {
-                noCapitalMessageEl.style.display = 'block';
-                setText(noCapitalMessageEl, data?.error || "Dados da Capital indisponíveis.");
-            }
-            capitalContentEl.style.display = 'none';
-            return;
+        const isRaidOngoing = data && data.raid && data.raid.state === "ongoing";
+
+        if (!data || data.error || !data.raid || !isRaidOngoing) {
+            if (noCapitalOverlayEl) noCapitalOverlayEl.style.display = 'flex';
+            if (capitalBlurContentEl) capitalBlurContentEl.classList.add('cg-blurred-state');
+            
+            // Se não tem nem rastro de raid pra manter bonito borrado atrás, aborta.
+            if (!data || !data.raid) return; 
+        } else {
+            if (noCapitalOverlayEl) noCapitalOverlayEl.style.display = 'none';
+            if (capitalBlurContentEl) capitalBlurContentEl.classList.remove('cg-blurred-state');
         }
-
-        if (noCapitalMessageEl) noCapitalMessageEl.style.display = 'none';
-        capitalContentEl.style.display = 'block';
 
         const raid = data.raid;
         const members = data.members || [];
@@ -1073,8 +1075,18 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(capDestroyedEl, raid.destroyed_districts || '0');
 
         const topAttackers = members.slice(0, 5);
-        const zeroAttacks = members.filter(m => m.attacks === 0);
         const incompleteAttacks = members.filter(m => m.attacks > 0 && m.attacks < m.limit);
+
+        // CRUZAMENTO DE DADOS: Pega quem tá no clã globalmente e não atacou
+        let zeroAttacks = [];
+        if (globalMembersList && globalMembersList.length > 0) {
+            zeroAttacks = globalMembersList.filter(gm => {
+                const attacker = members.find(m => m.tag === gm.tag);
+                return !attacker || attacker.attacks === 0;
+            });
+        } else {
+            zeroAttacks = members.filter(m => m.attacks === 0);
+        }
 
         if (capTopAttackersListEl) {
             const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
@@ -1086,23 +1098,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="donation-count"><strong>🪙 ${m.looted.toLocaleString()}</strong> ouro (Ataques: ${m.attacks}/${m.limit})</div>
                     </div>
                 </div>
-            `).join('') : '<p>Nenhum ataque registrado ainda.</p>');
+            `).join('') : '<p style="padding: 15px;">Nenhum ataque registrado ainda.</p>');
         }
 
+        // RENDERIZA A LISTA DE AUSENTES CONSERTADA
         if (capZeroAttacksListEl) {
             setHtml(capZeroAttacksListEl, zeroAttacks.length > 0 ? zeroAttacks.map(m => `
-                <p>🔴 <strong>${m.name}</strong></p>
-            `).join('') : '<p style="color: var(--color-success); font-weight: bold;">Incrível! Todos do clã atacaram.</p>');
+                <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                    <strong>${m.name}</strong>
+                    <span class="text-danger" style="font-weight:bold;">0 Ataques</span>
+                </div>
+            `).join('') : '<p class="text-success" style="padding: 15px; font-weight: bold;">Incrível! Todos do clã atacaram.</p>');
         }
 
         if (capIncompleteAttacksListEl) {
             setHtml(capIncompleteAttacksListEl, incompleteAttacks.length > 0 ? incompleteAttacks.map(m => `
-                <p>🟡 <strong>${m.name}</strong>: Fez ${m.attacks} de ${m.limit}</p>
-            `).join('') : '<p>Nenhum ataque incompleto.</p>');
+                <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                    <strong>${m.name}</strong>
+                    <span class="text-warning" style="font-weight:bold;">Fez ${m.attacks} de ${m.limit}</span>
+                </div>
+            `).join('') : '<p style="padding: 15px;">Nenhum ataque incompleto.</p>');
         }
     }
 
-    // === FUNÇÃO CLAN GAMES COM EFEITO DE BLUR E CADEADO ===
     function populateClanGamesData(data) {
         if (!cgContentEl) return;
 
@@ -1639,7 +1657,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchData('highlights'), fetchData('war_advisor_plan'), fetchData('capital'), fetchData('clan_games')
             ]);
 
-            if (membersData && !membersData.error) populateMembersList(membersData);
+            // SALVA OS MEMBROS GLOBALMENTE PARA A MÁGICA DA CAPITAL
+            if (membersData && !membersData.error) {
+                globalMembersList = membersData.members; 
+                populateMembersList(membersData);
+            }
+            
             if (currentWarDetailsData) populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
             if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); 
             if (missedAttacksData && !missedAttacksData.error) populateMissedAttacksHistory(missedAttacksData);
