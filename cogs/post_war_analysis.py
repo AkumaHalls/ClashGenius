@@ -12,7 +12,7 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
     our_member_tags = {m['tag'] for m in war_doc.get('our_clan_members_in_war', []) if 'tag' in m}
     all_attacks = war_doc.get('all_attacks', [])
     
-    # Filtra nossos ataques e tenta ordenar cronologicamente para análises avançadas
+    # Filtra nossos ataques e tenta ordenar cronologicamente
     our_attacks = sorted(
         [a for a in all_attacks if a.get("attacker_tag") in our_member_tags], 
         key=lambda x: x.get("order", 9999)
@@ -65,13 +65,23 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
         if att_th > def_th and stars < 3:
             failed_dips += 1
 
+    # ================= TOP 3: ATAQUES HEROICOS =================
+    # Calcula o "Peso do Ataque" para encontrar as jogadas mais difíceis da guerra
+    all_successful_attacks = [a for a in our_attacks if a.get('stars', 0) >= 2]
+    
+    def attack_epicness(a):
+        base = a.get('stars', 0) * 1000 + a.get('destruction', 0)
+        diff = a.get('defender_townhall', 0) - a.get('attacker_townhall', 0)
+        return base + (diff * 800) # Peso gigantesco para quem ataca para cima
+        
+    top_attacks = sorted(all_successful_attacks, key=attack_epicness, reverse=True)[:3]
+
     # ================= PREMIAÇÕES DINÂMICAS =================
     awards = []
     
-    # Ordena jogadores pelo score
     sorted_players = sorted(player_scores.items(), key=lambda item: item[1]["score"], reverse=True)
     
-    # O MVP (Obrigatório)
+    # O MVP
     if sorted_players:
         mvp_tag, mvp_data = sorted_players[0]
         awards.append({
@@ -85,7 +95,7 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
     max_diff = 0
     for attack in our_attacks:
         diff = attack.get('defender_townhall', 0) - attack.get('attacker_townhall', 0)
-        if diff > max_diff and attack.get('stars', 0) >= 2: # Exige pelo menos 2 estrelas
+        if diff > max_diff and attack.get('stars', 0) >= 2:
             max_diff = diff
             giant_slayer = attack
             
@@ -99,7 +109,6 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
     # A Vanguarda
     if first_blood_tag and first_blood_tag in player_scores:
         vg_data = player_scores[first_blood_tag]
-        # Só dá o prêmio se não for o mesmo cara que ganhou o MVP para distribuir melhor
         if first_blood_tag != sorted_players[0][0]:
             awards.append({
                 "title": "🚀 A Vanguarda",
@@ -107,26 +116,23 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
                 "reason": "Abriu o mapa garantindo o primeiro PT da guerra."
             })
 
-    # ================= INSIGHTS TÁTICOS (NLG) =================
+    # ================= INSIGHTS TÁTICOS =================
     tactical_insights = []
     
-    # Insight de Limpeza
     if cleanup_attempts > 0:
         efficiency = (successful_cleanups / cleanup_attempts) * 100
         if efficiency >= 75:
-            tactical_insights.append(f"🟢 **Sinergia de Limpeza:** Operamos com {efficiency:.0f}% de eficiência, corrigindo falhas passadas sem desperdiçar cartuchos.")
+            tactical_insights.append(f"🟢 **Sinergia de Limpeza:** Operamos com {efficiency:.0f}% de eficiência, corrigindo falhas sem desperdiçar cartuchos.")
         elif efficiency <= 40:
-            tactical_insights.append(f"🔴 **Desperdício em Limpezas:** Crítico! Apenas {efficiency:.0f}% das nossas limpezas renderam estrelas novas. Batemos muito na mesma parede.")
+            tactical_insights.append(f"🔴 **Desperdício em Limpezas:** Apenas {efficiency:.0f}% das nossas limpezas renderam estrelas novas. Batemos muito na mesma parede.")
         else:
-            tactical_insights.append(f"🟡 **Sinergia de Limpeza:** Mediana ({efficiency:.0f}%). Ainda podemos otimizar melhor a distribuição de alvos abertos.")
+            tactical_insights.append(f"🟡 **Sinergia de Limpeza:** Mediana ({efficiency:.0f}%).")
 
-    # Insight de DIPs
     if failed_dips > 0:
         tactical_insights.append(f"⚠️ **Erro de Superioridade (DIP):** Tivemos {failed_dips} ataque(s) onde nosso CV era maior que o alvo e não garantimos o PT. Isso esvazia nossa vantagem matemática.")
     elif our_attacks:
         tactical_insights.append("✅ **Execução de Superioridade:** Excelente! Não tivemos falhas graves (DIPs) atacando Centros de Vila menores.")
 
-    # Baixo desempenho em CVs específicos
     for th_level in range(10, 17):
         attacks_against_th = [a for a in our_attacks if a.get('defender_townhall') == th_level]
         if len(attacks_against_th) >= 3:
@@ -136,6 +142,7 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
 
     return {
         "awards": awards,
+        "top_attacks": top_attacks,
         "tactical_insights": tactical_insights
     }
 
@@ -149,12 +156,12 @@ def create_post_war_analysis_embed(war_doc: Dict) -> Optional[discord.Embed]:
         analysis = _calculate_post_war_stats(war_doc)
         
         awards = analysis["awards"]
+        top_attacks = analysis["top_attacks"]
         insights = analysis["tactical_insights"]
 
         clan_stars = war_data.get("clan_stars", 0)
         opponent_stars = war_data.get("opponent_stars", 0)
 
-        # Cálculo preciso do resultado
         result_color = discord.Color.green() if clan_stars > opponent_stars else discord.Color.red()
         result_text = "Vitória" if clan_stars > opponent_stars else "Derrota"
         
@@ -177,14 +184,29 @@ def create_post_war_analysis_embed(war_doc: Dict) -> Optional[discord.Embed]:
             color=result_color
         )
 
-        # Seção 1: Destaques da Guerra
+        # Seção 1: Condecorações
         if awards:
             awards_text = ""
             for aw in awards:
                 awards_text += f"{aw['title']}: **{aw['player']}**\n└ *{aw['reason']}*\n\n"
             embed.add_field(name="🏅 Condecorações de Honra", value=awards_text.strip(), inline=False)
+
+        # Seção 2: Top 3 Ataques Heroicos
+        if top_attacks:
+            ataques_str = ""
+            for i, atk in enumerate(top_attacks, 1):
+                stars_str = "⭐" * atk.get('stars', 0)
+                diff = atk.get('defender_townhall', 0) - atk.get('attacker_townhall', 0)
+                
+                if diff > 0: tipo = f"🔥 Desvantagem (+{diff} CV)"
+                elif diff == 0: tipo = "🪞 Combate Justo"
+                else: tipo = "⚡ Ataque Seguro"
+                
+                ataques_str += f"`{i}.` **{atk.get('attacker_name')}** (CV{atk.get('attacker_townhall')}) vs **{atk.get('defender_name')}** (CV{atk.get('defender_townhall')})\n└ {stars_str} {atk.get('destruction')}% - *{tipo}*\n"
+            
+            embed.add_field(name="⚔️ Top 3: Heróis da Batalha", value=ataques_str, inline=False)
         
-        # Seção 2: O Frio Diagnóstico da IA
+        # Seção 3: Diagnóstico Tático
         if insights:
             insights_text = "\n\n".join(insights)
             embed.add_field(name="🧠 Parecer do Motor Matemático", value=insights_text, inline=False)
