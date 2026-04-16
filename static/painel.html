@@ -259,48 +259,52 @@
                 </div>
             </section>
 
-            <section id="clan-games-nav" class="card clan-games-card content-section" style="position: relative; min-height: 450px;">
+            <section id="clan-games-nav" class="card clan-games-card content-section">
                 <h2>🏅 Rastreador de Jogos do Clã</h2>
                 
-                <div id="cgContent" style="transition: all 0.5s ease; display: block;">
-                    <div class="cg-progress-container">
-                        <div class="cg-progress-info">
-                            <span id="cgTotalPoints" class="cg-points">0</span> / <span id="cgMaxPoints">50,000</span> Pontos
+                <div class="cg-event-wrapper" style="position: relative; min-height: 350px;">
+                    
+                    <div id="cgContent" style="transition: filter 0.5s ease, opacity 0.5s ease; display: block;">
+                        <div class="cg-progress-container">
+                            <div class="cg-progress-info">
+                                <span id="cgTotalPoints" class="cg-points">0</span> / <span id="cgMaxPoints">50,000</span> Pontos
+                            </div>
+                            <div class="cg-progress-bar-bg">
+                                <div id="cgProgressBar" class="cg-progress-bar-fill" style="width: 0%;"></div>
+                            </div>
+                            <p id="cgProgressText" class="cg-progress-text">Aguardando Caravana...</p>
                         </div>
-                        <div class="cg-progress-bar-bg">
-                            <div id="cgProgressBar" class="cg-progress-bar-fill" style="width: 0%;"></div>
-                        </div>
-                        <p id="cgProgressText" class="cg-progress-text">Aguardando evento...</p>
-                    </div>
 
-                    <div class="grid-container" style="margin-top: 25px;">
-                        <div class="card" style="margin-bottom: 0;">
-                            <h3>🏆 Máquinas de Farm</h3>
-                            <div id="cgTopPlayersList" class="list-box scrollable-box" style="max-height: 400px; padding: 0;">
-                                <p style="padding: 15px;">Radar desligado.</p>
+                        <div class="grid-container" style="margin-top: 25px;">
+                            <div class="card" style="margin-bottom: 0;">
+                                <h3>🏆 Máquinas de Farm</h3>
+                                <div id="cgTopPlayersList" class="list-box scrollable-box" style="max-height: 400px; padding: 0;">
+                                    <p style="padding: 15px; color: var(--color-text-secondary);">Radar desligado.</p>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--color-danger);">
+                                <h3 class="text-danger">🛑 0 Pontos (Parasitas)</h3>
+                                <div id="cgZeroPlayersList" class="list-box scrollable-box" style="max-height: 400px; padding: 0;">
+                                    <p style="padding: 15px; color: var(--color-text-secondary);">Radar desligado.</p>
+                                </div>
                             </div>
                         </div>
-                        <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--color-danger);">
-                            <h3 class="text-danger">🛑 0 Pontos (Parasitas)</h3>
-                            <div id="cgZeroPlayersList" class="list-box scrollable-box" style="max-height: 400px; padding: 0;">
-                                <p style="padding: 15px;">Radar desligado.</p>
-                            </div>
+                    </div>
+
+                    <div id="noClanGamesMessage" class="locked-overlay" style="display: none;">
+                        <div class="locked-content">
+                            <div class="pulsing-lock">🔒</div>
+                            <h3 style="color: #ffd700; margin-bottom: 10px; font-size: 1.5em; text-transform: uppercase; letter-spacing: 2px;">Evento Fechado</h3>
+                            <p style="color: #e2e8f0; font-size: 1em; line-height: 1.6;">Os Jogos do Clã não estão ativos no momento.<br>A inteligência analítica desbloqueará este painel automaticamente assim que a caravana chegar!</p>
                         </div>
                     </div>
-                </div>
 
-                <div id="noClanGamesMessage" class="locked-overlay" style="display: none;">
-                    <div class="locked-content">
-                        <div class="pulsing-lock">🔒</div>
-                        <h3 style="color: #ffd700; margin-bottom: 10px; font-size: 1.5em; text-transform: uppercase; letter-spacing: 2px;">Evento Fechado</h3>
-                        <p style="color: #e2e8f0; font-size: 1em; line-height: 1.6;">Os Jogos do Clã não estão ativos no momento.<br>A inteligência analítica desbloqueará este painel automaticamente assim que a caravana chegar!</p>
-                    </div>
                 </div>
 
                 <style>
                     .cg-blurred-state {
-                        filter: blur(8px) grayscale(60%);
-                        opacity: 0.3;
+                        filter: blur(6px) grayscale(50%);
+                        opacity: 0.4;
                         pointer-events: none;
                         user-select: none;
                     }
