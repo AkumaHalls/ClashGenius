@@ -87,14 +87,14 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
                 await war_collection.replace_one({'_id': sanitized_war_data['_id']}, sanitized_war_data, upsert=True)
                 logger.info(f"Guerra (ID: {war_id}) salva/atualizada no histórico.")
 
-                # A lógica para limpar guerras antigas (Aumentado para 150)
+                # A lógica para limpar guerras antigas (Aumentado para 500)
                 count = await war_collection.count_documents({})
-                if count > 150: 
+                if count > 500: 
                     # Ordena pelo tempo de término para remover a mais antiga
-                    oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 150)
+                    oldest_wars_cursor = war_collection.find().sort("war_data.end_time_iso", 1).limit(count - 500)
                     async for old_war in oldest_wars_cursor:
                         await war_collection.delete_one({"_id": old_war["_id"]})
-                        logger.info(f"Guerra mais antiga ({old_war.get('_id')}) removida do histórico para manter o limite de 150.")
+                        logger.info(f"Guerra mais antiga ({old_war.get('_id')}) removida do histórico para manter o limite de 500.")
             else:
                 logger.error("Tentativa de salvar guerra no histórico sem um ID de guerra válido.")
         except Exception as e:
