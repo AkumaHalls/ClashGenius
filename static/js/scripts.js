@@ -1115,8 +1115,8 @@ document.addEventListener('DOMContentLoaded', () => {
             setText(cgTotalPointsEl, '0');
             cgProgressBarEl.style.width = '0%';
             setText(cgProgressTextEl, 'Aguardando Caravana...');
-            if (cgTopPlayersListEl) setHtml(cgTopPlayersListEl, '<p style="padding: 15px;">Monitoramento suspenso.</p>');
-            if (cgZeroPlayersListEl) setHtml(cgZeroPlayersListEl, '<p style="padding: 15px;">Monitoramento suspenso.</p>');
+            if (cgTopPlayersListEl) setHtml(cgTopPlayersListEl, '<p style="padding: 15px; color: var(--color-text-secondary);">Radar desligado.</p>');
+            if (cgZeroPlayersListEl) setHtml(cgZeroPlayersListEl, '<p style="padding: 15px; color: var(--color-text-secondary);">Radar desligado.</p>');
             return;
         }
 
