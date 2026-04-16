@@ -133,12 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeProfileModalButton = memberProfileModal?.querySelector('.close-button'); 
     let memberTrophyChart = null;
 
-    // VARIÁVEIS DE CACHE DA CWL E MEMÓRIA DE ABA
     let cwlPlanCached = null;
     let isFetchingCwlPlan = false;
-    let activeCwlTabDay = null; // MEMÓRIA DA ABA
+    let activeCwlTabDay = null;
 
-    // --- INJEÇÃO CSS: CARTÃO VIP DOURADO + ESTILOS XAI ---
     const vipStyle = document.createElement('style');
     vipStyle.innerHTML = `
         .vip-golden-card {
@@ -183,49 +181,28 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     document.head.appendChild(vipStyle);
 
-    // --- FUNÇÃO DE FETCH MELHORADA ---
     async function fetchData(endpoint, options = {}) {
         try {
             const response = await fetch(`${API_BASE_URL}/api/${endpoint}`, options);
-
             if (!response.ok) {
-                if (response.status === 405) {
-                    console.error(`Erro 405 (Método Não Permitido) para ${endpoint}.`);
-                }
                 const errorData = await response.json().catch(() => ({ error: `Erro HTTP ${response.status}` }));
                 const errorMessage = errorData.error || errorData.message || `Falha ao carregar ${endpoint}.`;
-
-                if (response.status === 503) {
-                    console.warn(`API retornou 503 (Serviço Indisponível/Iniciando) para ${endpoint}.`);
-                    if (loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
-                            setText(loadingStatusTextEl, 'Aguardando API CoC ficar pronta...');
-                    }
-                } else {
-                    console.error(`Erro na API! Status: ${response.status} para ${endpoint}`, errorData);
+                if (response.status === 503 && loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
+                    setText(loadingStatusTextEl, 'Aguardando API CoC ficar pronta...');
                 }
                 return { error: errorMessage };
             }
-
-            if (response.status === 204) {
-                return { success: true };
-            }
-
+            if (response.status === 204) return { success: true };
             return await response.json();
-
         } catch (error) {
             console.error(`Erro de conexão ao buscar ${endpoint}:`, error);
-            if (loadingStatusTextEl && loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {
-                setText(loadingStatusTextEl, 'Erro de conexão. Verifique a consola.');
-            }
             return { error: `Erro de conexão ao buscar ${endpoint}.` };
         }
     }
 
-    // --- LÓGICA DA MÚSICA DE FUNDO ---
     if (backgroundMusicEl && muteButtonEl) {
         backgroundMusicEl.volume = 0.2;
         let musicStarted = false; 
-
         const playMusic = async () => {
             if (musicStarted) return; 
             try {
@@ -235,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.removeEventListener('keydown', playMusic);
             } catch (err) {
                 musicStarted = true; 
-                console.log('Autoplay da música bloqueado pelo navegador.');
             }
         };
         document.body.addEventListener('click', playMusic, { once: true });
@@ -246,14 +222,12 @@ document.addEventListener('DOMContentLoaded', () => {
             muteButtonEl.textContent = backgroundMusicEl.muted ? '🔇' : '🔊';
             localStorage.setItem('musicMuted', backgroundMusicEl.muted.toString()); 
         });
-
         if (localStorage.getItem('musicMuted') === 'true') {
             backgroundMusicEl.muted = true;
             muteButtonEl.textContent = '🔇';
         }
     }
 
-    // --- FUNÇÕES HELPER ---
     function updateLastUpdated() {
         const now = new Date();
         setText(lastUpdatedEl, `Última atualização: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`);
@@ -277,7 +251,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- NAVEGAÇÃO E ANIMAÇÃO DAS SEÇÕES ---
     const initialSectionId = navLinks.length > 0 ? navLinks[0].dataset.section : 'clan-info-nav';
     let currentActiveSectionId = localStorage.getItem('activeSection') || initialSectionId;
 
@@ -290,14 +263,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setActiveSection(newSectionId) {
         if (!newSectionId || newSectionId === currentActiveSectionId) return; 
-
         const oldSectionEl = document.getElementById(currentActiveSectionId);
         const newSectionEl = document.getElementById(newSectionId);
-
-        if (!newSectionEl) {
-            console.warn(`Section with ID "${newSectionId}" not found.`);
-            return; 
-        }
+        if (!newSectionEl) return; 
 
         oldSectionEl?.classList.remove('active-section'); 
         navLinks.forEach(link => link?.classList.remove('active-nav-link')); 
@@ -317,7 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- FUNÇÕES DE POPULAÇÃO DE DADOS ---
     function populateClanInfo(data) {
         if (!data || data.error || !data.name) {
             setText(clanNameHeaderEl, "Erro");
@@ -341,12 +308,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(botVersionEl, data.version, '?');
     }
 
-    // =========================================================================================
-    // O RENDERIZADOR ORIGINAL RESTAURADO (COM TOOLTIPS INTELIGENTES)
-    // =========================================================================================
     function populateHighlights(data) {
         const highlightsContentEl = document.getElementById('highlightsContent'); 
-
         if (!data || data.error || !data.clan_name) {
             if (noHighlightsMessageEl) {
                 noHighlightsMessageEl.style.display = 'block';
@@ -362,7 +325,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(highlightsClanNameEl, data.clan_name);
         setText(warDateHighlightEl, data.war_date ? `(${data.war_date})` : ''); 
 
-        // Restaura a coluna de Doadores e adiciona o tooltip oculto
         setHtml(topDonorsListEl, data.top_donors?.length > 0 ? data.top_donors.map((donor, index) => {
             const medals = ['gold', 'silver', 'bronze'];
             const medal_icons = ['🥇', '🥈', '🥉'];
@@ -377,7 +339,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
         }).join('') : '<p>Nenhum doador encontrado.</p>');
 
-        // Restaura a coluna de Guerra e insere os textos XAI nos tooltips
         const warHeroTitleEl = document.getElementById('warHeroTitle');
         setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra'); 
         setHtml(bestAttacksListEl, data.war_heroes?.length > 0 ? data.war_heroes.map(hero => {
@@ -396,12 +357,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
         }).join('') : '<p>Nenhum herói para destacar na última guerra ou análise indisponível.</p>'); 
 
-        // Gráfico Original Intacto
         if (activityChart) {
-            try {
-                activityChart.destroy();
-                activityChart = null; 
-            } catch(e) {}
+            try { activityChart.destroy(); activityChart = null; } catch(e) {}
         }
 
         const chartData = data.activity_chart_data;
@@ -409,7 +366,6 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const ctx = activityChartCanvas.getContext('2d');
                 if (!ctx) throw new Error("Não foi possível obter o contexto 2D do canvas."); 
-
                 activityChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
@@ -429,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } catch (e) {
-                console.error("Erro detalhado ao criar gráfico de atividade:", e);
                 if (activityChartCanvas) {
                     const ctx = activityChartCanvas.getContext('2d');
                     if (ctx) {
@@ -464,7 +419,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateWarDetails(data, containerId = 'war-details-nav', isModal = false) {
         const container = document.getElementById(containerId);
         if (!container) return; 
-
         const prefix = isModal ? 'historic-' : ''; 
         const warHeader = container.querySelector('.war-header');
         const warTabsNav = container.querySelector('.war-tabs');
@@ -483,7 +437,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isModal && predictionSection) {
             const predictionTextEl = container.querySelector('#warPredictionText');
             const predictionTagsEl = container.querySelector('#warPredictionTags');
-
             if (data.prediction && data.prediction.summary_panel) {
                 setText(predictionTextEl, data.prediction.summary_panel);
                 predictionTagsEl.innerHTML = `
@@ -596,7 +549,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populateWarAdvisorPlan(data) {
         if (!warAdvisorContentEl) return;
-
         if (phaseTimerInterval) { clearInterval(phaseTimerInterval); phaseTimerInterval = null; }
 
         const setupAdvisorUI = (planData) => {
@@ -726,10 +678,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(textArea);
     }
 
-    // ========================================================
-    // >>> SISTEMA DE ROTAÇÃO CWL E UI VISUAL XAI <<<
-    // ========================================================
-
     function updateCwlHeaderUI(data) {
         if (!cwlActiveInfoEl) return;
         
@@ -854,9 +802,7 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        // === CORREÇÃO: MEMÓRIA DA ABA ===
         let dayToRender = activeCwlTabDay ? parseInt(activeCwlTabDay) : currentDay;
-        // Validação de segurança se a aba guardada na memória não existir
         if (!schedule.find(d => d.day === dayToRender)) {
             dayToRender = currentDay;
         }
@@ -877,7 +823,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let planHtml = ``;
 
-            // XAI: Info do Oponente (K-Means)
             if (dayData.opponent_analysis) {
                 const opp = dayData.opponent_analysis;
                 let tColor = opp.threat_level.includes("Extremo") ? "#e74c3c" : (opp.threat_level.includes("Baixa") ? "#2ecc71" : "#f1c40f");
@@ -967,14 +912,13 @@ document.addEventListener('DOMContentLoaded', () => {
             setHtml(cwlPlanContentEl, planHtml);
         };
 
-        // Usa a Memória
         renderDayPlan(dayToRender);
 
         cwlPlanDaysTabsEl.querySelectorAll('.cwl-plan-day-tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 cwlPlanDaysTabsEl.querySelector('.cwl-plan-day-tab.active')?.classList.remove('active');
                 tab.classList.add('active');
-                activeCwlTabDay = tab.dataset.day; // GUARDA NA MEMÓRIA!
+                activeCwlTabDay = tab.dataset.day; 
                 renderDayPlan(tab.dataset.day);
             });
         });
@@ -1158,20 +1102,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // === FUNÇÃO CLAN GAMES COM EFEITO DE BLUR E CADEADO ===
     function populateClanGamesData(data) {
         if (!cgContentEl) return;
 
         if (!data || data.error || !data.active) {
-            if (noClanGamesMessageEl) {
-                noClanGamesMessageEl.style.display = 'block';
-                setText(noClanGamesMessageEl, data?.error || "Os Jogos do Clã não estão ativos no momento.");
+            if (noClanGamesMessageEl) noClanGamesMessageEl.style.display = 'flex'; 
+            if (cgContentEl) {
+                cgContentEl.classList.add('cg-blurred-state'); 
             }
-            cgContentEl.style.display = 'none';
+            
+            setText(cgTotalPointsEl, '0');
+            cgProgressBarEl.style.width = '0%';
+            setText(cgProgressTextEl, 'Aguardando Caravana...');
+            if (cgTopPlayersListEl) setHtml(cgTopPlayersListEl, '<p style="padding: 15px;">Monitoramento suspenso.</p>');
+            if (cgZeroPlayersListEl) setHtml(cgZeroPlayersListEl, '<p style="padding: 15px;">Monitoramento suspenso.</p>');
             return;
         }
 
         if (noClanGamesMessageEl) noClanGamesMessageEl.style.display = 'none';
-        cgContentEl.style.display = 'block';
+        if (cgContentEl) {
+            cgContentEl.classList.remove('cg-blurred-state');
+        }
 
         const totalPoints = data.total_points || 0;
         const maxClanPoints = data.max_clan_points || 50000;
@@ -1200,7 +1152,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${m.score.toLocaleString()} ${m.score >= maxPlayerPoints ? '🔥' : ''}
                     </div>
                 </div>
-            `).join('') : '<p>Ninguém pontuou ainda.</p>');
+            `).join('') : '<p style="padding: 15px;">Ninguém pontuou ainda.</p>');
         }
 
         if (cgZeroPlayersListEl) {
@@ -1209,7 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="cg-player-info"><strong>${m.name}</strong></div>
                     <div class="cg-player-score text-danger">0</div>
                 </div>
-            `).join('') : '<p class="text-success" style="padding: 10px;">Todos pontuaram! 🎉</p>');
+            `).join('') : '<p class="text-success" style="padding: 15px; font-weight:bold;">Todos pontuaram! 🎉</p>');
         }
     }
 
@@ -1259,7 +1211,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">⚔️ ${lastWarDateFormatted}</span>`;
 
-            // === APLICAÇÃO DO VISUAL VIP DOURADO ===
             const isPriority = m.cwl_status === 'priority';
             const priorityClass = isPriority ? 'vip-golden-card' : '';
             const vipRibbonHtml = isPriority ? `<div class="vip-ribbon">⭐ TITULAR</div>` : '';
@@ -1324,7 +1275,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function attachMemberEventListeners() {
         if (!userIsAdmin) {
-            console.log("Modo Somente Leitura: Listeners de edição de membros desativados.");
             return;
         }
 
@@ -1615,7 +1565,6 @@ document.addEventListener('DOMContentLoaded', () => {
             historicWarDetailContent.appendChild(warDetailsContent);
         } catch (e) {
             setHtml(historicWarDetailContent, '<p style="text-align:center; color: red;">Erro ao clonar template.</p>');
-            console.error("Template clone error:", e);
             return;
         }
 
