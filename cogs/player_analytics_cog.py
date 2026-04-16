@@ -26,8 +26,8 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
         if self.bot.db is None:
             return pd.DataFrame()
 
-        # Busca as guerras ordenadas da MAIS ANTIGA (1) para a MAIS RECENTE (-1) e puxa até 150
-        cursor = self.bot.db.war_history.find({}).sort("war_data.end_time_iso", 1).limit(150)
+        # Busca as guerras ordenadas da MAIS ANTIGA (1) para a MAIS RECENTE (-1) e puxa até 500
+        cursor = self.bot.db.war_history.find({}).sort("war_data.end_time_iso", 1).limit(500)
         
         records = []
         war_idx = 0
