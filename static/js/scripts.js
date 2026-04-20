@@ -1388,18 +1388,22 @@ document.addEventListener('DOMContentLoaded', () => {
     async function openMemberProfileModal(playerTag) {
         if (!playerTag || !memberProfileModal || !memberProfileContent) return;
         
-        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">A carregar registros do jogador...</p>');
+        setHtml(memberProfileContent, '<div class="loading-spinner" style="margin: 40px auto;"></div><p style="text-align:center;">Conectando-se ao Modelo de Machine Learning...</p>');
         memberProfileModal.style.display = 'block';
 
-        const membersData = await fetchData('members');
         let basicData = {};
-        if (membersData && !membersData.error && membersData.members) {
-            basicData = membersData.members.find(m => m.tag === playerTag) || {};
+        if (globalMembersList && globalMembersList.length > 0) {
+            basicData = globalMembersList.find(m => m.tag === playerTag) || {};
+        } else {
+            const membersData = await fetchData('members');
+            if (membersData && !membersData.error && membersData.members) {
+                basicData = membersData.members.find(m => m.tag === playerTag) || {};
+            }
         }
 
         let detailedData = await fetchData(`player_profile/${encodeURIComponent(playerTag)}`);
         if (!detailedData || detailedData.error) {
-             setHtml(memberProfileContent, `<p class="message-box">${detailedData?.error || 'Erro ao comunicar com a Supercell.'}</p>`);
+             setHtml(memberProfileContent, `<p class="message-box">${detailedData?.error || 'Erro ao comunicar com a IA e Supercell.'}</p>`);
              return;
         }
 
@@ -1455,22 +1459,51 @@ document.addEventListener('DOMContentLoaded', () => {
         if (txParticipacao >= 90) corParticipacao = 'text-success';
         else if (txParticipacao >= 50) corParticipacao = 'text-warning';
 
-        const battleCardHtml = `
-            <div class="battle-card-container">
-                <h3 class="profile-section-title" style="margin-bottom:10px; border:none; padding:0;">⚔️ Cartão de Batalha (Últimas ${hitrate.total_wars} Guerras)</h3>
-                <div class="battle-card-stats">
-                    <div class="bc-stat">
-                        <span class="bc-label">Assiduidade</span>
+        // INTEGRAÇÃO COM O K-MEANS DO PYTHON
+        const mlTier = profileData.tier || "Aguardando Dados";
+        const mlProb = profileData.attack_probability !== undefined ? profileData.attack_probability : 0;
+        
+        let tierColor = "#a0aec0"; 
+        let tierGlow = "rgba(160, 174, 192, 0.2)";
+        if (mlTier.includes("General")) { tierColor = "#ffd700"; tierGlow = "rgba(255, 215, 0, 0.4)"; }
+        else if (mlTier.includes("Especialista")) { tierColor = "#2ecc71"; tierGlow = "rgba(46, 204, 113, 0.4)"; }
+        else if (mlTier.includes("Instável")) { tierColor = "#f39c12"; tierGlow = "rgba(243, 156, 18, 0.4)"; }
+        else if (mlTier.includes("Risco") || mlTier.includes("Descartável")) { tierColor = "#e74c3c"; tierGlow = "rgba(231, 76, 60, 0.4)"; }
+
+        // O NOVO DIAGNÓSTICO NEURAL IA
+        const brainMapHtml = `
+            <div class="ml-brain-card" style="border: 1px solid ${tierColor}; box-shadow: 0 0 15px ${tierGlow}; background: linear-gradient(145deg, rgba(20,20,25,0.95), rgba(10,10,15,0.95)); border-radius: 12px; padding: 20px; margin-bottom: 25px; position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.05; pointer-events: none;">🧠</div>
+
+                <h3 style="color: #fff; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; font-size: 1.1em; display: flex; align-items: center; justify-content: space-between;">
+                    <span><span class="ai-indicator"></span> Diagnóstico Neural IA</span>
+                    <span style="font-size: 0.8em; color: var(--color-text-secondary); font-weight: normal;">Base: Últimas ${hitrate.total_wars} Guerras</span>
+                </h3>
+                
+                <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 150px; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 8px; border-left: 4px solid ${tierColor};">
+                        <span style="display: block; font-size: 0.8em; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Classificação IA (Cluster)</span>
+                        <strong style="font-size: 1.2em; color: ${tierColor};">${mlTier}</strong>
+                    </div>
+                    <div style="flex: 1; min-width: 150px; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 8px; border-left: 4px solid #36a2eb;">
+                        <span style="display: block; font-size: 0.8em; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Confiabilidade (Random Forest)</span>
+                        <strong style="font-size: 1.4em; color: #36a2eb;">${mlProb.toFixed(1)}%</strong>
+                    </div>
+                </div>
+
+                <div class="battle-card-stats" style="background: transparent; padding: 0; border: none;">
+                    <div class="bc-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
+                        <span class="bc-label">Assiduidade Real</span>
                         <span class="bc-value ${corParticipacao}">${txParticipacao}%</span>
-                        <span class="bc-sub">${hitrate.attacks_made} de ${totalPossiveis} atks</span>
+                        <span class="bc-sub">${hitrate.attacks_made}/${totalPossiveis} atks</span>
                     </div>
-                    <div class="bc-stat">
-                        <span class="bc-label">Média de Estrelas</span>
+                    <div class="bc-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
+                        <span class="bc-label">Poder de Fogo</span>
                         <span class="bc-value text-gold">${mediaEstrelas} ⭐</span>
-                        <span class="bc-sub">Destruição: ${hitrate.avg_destruction}%</span>
+                        <span class="bc-sub">Destruição Média: ${hitrate.avg_destruction}%</span>
                     </div>
-                    <div class="bc-stat">
-                        <span class="bc-label">Taxa de Perfeitos</span>
+                    <div class="bc-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
+                        <span class="bc-label">Precisão Cirúrgica</span>
                         <span class="bc-value text-info">${tx3Estrelas}%</span>
                         <span class="bc-sub">${hitrate.three_star_attacks} PTs</span>
                     </div>
@@ -1502,7 +1535,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             
             ${cwlStatusHtml}
-            ${battleCardHtml}
+            ${brainMapHtml}
 
             <h3 class="profile-section-title">Progresso de Heróis</h3>
             <div class="profile-heroes-grid">
@@ -1531,7 +1564,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert('Erro ao salvar status.');
                         e.target.classList.remove('active');
                     } else {
-                         fetchData('members').then(populateMembersList);
+                         fetchData('members').then(d => { if(d && !d.error){ globalMembersList = d.members; populateMembersList(d); } });
                     }
                 });
             });
