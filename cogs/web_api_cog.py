@@ -19,7 +19,6 @@ logger = logging.getLogger("web_api_cog")
 class WebApiCog(commands.Cog, name="Web API"):
     """Cog para gerenciar toda a lógica de busca de dados para o painel web."""
 
-    # === VARIÁVEL DINÂMICA DE HISTÓRICO VISUAL ===
     MAX_WAR_HISTORY = 500
 
     def __init__(self, bot: commands.Bot):
@@ -179,13 +178,46 @@ class WebApiCog(commands.Cog, name="Web API"):
             home_heroes = ["Barbarian King", "Archer Queen", "Grand Warden", "Royal Champion", "Minion Prince"]
             heroes_data = [{"name": h.name, "level": h.level, "max_level": h.max_level} for h in player.heroes if h.name in home_heroes]
             league_icon = player.league.icon.url if player.league and player.league.icon else None
+            
+            # === NOVO CÁLCULO DE HITRATE COM LIMITE DINÂMICO ===
+            hitrate = {
+                "total_wars": 0, "attacks_made": 0, "attacks_missed": 0, 
+                "total_stars": 0, "three_star_attacks": 0, "avg_destruction": 0.0
+            }
+            
+            if self.db:
+                # Agora varre a memória profunda baseada no MAX_WAR_HISTORY (500) em vez de ser burra com 50
+                cursor = self.db.war_history.find({"our_clan_members_in_war.tag": player.tag}).sort("war_data.end_time_iso", -1).limit(self.MAX_WAR_HISTORY)
+                total_destruction = 0
+                async for war_doc in cursor:
+                    hitrate["total_wars"] += 1
+                    apm = war_doc.get("war_data", {}).get("attacks_per_member", 2)
+                    
+                    for member in war_doc.get("our_clan_members_in_war", []):
+                        if member.get("tag") == player.tag:
+                            attacks = member.get("attacks_made", [])
+                            hitrate["attacks_made"] += len(attacks)
+                            hitrate["attacks_missed"] += (apm - len(attacks))
+                            
+                            for atk in attacks:
+                                stars = atk.get("stars", 0)
+                                hitrate["total_stars"] += stars
+                                total_destruction += atk.get("destruction", 0)
+                                if stars == 3: hitrate["three_star_attacks"] += 1
+                            break
+                            
+                if hitrate["attacks_made"] > 0:
+                    hitrate["avg_destruction"] = round(total_destruction / hitrate["attacks_made"], 2)
+
             return {
                 "name": player.name, "tag": player.tag, "town_hall": player.town_hall, "trophies": player.trophies,
                 "league": player.league.name if player.league else "Sem Liga", "league_icon": league_icon,
                 "donations": player.donations, "received": player.received, "heroes": heroes_data,
-                "role": player.role.name.capitalize() if hasattr(player, 'role') and hasattr(player.role, 'name') else "Membro"
+                "role": player.role.name.capitalize() if hasattr(player, 'role') and hasattr(player.role, 'name') else "Membro",
+                "hitrate": hitrate # Injeta a matemática avançada
             }
-        except Exception as e: return {"error": "Falha de conexão com a API da Supercell."}
+        except Exception as e: 
+            return {"error": "Falha de conexão com a API da Supercell."}
 
     async def fetch_clan_members_for_web(self):
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
@@ -213,7 +245,6 @@ class WebApiCog(commands.Cog, name="Web API"):
                 last_war_dates = {item["_id"]: item["last_war_date"] for item in results}
             except Exception as e: pass
 
-        # --- Integração com o Machine Learning ---
         insights_dict = {}
         if analytics_cog:
             try:
@@ -225,7 +256,6 @@ class WebApiCog(commands.Cog, name="Web API"):
                         insights_dict[insight["tag"]] = insight
             except Exception as e:
                 logger.error(f"Erro ao processar ML Analytics em members_for_web: {e}")
-        # -----------------------------------------
 
         for member in clan.members:
             note_data = player_notes.get(member.tag, {})
@@ -245,7 +275,6 @@ class WebApiCog(commands.Cog, name="Web API"):
                 "watchlistReason": watchlist_entry.get('reason', None) if watchlist_entry else None,
                 "watchlistDetails": watchlist_entry.get('details', None) if watchlist_entry else None,
                 "last_war_date": last_war_date_iso,
-                # Dados da IA
                 "attack_probability": player_insight.get("attack_probability"),
                 "tier": player_insight.get("tier", "Não Classificado"),
                 "wars_participated_ml": player_insight.get("wars_participated", 0)
@@ -294,7 +323,6 @@ class WebApiCog(commands.Cog, name="Web API"):
     async def fetch_war_log_for_web(self):
         if self.db is None: return {"error": "Histórico indisponível (DB não conectado)."}
         
-        # AQUI FOI ONDE A MÁGICA ACONTECEU! Atualizado de limit(50) para limit(self.MAX_WAR_HISTORY)
         log_cursor = self.db.war_history.find({}, {"war_data": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(self.MAX_WAR_HISTORY)
         
         entries = []
@@ -368,7 +396,6 @@ class WebApiCog(commands.Cog, name="Web API"):
         clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
         if not clan: return {"error": "Não foi possível carregar destaques."}
         
-        # 1. TOP DOADORES (Formato Antigo para não quebrar a tela)
         active_members = sorted(clan.members, key=lambda m: m.donations, reverse=True)
         top_donors = []
         for i, m in enumerate(active_members[:3]):
@@ -392,7 +419,6 @@ class WebApiCog(commands.Cog, name="Web API"):
 
                 our_members = latest_war_doc.get("our_clan_members_in_war", [])
 
-                # O MVP
                 best_attacker = None
                 best_score = -1
                 for m in our_members:
@@ -409,7 +435,6 @@ class WebApiCog(commands.Cog, name="Web API"):
                         "rank": 1, "reason": "🎯 Precisão Balística (MVP): Letalidade máxima atingida. Executou ataques perfeitos que consolidaram o momentum da guerra para a equipe."
                     })
 
-                # A MURALHA
                 best_defender = None
                 best_def_score = -999
                 for m in our_members:
@@ -428,7 +453,6 @@ class WebApiCog(commands.Cog, name="Web API"):
                         "rank": 2, "reason": f"🛡️ A Muralha: Resiliência extrema detectada. Absorveu {defs_count} ataques inimigos, blindando o mapa e forçando o oponente a desperdiçar munição vital."
                     })
 
-                # O CARRASCO
                 best_cleanup = None
                 best_cleanup_score = -1
                 for m in our_members:
@@ -456,11 +480,9 @@ class WebApiCog(commands.Cog, name="Web API"):
         }
 
 async def setup(bot: commands.Bot):
-    # Carrega o cog de Analytics dinamicamente para não precisarmos alterar o clash.py!
     if 'cogs.player_analytics_cog' not in bot.extensions:
         try:
             await bot.load_extension('cogs.player_analytics_cog')
-            logger.info("Player Analytics Cog carregado dinamicamente com sucesso!")
         except Exception as e:
             logger.error(f"Falha ao carregar Player Analytics Cog: {e}")
             
