@@ -61,7 +61,7 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
         return pd.DataFrame(records)
 
     async def process_and_train(self, clan_tag: str):
-        """Pipeline de ML: Feature Engineering -> Random Forest -> K-Means Clustering."""
+        """Pipeline de ML: Feature Engineering -> Random Forest -> Clustering."""
         df = await self._extract_time_series_data()
         if df.empty:
             logger.warning("Dados insuficientes no banco para treinar os modelos de ML.")
@@ -128,27 +128,35 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
         confidence_penalty = 1.0 - np.exp(-current_df["wars_played"] / 4.0)
         current_df["probability"] = (raw_probability * confidence_penalty) * 100.0
 
-        # 5. CLUSTERING E RANQUEAMENTO DE TIERS (K-MEANS)
+        # 5. CLASSIFICAÇÃO MILITAR E TIERS DE IA
         cluster_features = current_df[["probability", "hist_stars", "avg_destruction"]].fillna(0)
         
         if len(cluster_features) >= 4:
             scaled_features = self.scaler.fit_transform(cluster_features)
-            current_df["cluster"] = self.kmeans.fit_predict(scaled_features)
+            current_df["cluster"] = self.kmeans.fit_predict(scaled_features) # Mantém o KMeans para processamento interno
             
-            cluster_centers = current_df.groupby("cluster")[["probability", "hist_stars"]].mean()
-            cluster_centers["power_score"] = (cluster_centers["probability"] / 100.0) * 0.6 + (cluster_centers["hist_stars"] / 3.0) * 0.4
+            # --- NOVA LÓGICA RÍGIDA DE PATENTES ---
+            def assign_military_tier(row):
+                w = row["wars_played"]
+                p = row["probability"]
+                
+                if w < 5:
+                    return "Em Avaliação"
+                elif w >= 50 and p >= 95.0:
+                    return "General (Elite)"
+                elif w >= 30 and p >= 85.0:
+                    return "Coronel (Especialista)"
+                elif w >= 15 and p >= 75.0:
+                    return "Capitão (Especialista)"
+                elif w >= 5 and p >= 60.0:
+                    return "Soldado (Especialista)"
+                elif p < 50.0:
+                    return "Descartável (Risco)"
+                else:
+                    return "Recruta (Instável)"
             
-            ranked_clusters = cluster_centers.sort_values("power_score", ascending=False).index.tolist()
+            current_df["tier_label"] = current_df.apply(assign_military_tier, axis=1)
             
-            tier_map = {
-                ranked_clusters[0]: "General (Elite)",
-                ranked_clusters[1]: "Especialista Confiável",
-                ranked_clusters[2]: "Incerto / Instável",
-                ranked_clusters[3]: "Descartável (Risco)"
-            }
-            current_df["tier_label"] = current_df["cluster"].map(tier_map)
-            
-            current_df.loc[current_df["wars_played"] < 4, "tier_label"] = "Novato (Em Avaliação)"
         else:
             current_df["tier_label"] = "Aguardando Dados"
 
