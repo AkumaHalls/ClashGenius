@@ -368,8 +368,11 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             member_tags = set()
             
             clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
+            current_member_tags = set()
             if clan:
-                for m in clan.members: member_tags.add(m.tag)
+                for m in clan.members:
+                    member_tags.add(m.tag)
+                    current_member_tags.add(m.tag)
             
             cursor = self.db.smurf_evidence.find({"score": {"$gt": 10}}) 
             async for doc in cursor: 
@@ -399,6 +402,10 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 for j in range(i + 1, len(players_full)):
                     p2 = players_full[j]
                     if p2.tag in processed: continue
+                    
+                    # FIX: Só mostra pares onde pelo menos uma conta ainda está no clã
+                    if p1.tag not in current_member_tags and p2.tag not in current_member_tags:
+                        continue
                     
                     pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
                     telemetry = telemetry_matrix.get(pair_id)

@@ -32,6 +32,150 @@
         .watchlist-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
         .watchlist-filters input[type="text"] { flex-grow: 1; min-width: 200px; margin-bottom: 0; }
 
+        /* Admin Header Cyberpunk */
+        .admin-header h2 {
+            font-family: 'Orbitron', sans-serif !important;
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 2px;
+        }
+        
+        .admin-card {
+            background: rgba(12, 12, 24, 0.95) !important;
+            border: 1px solid rgba(0, 255, 249, 0.2) !important;
+            box-shadow: 0 0 30px rgba(0, 255, 249, 0.08) !important;
+        }
+        
+        .admin-card h3 {
+            font-family: 'Orbitron', sans-serif !important;
+            color: var(--neon-cyan) !important;
+            letter-spacing: 1px;
+        }
+        
+        .admin-card h4 {
+            color: var(--color-text-main) !important;
+            font-family: 'Rajdhani', sans-serif !important;
+            font-weight: 600 !important;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .control-section {
+            border-top-color: rgba(0, 255, 249, 0.1) !important;
+        }
+        
+        /* Radar Dossier Cyberpunk */
+        .dossier-grid .btn-admin {
+            font-family: 'Rajdhani', sans-serif !important;
+            font-weight: 600 !important;
+            letter-spacing: 1px;
+            cursor: pointer;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+        .dossier-grid .btn-admin:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px currentColor;
+        }
+        
+        /* Admin Nav Cyberpunk */
+        .admin-nav {
+            border-bottom: 1px solid rgba(0, 255, 249, 0.1);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+        }
+        .admin-nav ul {
+            background: rgba(0, 0, 0, 0.3) !important;
+            border: 1px solid rgba(0, 255, 249, 0.08) !important;
+        }
+        .admin-nav a {
+            font-family: 'Rajdhani', sans-serif !important;
+            font-weight: 600 !important;
+            letter-spacing: 1px;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .admin-nav a:hover {
+            border-color: var(--neon-cyan) !important;
+            box-shadow: 0 0 15px rgba(0, 255, 249, 0.2) !important;
+        }
+        .admin-nav a.active-nav-link {
+            border-color: var(--neon-cyan) !important;
+            background: rgba(0, 255, 249, 0.15) !important;
+            color: var(--neon-cyan) !important;
+        }
+        
+        /* Form Cyberpunk */
+        .admin-input, .admin-textarea, .settings-input, .settings-textarea {
+            background: rgba(0, 0, 0, 0.5) !important;
+            border: 1px solid rgba(0, 255, 249, 0.15) !important;
+            color: var(--color-text-main) !important;
+            transition: all 0.3s ease;
+        }
+        .admin-input:focus, .admin-textarea:focus, .settings-input:focus, .settings-textarea:focus {
+            border-color: var(--neon-cyan) !important;
+            box-shadow: 0 0 15px rgba(0, 255, 249, 0.2) !important;
+        }
+        
+        /* Watchlist Table Cyberpunk */
+        #admin-watchlist-table th {
+            color: var(--neon-cyan) !important;
+            background: rgba(0, 0, 0, 0.6) !important;
+        }
+        #admin-watchlist-table td {
+            border-bottom: 1px solid rgba(0, 255, 249, 0.05) !important;
+        }
+        
+        /* Analytics Table Cyberpunk */
+        #analytics-table th {
+            color: var(--neon-cyan) !important;
+            background: rgba(0, 0, 0, 0.6) !important;
+        }
+        
+        /* Cyber Tooltip System for Admin */
+        .cyber-tooltip {
+            visibility: hidden;
+            width: 240px;
+            background: rgba(10, 10, 20, 0.95);
+            color: var(--color-text-main);
+            text-align: center;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--neon-cyan);
+            box-shadow: 0 0 20px rgba(0, 255, 249, 0.2);
+            position: absolute;
+            z-index: 9999;
+            bottom: 130%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: all 0.3s ease;
+            font-size: 0.85em;
+            font-family: var(--font-body);
+            pointer-events: none;
+            line-height: 1.4;
+            white-space: normal;
+            font-weight: 500;
+        }
+        .cyber-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -6px;
+            border: 6px solid transparent;
+            border-top-color: var(--neon-cyan);
+        }
+        [data-tooltip]:hover .cyber-tooltip {
+            visibility: visible;
+            opacity: 1;
+            bottom: 140%;
+        }
+        
         /* =========================================================
            >>> CORREÇÕES DE ESTÉTICA E SCROLL (O FIM DO ESTICADO) <<<
            ========================================================= */
@@ -112,14 +256,14 @@
 
             <nav class="admin-nav">
                 <ul>
-                    <li><a href="#" class="nav-link" data-section="admin-geral">Geral</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-diagnostico">Diagnóstico</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-configuracoes">Configurações</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-watchlist">Watchlist</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-radar" style="color: #ffd700;">🧠 Radar Pericial</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-analytics" style="color: #00ffcc;">📊 Analytics IA</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-acoes">Ações</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-db">Base de Dados</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-geral" data-tooltip="Controles gerais do bot e informações do sistema">Geral</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-diagnostico" data-tooltip="Status da API CoC e logs recentes do bot">Diagnóstico</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-configuracoes" data-tooltip="Canais, cargos e configurações do Discord">Configurações</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-watchlist" data-tooltip="Gerenciar lista de observação de jogadores">Watchlist</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-radar" style="color: #ffd700;" data-tooltip="🧠 Radar Pericial: Detecção de smurfs e contas vinculadas">🧠 Radar Pericial</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-analytics" style="color: #00ffcc;" data-tooltip="📊 Analytics IA: Classificação de jogadores por machine learning">📊 Analytics IA</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-acoes" data-tooltip="Ações do bot: cache, sincronização, anúncios">Ações</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-db" data-tooltip="Visualizador da base de dados MongoDB">Base de Dados</a></li>
                 </ul>
             </nav>
 

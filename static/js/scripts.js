@@ -15,12 +15,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const clanBadgeHeaderEl = document.getElementById('clanBadgeHeader');
     const clanNameEl = document.getElementById('clanName');
     const clanTagEl = document.getElementById('clanTag');
-    const clanLevelEl = document.getElementById('clanLevel');
+    const clanLevelValueEl = document.getElementById('clanLevelValue');
     const clanPointsEl = document.getElementById('clanPoints');
-    const clanMemberCountEl = document.getElementById('clanMemberCount');
+    const clanMemberCountValueEl = document.getElementById('clanMemberCountValue');
+    const clanMemberCountBarEl = document.getElementById('clanMemberCountBar');
+    const clanMemberBarFillEl = document.getElementById('clanMemberBarFill');
     const clanWarWinsEl = document.getElementById('clanWarWins');
-    const clanLocationEl = document.getElementById('clanLocation');
-    const clanTypeEl = document.getElementById('clanType');
+    const clanLocationValueEl = document.getElementById('clanLocationValue');
+    const clanTypeValueEl = document.getElementById('clanTypeValue');
     const clanDescriptionEl = document.getElementById('clanDescription');
     const clanBadgeEl = document.getElementById('clanBadge');
     const clanCapitalPointsEl = document.getElementById('clanCapitalPoints');
@@ -261,6 +263,31 @@ document.addEventListener('DOMContentLoaded', () => {
         link?.classList.toggle('active-nav-link', link.dataset.section === currentActiveSectionId); 
     });
 
+    // === SISTEMA GLOBAL DE TOOLTIPS ===
+    function initTooltips() {
+        document.querySelectorAll('[data-tooltip]').forEach(el => {
+            if (el.querySelector('.cyber-tooltip')) return;
+            const tip = document.createElement('span');
+            tip.className = 'cyber-tooltip';
+            tip.textContent = el.dataset.tooltip;
+            el.appendChild(tip);
+            el.style.position = 'relative';
+            el.style.cursor = 'help';
+        });
+    }
+
+    // Adiciona tooltip para o ícone de exclamação de ataques perdidos
+    function addWarWarningTooltips() {
+        document.querySelectorAll('.missed-attack-icon, .attacks-warning-icon').forEach(el => {
+            if (el.querySelector('.ww-tooltip-text')) return;
+            const tip = document.createElement('span');
+            tip.className = 'ww-tooltip-text';
+            tip.textContent = el.dataset.warning || '⚠️ Este membro não realizou todos os ataques na guerra!';
+            el.appendChild(tip);
+            el.classList.add('war-warning-tooltip');
+        });
+    }
+
     function setActiveSection(newSectionId) {
         if (!newSectionId || newSectionId === currentActiveSectionId) return; 
         const oldSectionEl = document.getElementById(currentActiveSectionId);
@@ -293,16 +320,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setText(clanNameHeaderEl, data.name);
         setText(clanNameEl, data.name);
+        if (clanNameEl) clanNameEl.setAttribute('data-text', data.name);
         setText(clanTagEl, data.tag);
         setBadge(clanBadgeHeaderEl, data.badge_url);
         setBadge(clanBadgeEl, data.badge_url);
-        setText(clanLevelEl, `Nível: ${data.level || '-'}`);
-        setText(clanMemberCountEl, `Membros: ${data.member_count || '-'}/50`);
-        setText(clanLocationEl, `Local: ${data.location || '-'}`);
-        setText(clanTypeEl, `Tipo: ${data.type || '-'}`);
-        setText(clanWarWinsEl, `${data.war_wins?.toLocaleString() || '-'} ⚔️`); 
-        setText(clanPointsEl, `${data.points?.toLocaleString() || '-'} 🏆`); 
-        setText(clanCapitalPointsEl, `${data.capital_points?.toLocaleString() || '-'} 🏆`); 
+        setText(clanLevelValueEl, data.level || '-');
+        const memberCount = data.member_count || 0;
+        setText(clanMemberCountValueEl, `${memberCount}/50`);
+        setText(clanMemberCountBarEl, `${memberCount}/50`);
+        if (clanMemberBarFillEl) {
+            const pct = Math.min((memberCount / 50) * 100, 100);
+            setTimeout(() => { clanMemberBarFillEl.style.width = `${pct}%`; }, 200);
+        }
+        setText(clanLocationValueEl, data.location || '-');
+        setText(clanTypeValueEl, data.type || '-');
+        setText(clanWarWinsEl, `${data.war_wins?.toLocaleString() || '-'}`);
+        setText(clanPointsEl, `${data.points?.toLocaleString() || '-'}`);
+        setText(clanCapitalPointsEl, `${data.capital_points?.toLocaleString() || '-'}`);
         setText(clanCapitalLeagueEl, data.capital_league);
         setText(clanDescriptionEl, data.description, 'Sem descrição.');
         setText(botVersionEl, data.version, '?');
@@ -633,12 +667,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (noMissedAttacksMessageEl) noMissedAttacksMessageEl.style.display = 'none';
 
-        setHtml(missedAttacksContainerEl, data.wars_with_missed_attacks.map(war => `
+            setHtml(missedAttacksContainerEl, data.wars_with_missed_attacks.map(war => `
             <div class="war-group">
                 <h3 class="war-group-header">Guerra vs <strong>${war.opponent_name || '?'}</strong> (${war.end_date || '?'}) ${war.is_latest ? '<span class="latest-war-badge">💥 Última Guerra</span>' : ''}</h3>
                 <div class="player-card-grid">
                     ${war.missed_attacks_members?.map(member => `
-                        <div class="missed-attack-card ${member.attacks_left >= 2 ? 'severity-high' : 'severity-medium'}">
+                        <div class="missed-attack-card ${member.attacks_left >= 2 ? 'severity-high' : 'severity-medium'} war-warning-tooltip">
+                            <span class="ww-tooltip-text">${member.attacks_left >= 2 ? '🚨 ATENÇÃO: Este membro esqueceu 2 ou mais ataques! Infração grave.' : '⚠️ Alerta: Este membro não realizou todos os seus ataques nesta guerra.'}</span>
                             <div class="player-info">
                                 <h4>${member.name || '?'} <span>(CV${member.town_hall || '?'})</span></h4>
                                 <div class="player-tag-container">
@@ -1021,8 +1056,48 @@ document.addEventListener('DOMContentLoaded', () => {
         populateCwlSchedule(data);
     }
 
+    function renderWarSummaryBars(logData) {
+        const container = document.getElementById('warSummaryBars');
+        const recordEl = document.getElementById('warSummaryRecord');
+        if (!container) return;
+
+        if (!logData || !logData.log || logData.log.length === 0) {
+            setHtml(container, '<span class="war-summary-loading">Nenhum dado de guerra disponível.</span>');
+            return;
+        }
+
+        const recent = logData.log.slice(0, 10);
+        let wins = 0, losses = 0, ties = 0;
+        const totalScore = recent.reduce((acc, w) => {
+            const cls = w.clan_stars || 0;
+            const ops = w.opponent_stars || 0;
+            if (w.result === 'Vitória') wins++;
+            else if (w.result === 'Derrota') losses++;
+            else ties++;
+            return acc + (cls > ops ? 2 : cls === ops ? 1 : 0);
+        }, 0);
+        const maxPossible = recent.length * 2;
+        const pct = maxPossible > 0 ? Math.round((totalScore / maxPossible) * 100) : 0;
+
+        if (recordEl) setText(recordEl, `${wins}V ${losses}D ${ties}E (${pct}%)`);
+
+        setHtml(container, recent.map(w => {
+            const cls = w.clan_stars || 0;
+            const ops = w.opponent_stars || 0;
+            const resultClass = w.result === 'Vitória' ? 'win' : (w.result === 'Derrota' ? 'loss' : 'tie');
+            const label = w.end_time_formatted ? w.end_time_formatted.split(' ')[0] : '?';
+            return `<div class="war-summary-bar ${resultClass}" title="${w.opponent_name || '?'}: ${cls}⭐ vs ${ops}⭐">
+                        <span class="wsb-result">${cls}⭐</span>
+                        <span class="wsb-label">${label}</span>
+                        <span class="wsb-tooltip">${w.opponent_name || '?'}<br>${cls}⭐ x ${ops}⭐</span>
+                    </div>`;
+        }).join(''));
+    }
+
     function populateWarLog(data) {
         setText(warLogLimitEl, data?.log?.length || '0');
+
+        renderWarSummaryBars(data);
 
         if (!data || data.error || !data.log?.length) {
             if(noWarLogMessageEl) { noWarLogMessageEl.style.display = 'block'; setText(noWarLogMessageEl, data?.error || "Log de guerra indisponível."); }
@@ -1292,13 +1367,17 @@ document.addEventListener('DOMContentLoaded', () => {
     filterTHInput?.addEventListener('input', applyMemberFilters);
 
     function attachMemberEventListeners() {
+        membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
+            header.replaceWith(header.cloneNode(true)); 
+        });
+        membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
+            header.addEventListener('click', () => openMemberProfileModal(header.dataset.playerTag));
+        });
+
         if (!userIsAdmin) {
             return;
         }
 
-        membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
-            header.replaceWith(header.cloneNode(true)); 
-        });
         membersGridEl?.querySelectorAll('.note-text').forEach(span => {
             span.replaceWith(span.cloneNode(true));
         });
@@ -1310,10 +1389,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         membersGridEl?.querySelectorAll('.cwl-status-btn').forEach(btn => {
             btn.replaceWith(btn.cloneNode(true));
-        });
-
-        membersGridEl?.querySelectorAll('.member-card-header').forEach(header => {
-            header.addEventListener('click', () => openMemberProfileModal(header.dataset.playerTag));
         });
         membersGridEl?.querySelectorAll('.note-text').forEach(span => {
             span.addEventListener('click', () => {
@@ -1706,6 +1781,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (clanGamesData) populateClanGamesData(clanGamesData);
 
             updateLastUpdated();
+            initTooltips();
+            addWarWarningTooltips();
         } catch (error) {
             console.error("Erro geral ao carregar todos os dados:", error);
             if (loadingStatusTextEl && loadingOverlayEl && !loadingOverlayEl.classList.contains('hidden')) {

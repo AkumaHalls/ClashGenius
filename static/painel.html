@@ -35,15 +35,15 @@
             </div>
             <nav class="main-nav">
                 <ul>
-                    <li><a href="#clan-info-nav" class="nav-link" data-section="clan-info-nav">Clã</a></li>
-                    <li><a href="#highlights-nav" class="nav-link" data-section="highlights-nav">Destaques</a></li>
-                    <li><a href="#war-details-nav" class="nav-link" data-section="war-details-nav">Guerra</a></li>
-                    <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav">Ataques Pendentes</a></li>
-                    <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav">CWL</a></li>
-                    <li><a href="#clan-games-nav" class="nav-link" data-section="clan-games-nav">Jogos</a></li>
-                    <li><a href="#capital-nav" class="nav-link" data-section="capital-nav">Capital do Clã</a></li>
-                    <li><a href="#war-log-nav" class="nav-link" data-section="war-log-nav">Histórico</a></li>
-                    <li><a href="#members-list-nav" class="nav-link" data-section="members-list-nav">Membros</a></li>
+                    <li><a href="#clan-info-nav" class="nav-link" data-section="clan-info-nav" data-tooltip="Visão geral do clã, estatísticas e desempenho">Clã</a></li>
+                    <li><a href="#highlights-nav" class="nav-link" data-section="highlights-nav" data-tooltip="Top doadores, heróis da guerra e gráfico de atividade">Destaques</a></li>
+                    <li><a href="#war-details-nav" class="nav-link" data-section="war-details-nav" data-tooltip="Detalhes da guerra atual, previsão da IA e plano de ataque">Guerra</a></li>
+                    <li><a href="#attacks-remaining-nav" class="nav-link" data-section="attacks-remaining-nav" data-tooltip="Membros que não atacaram em guerras recentes">Ataques Pendentes</a></li>
+                    <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav" data-tooltip="Liga de Guerras de Clãs e plano de rotação da IA">CWL</a></li>
+                    <li><a href="#clan-games-nav" class="nav-link" data-section="clan-games-nav" data-tooltip="Progresso dos Jogos do Clã e membros que não pontuaram">Jogos</a></li>
+                    <li><a href="#capital-nav" class="nav-link" data-section="capital-nav" data-tooltip="Raio-X da Capital: ataques, saques e ausentes">Capital do Clã</a></li>
+                    <li><a href="#war-log-nav" class="nav-link" data-section="war-log-nav" data-tooltip="Histórico completo de guerras do clã">Histórico</a></li>
+                    <li><a href="#members-list-nav" class="nav-link" data-section="members-list-nav" data-tooltip="Lista completa de membros com notas e status CWL">Membros</a></li>
                 </ul>
             </nav>
         </div>
@@ -53,43 +53,95 @@
         <div class="sections-wrapper">
             <section id="clan-info-nav" class="card clan-card content-section">
                 <div class="clan-profile-header">
-                    <div class="clan-profile-badge-container">
+                    <div class="clan-profile-badge-container cyber-badge-container">
+                        <div class="cyber-badge-glow"></div>
                         <img id="clanBadge" src="/static/images/default_badge.png" alt="Emblema do Clã" class="clan-profile-badge">
+                        <div class="cyber-badge-corner tl"></div>
+                        <div class="cyber-badge-corner tr"></div>
+                        <div class="cyber-badge-corner bl"></div>
+                        <div class="cyber-badge-corner br"></div>
                     </div>
                     <div class="clan-profile-info">
-                        <h2 id="clanName">-</h2>
+                        <h2 id="clanName" class="glitch-text" data-text="-">-</h2>
                         <p class="clan-tag-profile" id="clanTag">-</p>
-                        <div class="primary-stats">
-                            <span class="stat-item" id="clanLevel"><span class="stat-icon">🎖️</span> Nível: -</span>
-                            <span class="stat-item" id="clanMemberCount"><span class="stat-icon">👥</span> Membros: -/50</span>
-                            <span class="stat-item" id="clanLocation"><span class="stat-icon">🌍</span> Local: -</span>
-                            <span class="stat-item" id="clanType"><span class="stat-icon">🚪</span> Tipo: -</span>
+                        <div class="primary-stats cyber-stats">
+                            <span class="stat-item cyber-stat-item" id="clanLevel" title="Nível atual do clã"><span class="stat-icon">🎖️</span> <span class="stat-label">Nível</span> <span class="stat-value" id="clanLevelValue">-</span></span>
+                            <span class="stat-item cyber-stat-item" id="clanMemberCount" title="Membros ativos no clã"><span class="stat-icon">👥</span> <span class="stat-label">Membros</span> <span class="stat-value" id="clanMemberCountValue">-/50</span></span>
+                            <span class="stat-item cyber-stat-item" id="clanLocation" title="Localização do clã"><span class="stat-icon">📍</span> <span class="stat-label">Local</span> <span class="stat-value" id="clanLocationValue">-</span></span>
+                            <span class="stat-item cyber-stat-item" id="clanType" title="Tipo de clã (aberto/fechado/convidados)"><span class="stat-icon">🔒</span> <span class="stat-label">Tipo</span> <span class="stat-value" id="clanTypeValue">-</span></span>
                         </div>
                     </div>
                 </div>
 
-                <h3>Estatísticas Gerais</h3>
-                <div class="stats-grid">
-                    <div class="stat-card stat-card-wars">
-                        <h4>Guerras Vencidas</h4>
-                        <p id="clanWarWins">- ⚔️</p>
+                <div class="clan-pulse-grid">
+                    <div class="clan-pulse-card pulse-wins" title="Total de guerras vencidas pelo clã">
+                        <div class="pulse-icon">⚔️</div>
+                        <div class="pulse-info">
+                            <span class="pulse-label">Guerras Vencidas</span>
+                            <span class="pulse-value" id="clanWarWins">-</span>
+                        </div>
+                        <div class="pulse-glow"></div>
                     </div>
-                    <div class="stat-card stat-card-trophies">
-                        <h4>Pontos do Clã</h4>
-                        <p id="clanPoints">- 🏆</p>
+                    <div class="clan-pulse-card pulse-trophies" title="Pontuação total do clã">
+                        <div class="pulse-icon">🏆</div>
+                        <div class="pulse-info">
+                            <span class="pulse-label">Pontos do Clã</span>
+                            <span class="pulse-value" id="clanPoints">-</span>
+                        </div>
+                        <div class="pulse-glow"></div>
                     </div>
-                    <div class="stat-card stat-card-capital-trophies">
-                        <h4>Pontos da Capital</h4>
-                        <p id="clanCapitalPoints">- 🏆</p>
+                    <div class="clan-pulse-card pulse-capital" title="Pontos da Capital do Clã">
+                        <div class="pulse-icon">🏰</div>
+                        <div class="pulse-info">
+                            <span class="pulse-label">Pontos da Capital</span>
+                            <span class="pulse-value" id="clanCapitalPoints">-</span>
+                        </div>
+                        <div class="pulse-glow"></div>
                     </div>
-                    <div class="stat-card stat-card-capital-league">
-                        <h4>Liga da Capital</h4>
-                        <p id="clanCapitalLeague">-</p>
+                    <div class="clan-pulse-card pulse-league" title="Liga atual da Capital do Clã">
+                        <div class="pulse-icon">💎</div>
+                        <div class="pulse-info">
+                            <span class="pulse-label">Liga da Capital</span>
+                            <span class="pulse-value" id="clanCapitalLeague">-</span>
+                        </div>
+                        <div class="pulse-glow"></div>
                     </div>
                 </div>
 
-                <h3>Descrição</h3>
-                <div id="clanDescription" class="description-box scrollable-box">-</div>
+                <div class="clan-member-bar-container" title="Progresso de membros do clã">
+                    <div class="clan-member-bar-header">
+                        <span class="clan-member-bar-label">Ocupação do Clã</span>
+                        <span class="clan-member-bar-count" id="clanMemberCountBar">-/50</span>
+                    </div>
+                    <div class="clan-member-bar-track">
+                        <div class="clan-member-bar-fill" id="clanMemberBarFill" style="width: 0%;"></div>
+                        <div class="clan-member-bar-ticks">
+                            <span style="left: 25%;">25</span>
+                            <span style="left: 50%;">50</span>
+                            <span style="left: 75%;">75</span>
+                            <span style="left: 100%;">100%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="clan-description-cyber" title="Descrição do clã">
+                    <div class="cyber-desc-header">
+                        <span class="cyber-desc-icon">📜</span>
+                        <span class="cyber-desc-title">MANIFESTO DO CLÃ</span>
+                    </div>
+                    <div id="clanDescription" class="cyber-desc-text scrollable-box">-</div>
+                </div>
+
+                <div class="clan-war-summary" data-tooltip="Desempenho nas últimas guerras" data-tooltip-position="left">
+                    <div class="cyber-desc-header">
+                        <span class="cyber-desc-icon">⚔️</span>
+                        <span class="cyber-desc-title">DESEMPENHO EM GUERRAS</span>
+                        <span class="war-summary-record" id="warSummaryRecord">-</span>
+                    </div>
+                    <div id="warSummaryBars" class="war-summary-bars">
+                        <span class="war-summary-loading">Carregando...</span>
+                    </div>
+                </div>
             </section>
 
             <section id="highlights-nav" class="card content-section">

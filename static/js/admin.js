@@ -648,6 +648,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function initTooltips() {
+        document.querySelectorAll('[data-tooltip]').forEach(el => {
+            if (el.querySelector('.cyber-tooltip')) return;
+            const tip = document.createElement('span');
+            tip.className = 'cyber-tooltip';
+            tip.textContent = el.dataset.tooltip;
+            el.appendChild(tip);
+            el.style.position = 'relative';
+            el.style.cursor = 'help';
+        });
+    }
+
     async function loadDataForCurrentTab() {
         [settingsFeedback, actionsFeedback, geralFeedback, dbFeedback, watchlistAddFeedback, watchlistListFeedback, radarFeedback].forEach(el => {
              if (el) el.textContent = '';
@@ -829,4 +841,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial load
     loadDataForCurrentTab();
+    initTooltips();
 });

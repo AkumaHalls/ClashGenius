@@ -1,65 +1,76 @@
-/* Importa fontes do Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
 
 :root {
-    /* Tema WarReport - Cores Escuras */
-    --font-body: 'Open Sans', sans-serif;
-    --font-title: 'Roboto', sans-serif;
+    --font-body: 'Rajdhani', sans-serif;
+    --font-title: 'Orbitron', sans-serif;
+    --font-mono: 'Fira Code', monospace;
 
-    --color-background: #1a202c;
-    --color-card-background: #2d3748;
-    --color-header-background: #171923;
-    --color-footer-background: #171923;
+    --neon-cyan: #00fff9;
+    --neon-pink: #ff00aa;
+    --neon-purple: #b300ff;
+    --neon-blue: #0080ff;
+    --neon-green: #00ff41;
+    --neon-yellow: #ffd700;
+    --neon-red: #ff0040;
+    --neon-orange: #ff6600;
 
-    --color-text-main: #e2e8f0;
-    --color-text-secondary: #a0aec0;
-    --color-text-header: #cbd5e0;
+    --color-background: #0a0a0f;
+    --color-card-background: #12121c;
+    --color-header-background: #07070c;
+    --color-footer-background: #07070c;
+
+    --color-text-main: #d4d4e8;
+    --color-text-secondary: #8080a0;
+    --color-text-header: #b0b0d0;
     --color-text-title-card: #ffffff;
 
-    --color-border: #4a5568;
-    --color-border-light: #718096;
-    --color-divider: #4a5568;
+    --color-border: #2a2a4a;
+    --color-border-light: #3a3a6a;
+    --color-divider: #2a2a4a;
 
-    --color-accent: #3182ce;
-    --color-accent-hover: #2b6cb0;
+    --color-accent: var(--neon-cyan);
+    --color-accent-hover: #00ccd4;
 
-    --color-link: var(--color-accent);
-    --color-link-hover: var(--color-accent-hover);
+    --color-link: var(--neon-cyan);
+    --color-link-hover: var(--neon-pink);
 
-    --color-war-our-clan: #38a169;
-    --color-war-opponent: #e53e3e;
-    --color-war-preparation: #ecc94b;
-    --color-war-inwar: #dd6b20;
-    --color-war-ended: #3182ce;
-    --color-war-notinwar: #718096;
+    --color-war-our-clan: var(--neon-green);
+    --color-war-opponent: var(--neon-red);
+    --color-war-preparation: var(--neon-yellow);
+    --color-war-inwar: var(--neon-orange);
+    --color-war-ended: var(--neon-blue);
+    --color-war-notinwar: #555577;
 
-    --color-priority-green: #38a169;
-    --color-priority-yellow: #ecc94b;
-    --color-priority-red: #e53e3e;
-    --color-priority-none-bg: rgba(74, 85, 104, 0.3);
-    --color-priority-text-dark: #1A202C;
+    --color-priority-green: var(--neon-green);
+    --color-priority-yellow: var(--neon-yellow);
+    --color-priority-red: var(--neon-red);
+    --color-priority-none-bg: rgba(42, 42, 74, 0.4);
+    --color-priority-text-dark: #0a0a0f;
 
-    --color-success: var(--color-priority-green);
-    --color-danger: var(--color-priority-red);
-    --color-warning: var(--color-priority-yellow);
-    --color-info: var(--color-accent);
+    --color-success: var(--neon-green);
+    --color-danger: var(--neon-red);
+    --color-warning: var(--neon-yellow);
+    --color-info: var(--neon-cyan);
 
     --color-star-gold: #FFD700;
-    --color-star-empty: #718096;
+    --color-star-empty: #555577;
 
-    --color-tab-active-bg: var(--color-accent);
-    --color-tab-active-text: #ffffff;
+    --color-tab-active-bg: var(--neon-cyan);
+    --color-tab-active-text: #0a0a0f;
     --color-tab-inactive-bg: transparent;
     --color-tab-inactive-text: var(--color-text-secondary);
-    --color-tab-border: var(--color-border);
+    --color-tab-border: #2a2a4a;
 
     --color-gold: #FFD700;
     --color-silver: #C0C0C0;
     --color-bronze: #CD7F32;
 
-    --border-radius-base: 6px;
-    --box-shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-    --box-shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --border-radius-base: 8px;
+    --box-shadow-base: 0 0 15px rgba(0, 255, 249, 0.1);
+    --box-shadow-card: 0 0 20px rgba(0, 255, 249, 0.08);
+    --neon-glow-cyan: 0 0 10px rgba(0, 255, 249, 0.3), 0 0 20px rgba(0, 255, 249, 0.1);
+    --neon-glow-pink: 0 0 10px rgba(255, 0, 170, 0.3), 0 0 20px rgba(255, 0, 170, 0.1);
+    --neon-glow-purple: 0 0 10px rgba(179, 0, 255, 0.3), 0 0 20px rgba(179, 0, 255, 0.1);
 }
 
 html {
@@ -2311,86 +2322,6 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     position: relative;
     cursor: pointer;
     font-size: 1.5rem;
-    color: var(--text-color, #fff);
-    transition: transform 0.2s;
-    user-select: none;
-}
-.radar-bell-container:hover { transform: scale(1.1); }
-.radar-badge {
-    position: absolute;
-    top: -5px;
-    right: -8px;
-    background: #ff4757;
-    color: white;
-    font-size: 0.7rem;
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 5px rgba(255, 71, 87, 0.5);
-}
-
-.radar-drawer {
-    position: fixed;
-    top: 0;
-    right: -400px;
-    width: 350px;
-    height: 100vh;
-    background: #1e1e24;
-    border-left: 2px solid #2b2d31;
-    box-shadow: -5px 0 15px rgba(0,0,0,0.5);
-    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-}
-.radar-drawer.open { right: 0; }
-
-.radar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    background: #2b2d31;
-    border-bottom: 1px solid #3f4147;
-}
-.radar-header h3 { margin: 0; color: #fff; font-size: 1.2rem; }
-.close-radar { background: none; border: none; color: #a1a1aa; font-size: 1.5rem; cursor: pointer; }
-.close-radar:hover { color: #ff4757; }
-
-.radar-content { padding: 15px; overflow-y: auto; flex-grow: 1; }
-
-.radar-alert {
-    display: flex;
-    align-items: flex-start;
-    padding: 12px;
-    margin-bottom: 10px;
-    border-radius: 8px;
-    background: #2b2d31;
-    border-left: 4px solid #fff;
-}
-.alert-icon { font-size: 1.2rem; margin-right: 12px; margin-top: 2px; }
-.alert-text strong { display: block; font-size: 0.95rem; margin-bottom: 3px; }
-.alert-text span { font-size: 0.85rem; color: #a1a1aa; line-height: 1.3; }
-
-/* Níveis de Alerta */
-.alert-warning { border-left-color: #ffa502; }
-.alert-warning .alert-icon { color: #ffa502; }
-.alert-danger { border-left-color: #ff6348; }
-.alert-danger .alert-icon { color: #ff6348; }
-.alert-critical { border-left-color: #ff4757; background: rgba(255, 71, 87, 0.1); }
-.alert-critical .alert-icon { color: #ff4757; }
-
-.radar-empty { text-align: center; color: #a1a1aa; margin-top: 50px; }
-.radar-empty i { font-size: 3rem; color: #2ed573; margin-bottom: 15px; }
-
-/* ================= RADAR DE INATIVIDADE ================= */
-.radar-bell-container {
-    position: relative;
-    cursor: pointer;
-    font-size: 1.5rem;
     color: var(--color-text-main, #fff);
     transition: transform 0.2s;
     user-select: none;
@@ -2468,3 +2399,1133 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 
 .radar-empty { text-align: center; color: #a1a1aa; margin-top: 50px; }
 .radar-empty p { font-size: 1.1rem; line-height: 1.5; margin-top: 15px;}
+
+/* ========================================================
+   >>> T E M A  C Y B E R P U N K  2 0 8 8  <<<
+   ======================================================== */
+
+/* Scanline Overlay */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9998;
+}
+
+/* Grid Background */
+#particle-background {
+    background-image:
+        linear-gradient(rgba(0, 255, 249, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 249, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+}
+
+/* Card Cyberpunk Styling */
+.card {
+    border: 1px solid rgba(0, 255, 249, 0.15) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 249, 0.05), inset 0 0 30px rgba(0, 0, 0, 0.3) !important;
+    backdrop-filter: blur(2px);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+    animation: card-scan 4s linear infinite;
+}
+
+@keyframes card-scan {
+    0% { left: -100%; }
+    50% { left: 100%; }
+    100% { left: 100%; }
+}
+
+.card:hover {
+    border-color: var(--neon-cyan) !important;
+    box-shadow: 0 0 25px rgba(0, 255, 249, 0.2), inset 0 0 40px rgba(0, 0, 0, 0.4) !important;
+    transform: translateY(-2px);
+}
+
+.card h2 {
+    font-family: var(--font-title);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--neon-cyan) !important;
+    text-shadow: 0 0 10px rgba(0, 255, 249, 0.3);
+    border-bottom-color: var(--neon-cyan) !important;
+}
+
+.card h3 {
+    font-family: var(--font-title);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* Neon Stat Cards */
+.stat-card {
+    border-left-width: 3px !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(180deg, transparent, var(--color-border-light), transparent);
+}
+
+.stat-card.stat-card-wars { border-left-color: var(--neon-green) !important; }
+.stat-card.stat-card-trophies { border-left-color: var(--neon-yellow) !important; }
+.stat-card.stat-card-capital-trophies { border-left-color: var(--neon-purple) !important; }
+.stat-card.stat-card-capital-league { border-left-color: var(--neon-cyan) !important; }
+
+.stat-card p {
+    font-family: var(--font-title);
+    font-size: 2em !important;
+    background: linear-gradient(135deg, var(--color-text-main), var(--neon-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Glitch Text Effect */
+@keyframes glitch {
+    0% { text-shadow: 0.05em 0 0 var(--neon-pink), -0.05em -0.025em 0 var(--neon-cyan); }
+    14% { text-shadow: 0.05em 0 0 var(--neon-pink), -0.05em -0.025em 0 var(--neon-cyan); }
+    15% { text-shadow: -0.05em -0.025em 0 var(--neon-pink), 0.025em 0.025em 0 var(--neon-cyan); }
+    49% { text-shadow: -0.05em -0.025em 0 var(--neon-pink), 0.025em 0.025em 0 var(--neon-cyan); }
+    50% { text-shadow: 0.025em 0.05em 0 var(--neon-pink), 0.05em 0 0 var(--neon-cyan); }
+    99% { text-shadow: 0.025em 0.05em 0 var(--neon-pink), 0.05em 0 0 var(--neon-cyan); }
+    100% { text-shadow: -0.025em 0 0 var(--neon-pink), -0.025em -0.025em 0 var(--neon-cyan); }
+}
+
+.glitch-text {
+    animation: glitch 2s infinite;
+    position: relative;
+}
+
+/* Neon Border glow on hover */
+.member-card {
+    transition: all 0.3s ease;
+}
+.member-card:hover {
+    border-color: var(--neon-cyan) !important;
+    box-shadow: 0 0 20px rgba(0, 255, 249, 0.2), 0 0 40px rgba(0, 255, 249, 0.1) !important;
+}
+
+.member-card.on-watchlist {
+    border-left-color: var(--neon-yellow) !important;
+}
+
+/* Highlight Cards Neon */
+.highlight-card {
+    border-top: 3px solid var(--neon-cyan) !important;
+    border: 1px solid rgba(0, 255, 249, 0.1);
+}
+
+.highlight-card:nth-child(2) {
+    border-top-color: var(--neon-pink) !important;
+}
+
+.chart-card {
+    border-top-color: var(--neon-purple) !important;
+}
+
+/* Nav Link Cyberpunk */
+.main-nav a {
+    border: 1px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.main-nav a:hover {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 15px rgba(0, 255, 249, 0.2);
+    background-color: rgba(0, 255, 249, 0.1) !important;
+}
+
+.main-nav a.active-nav-link {
+    border-color: var(--neon-cyan) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 249, 0.3);
+    background-color: rgba(0, 255, 249, 0.15) !important;
+}
+
+/* War Tabs Cyberpunk */
+.war-tab-button.active {
+    color: var(--neon-cyan) !important;
+    border-bottom-color: var(--neon-cyan) !important;
+    text-shadow: 0 0 10px rgba(0, 255, 249, 0.5);
+}
+
+/* Buttons Neon */
+.control-btn {
+    background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple)) !important;
+    border: 1px solid var(--neon-cyan) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 249, 0.2);
+    transition: all 0.3s ease;
+}
+.control-btn:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 249, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Admin Panel Cyberpunk */
+.admin-card {
+    border: 1px solid rgba(0, 255, 249, 0.2) !important;
+    box-shadow: 0 0 20px rgba(0, 255, 249, 0.1);
+}
+
+/* Loading Cyberpunk */
+.loading-badge {
+    animation: neon-pulse 1.5s infinite ease-in-out !important;
+}
+
+@keyframes neon-pulse {
+    0% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 5px var(--neon-cyan)); }
+    50% { transform: scale(1.02); filter: brightness(1.3) drop-shadow(0 0 20px var(--neon-cyan)); }
+    100% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 5px var(--neon-cyan)); }
+}
+
+.loading-spinner {
+    border-top-color: var(--neon-cyan) !important;
+    border-right-color: var(--neon-pink) !important;
+    border-bottom-color: var(--neon-purple) !important;
+}
+
+/* Scrollbar Cyberpunk */
+.scrollable-box::-webkit-scrollbar-thumb {
+    background: var(--neon-cyan) !important;
+    box-shadow: 0 0 5px rgba(0, 255, 249, 0.3);
+}
+
+/* Tooltip Cyberpunk */
+.tooltip-text, .member-card .watchlist-tooltip, .prediction-tag .tooltip-text {
+    border-color: var(--neon-cyan) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 249, 0.2) !important;
+}
+
+/* Modal Cyberpunk */
+.modal-content {
+    border: 1px solid rgba(0, 255, 249, 0.3) !important;
+    box-shadow: 0 0 30px rgba(0, 255, 249, 0.15) !important;
+}
+
+/* Star Distribution Cyberpunk */
+.attack-stars .star-filled { color: var(--neon-yellow); text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
+
+/* Podium Cyberpunk */
+.podium-item.gold .podium-rank { color: var(--neon-yellow); text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+.podium-item.silver .podium-rank { color: var(--color-silver); }
+.podium-item.bronze .podium-rank { color: var(--color-bronze); }
+
+/* War State Cyberpunk */
+.war-state.preparation { background: linear-gradient(135deg, rgba(236, 201, 75, 0.3), rgba(236, 201, 75, 0.1)); border: 1px solid var(--neon-yellow); color: var(--neon-yellow) !important; }
+.war-state.inwar { background: linear-gradient(135deg, rgba(221, 107, 32, 0.3), rgba(221, 107, 32, 0.1)); border: 1px solid var(--neon-orange); color: var(--neon-orange) !important; }
+.war-state.warended { background: linear-gradient(135deg, rgba(0, 128, 255, 0.3), rgba(0, 128, 255, 0.1)); border: 1px solid var(--neon-blue); color: var(--neon-blue) !important; }
+
+/* Missed Attack Cards */
+.missed-attack-card.severity-high { border-left-color: var(--neon-red) !important; }
+.missed-attack-card.severity-medium { border-left-color: var(--neon-yellow) !important; }
+
+/* CWL Section Neon */
+.cwl-planner-container h3 { color: var(--neon-yellow) !important; text-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
+.cwl-overview-card { border-top: 3px solid var(--neon-cyan) !important; }
+
+/* VIP Golden Card */
+.vip-golden-card {
+    border-color: var(--neon-yellow) !important;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.2) !important;
+}
+
+.vip-golden-card .member-info h4 {
+    color: var(--neon-yellow) !important;
+}
+
+/* Pulse Animation Neon */
+@keyframes neon-pulse-element {
+    0% { box-shadow: 0 0 5px rgba(0, 255, 249, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(0, 255, 249, 0.6); }
+    100% { box-shadow: 0 0 5px rgba(0, 255, 249, 0.3); }
+}
+
+/* Site Header Neon Border */
+.site-header {
+    border-bottom: 1px solid rgba(0, 255, 249, 0.2) !important;
+    box-shadow: 0 0 20px rgba(0, 255, 249, 0.1) !important;
+}
+
+/* Footer Neon */
+.site-footer {
+    border-top: 1px solid rgba(0, 255, 249, 0.15) !important;
+}
+
+/* Table Cyberpunk */
+th {
+    background-color: rgba(0, 255, 249, 0.08) !important;
+    color: var(--neon-cyan) !important;
+}
+
+/* War Prediction Neon */
+.war-prediction-container {
+    border-top: 2px solid var(--neon-cyan) !important;
+    border-bottom: 2px solid var(--neon-cyan) !important;
+}
+
+.prediction-tag {
+    border-color: var(--neon-cyan) !important;
+}
+
+/* Clan Games Neon */
+.cg-progress-bar-fill {
+    background: linear-gradient(90deg, var(--neon-blue), var(--neon-cyan), var(--neon-purple)) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 249, 0.3);
+}
+
+/* AI Indicator Enhanced */
+.ai-indicator {
+    background-color: var(--neon-cyan) !important;
+    box-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan) !important;
+}
+
+/* CWL Status Buttons */
+.cwl-status-btn.active {
+    background: var(--neon-cyan) !important;
+    color: #0a0a0f !important;
+    font-weight: 700;
+}
+
+.cwl-status-btn[data-status="active"].active {
+    background: var(--neon-green) !important;
+}
+
+.cwl-status-btn[data-status="backup"].active {
+    background: var(--neon-yellow) !important;
+}
+
+/* Priority Buttons */
+.priority-btn.priority-green.active { background: var(--neon-green) !important; }
+.priority-btn.priority-yellow.active { background: var(--neon-yellow) !important; }
+.priority-btn.priority-red.active { background: var(--neon-red) !important; }
+
+/* Note Priority */
+.note-priority-green .note-text { background: rgba(0, 255, 65, 0.15) !important; border: 1px solid rgba(0, 255, 65, 0.3); }
+.note-priority-yellow .note-text { background: rgba(255, 215, 0, 0.15) !important; border: 1px solid rgba(255, 215, 0, 0.3); }
+.note-priority-red .note-text { background: rgba(255, 0, 64, 0.15) !important; border: 1px solid rgba(255, 0, 64, 0.3); }
+
+/* Input Cyberpunk */
+.member-filters input[type="text"], .settings-input, .admin-input, .admin-textarea {
+    border-color: rgba(0, 255, 249, 0.2) !important;
+    background-color: rgba(10, 10, 15, 0.8) !important;
+}
+
+.member-filters input[type="text"]:focus, .settings-input:focus, .admin-input:focus, .admin-textarea:focus {
+    border-color: var(--neon-cyan) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 249, 0.2);
+}
+
+/* Admin Nav Neon */
+.admin-nav a:hover {
+    border-color: var(--neon-cyan) !important;
+    background-color: rgba(0, 255, 249, 0.1) !important;
+}
+
+.admin-nav a.active-nav-link {
+    border-color: var(--neon-cyan) !important;
+    background-color: rgba(0, 255, 249, 0.15) !important;
+    color: var(--neon-cyan) !important;
+}
+
+/* Admin Remove Button */
+.admin-remove-btn {
+    background: linear-gradient(135deg, var(--neon-red), #cc0033) !important;
+    border: 1px solid rgba(255, 0, 64, 0.5) !important;
+}
+
+/* Logout Button */
+.logout-btn {
+    background: linear-gradient(135deg, var(--neon-red), #cc0033) !important;
+    border: 1px solid rgba(255, 0, 64, 0.5) !important;
+}
+
+/* Site Header Cyberpunk Title */
+.site-header h1 {
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700 !important;
+}
+
+/* Clan Name Glitch Effect */
+#clanName {
+    color: var(--neon-cyan) !important;
+    text-shadow: 0 0 10px rgba(0, 255, 249, 0.3);
+    font-family: var(--font-title) !important;
+}
+
+/* War Detail Score Neon */
+.team-score.our-clan-score p:first-of-type {
+    color: var(--neon-green) !important;
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
+.team-score.opponent-score p:first-of-type {
+    color: var(--neon-red) !important;
+    text-shadow: 0 0 10px rgba(255, 0, 64, 0.3);
+}
+
+/* CWL Overview Stats Neon */
+.cwl-overview-card h3 { color: var(--neon-cyan) !important; }
+
+/* Filter Input Neon */
+.member-filters {
+    border: 1px solid rgba(0, 255, 249, 0.1);
+}
+
+/* War Group Header Neon */
+.war-group-header {
+    color: var(--neon-cyan) !important;
+}
+
+/* Latest War Badge Neon */
+.latest-war-badge {
+    background: linear-gradient(135deg, var(--neon-pink), var(--neon-purple)) !important;
+    box-shadow: 0 0 10px rgba(255, 0, 170, 0.3);
+}
+
+/* Mute Button Neon */
+.mute-btn {
+    border: 1px solid rgba(0, 255, 249, 0.3) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 249, 0.1) !important;
+}
+.mute-btn:hover {
+    background: var(--neon-cyan) !important;
+    box-shadow: 0 0 20px rgba(0, 255, 249, 0.4) !important;
+}
+
+/* Admin Link Button Neon */
+.admin-link-btn {
+    border: 1px solid rgba(179, 0, 255, 0.3) !important;
+    box-shadow: 0 0 10px rgba(179, 0, 255, 0.1) !important;
+}
+.admin-link-btn:hover {
+    background: var(--neon-purple) !important;
+    box-shadow: 0 0 20px rgba(179, 0, 255, 0.4) !important;
+}
+
+/* Cyberpunk Font Override */
+body {
+    font-family: var(--font-body);
+    letter-spacing: 0.3px;
+}
+
+/* Modal Title */
+.profile-section-title {
+    color: var(--neon-cyan) !important;
+    font-family: var(--font-title) !important;
+}
+
+/* Profile Header Neon */
+.profile-header-new {
+    border-left-color: var(--neon-cyan) !important;
+}
+
+/* Profile Cards Neon */
+.p-card:hover {
+    border-color: var(--neon-cyan) !important;
+}
+
+/* ML Brain Card */
+.ml-brain-card {
+    border-color: var(--color-border) !important;
+}
+
+/* Battle Card Stats */
+.bc-value {
+    font-family: var(--font-title) !important;
+}
+
+/* Login Card Neon */
+.login-card {
+    border: 1px solid rgba(0, 255, 249, 0.2) !important;
+    box-shadow: 0 0 30px rgba(0, 255, 249, 0.1) !important;
+}
+
+.login-card h2 {
+    color: var(--neon-cyan) !important;
+    font-family: var(--font-title) !important;
+    text-shadow: 0 0 10px rgba(0, 255, 249, 0.3);
+}
+
+.login-card button {
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-blue)) !important;
+    border: 1px solid var(--neon-cyan) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 249, 0.3) !important;
+}
+
+/* Profile Cards Grid Fix */
+.battle-card-stats .bc-stat {
+    border-color: rgba(0, 255, 249, 0.1) !important;
+}
+
+/* ========================================================
+   >>> C Y B E R   T O O L T I P   S Y S T E M  <<<
+   ======================================================== */
+[data-tooltip] {
+    position: relative;
+    cursor: help;
+}
+
+.cyber-tooltip {
+    visibility: hidden;
+    width: 240px;
+    background: rgba(10, 10, 20, 0.95);
+    color: var(--color-text-main);
+    text-align: center;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--neon-cyan);
+    box-shadow: 0 0 20px rgba(0, 255, 249, 0.2), 0 0 40px rgba(0, 0, 0, 0.5);
+    position: absolute;
+    z-index: 9999;
+    bottom: 130%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: all 0.3s ease;
+    font-size: 0.85em;
+    font-family: var(--font-body);
+    letter-spacing: 0.3px;
+    line-height: 1.4;
+    pointer-events: none;
+    white-space: normal;
+    font-weight: 500;
+}
+
+.cyber-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -6px;
+    border: 6px solid transparent;
+    border-top-color: var(--neon-cyan);
+}
+
+[data-tooltip]:hover .cyber-tooltip {
+    visibility: visible;
+    opacity: 1;
+    bottom: 140%;
+}
+
+/* Tooltip variants */
+[data-tooltip-position="left"] .cyber-tooltip {
+    left: auto;
+    right: 130%;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+}
+[data-tooltip-position="left"]:hover .cyber-tooltip {
+    right: 140%;
+    bottom: auto;
+}
+[data-tooltip-position="left"] .cyber-tooltip::after {
+    top: 50%;
+    left: 100%;
+    margin-left: 0;
+    margin-top: -6px;
+    border-top-color: transparent;
+    border-left-color: var(--neon-cyan);
+}
+
+[data-tooltip-position="right"] .cyber-tooltip {
+    left: 130%;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+}
+[data-tooltip-position="right"]:hover .cyber-tooltip {
+    left: 140%;
+    bottom: auto;
+}
+[data-tooltip-position="right"] .cyber-tooltip::after {
+    top: 50%;
+    left: -6px;
+    margin-left: 0;
+    margin-top: -6px;
+    border-top-color: transparent;
+    border-right-color: var(--neon-cyan);
+}
+
+/* Tooltip for already-inline tooltip elements */
+.war-warning-tooltip .ww-tooltip-text {
+    visibility: hidden;
+    width: 260px;
+    background: rgba(10, 10, 20, 0.95);
+    color: #fff;
+    text-align: center;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--neon-yellow);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+    position: absolute;
+    z-index: 9999;
+    bottom: 130%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: all 0.3s ease;
+    font-size: 0.85em;
+    pointer-events: none;
+    font-weight: 500;
+}
+
+.war-warning-tooltip:hover .ww-tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* ========================================================
+   >>> C L A N   P U L S E   -  N E W   D E S I G N  <<<
+   ======================================================== */
+
+.cyber-badge-container {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cyber-badge-glow {
+    position: absolute;
+    width: 160px;
+    height: 160px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple));
+    opacity: 0.15;
+    filter: blur(15px);
+    animation: badge-pulse 3s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+    0%, 100% { opacity: 0.1; transform: scale(1); }
+    50% { opacity: 0.25; transform: scale(1.05); }
+}
+
+.clan-profile-badge {
+    width: 140px !important;
+    height: 140px !important;
+    border-radius: 12px !important;
+    border: 2px solid rgba(0, 255, 249, 0.3) !important;
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 0 20px rgba(0, 255, 249, 0.1);
+}
+
+.cyber-badge-corner {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-color: var(--neon-cyan);
+    z-index: 2;
+}
+.cyber-badge-corner.tl { top: -2px; left: -2px; border-top: 2px solid; border-left: 2px solid; }
+.cyber-badge-corner.tr { top: -2px; right: -2px; border-top: 2px solid; border-right: 2px solid; }
+.cyber-badge-corner.bl { bottom: -2px; left: -2px; border-bottom: 2px solid; border-left: 2px solid; }
+.cyber-badge-corner.br { bottom: -2px; right: -2px; border-bottom: 2px solid; border-right: 2px solid; }
+
+.cyber-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 15px;
+}
+
+.cyber-stat-item {
+    background: rgba(0, 255, 249, 0.05);
+    border: 1px solid rgba(0, 255, 249, 0.1);
+    border-radius: var(--border-radius-base);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    cursor: help;
+}
+
+.cyber-stat-item:hover {
+    background: rgba(0, 255, 249, 0.1);
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 10px rgba(0, 255, 249, 0.15);
+}
+
+.cyber-stat-item .stat-icon { font-size: 1.1em; }
+.cyber-stat-item .stat-label {
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    letter-spacing: 1px;
+    font-family: var(--font-mono);
+}
+.cyber-stat-item .stat-value {
+    margin-left: auto;
+    font-weight: 700;
+    color: var(--neon-cyan);
+    font-family: var(--font-title);
+    font-size: 0.95em;
+}
+
+/* Clan Pulse Grid */
+.clan-pulse-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.clan-pulse-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(0, 255, 249, 0.1);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    cursor: help;
+}
+
+.clan-pulse-card:hover {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 20px rgba(0, 255, 249, 0.15);
+    transform: translateY(-3px);
+}
+
+.pulse-icon {
+    font-size: 2em;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 255, 249, 0.08);
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.pulse-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pulse-label {
+    font-size: 0.7em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    letter-spacing: 1px;
+    font-family: var(--font-mono);
+}
+
+.pulse-value {
+    font-size: 1.5em;
+    font-weight: 700;
+    font-family: var(--font-title);
+    background: linear-gradient(135deg, var(--neon-cyan), #ffffff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.pulse-glow {
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(0, 255, 249, 0.05), transparent);
+    pointer-events: none;
+}
+
+.pulse-wins .pulse-icon { background: rgba(0, 255, 65, 0.1); }
+.pulse-trophies .pulse-icon { background: rgba(255, 215, 0, 0.1); }
+.pulse-capital .pulse-icon { background: rgba(179, 0, 255, 0.1); }
+.pulse-league .pulse-icon { background: rgba(0, 255, 249, 0.1); }
+
+/* Clan Member Bar */
+.clan-member-bar-container {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(0, 255, 249, 0.1);
+    border-radius: 10px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+}
+
+.clan-member-bar-container:hover {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 15px rgba(0, 255, 249, 0.1);
+}
+
+.clan-member-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.clan-member-bar-label {
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    letter-spacing: 1.5px;
+    font-family: var(--font-mono);
+}
+
+.clan-member-bar-count {
+    font-family: var(--font-title);
+    font-size: 1.1em;
+    color: var(--neon-cyan);
+    font-weight: 700;
+}
+
+.clan-member-bar-track {
+    position: relative;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 255, 249, 0.15);
+}
+
+.clan-member-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple));
+    border-radius: 12px;
+    transition: width 1s ease-in-out;
+    box-shadow: 0 0 15px rgba(0, 255, 249, 0.3);
+}
+
+.clan-member-bar-ticks {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.clan-member-bar-ticks span {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.65em;
+    color: rgba(255, 255, 255, 0.3);
+    font-family: var(--font-mono);
+}
+
+/* Clan Description Cyber */
+.clan-description-cyber {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(0, 255, 249, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.clan-description-cyber:hover {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 15px rgba(0, 255, 249, 0.1);
+}
+
+.cyber-desc-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    background: rgba(0, 255, 249, 0.05);
+    border-bottom: 1px solid rgba(0, 255, 249, 0.1);
+}
+
+.cyber-desc-icon { font-size: 1.1em; }
+
+.cyber-desc-title {
+    font-family: var(--font-title);
+    font-size: 0.75em;
+    letter-spacing: 2px;
+    color: var(--neon-cyan);
+    text-transform: uppercase;
+}
+
+.cyber-desc-text {
+    padding: 15px 20px;
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+    max-height: 100px;
+    overflow-y: auto;
+    line-height: 1.6;
+}
+
+/* Clan Info Profile Cyber */
+.clan-profile-info h2 {
+    font-family: var(--font-title) !important;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.clan-tag-profile {
+    font-family: var(--font-mono) !important;
+    color: var(--neon-purple) !important;
+    letter-spacing: 1px;
+}
+
+/* War Warning Tooltip Enhancement */
+.war-warning-tooltip {
+    position: relative;
+    cursor: help;
+}
+
+.war-warning-tooltip .ww-tooltip-text {
+    visibility: hidden;
+    width: 250px;
+    background: #0a0a0f;
+    color: #fff;
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--neon-yellow);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+    position: absolute;
+    z-index: 100;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -125px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.85em;
+    pointer-events: none;
+}
+
+.war-warning-tooltip:hover .ww-tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Clan War Summary */
+.clan-war-summary {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(0, 255, 249, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 20px;
+    transition: all 0.3s ease;
+}
+
+.clan-war-summary:hover {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 15px rgba(0, 255, 249, 0.1);
+}
+
+.war-summary-record {
+    margin-left: auto;
+    font-family: var(--font-title);
+    font-size: 0.8em;
+    color: var(--neon-cyan);
+    letter-spacing: 1px;
+}
+
+.war-summary-bars {
+    display: flex;
+    gap: 6px;
+    padding: 15px 20px;
+    flex-wrap: wrap;
+}
+
+.war-summary-bar {
+    flex: 1;
+    min-width: 30px;
+    height: 60px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: 6px;
+    position: relative;
+    cursor: help;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.war-summary-bar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.war-summary-bar.win::before { background: linear-gradient(180deg, var(--neon-green), rgba(0, 255, 65, 0.1)); }
+.war-summary-bar.loss::before { background: linear-gradient(180deg, var(--neon-red), rgba(255, 0, 64, 0.1)); }
+.war-summary-bar.tie::before { background: linear-gradient(180deg, var(--neon-yellow), rgba(255, 215, 0, 0.1)); }
+
+.war-summary-bar:hover {
+    transform: scaleY(1.1);
+    box-shadow: 0 0 15px currentColor;
+}
+
+.war-summary-bar .wsb-result {
+    position: relative;
+    z-index: 1;
+    font-weight: 700;
+    font-size: 0.85em;
+}
+
+.war-summary-bar.win .wsb-result { color: var(--neon-green); }
+.war-summary-bar.loss .wsb-result { color: var(--neon-red); }
+.war-summary-bar.tie .wsb-result { color: var(--neon-yellow); }
+
+.war-summary-bar .wsb-label {
+    position: relative;
+    z-index: 1;
+    font-size: 0.6em;
+    color: rgba(255, 255, 255, 0.6);
+    font-family: var(--font-mono);
+}
+
+.war-summary-bar .wsb-tooltip {
+    visibility: hidden;
+    width: 180px;
+    background: rgba(10, 10, 20, 0.95);
+    color: #fff;
+    text-align: center;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--neon-cyan);
+    position: absolute;
+    z-index: 9999;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: all 0.3s ease;
+    font-size: 0.75em;
+    pointer-events: none;
+}
+
+.war-summary-bar:hover .wsb-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+.war-summary-loading {
+    color: var(--color-text-secondary);
+    font-size: 0.85em;
+    width: 100%;
+    text-align: center;
+}
+
+/* Missed Attack Icon Enhancement */
+.missed-attack-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 0, 64, 0.15);
+    border: 1px solid rgba(255, 0, 64, 0.3);
+    border-radius: 50%;
+    font-size: 0.9em;
+    cursor: help;
+    position: relative;
+    margin-left: 5px;
+    animation: alert-pulse 2s infinite;
+}
+
+@keyframes alert-pulse {
+    0%, 100% { box-shadow: 0 0 5px rgba(255, 0, 64, 0.3); }
+    50% { box-shadow: 0 0 15px rgba(255, 0, 64, 0.6); }
+}
+
+/* Analytics Table Neon */
+#analytics-table th {
+    color: var(--neon-cyan) !important;
+}
+
+/* Admin Diagnóstico Neon */
+#recent-logs-box {
+    border: 1px solid rgba(0, 255, 249, 0.15) !important;
+}
+
+/* Radar Drawer Cyberpunk */
+.radar-drawer {
+    border-left: 2px solid rgba(0, 255, 249, 0.2) !important;
+}
+
+.radar-header {
+    background: #0f0f1a !important;
+    border-bottom: 1px solid rgba(0, 255, 249, 0.15) !important;
+}
+
+.radar-header h3 {
+    color: var(--neon-cyan) !important;
+}
+
+/* Responsive tweaks for new CLAN section */
+@media (max-width: 768px) {
+    .cyber-stats {
+        grid-template-columns: 1fr;
+    }
+    .clan-pulse-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .cyber-badge-container {
+        width: 100px;
+        height: 100px;
+        margin: 0 auto;
+    }
+    .clan-profile-badge {
+        width: 90px !important;
+        height: 90px !important;
+    }
+    .cyber-badge-glow {
+        width: 110px;
+        height: 110px;
+    }
+}
+
+@media (max-width: 480px) {
+    .clan-pulse-grid {
+        grid-template-columns: 1fr;
+    }
+}
