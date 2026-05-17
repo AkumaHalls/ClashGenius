@@ -1765,7 +1765,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchData('highlights'), fetchData('war_advisor_plan'), fetchData('capital'), fetchData('clan_games')
             ]);
 
-            // SALVA OS MEMBROS GLOBALMENTE PARA A MÁGICA DA CAPITAL
             if (membersData && !membersData.error) {
                 globalMembersList = membersData.members; 
                 populateMembersList(membersData);
@@ -1799,23 +1798,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    loadAllData();
-    setInterval(loadAllData, 45000); 
-
-    async function checkApiMaintenance() {
+    async function refreshActiveSection() {
+        const activeId = currentActiveSectionId;
+        if (!activeId) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/api/coc_status`, { cache: 'no-store' });
-            if (!response.ok) { return; }
-            const data = await response.json();
-            if (data.status === 'maintenance') {
-                if (!window.location.pathname.endsWith('/maintenance.html') && !window.location.pathname.endsWith('/maintenance')) {
-                    window.location.href = '/maintenance'; 
-                }
-            } else if (data.status === 'ok' && (window.location.pathname.endsWith('/maintenance.html') || window.location.pathname.endsWith('/maintenance'))) {
-                window.location.href = '/painel';
+            const statusData = await fetch('/api/status').then(res => res.ok ? res.json() : { is_admin: false }).catch(() => ({ is_admin: false }));
+            userIsAdmin = statusData.is_admin || false;
+
+            const s = activeId;
+            if (s === 'clan-info-nav') {
+                const d = await fetchData('clan');
+                populateClanInfo(d);
+                const wl = await fetchData('war_log');
+                if (wl && !wl.error) populateWarLog(wl);
+            } else if (s === 'highlights-nav') {
+                const d = await fetchData('highlights');
+                if (d && !d.error) populateHighlights(d);
+            } else if (s === 'war-details-nav') {
+                const [wd, wa] = await Promise.all([fetchData('current_war_details'), fetchData('war_advisor_plan')]);
+                if (wd) populateWarDetails(wd, 'war-details-nav', false);
+                if (wa) populateWarAdvisorPlan(wa);
+            } else if (s === 'attacks-remaining-nav') {
+                const d = await fetchData('missed_attacks_history');
+                if (d && !d.error) populateMissedAttacksHistory(d);
+            } else if (s === 'cwl-info-nav') {
+                const d = await fetchData('cwl/generate_plan', { method: 'POST' });
+                if (d) populateCwlData(d);
+            } else if (s === 'clan-games-nav') {
+                const d = await fetchData('clan_games');
+                if (d) populateClanGamesData(d);
+            } else if (s === 'capital-nav') {
+                const d = await fetchData('capital');
+                if (d) populateCapitalData(d);
+            } else if (s === 'war-log-nav') {
+                const d = await fetchData('war_log');
+                if (d && !d.error) populateWarLog(d);
+            } else if (s === 'members-list-nav') {
+                const d = await fetchData('members');
+                if (d && !d.error) { globalMembersList = d.members; populateMembersList(d); }
             }
-        } catch (error) { console.error('Erro ao verificar status de manutenção:', error); }
+            updateLastUpdated();
+        } catch (e) {
+            console.error('Erro no refresh seletivo:', e);
+        }
     }
-    checkApiMaintenance(); 
-    setInterval(checkApiMaintenance, 20000); 
+
+    loadAllData();
+    setInterval(refreshActiveSection, 60000); 
 });
