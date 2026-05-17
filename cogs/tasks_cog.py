@@ -42,6 +42,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 if not self.donation_snapshot_task.is_running(): self.donation_snapshot_task.start()
                 if not self.cleanup_old_snapshots_task.is_running(): self.cleanup_old_snapshots_task.start()
                 if not self.check_api_status_task.is_running(): self.check_api_status_task.start()
+                if not self.check_cwl_end_task.is_running(): self.check_cwl_end_task.start()
 
                 self.tasks_started = True
                 logger.info("TasksCog: Todas as tasks verificadas/iniciadas.")
@@ -57,6 +58,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         if self.donation_snapshot_task.is_running(): self.donation_snapshot_task.cancel()
         if self.cleanup_old_snapshots_task.is_running(): self.cleanup_old_snapshots_task.cancel()
         if self.check_api_status_task.is_running(): self.check_api_status_task.cancel()
+        if self.check_cwl_end_task.is_running(): self.check_cwl_end_task.cancel()
         self.tasks_started = False
         logger.info("Tasks canceladas.")
 
@@ -267,6 +269,22 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
              try: await ctx.message.remove_reaction("🔄", self.bot.user)
              except discord.errors.NotFound: pass
 
+
+    # --- Tarefa de Fim de CWL ---
+    @tasks.loop(minutes=15)
+    async def check_cwl_end_task(self):
+        if self.bot.maintenance_mode: return
+        if not self.bot.api_client or not self.bot.coc_client_ready.is_set():
+            return
+        capital_cog = self.bot.get_cog("Monitoramento da Capital")
+        if capital_cog:
+            await capital_cog.check_cwl_end()
+
+    @check_cwl_end_task.before_loop
+    async def before_cwl_end(self):
+        await self.bot.wait_until_ready()
+        await self.bot.db_ready.wait()
+        await self.bot.coc_client_ready.wait()
 
     # --- Tarefa de Status da API ---
     @tasks.loop(minutes=1)
