@@ -138,6 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let cwlPlanCached = null;
     let isFetchingCwlPlan = false;
     let activeCwlTabDay = null;
+    let globalMissedAttacks = [];
 
     const vipStyle = document.createElement('style');
     vipStyle.innerHTML = `
@@ -274,7 +275,26 @@ document.addEventListener('DOMContentLoaded', () => {
             el.style.position = 'relative';
             el.style.cursor = 'help';
         });
+        repositionTooltips();
     }
+
+    function repositionTooltips() {
+        document.querySelectorAll('[data-tooltip]').forEach(el => {
+            const tip = el.querySelector('.cyber-tooltip');
+            if (!tip) return;
+            tip.classList.remove('tooltip-bottom');
+            requestAnimationFrame(() => {
+                const rect = tip.getBoundingClientRect();
+                if (rect.top < 0) {
+                    tip.classList.add('tooltip-bottom');
+                }
+            });
+        });
+    }
+
+    window.addEventListener('scroll', () => {
+        requestAnimationFrame(repositionTooltips);
+    }, { passive: true });
 
     // Adiciona tooltip para o ícone de exclamação de ataques perdidos
     function addWarWarningTooltips() {
@@ -1279,9 +1299,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const memberTagsMissingAttacks = new Set();
+        globalMissedAttacks.forEach(w => {
+            (w.missed_attacks_members || []).forEach(m => {
+                if (m.tag) memberTagsMissingAttacks.add(m.tag);
+            });
+        });
+
         setHtml(membersGridEl, data.members.map(m => {
+            const hasMissedAttack = memberTagsMissingAttacks.has(m.tag);
             const watchlistClass = m.isOnWatchlist ? 'on-watchlist' : '';
+            const missedAttackClass = hasMissedAttack ? 'missed-attack-member' : '';
             const watchlistIconHtml = m.isOnWatchlist ? '<span class="watchlist-icon">⚠️</span>' : '';
+            const missedAttackIconHtml = hasMissedAttack ? '<span class="missed-attack-icon-member" data-tooltip="Este membro não realizou todos os ataques na última guerra!">❗</span>' : '';
             const watchlistTooltipHtml = m.isOnWatchlist
                 ? `<span class="watchlist-tooltip">
                     <strong>Em Observação!</strong><br>
@@ -1309,12 +1339,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const vipRibbonHtml = isPriority ? `<div class="vip-ribbon">⭐ TITULAR</div>` : '';
 
             return `
-            <div class="member-card ${watchlistClass} ${priorityClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
+            <div class="member-card ${watchlistClass} ${priorityClass} ${missedAttackClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
                 ${vipRibbonHtml}
                 <div class="member-card-header" data-player-tag="${m.tag || ''}">
                     <img src="/static/images/townhall${m.town_hall || 1}.png" alt="CV${m.town_hall || '?'}" class="member-th-icon" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='40px';">
                     <div class="member-info">
-                        <h4>${m.name || 'N/A'} ${watchlistIconHtml}</h4>
+                        <h4>${m.name || 'N/A'} ${watchlistIconHtml} ${missedAttackIconHtml}</h4>
                         <p>${m.role || 'Membro'} • 🏆 ${m.trophies || 0}</p>
                     </div>
                     ${watchlistTooltipHtml}
@@ -1545,42 +1575,62 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (mlTier.includes("Instável")) { tierColor = "#f39c12"; tierGlow = "rgba(243, 156, 18, 0.4)"; }
         else if (mlTier.includes("Risco") || mlTier.includes("Descartável")) { tierColor = "#e74c3c"; tierGlow = "rgba(231, 76, 60, 0.4)"; }
 
-        // O NOVO DIAGNÓSTICO NEURAL IA
-        const brainMapHtml = `
-            <div class="ml-brain-card" style="border: 1px solid ${tierColor}; box-shadow: 0 0 15px ${tierGlow}; background: linear-gradient(145deg, rgba(20,20,25,0.95), rgba(10,10,15,0.95)); border-radius: 12px; padding: 20px; margin-bottom: 25px; position: relative; overflow: hidden;">
-                <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.05; pointer-events: none;">🧠</div>
+        const tierIcon = mlTier.includes("General") ? '👑' : mlTier.includes("Especialista") ? '🎯' : mlTier.includes("Instável") ? '⚡' : mlTier.includes("Risco") || mlTier.includes("Descartável") ? '☠️' : '🤖';
 
-                <h3 style="color: #fff; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; font-size: 1.1em; display: flex; align-items: center; justify-content: space-between;">
-                    <span><span class="ai-indicator"></span> Diagnóstico Neural IA</span>
-                    <span style="font-size: 0.8em; color: var(--color-text-secondary); font-weight: normal;">Base: Últimas ${hitrate.total_wars} Guerras</span>
-                </h3>
-                
-                <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 150px; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 8px; border-left: 4px solid ${tierColor};">
-                        <span style="display: block; font-size: 0.8em; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Classificação IA (Cluster)</span>
-                        <strong style="font-size: 1.2em; color: ${tierColor};">${mlTier}</strong>
+        const brainMapHtml = `
+            <div class="ia-diagnosis-card" style="--tier-color: ${tierColor}; --tier-glow: ${tierGlow};">
+                <div class="ia-bg-icon">🧠</div>
+                <div class="ia-scanline"></div>
+
+                <div class="ia-header">
+                    <div class="ia-header-left">
+                        <span class="ai-indicator"></span>
+                        <span class="ia-title">Diagnóstico Neural IA</span>
                     </div>
-                    <div style="flex: 1; min-width: 150px; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 8px; border-left: 4px solid #36a2eb;">
-                        <span style="display: block; font-size: 0.8em; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Confiabilidade (Random Forest)</span>
-                        <strong style="font-size: 1.4em; color: #36a2eb;">${mlProb.toFixed(1)}%</strong>
+                    <span class="ia-wars-count">Base: Últimas ${hitrate.total_wars} Guerras</span>
+                </div>
+
+                <div class="ia-tier-section">
+                    <div class="ia-tier-badge">
+                        <span class="ia-tier-icon">${tierIcon}</span>
+                        <div class="ia-tier-info">
+                            <span class="ia-tier-label">Classificação (K-Means)</span>
+                            <strong class="ia-tier-name" style="color: ${tierColor};">${mlTier}</strong>
+                        </div>
+                    </div>
+                    <div class="ia-tier-badge ia-conf-badge">
+                        <span class="ia-tier-icon">🎲</span>
+                        <div class="ia-tier-info">
+                            <span class="ia-tier-label">Confiabilidade (R.Forest)</span>
+                            <strong class="ia-conf-value" style="color: ${tierColor};">${mlProb.toFixed(1)}%</strong>
+                        </div>
                     </div>
                 </div>
 
-                <div class="battle-card-stats" style="background: transparent; padding: 0; border: none;">
-                    <div class="bc-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
-                        <span class="bc-label">Assiduidade Real</span>
-                        <span class="bc-value ${corParticipacao}">${txParticipacao}%</span>
-                        <span class="bc-sub">${hitrate.attacks_made}/${totalPossiveis} atks</span>
+                <div class="ia-metrics">
+                    <div class="ia-metric ${corParticipacao}">
+                        <span class="ia-metric-icon">🎯</span>
+                        <div class="ia-metric-body">
+                            <span class="ia-metric-label">Assiduidade</span>
+                            <strong class="ia-metric-value">${txParticipacao}%</strong>
+                            <span class="ia-metric-sub">${hitrate.attacks_made}/${totalPossiveis} ataques</span>
+                        </div>
                     </div>
-                    <div class="bc-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
-                        <span class="bc-label">Poder de Fogo</span>
-                        <span class="bc-value text-gold">${mediaEstrelas} ⭐</span>
-                        <span class="bc-sub">Destruição Média: ${hitrate.avg_destruction}%</span>
+                    <div class="ia-metric text-gold">
+                        <span class="ia-metric-icon">⚔️</span>
+                        <div class="ia-metric-body">
+                            <span class="ia-metric-label">Poder de Fogo</span>
+                            <strong class="ia-metric-value">${mediaEstrelas} ⭐</strong>
+                            <span class="ia-metric-sub">Destruição Média: ${hitrate.avg_destruction}%</span>
+                        </div>
                     </div>
-                    <div class="bc-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
-                        <span class="bc-label">Precisão Cirúrgica</span>
-                        <span class="bc-value text-info">${tx3Estrelas}%</span>
-                        <span class="bc-sub">${hitrate.three_star_attacks} PTs</span>
+                    <div class="ia-metric text-info">
+                        <span class="ia-metric-icon">🎯</span>
+                        <div class="ia-metric-body">
+                            <span class="ia-metric-label">Precisão Cirúrgica</span>
+                            <strong class="ia-metric-value">${tx3Estrelas}%</strong>
+                            <span class="ia-metric-sub">${hitrate.three_star_attacks} 3⭐</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1618,8 +1668,10 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <div class="profile-chart-container">
-                <h3 class="profile-section-title">Evolução de Troféus (Local)</h3>
-                <canvas id="trophyChart"></canvas>
+                <h3 class="profile-section-title">📊 Radar de Performance</h3>
+                <div class="radar-chart-wrapper">
+                    <canvas id="trophyChart"></canvas>
+                </div>
             </div>
         `);
 
@@ -1646,29 +1698,66 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (memberTrophyChart) memberTrophyChart.destroy();
-        const trophyCanvas = document.getElementById('trophyChart');
-        
-        if (trophyCanvas && profileData.trophy_history?.length > 0) {
-            memberTrophyChart = new Chart(trophyCanvas.getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: profileData.trophy_history.map(h => h.timestamp || '?'),
-                    datasets: [{
-                        label: 'Troféus', data: profileData.trophy_history.map(h => h.trophies || 0),
-                        borderColor: 'rgba(54, 162, 235, 1)', backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        fill: true, tension: 0.1
-                    }]
+        const radarCanvas = document.getElementById('trophyChart');
+        if (!radarCanvas) return;
+
+        const hr = profileData.hitrate || {};
+        const totalWars = (hr.attacks_made || 0) + (hr.attacks_missed || 0);
+
+        const poderFogo = hr.attacks_made > 0 ? Math.min((hr.total_stars / hr.attacks_made) / 3 * 100, 100) : 0;
+        const precisao = hr.attacks_made > 0 ? Math.min((hr.three_star_attacks / hr.attacks_made) * 100, 100) : 0;
+        const assiduidade = totalWars > 0 ? Math.min((hr.attacks_made / totalWars) * 100, 100) : 0;
+        const confiabilidade = profileData.attack_probability !== undefined ? Math.min(profileData.attack_probability * 100, 100) : 50;
+        const destruicao = hr.avg_destruction ? Math.min(parseFloat(hr.avg_destruction), 100) : 0;
+        const doacoesNorm = Math.min(((profileData.donations || 0) / 5000) * 100, 100);
+
+        const neonCyan = 'rgba(0, 255, 249, 1)';
+        const neonPink = 'rgba(255, 0, 170, 1)';
+        const neonBg = 'rgba(0, 255, 249, 0.08)';
+        const gridColor = 'rgba(0, 255, 249, 0.15)';
+
+        memberTrophyChart = new Chart(radarCanvas.getContext('2d'), {
+            type: 'radar',
+            data: {
+                labels: ['Poder de Fogo', 'Precisão 3⭐', 'Assiduidade', 'Confiabilidade IA', 'Destruição', 'Doações'],
+                datasets: [{
+                    data: [poderFogo, precisao, assiduidade, confiabilidade, destruicao, doacoesNorm],
+                    backgroundColor: 'rgba(0, 255, 249, 0.08)',
+                    borderColor: neonCyan,
+                    borderWidth: 2,
+                    pointBackgroundColor: neonCyan,
+                    pointBorderColor: '#0a0a0f',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        min: 0,
+                        max: 100,
+                        ticks: { display: false },
+                        grid: { color: gridColor, circular: true },
+                        angleLines: { color: gridColor },
+                        pointLabels: {
+                            color: '#d4d4e8',
+                            font: { family: "'Rajdhani', sans-serif", size: 12, weight: '500' }
+                        }
+                    }
                 },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: '#fff' } }, x: { ticks: { color: '#fff' } } }, plugins: { legend: { display: false } } }
-            });
-        } else if (trophyCanvas) {
-            const ctx = trophyCanvas.getContext('2d');
-            ctx.clearRect(0, 0, trophyCanvas.width, trophyCanvas.height);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; 
-            ctx.textAlign = 'center';
-            ctx.font = '14px Open Sans';
-            ctx.fillText('Nenhum dado histórico registrado pelo bot ainda.', trophyCanvas.width / 2, trophyCanvas.height / 2);
-        }
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => `${ctx.raw.toFixed(1)}%`
+                        }
+                    }
+                }
+            }
+        });
     }
 
 
@@ -1772,7 +1861,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (currentWarDetailsData) populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
             if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); 
-            if (missedAttacksData && !missedAttacksData.error) populateMissedAttacksHistory(missedAttacksData);
+            if (missedAttacksData && !missedAttacksData.error) {
+                populateMissedAttacksHistory(missedAttacksData);
+                globalMissedAttacks = missedAttacksData.wars_with_missed_attacks || [];
+            }
             if (warLogData && !warLogData.error) populateWarLog(warLogData);
             if (cwlPlanData) populateCwlData(cwlPlanData); 
             if (highlightsData && !highlightsData.error) populateHighlights(highlightsData); 
