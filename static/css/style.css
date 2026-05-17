@@ -500,7 +500,6 @@ main.container {
 
 .sections-wrapper {
     position: relative;
-    overflow: hidden;
     width: 100%;
     flex-grow: 1;
     display: block;
@@ -508,47 +507,19 @@ main.container {
 
 .content-section {
     width: 100%;
-    opacity: 0;
-    transform: translateX(100%);
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    pointer-events: none;
+    display: none;
     box-sizing: border-box;
-    position: absolute;
-    top: 0;
-    left: 0;
-    visibility: hidden;
+    animation: none;
 }
 
 .content-section.active-section {
-    opacity: 1;
-    transform: translateX(0);
-    pointer-events: auto;
-    z-index: 2;
-    position: relative;
-    visibility: visible;
+    display: block;
+    animation: fadeInSection 0.25s ease forwards;
 }
 
-.content-section.slide-prepare.slide-from-left {
-    transform: translateX(-100%);
-    opacity: 0;
-    visibility: visible;
-}
-
-.content-section.slide-prepare.slide-from-right {
-    transform: translateX(100%);
-    opacity: 0;
-    visibility: visible;
-}
-
-.content-section.slide-out-to-left {
-    transform: translateX(-100%);
-    opacity: 0;
-    visibility: visible;
-}
-.content-section.slide-out-to-right {
-    transform: translateX(100%);
-    opacity: 0;
-    visibility: visible;
+@keyframes fadeInSection {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .war-header { display: flex; align-items: center; justify-content: center; margin-bottom: 15px; gap: 15px; }

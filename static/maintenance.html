@@ -4,57 +4,339 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Em Manutenção - Clash Genius</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --font-title: 'Orbitron', sans-serif;
+            --font-body: 'Rajdhani', sans-serif;
+            --font-mono: 'Fira Code', monospace;
+            --neon-cyan: #00fff9;
+            --neon-pink: #ff00aa;
+            --neon-purple: #b300ff;
+            --neon-green: #00ff41;
+            --neon-yellow: #ffd700;
+            --neon-red: #ff0040;
+        }
+        html, body { height: 100%; }
+        body {
+            font-family: var(--font-body);
+            background: #0a0a0f;
+            color: #d4d4e8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background:
+                linear-gradient(rgba(0,255,249,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,255,249,0.02) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,0,0,0.08) 2px,
+                rgba(0,0,0,0.08) 4px
+            );
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .particle {
+            position: fixed;
+            width: 3px;
+            height: 3px;
+            background: var(--neon-cyan);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            box-shadow: 0 0 6px var(--neon-cyan), 0 0 12px var(--neon-cyan);
+            animation: floatParticle linear infinite;
+        }
+        @keyframes floatParticle {
+            0% { transform: translateY(100vh) scale(0); opacity: 1; }
+            50% { opacity: 1; }
+            100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+        }
+
+        .mt-card {
+            background: #12121c;
+            border: 1px solid #2a2a4a;
+            border-radius: 12px;
+            padding: 50px 60px;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 0 30px rgba(0,255,249,0.05), 0 0 60px rgba(179,0,255,0.03);
+            animation: cardPulse 4s ease-in-out infinite;
+        }
+        @keyframes cardPulse {
+            0%, 100% { box-shadow: 0 0 30px rgba(0,255,249,0.05), 0 0 60px rgba(179,0,255,0.03); }
+            50% { box-shadow: 0 0 40px rgba(0,255,249,0.1), 0 0 80px rgba(179,0,255,0.06); }
+        }
+        .mt-card::before {
+            content: '';
+            position: absolute;
+            top: -1px; left: -1px; right: -1px; bottom: -1px;
+            border-radius: 13px;
+            background: linear-gradient(135deg, var(--neon-cyan), transparent 40%, transparent 60%, var(--neon-pink));
+            z-index: -1;
+            opacity: 0.4;
+            animation: borderGlow 3s ease-in-out infinite alternate;
+        }
+        @keyframes borderGlow {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.6; }
+        }
+
+        .mt-icon-container {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 30px auto;
+        }
+        .mt-gear {
+            position: absolute;
+            font-size: 3.5rem;
+            animation: spin 6s linear infinite;
+        }
+        .mt-gear-1 { top: 0; left: 5px; animation: spin 6s linear infinite; }
+        .mt-gear-2 { top: 30px; left: 40px; font-size: 2.5rem; animation: spin-reverse 5s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin-reverse { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
+
+        .mt-gear-ring {
+            position: absolute;
+            top: -10px; left: -10px; right: -10px; bottom: -10px;
+            border: 2px solid rgba(0,255,249,0.15);
+            border-radius: 50%;
+            animation: ringPulse 3s ease-in-out infinite;
+        }
+        .mt-gear-ring:nth-child(2) {
+            top: -18px; left: -18px; right: -18px; bottom: -18px;
+            border-color: rgba(255,0,170,0.1);
+            animation-delay: 1s;
+        }
+        @keyframes ringPulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+
+        .mt-title {
+            font-family: var(--font-title);
+            font-size: 2.2em;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+        .mt-title .highlight-cyan { color: var(--neon-cyan); }
+        .mt-title .highlight-pink { color: var(--neon-pink); }
+
+        .mt-subtitle {
+            font-family: var(--font-title);
+            font-size: 1em;
+            color: #8080a0;
+            margin-bottom: 25px;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            font-weight: 400;
+        }
+
+        .mt-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--neon-cyan), var(--neon-pink), transparent);
+            margin: 0 auto 25px auto;
+            max-width: 300px;
+            opacity: 0.5;
+        }
+
+        .mt-message {
+            font-family: var(--font-body);
+            font-size: 1.15em;
+            color: #b0b0d0;
+            line-height: 1.7;
+            margin-bottom: 30px;
+        }
+        .mt-message span {
+            display: inline-block;
+            padding: 2px 10px;
+            background: rgba(0,255,249,0.08);
+            border: 1px solid rgba(0,255,249,0.2);
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+            color: var(--neon-cyan);
+        }
+
+        .mt-status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 25px;
+            padding: 12px 20px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+        }
+        .mt-status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--neon-yellow);
+            box-shadow: 0 0 10px var(--neon-yellow);
+            animation: dotPulse 1.5s ease-in-out infinite;
+        }
+        @keyframes dotPulse {
+            0%, 100% { box-shadow: 0 0 10px var(--neon-yellow); }
+            50% { box-shadow: 0 0 20px var(--neon-yellow), 0 0 30px var(--neon-yellow); }
+        }
+        .mt-status-text {
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            color: var(--neon-yellow);
+            letter-spacing: 2px;
+        }
+
+        .mt-progress-track {
+            width: 100%;
+            height: 3px;
+            background: #2a2a4a;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .mt-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--neon-purple), var(--neon-cyan), var(--neon-green));
+            border-radius: 2px;
+            animation: progressScan 4s ease-in-out infinite;
+        }
+        @keyframes progressScan {
+            0% { width: 0%; margin-left: 0%; }
+            50% { width: 60%; }
+            100% { width: 0%; margin-left: 100%; }
+        }
+
+        .mt-footer {
+            font-family: var(--font-mono);
+            font-size: 0.75em;
+            color: #555577;
+            letter-spacing: 1px;
+        }
+        .mt-footer a {
+            color: var(--neon-cyan);
+            text-decoration: none;
+        }
+        .mt-footer a:hover {
+            color: var(--neon-pink);
+        }
+
+        .error-text { color: var(--neon-red) !important; }
+        @media (max-width: 600px) {
+            .mt-card { padding: 30px 25px; }
+            .mt-title { font-size: 1.5em; letter-spacing: 2px; }
+            .mt-subtitle { font-size: 0.8em; letter-spacing: 3px; }
+            .mt-message { font-size: 1em; }
+            .mt-status-bar { flex-direction: column; gap: 6px; padding: 10px 15px; }
+        }
+    </style>
 </head>
-<body class="maintenance-page">
-    <div class="maintenance-container">
-        <div class="gear-container">
-            <div class="gear-icon gear-one">⚙️</div>
-            <div class="gear-icon gear-two">⚙️</div>
+<body>
+    <div class="mt-card">
+        <div class="mt-icon-container">
+            <div class="mt-gear-ring"></div>
+            <div class="mt-gear-ring"></div>
+            <div class="mt-gear mt-gear-1">⚙️</div>
+            <div class="mt-gear mt-gear-2">⚙️</div>
         </div>
-        <h1>Em Manutenção</h1>
-        <p id="maintenance-custom-message">O painel do Clash Genius está passando por uma breve manutenção. Voltaremos em breve!</p>
+
+        <div class="mt-title">
+            <span class="highlight-cyan">//</span> MANUTENÇÃO <span class="highlight-pink">//</span>
+        </div>
+        <div class="mt-subtitle">SISTEMA EM REVISÃO</div>
+        <div class="mt-divider"></div>
+
+        <div class="mt-message" id="maintenance-message">
+            O painel do <span>Clash Genius</span> está passando por uma breve manutenção.<br>
+            Nossa IA está recalibrando os servidores. Voltaremos em breve!
+        </div>
+
+        <div class="mt-status-bar">
+            <div class="mt-status-dot"></div>
+            <span class="mt-status-text" id="status-text">RECONECTANDO AO SISTEMA...</span>
+        </div>
+
+        <div class="mt-progress-track">
+            <div class="mt-progress-fill"></div>
+        </div>
+
+        <div class="mt-footer">
+            Clash Genius v<span id="version-display">31.0.0</span> &middot; 
+            <a href="/painel">Tentar acessar o painel</a>
+        </div>
     </div>
-    <!-- SCRIPT ATUALIZADO PARA VERIFICAR STATUS E MOTIVO -->
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const messageEl = document.getElementById('maintenance-custom-message');
+            const messageEl = document.getElementById('maintenance-message');
+            const statusTextEl = document.getElementById('status-text');
+            let attempts = 0;
 
             const checkStatus = async () => {
+                attempts++;
+                statusTextEl.textContent = 'RECONECTANDO AO SISTEMA' + '.'.repeat((attempts % 3) + 1);
                 try {
                     const response = await fetch('/api/coc_status', { cache: 'no-store' });
                     if (!response.ok) {
-                        // Se o próprio servidor do bot estiver offline, exibe uma mensagem genérica.
-                        messageEl.textContent = 'Servidor do Clash Genius indisponível. Tentando reconectar...';
-                        return; // Continua tentando no próximo intervalo
-                    }
-
-                    const data = await response.json();
-                    
-                    // Se a API da Supercell voltou, redireciona para o painel principal
-                    if (data.status === 'ok') {
-                        console.log('API está online. Redirecionando para o painel...');
-                        window.location.href = '/painel';
-                        if (statusCheckInterval) clearInterval(statusCheckInterval); // Para de verificar
-                    } else {
-                        // Se a API está em manutenção ou com erro, exibe a mensagem retornada pela API do bot
-                        if (data.message) {
-                            messageEl.textContent = data.message;
+                        if (response.status === 503) {
+                            const data = await response.json().catch(() => ({}));
+                            if (data.message) {
+                                messageEl.innerHTML = data.message;
+                            }
+                            return;
                         }
+                        return;
+                    }
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        statusTextEl.textContent = 'SISTEMA OPERACIONAL. REDIRECIONANDO...';
+                        statusTextEl.style.color = 'var(--neon-green)';
+                        document.querySelector('.mt-status-dot').style.background = 'var(--neon-green)';
+                        document.querySelector('.mt-status-dot').style.boxShadow = '0 0 10px var(--neon-green)';
+                        setTimeout(() => { window.location.href = '/painel'; }, 1000);
+                    } else if (data.message) {
+                        messageEl.innerHTML = data.message;
                     }
                 } catch (error) {
-                    // Em caso de falha de rede ao tentar conectar ao servidor do bot
-                    console.error('Erro ao verificar status da API para recuperação:', error);
-                    messageEl.textContent = 'Não foi possível conectar ao servidor do Clash Genius. Verifique sua conexão e tente novamente.';
+                    console.error('Erro ao verificar status:', error);
+                    messageEl.innerHTML = 'Não foi possível conectar ao servidor do <span>Clash Genius</span>. Verifique sua conexão e tente novamente.';
                 }
             };
-
-            // Verifica imediatamente ao carregar a página
             checkStatus();
-            // E continua verificando a cada 15 segundos
-            const statusCheckInterval = setInterval(checkStatus, 15000);
+            setInterval(checkStatus, 15000);
         });
     </script>
 </body>
 </html>
-
