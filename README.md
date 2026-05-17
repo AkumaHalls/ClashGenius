@@ -1,189 +1,216 @@
-# ⚡️💥ClashGenius v20.1.87 — O Gênio das Guerras está estável!💥⚡️
+# ⚡ CLASHGENIUS — O GÊNIO DAS GUERRAS 🧠🔥
 
-![Versão](https://img.shields.io/badge/versão-20.1.48--WAR--PREDICTION-blueviolet?style=flat-square)
-![Status](https://img.shields.io/badge/Projeto-Estável-brightgreen?style=flat-square)
-![Linguagem](https://img.shields.io/badge/python-3.8+-blue?logo=python&style=flat-square)
-![Licença](https://img.shields.io/github/license/AkumaHalls/ClashGenius?style=flat-square)
-![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-informational?style=flat-square&logo=render)
-![Contribuições](https://img.shields.io/badge/contribuições-bem%20vindas-brightgreen?style=flat-square)
+![Versão](https://img.shields.io/badge/versão-31.0.0--Capital--Image-ff00aa?style=flat-square&logo=python)
+![Status](https://img.shields.io/badge/Status-Operacional-00ff41?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.10%2B-0080ff?logo=python&style=flat-square)
+![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-00fff9?style=flat-square&logo=render)
+![Tema](https://img.shields.io/badge/tema-cyberpunk--2088-b300ff?style=flat-square)
 
-> 🎉 OPA, CHEFE! Preparado para dominar os campos de batalha do Clash of Clans como nunca antes?!  
-> O **ClashGenius** é seu bot + painel de guerra definitivo, com monitoramento em tempo real, alertas automáticos e um **painel web interativo** que parece ter saído direto de um livro de guerra épico! 🏰🔥
-
----
-
-## 🌟 DESTAQUES DO PAINEL WEB.
-
-🎯 **Interatividade Total** para você e seu clã:
-
-- 📊 **Visão Geral do Clã**: nome, tag, nível, descrição, membros, pontos, capital.
-- ⚔️ **Status da Guerra Detalhado**: Normal ou CWL, com placar, tempo, estado e ataques.
-- 🧠 **Previsão de Guerra**: Análise tática em tempo real sobre as chances de vitória.
-- 🎯 **Ataques Pendentes**: veja quem ainda não atacou, com um visual profissional e agrupado por guerra.
-- 🛡️ **Lista Completa de Membros**: CV, liga, troféus, cargos e OBS personalizadas com cores, salvas em banco de dados.
-- 🏆 **Informações da CWL**: dados completos de todas as guerras e participantes.
-- 📜 **Histórico de Guerras**: registro completo das guerras anteriores.
-- 🎨 **Visual Temático** Clash of Clans com fundo animado, música e favicon.
-- 🔐 **Painel de Administrador**: Controle funções críticas do bot, como o modo manutenção, de forma segura.
-- 🌐 **Acesso Rápido**: `https://SEU_DOMINIO.onrender.com/painel`
-- ⚙️ **Servidor Web embutido** com `aiohttp`.
+> **ClashGenius** é um bot + painel web definitivo para análise completa do seu clã no Clash of Clans.  
+> Monitoramento em tempo real, inteligência artificial preditiva, detecção de smurfs, plano de rotação CWL e um **painel web cyberpunk** com neons, partículas e tooltips interativas.
 
 ---
 
-## 🔄 CHANGELOG
+## 🚀 DESTAQUES
 
-#### v20.2.05 (09/10/2025)
-- 🚀 **REESTRUTURAÇÃO E CORREÇÃO DE INTEGRIDADE (HOTFIX GERAL):**
-    - ✨ **Arquitetura de Cogs Reforçada:** Mantida a separação de responsabilidades, mas a função crítica `format_war_details_for_web` foi movida de volta para a classe principal do bot (`clash.py`). Isso resolveu um `AttributeError` complexo e garantiu que tanto as tarefas em segundo plano (`tasks_cog`) quanto a API web (`web_api_cog`) pudessem acessá-la de forma consistente, mantendo a estabilidade.
-    - ✅ **Correção - Painel de Administrador:** Restaurada a funcionalidade do painel de administrador (`/admin`), que estava inacessível (erro 404) devido a um problema de roteamento na API web após a refatoração.
-    - ✅ **Correção - API da CWL:** Corrigido o erro 404 na funcionalidade "Gerar Plano de Rotação" da CWL, que ocorria porque a rota da API não estava sendo registrada corretamente.
-    - ✅ **Correção - Processamento de Guerras:** Implementada uma verificação `if war.state == 'warEnded':` na tarefa de fim de guerra (`tasks_cog.py`). Isso impede que guerras ainda em andamento sejam salvas no histórico, corrigindo o bug que exibia "Ataques Pendentes" para a guerra atual.
-    - ✅ **Correção - Heróis da Guerra:** Adicionada a `attacker_tag` aos dados de cada ataque salvo no banco de dados. Isso permite que a análise pós-guerra identifique corretamente os atacantes do nosso clã e exiba os "Heróis da Última Guerra" na aba Destaques (para guerras futuras).
-    - ✅ **Correção - Distritos da Capital:** Removida a exibição dos distritos da capital do painel, que estava causando um `AttributeError` e quebrando a API da aba "Clã".
+### 🖥️ PAINEL WEB CYBERPUNK
+Acesse em: `https://SEU_DOMINIO.onrender.com/painel`
 
-#### v20.2.01 (08/10/2025)
-- 🐞 **CORREÇÃO CRÍTICA DE LÓGICA (HOTFIX):**
-    - ✅ **Correção - Duplicação de Guerras e Flood:** Implementada uma lógica robusta para criar um ID único e consistente para cada guerra (`war.tag` para CWL, `preparation_start_time` para guerras normais) e para verificar se a guerra pertence ao clã antes de processar. Isso resolveu o problema central de reprocessamento e o processamento de guerras de outros clãs, acabando com o "flood" de mensagens no Discord e a duplicação de registros no banco de dados.
-    - ✅ **Correção - Histórico de Guerra "Não Encontrado":** O painel web foi ajustado para usar o novo ID único da guerra ao buscar detalhes no histórico, corrigindo o erro "Guerra não encontrada" que ocorria ao clicar em uma guerra na lista.
-    - ✨ **Ferramenta de Manutenção:** Adicionado o comando `!dbcleanup` para administradores, permitindo analisar e remover com segurança as entradas de guerra duplicadas que foram criadas incorretamente no banco de dados.
+| Aba | Descrição |
+|-----|-----------|
+| **Clã** | Visão geral com badges neon, barra de ocupação animada, cards pulsantes de estatísticas e gráfico de desempenho das últimas guerras |
+| **Destaques** | Top 3 doadores, heróis da última guerra (MVP) e gráfico de atividade |
+| **Guerra** | Detalhes completos, previsão da IA, plano de ataque inteligente, eventos e escalações |
+| **Ataques Pendentes** | Cartões de alerta com gravidade (amarelo/vermelho) e tooltips explicativos |
+| **CWL** | Status da liga, cronograma, e plano de rotação gerado por IA |
+| **Jogos do Clã** | Progresso da caravana, top farmers e parasitas (0 pontos) |
+| **Capital** | Raio-X completo: ataques, saque, ausentes e incompletos |
+| **Histórico** | Log completo de guerras passadas com modal detalhado |
+| **Membros** | Grid completo com fotos, status CWL, notas, prioridades e perfil individual com análise de IA |
 
-#### v20.1.87 (14/09/2025)
-- 🚀 **REARQUITETURA COMPLETA PARA COGS:** Todo o código do bot foi refatorado para o sistema de Cogs do `discord.py`, resultando em um projeto mais limpo, modular e fácil de manter.
-    - ✨ **`clash.py` Simplificado:** O arquivo principal agora é responsável apenas pela inicialização, configuração e carregamento dos módulos, sem lógica de comandos ou eventos.
-    - ✨ **Cog de Eventos (`events_cog.py`):** Centraliza todo o monitoramento em tempo real do clã, como entrada/saída de membros, doações e ataques de guerra, usando um `EventsClient` dedicado para máxima estabilidade.
-    - ✨ **Cog de Tarefas (`tasks_cog.py`):** Isola todas as tarefas que rodam em segundo plano, como a verificação de fim de guerra e o "snapshot" diário de dados.
-    - ✨ **Cog de Banco de Dados (`database_cog.py`):** Todas as funções de interação com o MongoDB foram movidas para este cog, criando uma camada de acesso a dados clara e organizada.
-- ✅ **Correção Definitiva de Erros de Inicialização:** Resolvidos múltiplos erros `AttributeError` e `TypeError` que ocorriam durante a inicialização, garantindo que os clientes de API e as tarefas em segundo plano só comecem a rodar depois que o bot estiver 100% pronto.
-- ✅ **Correção de Erros 500 no Painel Web:** A reestruturação da inicialização e a correção de uma `SyntaxError` nas rotas da API resolveram os erros 500 que impediam o painel de carregar.
-- ✅ **Correção de Fuso Horário:** Ajustada a formatação da hora nos embeds do Discord para usar o fuso horário correto (`America/Sao_Paulo`), garantindo que os registros de eventos apareçam com a hora local certa.
+### 🧠 INTELIGÊNCIA ARTIFICIAL
 
-#### v20.1.65 (11/09/2025)
-- ✨ **NOVO RECURSO (IA v3.0):** Implementada a arquitetura avançada de IA (`WarPredictionSystemV3`), refatorando toda a lógica de previsão.
-    - 🧠 **Modularização:** O código da IA foi movido para um arquivo dedicado (`war_predictor.py`), tornando o projeto mais limpo e organizado para futuras expansões.
-    - 🤖 **Ensemble de Modelos:** O sistema agora utiliza múltiplos modelos de Machine Learning (`GradientBoostingRegressor` e `RandomForestRegressor`) para criar uma previsão combinada, aumentando a precisão e robustez.
-    - 🎯 **Engenharia de Features Avançada:** A IA agora calcula métricas novas e sofisticadas para suas análises, como:
-        - **`momentum_indicator`**: Analisa a tendência dos ataques mais recentes para ver qual clã está com "a mão quente".
-        - **`clan_synergy_score`**: Mede a eficiência do clã em ataques de limpeza ("cleanup"), indicando o nível de coordenação.
-        - **`pressure_index`**: Calcula um índice de pressão psicológica, que aumenta quando o clã está atrás no placar em estágios avançados da guerra.
-    - 📊 **Relatórios Detalhados para o Discord:** A análise enviada para o Discord foi completamente reformulada para incluir insights táticos, fatores de risco e as principais métricas que levaram à previsão.
-    - 🌐 **Resumo Otimizado para o Painel:** O painel web recebe uma versão resumida e direta da previsão, mantendo a interface limpa e de fácil leitura.
-- ✅ **Correção (Banco de Dados):** Resolvido erro `NotImplementedError` que ocorria ao verificar a conexão com o banco de dados. A verificação foi atualizada para `if self.db is None:`, que é o padrão moderno da biblioteca `pymongo`.
-- ✅ **Correção (API):** Resolvido `AttributeError` na aba "Clã" que ocorria quando a API do Clash of Clans não retornava algum dado (como localização ou liga da capital). A função `fetch_clan_info_for_web` agora usa `getattr` para acessar os dados de forma segura, prevenindo quebras no painel.
+- **War Prediction System v3** — Ensemble de GradientBoosting + RandomForest para prever resultados de guerra
+- **War Advisor** — Plano de ataque tático com recomendações por membro e contagem regressiva de fase
+- **CWL Rotation Planner** — Escalação inteligente com rotação justa baseada em participação
+- **Player Analytics (K-Means)** — Classifica cada membro em tiers (General, Especialista, Instável, Risco)
+- **Random Forest** — Calcula a confiabilidade de cada jogador atacar na próxima guerra
+- **Smurf Detection (XAI)** — DBSCAN + Cosseno + Fuzzy Logic + DTW para detectar contas vinculadas
 
-#### v20.1.59 (11/09/2025)
-- 🎨 **MELHORIA DE INTERFACE:** Aprimorada a visualização da previsão da IA no painel web.
-    - ✨ **Tags de Dados:** Os valores de "Probabilidade" e "Confiança" agora são exibidos em "badges" (etiquetas) modernas e informativas, com ícones e rótulos claros.
-    - ✨ **Tooltips Explicativos:** Adicionadas caixas de ajuda (`tooltips`) que aparecem ao passar o mouse sobre as novas badges, explicando o que cada métrica significa. Isso torna a interface mais intuitiva para todos os membros do clã.
+### 🕵️ RADAR PERICIAL (ANTI-SMURF)
 
+- Análise fonética de nomes (fuzzywuzzy)
+- Similaridade de vetores de progresso (distância de cossenos)
+- Forense de laboratório (Mula Signature)
+- Correlação temporal de ataques (Dynamic Time Warping)
+- Painel de julgamento: **Absolver** (falso positivo) ou **Condenar** (envia para Watchlist)
 
-### v20.1.48 (08/09/2025)
-- ✨ **NOVO RECURSO:** Implementada a funcionalidade de **Previsão de Guerra** na aba "Guerra".
-    - 🧠 **Análise Tática:** O sistema agora analisa estrelas, destruição e ataques restantes para gerar uma previsão textual do resultado da guerra em tempo real.
-    - 🗣️ **Mensagens Dinâmicas:** Exibe diferentes cenários, como vitória garantida, chances de virada do oponente e o que é necessário para vencer, com mensagens claras e diretas.
-    - 🎨 **Integração Visual:** A previsão aparece em um card destacado abaixo do cabeçalho da guerra para fácil e rápida visualização estratégica.
+### 🔐 PAINEL ADMIN
 
-### v20.1.45 (07/09/2025)
-- ✨ **NOVO RECURSO:** Adicionado um **Painel de Administrador** completo e seguro.
-    - 🔐 **Acesso Restrito:** Implementada uma página de login com senha para proteger a área administrativa.
-    - 🛠️ **Modo Manutenção:** Administradores podem ativar/desativar o modo de manutenção, que exibe uma página de aviso para os usuários e pausa os alertas do bot no Discord.
-    - 💬 **Teste de Comunicação:** Adicionado um botão para enviar uma mensagem de teste ao canal do Discord, verificando a conexão e o status do bot.
-    - ℹ️ **Informações do Sistema:** O painel agora exibe a versão atual do bot.
+Acesse em: `https://SEU_DOMINIO.onrender.com/admin`
 
-### v20.1.39 (07/09/2025)
-- 🚀 **MELHORIA GERAL:** Reformulada completamente a aba **"Ataques Pendentes"** para uma ferramenta de administração profissional.
-    - ✨ **Novo Layout:** Substituída a lista de texto por um sistema de cartões de alerta visuais.
-    - ✨ **Agrupamento por Guerra:** As pendências agora são agrupadas por cada guerra, mostrando o oponente e a data.
-    - ✨ **Destaque de "Última Guerra":** Um selo `💥 Última Guerra` é exibido no grupo da guerra mais recente para fácil identificação.
-    - ✨ **Alerta por Gravidade:** Os cartões possuem bordas coloridas (amarela para 1 ataque, vermelha para 2) para sinalizar a urgência.
-    - ✨ **Cópia de Tag:** Adicionada a tag do jogador e um botão "Copiar" em cada cartão para facilitar a administração no jogo.
-- ✅ **Correção Definitiva:** Resolvido o problema na aba **"Destaques"** onde os "Heróis da Última Guerra" não eram exibidos.
-    - 🔧 **Lógica Corrigida:** O sistema agora salva corretamente a tag de cada membro no histórico de guerra, garantindo que o filtro de melhores ataques funcione de forma precisa para as guerras futuras.
-    - ✨ **Contexto Adicionado:** A data da guerra analisada agora é exibida no título da seção "Heróis da Última Guerra".
+- **Login** com tela de "Área Restrita" com efeitos de raio e fogo
+- **Geral** — Controle de manutenção, informações do sistema
+- **Diagnóstico** — Status da API CoC e logs recentes
+- **Configurações** — Gerenciamento completo de canais, cargos e funções do Discord
+- **Watchlist** — Lista de observação com filtro e remoção
+- **Radar Pericial** — Dossiê completo de smurfs com julgamento
+- **Analytics IA** — Classificação de todos os membros por machine learning
+- **Ações** — Cache, sincronização de comandos slash e anúncios
+- **Base de Dados** — Visualizador do MongoDB (guerras e notas)
 
-### v20.1.18 (15/08/2025)
-- ✨ **NOVO:** Adicionado Favicon customizável, tornando o painel um PWA (Progressive Web App) instalável no celular.
-- ✨ **NOVO:** Implementado música de fundo no painel web com botão para silenciar.
-- ✨ **NOVO:** Adicionado monitoramento de doações e tropas recebidas com alertas no Discord.
+### 🎨 TEMA CYBERPUNK 2088
 
-### v20.1.15 (14/08/2025)
-- ✅ **Correção Definitiva:** Resolvido erro `TypeError: Object of type WarState is not JSON serializable`, estabilizando completamente a aba "Guerra" do painel.
-- ✅ **Conexão com MongoDB Reforçada:** Melhorada a verificação de conexão com o banco de dados para evitar falhas na aba "Membros".
-
-### v20.1.4 - v20.1.12
-- ✨ **Integração com MongoDB:** Adicionado suporte a MongoDB para salvar as notas dos jogadores de forma persistente.
-- 🐞 **Correções no Painel Web:** Resolvidos múltiplos erros 500 e `NoneType` que afetavam as abas de Guerra, Histórico e Membros.
-- 🔧 **Estabilização de Eventos:** Restaurada a lógica de registro de eventos do Discord, garantindo que todos os alertas (entrada/saída, ataques, etc.) funcionem como esperado.
+- Cores neon: ciano (`#00fff9`), rosa (`#ff00aa`), roxo (`#b300ff`), verde (`#00ff41`)
+- Animações: scanlines, grid background, glow pulsante, glitch text
+- Partículas flutuantes no background
+- Tooltips neon interativos em todos os elementos
+- Cards com bordas animadas e cantos cyberpunk
+- Efeito de varredura (card-scan) nos cards
+- Fontes: Orbitron (títulos), Rajdhani (corpo), Fira Code (mono)
 
 ---
 
-## 🧠 FUNCIONALIDADES INTELIGENTES
+## 📋 FUNCIONALIDADES COMPLETAS
 
-### 👁️ EVENTOS MONITORADOS
-- Entrada/saída de membros
-- Doações e tropas recebidas
+### 👁️ EVENTOS MONITORADOS (DISCORD)
+- Entrada/saída de membros com embed detalhado
+- Doações recebidas e enviadas
 - Mudanças de cargo, liga e troféus
-- Ataques em Guerras e CWL
+- Alertas de guerra (início, fim, ataques perdidos)
+- Notificações de CWL, Jogos do Clã e Capital
+- Detecção e alerta de smurfs
 
-### 🖥️ DASHBOARD INTERATIVO
-- Acompanhe tudo em tempo real pelo navegador.
-- Edite observações e prioridades de membros diretamente pelo painel, com salvamento automático no banco de dados.
+### 📊 MÉTRICAS POR MEMBRO
+- Perfil completo com heróis, liga e tropas
+- Hitrate: estrelas, destruição média, taxa de participação
+- Evolução de troféus (gráfico interativo Chart.js)
+- Última guerra registrada
+- Notas personalizadas com prioridade (verde/amarelo/vermelho)
+- Status CWL: Fixo (⭐), Ativo ou Reserva
 
 ---
 
 ## 📦 REQUISITOS
 
-- Python 3.8+
-- Conta Supercell ID para API
-- Bot do Discord com token
-- Canal para logs no Discord
-- URL de conexão com um banco de dados MongoDB (opcional, para salvar notas)
-- Ambiente como Render.com
+- Python 3.10+
+- Conta Supercell ID (API Developer)
+- Bot do Discord com token e intents configuradas
+- Canal de logs no Discord
+- MongoDB Atlas (ou local) para persistência
+- Render.com ou similar para hospedagem
+- **Dependências**: `discord.py`, `coc.py`, `aiohttp`, `motor`, `pymongo`, `numpy`, `scikit-learn`, `thefuzz`, `cryptography`, `python-dotenv`, `pytz`, `pillow`, `matplotlib`
 
 ---
 
-## ⚙️ COMO INSTALAR
+## ⚙️ INSTALAÇÃO
 
 ```bash
-# Clone o repositório
-git clone [https://github.com/AkumaHalls/ClashGenius.git](https://github.com/AkumaHalls/ClashGenius.git)
+# Clone
+git clone https://github.com/seu-repo/ClashGenius.git
 cd ClashGenius
 
-# Crie um ambiente virtual
+# Ambiente virtual
 python -m venv venv
 source venv/bin/activate  # Linux/macOS
 . venv\Scripts\activate    # Windows
 
-# Instale as dependências
+# Dependências
 pip install -r requirements.txt
 ```
-Crie o arquivo .env com:
 
-```
-DISCORD_TOKEN=seu_token_aqui
+### 🔧 Configuração (.env)
+
+```env
+DISCORD_TOKEN=seu_token_discord
 COC_EMAIL=seu_email_supercell
 COC_PASSWORD=sua_senha_supercell
-CLAN_TAG=#TAG_DO_SEU_CLA
-CHANNEL_ID=ID_DO_CANAL_DE_LOGS
-MONGO_DB_URL=sua_url_de_conexao_mongodb
-ADMIN_PASSWORD=uma_senha_forte_para_o_painel
-FERNET_KEY=execute_o_seguinte_script_para_gerar_uma_chave
+CLAN_TAG=#TAG_DO_CLAN
+CHANNEL_ID=id_canal_logs
+MONGO_DB_URL=sua_url_mongodb
+ADMIN_PASSWORD=senha_admin
+FERNET_KEY=chave_criptografia
+BASE_URL=https://seu-site.onrender.com
 ```
-Para gerar a FERNET_KEY, execute este pequeno script Python uma vez e copie o resultado:
 
-```
+Para gerar a `FERNET_KEY`:
+```python
 from cryptography.fernet import Fernet
 print(Fernet.generate_key().decode())
 ```
-A pasta static/ com painel.html, css/ e js/ deve estar no mesmo diretório de clash.py.
 
-▶️ RODANDO O BOT
+### ▶️ Executar
 
-```
+```bash
 python clash.py
 ```
-🤝 CONTRIBUIÇÕES
-Contribuições são muito bem-vindas!
-Abra uma issue, envie um PR ou compartilhe ideias!
 
-📜 LICENÇA
-Distribuído sob a licença MIT. Veja LICENSE para mais detalhes.
+---
+
+## 🏗️ ARQUITETURA
+
+```
+ClashGenius/
+├── clash.py                  # Inicialização e servidor web aiohttp
+├── war_predictor.py          # Sistema de previsão (ML ensemble)
+├── formatting.py             # Utilitários de formatação
+├── cogs/
+│   ├── admin_cog.py          # Painel de administração
+│   ├── web_api_cog.py        # API REST do painel web
+│   ├── tasks_cog.py          # Tarefas em segundo plano
+│   ├── events_cog.py         # Monitoramento de eventos
+│   ├── database_cog.py       # Camada de persistência MongoDB
+│   ├── smurf_detection_cog.py # Detecção de smurfs (XAI)
+│   ├── player_analytics_cog.py # K-Means + Random Forest
+│   ├── war_advisor_cog.py    # Conselheiro de guerra IA
+│   ├── cwl_planner_cog.py    # Planejador CWL
+│   ├── capital_cog.py        # Monitoramento da Capital
+│   ├── clan_games_cog.py     # Rastreador de Jogos do Clã
+│   ├── profile_cog.py        # Perfil de membros
+│   ├── watchlist_cog.py      # Lista de observação
+│   ├── donation_cog.py       # Monitoramento de doações
+│   ├── performance_cog.py    # Análise de performance
+│   ├── maintenance_cog.py    # Modo manutenção
+│   ├── slash_cog.py          # Comandos slash
+│   ├── general_cog.py        # Comandos gerais
+│   ├── super_profile_cog.py  # Perfil super detalhado
+│   ├── post_war_analysis.py  # Análise pós-guerra
+│   └── __init__.py
+└── static/
+    ├── painel.html            # Página principal
+    ├── admin_login.html       # Login admin (com raio e fogo)
+    ├── admin_panel.html       # Painel admin
+    ├── maintenance.html       # Página de manutenção
+    ├── css/
+    │   └── style.css          # Tema cyberpunk completo
+    └── js/
+        ├── scripts.js         # Lógica do painel principal
+        └── admin.js           # Lógica do painel admin
+```
+
+---
+
+## 🔄 VERSÃO ATUAL: 31.0.0-Capital-Image
+
+### Últimas atualizações
+
+- **Tema Cyberpunk 2088** — overhaul visual completo com neons, animações e partículas
+- **Aba CLAN reformulada** — badge neon, barra de ocupação, cards pulsantes, gráfico de desempenho
+- **Tooltips interativos** — sistema global de tooltips neon em todo o site
+- **Clique liberado** — qualquer visitante pode ver perfis de membros
+- **Admin com raio e fogo** — tela de login com efeitos dramáticos de área restrita
+- **Radar Pericial corrigido** — membros que saem do clã somem automaticamente do radar
+- **Gráfico de desempenho** — barras visuais das últimas 10 guerras no resumo do clã
+
+---
+
+## 📜 LICENÇA
+
+MIT — Use, modifique e compartilhe livremente.
+
+---
+
+<p align="center">
+  <sub>Feito com ❤️ por +Constantine+ e a comunidade</sub><br>
+  <sub>Clash Genius Bot v31.0.0-Capital-Image</sub>
+</p>
