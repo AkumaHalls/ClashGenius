@@ -7,6 +7,7 @@ Atualizado com Geração de Linguagem Natural Dinâmica (NLG) para relatórios o
 
 import logging
 import math
+import random
 from typing import Dict, List, Any, Tuple, Optional
 from dataclasses import dataclass, asdict
 from collections import defaultdict, Counter
@@ -312,6 +313,17 @@ class WarPredictionSystemV3:
             if war.state == 'preparation':
                  return {"summary_panel": "Análise preditiva ficará disponível quando o campo de batalha for aberto.", "probability": 50.0, "confidence": 20.0}
             
+            if war.state == 'warEnded':
+                our_stars = our_clan.stars if our_clan else 0
+                opp_stars = opponent.stars if opponent else 0
+                if our_stars > opp_stars:
+                    msg = f"🏆 Vitória confirmada! {our_stars}⭐ x {opp_stars}⭐ — A superioridade tática foi absoluta. O modelo de ML valida que a estratégia empregada foi a correta para o cenário."
+                elif opp_stars > our_stars:
+                    msg = f"💀 Derrota confirmada. {our_stars}⭐ x {opp_stars}⭐ — O algoritmo identificou pontos críticos de melhoria. Análise aprofundada disponível no painel pós-guerra."
+                else:
+                    msg = f"⚖️ Empate técnico. {our_stars}⭐ x {opp_stars}⭐ — Um resultado raro. A IA registra que a guerra foi decidida nos mínimos detalhes."
+                return {"summary_panel": msg, "probability": 100.0 if our_stars > opp_stars else (0.0 if opp_stars > our_stars else 50.0), "confidence": 100.0}
+            
             definitive = self._check_definitive_scenarios(war, our_clan, opponent)
             if definitive:
                 return definitive
@@ -414,49 +426,160 @@ class WarPredictionSystemV3:
         return confidence, insights, risks
 
     def _generate_summaries(self, features: AdvancedWarFeatures, probability: float, our_clan_name: str, insights: List[str], risks: List[str]) -> Dict[str, str]:
-        """Constrói uma narrativa orgânica, fluida e única baseada nas variáveis do Machine Learning."""
+        """Constrói uma narrativa orgânica e única — a IA nunca repete o mesmo texto duas vezes."""
         
         prog = int(features.war_progress_percentage)
         prob = int(probability)
         star_diff = int(features.star_difference)
         dest_diff = features.destruction_difference
+        mom = features.momentum_indicator
+        synergy = features.clan_synergy_score
+        efficiency = features.efficiency_ratio
         
-        # 1. Abertura Baseada no Progresso e ML
+        parts = []
+        
+        # ─── 1. Abertura baseada no progresso ─────────────────────────
         if prog < 20:
-            texto = f"A guerra ainda está no início ({prog}% de progresso), mas o modelo preditivo já projeta nossa chance de vitória em {prob}%. "
+            aberturas = [
+                f"O campo de batalha acaba de ser aberto ({prog}% de progresso) e os sensores neurais já capturaram os primeiros sinais da guerra. A projeção inicial aponta {prob}% de chance de vitória.",
+                f"Com apenas {prog}% da guerra transcorrida, o modelo preditivo começa a esboçar as primeiras curvas da batalha. Nossa probabilidade calculada é de {prob}%.",
+                f"A guerra está em seu estágio inicial ({prog}% concluído), mas o cérebro de ML já processa os dados disponíveis. A chance projetada de sairmos vitoriosos é de {prob}%.",
+                f"Os primeiros movimentos do confronto já foram registrados ({prog}% do campo escaneado). A malha neural indica {prob}% de chances de vitória neste momento.",
+            ]
         elif prog > 85:
-            texto = f"Entramos na reta final do confronto. Com os dados consolidados, a probabilidade atual de sairmos vitoriosos cravou em {prob}%. "
+            aberturas = [
+                f"Entramos na reta final do confronto, com {prog}% do campo já consolidado. Os dados estão praticamente completos e a Inteligência Artificial crava nossa chance de vitória em {prob}%.",
+                f"O fim da batalha se aproxima ({prog}% de progresso). Com a massa de dados já coletada, o modelo preditivo apresenta sua análise final: {prob}% de probabilidade de vitória.",
+                f"Estamos nos momentos decisivos da guerra ({prog}% concluído). O sistema de predição, com os dados consolidados, projeta {prob}% de chance de sucesso.",
+                f"O placar caminha para o desfecho final ({prog}% percorridos). Os algoritmos de ML, com alto volume de dados, estimam nossa vitória em {prob}%.",
+            ]
         else:
-            texto = f"Com o campo de batalha em {prog}% de andamento, a Inteligência Artificial calcula {prob}% de chance de vitória para nós. "
-            
-        # 2. Leitura Real do Placar
+            aberturas = [
+                f"A guerra avança em {prog}% do seu curso. Através da análise combinatória dos ataques já realizados, a IA calcula {prob}% de chances de vitória.",
+                f"Com o campo de batalha em {prog}% de andamento, a malha neural do sistema processa os eventos em tempo real. Nossa chance projetada é de {prob}%.",
+                f"O confronto já percorreu {prog}% do caminho. A cada ataque novo, o modelo de ML recalibra seus vetores — a projeção atual é de {prob}% a nosso favor.",
+                f"Progresso de guerra em {prog}%. O ensemble de modelos preditivos analisa as variáveis em cascata e aponta {prob}% de chance de vitória para o clã.",
+            ]
+        parts.append(random.choice(aberturas))
+        
+        # ─── 2. Leitura do placar ─────────────────────────────────────
         if star_diff > 0:
-            texto += f"No momento, sustentamos uma vantagem de {star_diff} estrelas. "
+            placares = [
+                f"No momento, sustentamos uma vantagem de {star_diff} estrelas no placar. ",
+                f"Estamos à frente por {star_diff} estrelas — uma margem que precisa ser administrada com inteligência. ",
+                f"Lideramos o confronto por {star_diff} estrelas de diferença. ",
+                f"O placar nos favorece por {star_diff} estrelas, mas o confronto ainda não acabou. ",
+            ]
         elif star_diff < 0:
-            texto += f"Estamos correndo atrás de um déficit de {abs(star_diff)} estrelas. "
+            placares = [
+                f"Estamos correndo atrás de um déficit de {abs(star_diff)} estrelas. ",
+                f"O adversário nos supera por {abs(star_diff)} estrelas no momento. ",
+                f"Enfrentamos uma desvantagem de {abs(star_diff)} estrelas — cada ataque é crucial a partir de agora. ",
+                f"Precisamos reverter um placar desfavorável de {abs(star_diff)} estrelas. ",
+            ]
         else:
             if dest_diff > 0:
-                texto += f"O placar de estrelas está empatado, mas levamos vantagem de {dest_diff:.1f}% na destruição total. "
+                placares = [
+                    f"O placar de estrelas está empatado, mas levamos vantagem de {dest_diff:.1f}% na destruição total. ",
+                    f"Estamos empatados em estrelas, porém superamos o oponente em {dest_diff:.1f}% de destruição acumulada. ",
+                ]
             else:
-                texto += f"O placar está empatado e estamos levemente atrás na destruição por {abs(dest_diff):.1f}%. "
-
-        # 3. Costurando as Bibliotecas Inteligentes (Insights)
+                placares = [
+                    f"O placar está empatado e estamos levemente atrás na destruição por {abs(dest_diff):.1f}%. ",
+                    f"Empate no número de estrelas, mas o adversário lidera em destruição por {abs(dest_diff):.1f}%. ",
+                ]
+        parts.append(random.choice(placares))
+        
+        # ─── 3. Frase de transição — a IA "pensa" ─────────────────────
+        transicoes = [
+            "Processando os vetores de desempenho… ",
+            "Analisando as variáveis ocultas do campo… ",
+            "Cruzando dados históricos com o momento atual… ",
+            "Avaliando a matriz de eficiência dos ataques… ",
+            "Calculando os cenários probabilísticos restantes… ",
+        ]
+        if random.random() < 0.4:
+            parts.append(random.choice(transicoes))
+        
+        # ─── 4. Insights táticos ──────────────────────────────────────
         if insights:
-            texto += f"O algoritmo destaca que {insights[0]}, o que tem impactado diretamente o nosso resultado. "
+            intro_insights = [
+                f"O algoritmo destaca que {insights[0]}, o que tem impactado diretamente o nosso resultado. ",
+                f"A telemetria indica que {insights[0]}, um fator que está pesando na equação. ",
+                f"Os sensores de campo apontam que {insights[0]}. ",
+            ]
+            parts.append(random.choice(intro_insights))
+            
             if len(insights) > 1:
-                texto += f"Além disso, {insights[1]}. "
-                
-        # 4. Injetando a Realidade dos Riscos
+                adicionais = [
+                    f"Além disso, {insights[1]}. ",
+                    f"Um segundo fator relevante: {insights[1]}. ",
+                    f"Somado a isso, {insights[1]}. ",
+                ]
+                parts.append(random.choice(adicionais))
+        
+        # ─── 5. Riscos e alertas ──────────────────────────────────────
         if risks:
-            texto += f"No entanto, é fundamental ter cuidado: a telemetria aponta que {risks[0]}, o que pode causar uma virada surpresa no final. "
-
-        # 5. Diretriz Tática Orgânica
-        if probability >= 75:
-            texto += "O foco agora é pura administração: priorizem ataques seguros em bases já mapeadas para não dar margem de erro ao adversário."
-        elif probability <= 35:
-            texto += "O cenário exige agressividade extrema. Para quebrar a probabilidade atual, precisaremos arriscar estratégias de 3 estrelas nas bases mais difíceis."
+            intro_risks = [
+                f"No entanto, é fundamental ter cuidado: a telemetria aponta que {risks[0]}. ",
+                f"Atenção: os dados de campo revelam que {risks[0]}. ",
+                f"Porém, o sistema emitiu um alerta: {risks[0]}. ",
+                f"Mas nem tudo são flores — {risks[0]}. ",
+            ]
+            parts.append(random.choice(intro_risks))
+            
+            if len(risks) > 1 and random.random() < 0.5:
+                risco_extra = [
+                    f"E mais: {risks[1]}. ",
+                    f"Para piorar, {risks[1]}. ",
+                    f"Outro ponto de preocupação: {risks[1]}. ",
+                ]
+                parts.append(random.choice(risco_extra))
+        
+        # ─── 6. Diretriz final — tom varia com a situação ─────────────
+        if probability >= 85:
+            finais = [
+                "A vantagem é contundente. O foco agora é pura administração: priorizem ataques seguros em bases já mapeadas para não dar margem ao acaso.",
+                "O cenário é amplamente favorável. A recomendação é gerenciar o placar com ataques conservadores e evitar riscos desnecessários.",
+                "Dominamos o confronto. A estratégia ideal agora é consolidar o resultado com ataques de alto aproveitamento em bases vulneráveis.",
+            ]
+        elif probability >= 65:
+            finais = [
+                "Estamos em vantagem, mas o confronto ainda exige atenção. A recomendação é manter a pressão com ataques calculados.",
+                "Temos uma margem confortável, porém não definitiva. Cada ataque deve ser planejado para maximizar a eficiência sem expor o placar.",
+                "A vantagem é nossa, mas o adversário pode surpreender. Priorizem alvos já danificados para fechar o mapa com segurança.",
+            ]
+        elif probability >= 40:
+            finais = [
+                "A guerra está totalmente em aberto e cada estrela conquistada a partir de agora mudará drasticamente essa projeção matemática.",
+                "O equilíbrio domina o campo de batalha. Neste cenário, a disciplina tática e a execução precisa farão toda a diferença.",
+                "Estamos no fio da navalha. Cada ataque precisa ser cirurgicamente planejado — não há margem para desperdícios.",
+            ]
+        elif probability >= 20:
+            finais = [
+                "O cenário exige agressividade extrema. Para quebrar a probabilidade atual, precisaremos arriscar estratégias de 3 estrelas nas bases mais difíceis.",
+                "A desvantagem é significativa, mas não irreversível. É hora de estratégias ousadas e ataques de alto risco e alta recompensa.",
+                "Precisamos virar o jogo. O momento pede ataques agressivos em bases superiores para tentar recuperar o terreno perdido.",
+            ]
         else:
-            texto += "A guerra está totalmente em aberto e cada estrela conquistada a partir de agora mudará drasticamente essa projeção matemática."
+            finais = [
+                "O cenário é crítico. Somente uma sequência de ataques perfeitos pode reverter esta projeção. É hora de dar tudo ou nada.",
+                "As chances são mínimas, mas enquanto houver ataques restantes, há esperança. Busquem o impossível em cada investida.",
+                "A situação é extrema. A IA recomenda estratégias não convencionais — o momento é de romper padrões e buscar o improvável.",
+            ]
+        
+        # Pequena chance de adicionar um toque extra de personalidade
+        if random.random() < 0.25:
+            complementos = [
+                "A inteligência artificial continuará monitorando cada movimento em tempo real.",
+                "Os dados continuam sendo processados — qualquer mudança no campo altera a projeção instantaneamente.",
+                "O modelo de ML segue recalibrando os pesos a cada novo ataque registrado.",
+            ]
+            finais.append(" " + random.choice(complementos))
+        
+        parts.append(random.choice(finais))
+        
+        texto = ''.join(parts)
             
         return {
             "panel": texto,

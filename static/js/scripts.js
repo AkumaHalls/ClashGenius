@@ -491,7 +491,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isModal && predictionSection) {
             const predictionTextEl = container.querySelector('#warPredictionText');
             const predictionTagsEl = container.querySelector('#warPredictionTags');
-            if (data.prediction && data.prediction.summary_panel) {
+            const isEnded = (war.status || '').toLowerCase() === 'warended';
+
+            if (isEnded) {
+                const ourStars = war.clan_stars ?? 0;
+                const oppStars = war.opponent_stars ?? 0;
+                let resultEmoji, resultText, resultColor;
+                if (ourStars > oppStars) {
+                    resultEmoji = '🏆'; resultText = 'VITÓRIA'; resultColor = 'var(--color-success)';
+                } else if (oppStars > ourStars) {
+                    resultEmoji = '💀'; resultText = 'DERROTA'; resultColor = 'var(--color-danger)';
+                } else {
+                    resultEmoji = '⚖️'; resultText = 'EMPATE'; resultColor = 'var(--color-warning)';
+                }
+                setHtml(predictionTextEl, `
+                    <div class="war-ended-banner" style="border-color: ${resultColor};">
+                        <div class="war-ended-icon">${resultEmoji}</div>
+                        <div class="war-ended-content">
+                            <h3 class="war-ended-title" style="color: ${resultColor};">${resultText}</h3>
+                            <p class="war-ended-score">${ourStars}⭐ vs ${oppStars}⭐</p>
+                            <p class="war-ended-sub">${war.clan_name} vs ${war.opponent_name}</p>
+                        </div>
+                    </div>
+                `);
+                predictionTagsEl.innerHTML = '';
+                predictionSection.style.display = 'block';
+            } else if (data.prediction && data.prediction.summary_panel) {
                 setText(predictionTextEl, data.prediction.summary_panel);
                 predictionTagsEl.innerHTML = `
                     <div class="prediction-tag">
@@ -601,9 +626,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function populateWarAdvisorPlan(data) {
+    function populateWarAdvisorPlan(data, warState) {
         if (!warAdvisorContentEl) return;
         if (phaseTimerInterval) { clearInterval(phaseTimerInterval); phaseTimerInterval = null; }
+
+        if (warState === 'warEnded') {
+            const warData = window.__warData || {};
+            const ourS = warData.clan_stars ?? 0;
+            const oppS = warData.opponent_stars ?? 0;
+            const result = ourS > oppS ? 'Vencemos' : (oppS > ourS ? 'Perdemos' : 'Empatamos');
+            setHtml(warAdvisorContentEl, `
+                <div class="war-ended-advisor">
+                    <div class="war-ended-icon">🏁</div>
+                    <h3>Guerra Encerrada</h3>
+                    <p>${result}! ${ourS}⭐ vs ${oppS}⭐</p>
+                    <p class="war-ended-sub">O plano de ataque não está mais disponível. Consulte o Histórico de Guerras para análises pós-guerra.</p>
+                </div>
+            `);
+            return;
+        }
 
         const setupAdvisorUI = (planData) => {
             if (!planData || !planData.success) {
@@ -1859,8 +1900,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateMembersList(membersData);
             }
             
-            if (currentWarDetailsData) populateWarDetails(currentWarDetailsData, 'war-details-nav', false); 
-            if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData); 
+            if (currentWarDetailsData) {
+                populateWarDetails(currentWarDetailsData, 'war-details-nav', false);
+                window.__warData = currentWarDetailsData.war_data || {};
+            }
+            const warState = currentWarDetailsData?.war_data?.status || '';
+            if (warAdvisorData) populateWarAdvisorPlan(warAdvisorData, warState); 
             if (missedAttacksData && !missedAttacksData.error) {
                 populateMissedAttacksHistory(missedAttacksData);
                 globalMissedAttacks = missedAttacksData.wars_with_missed_attacks || [];
@@ -1908,8 +1953,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (d && !d.error) populateHighlights(d);
             } else if (s === 'war-details-nav') {
                 const [wd, wa] = await Promise.all([fetchData('current_war_details'), fetchData('war_advisor_plan')]);
-                if (wd) populateWarDetails(wd, 'war-details-nav', false);
-                if (wa) populateWarAdvisorPlan(wa);
+                if (wd) {
+                    populateWarDetails(wd, 'war-details-nav', false);
+                    window.__warData = wd.war_data || {};
+                }
+                const warState = wd?.war_data?.status || '';
+                if (wa) populateWarAdvisorPlan(wa, warState);
             } else if (s === 'attacks-remaining-nav') {
                 const d = await fetchData('missed_attacks_history');
                 if (d && !d.error) populateMissedAttacksHistory(d);
