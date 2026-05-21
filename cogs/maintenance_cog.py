@@ -39,7 +39,8 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
                   "\n**Acesso ao Painel:** " + ("Apenas Admins" if self.bot.maintenance_mode else "Público"),
             inline=False
         )
-        channel = self.bot.get_channel(self.bot.channel_id)
+        channel_id = self.bot.maintenance_alert_channel_id or self.bot.channel_id
+        channel = self.bot.get_channel(channel_id)
         if channel: await channel.send(embed=embed)
         
         return web.json_response({"status": "success", "maintenance_mode": self.bot.maintenance_mode})
@@ -47,7 +48,8 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
     async def send_test_embed_web(self):
         """Envia um embed de teste a partir de um pedido web."""
         embed = discord.Embed(title="✅ Mensagem de Teste (Web)", description="Comunicação OK!", color=discord.Color.blue())
-        channel = self.bot.get_channel(self.bot.channel_id)
+        channel_id = self.bot.maintenance_alert_channel_id or self.bot.channel_id
+        channel = self.bot.get_channel(channel_id)
         if channel:
             await channel.send(embed=embed)
             return web.json_response({"status": "success"})

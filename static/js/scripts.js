@@ -488,14 +488,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const warData = data.war_data || {};
+
         if (!isModal && predictionSection) {
             const predictionTextEl = container.querySelector('#warPredictionText');
             const predictionTagsEl = container.querySelector('#warPredictionTags');
-            const isEnded = (war.status || '').toLowerCase() === 'warended';
+            const isEnded = (warData.status || '').toLowerCase() === 'warended';
 
             if (isEnded) {
-                const ourStars = war.clan_stars ?? 0;
-                const oppStars = war.opponent_stars ?? 0;
+                const ourStars = warData.clan_stars ?? 0;
+                const oppStars = warData.opponent_stars ?? 0;
                 let resultEmoji, resultText, resultColor;
                 if (ourStars > oppStars) {
                     resultEmoji = '🏆'; resultText = 'VITÓRIA'; resultColor = 'var(--color-success)';
@@ -510,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="war-ended-content">
                             <h3 class="war-ended-title" style="color: ${resultColor};">${resultText}</h3>
                             <p class="war-ended-score">${ourStars}⭐ vs ${oppStars}⭐</p>
-                            <p class="war-ended-sub">${war.clan_name} vs ${war.opponent_name}</p>
+                            <p class="war-ended-sub">${warData.clan_name} vs ${warData.opponent_name}</p>
                         </div>
                     </div>
                 `);
