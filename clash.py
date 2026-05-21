@@ -51,6 +51,7 @@ CLAN_TAG = os.getenv("CLAN_TAG")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", 0))
 AI_LOG_CHANNEL_ID = int(os.getenv("AI_LOG_CHANNEL_ID", 0))
 POST_WAR_ANALYSIS_CHANNEL_ID = int(os.getenv("POST_WAR_ANALYSIS_CHANNEL_ID", 0))
+POST_WAR_VERDICT_CHANNEL_ID = int(os.getenv("POST_WAR_VERDICT_CHANNEL_ID", 0))
 CLAN_GAMES_CHANNEL_ID = int(os.getenv("CLAN_GAMES_CHANNEL_ID", 0))
 CWL_PLANNER_CHANNEL_ID = int(os.getenv("CWL_PLANNER_CHANNEL_ID", 0))
 DONATIONS_CHANNEL_ID = int(os.getenv("DONATIONS_CHANNEL_ID", 0))
@@ -81,6 +82,7 @@ class ClashGeniusBot(commands.Bot):
         self.channel_id = CHANNEL_ID
         self.ai_log_channel_id = AI_LOG_CHANNEL_ID
         self.post_war_analysis_channel_id = POST_WAR_ANALYSIS_CHANNEL_ID
+        self.post_war_verdict_channel_id = POST_WAR_VERDICT_CHANNEL_ID
         self.clan_games_channel_id = CLAN_GAMES_CHANNEL_ID
         self.cwl_planner_channel_id = CWL_PLANNER_CHANNEL_ID
         self.donations_channel_id = DONATIONS_CHANNEL_ID
@@ -175,6 +177,7 @@ class ClashGeniusBot(commands.Bot):
             if bot_settings:
                 self.channel_id = bot_settings.get("channel_id", self.channel_id)
                 self.post_war_analysis_channel_id = bot_settings.get("post_war_analysis_channel_id", self.post_war_analysis_channel_id)
+                self.post_war_verdict_channel_id = bot_settings.get("post_war_verdict_channel_id", self.post_war_verdict_channel_id)
                 self.clan_games_channel_id = bot_settings.get("clan_games_channel_id", self.clan_games_channel_id)
                 self.cwl_planner_channel_id = bot_settings.get("cwl_planner_channel_id", self.cwl_planner_channel_id)
                 self.donations_channel_id = bot_settings.get("donations_channel_id", self.donations_channel_id)

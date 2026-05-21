@@ -141,10 +141,12 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 war_details_for_db = await web_api_cog.format_war_details_for_web(war)
                 if 'error' not in war_details_for_db:
                     await db_cog.save_war_to_history(war_details_for_db, war_id)
-                    if create_post_war_analysis_embed and self.bot.post_war_analysis_channel_id:
-                        analysis_embed = create_post_war_analysis_embed(war_details_for_db)
-                        if analysis_embed: await self._send_log_embed(analysis_embed, target_channel_id=self.bot.post_war_analysis_channel_id)
-                    elif not create_post_war_analysis_embed:
+                    if create_post_war_analysis_embed:
+                        verdict_channel = self.bot.post_war_verdict_channel_id or self.bot.post_war_analysis_channel_id
+                        if verdict_channel:
+                            analysis_embed = create_post_war_analysis_embed(war_details_for_db)
+                            if analysis_embed: await self._send_log_embed(analysis_embed, target_channel_id=verdict_channel)
+                    if not create_post_war_analysis_embed:
                          logger.error("Função create_post_war_analysis_embed não disponível.")
 
                 else: logger.error(f"Falha ao obter detalhes da guerra {war_id} para salvar no DB: {war_details_for_db['error']}.")

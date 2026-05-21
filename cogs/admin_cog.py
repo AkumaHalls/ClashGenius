@@ -87,6 +87,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         defaults = {
             "channel_id": getattr(self.bot, 'channel_id', 0),
             "post_war_analysis_channel_id": getattr(self.bot, 'post_war_analysis_channel_id', 0),
+            "post_war_verdict_channel_id": getattr(self.bot, 'post_war_verdict_channel_id', 0),
             "clan_games_channel_id": getattr(self.bot, 'clan_games_channel_id', 0),
             "cwl_planner_channel_id": getattr(self.bot, 'cwl_planner_channel_id', 0),
             "donations_channel_id": getattr(self.bot, 'donations_channel_id', 0),
