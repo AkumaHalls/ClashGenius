@@ -704,7 +704,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                  case 'admin-acoes':
                      break;
-            }
+                 case 'admin-discohook':
+                     initDiscoHook();
+                     break;
+             }
         } catch (error) {
             console.error(`Falha ao carregar dados para a aba ${currentActiveSectionId}:`, error);
         }
@@ -838,6 +841,672 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (watchlistFilterName) watchlistFilterName.addEventListener('input', applyWatchlistFilter);
     if (watchlistFilterTag) watchlistFilterTag.addEventListener('input', applyWatchlistFilter);
+
+    // =========================================================
+    // DISCOHOOK EMBED EDITOR
+    // =========================================================
+    let dhEmbeds = [];
+    let dhEmbedIdCounter = 0;
+    let dhInitialized = false;
+    const DH_COLOR_PRESETS = [
+        '#5865f2', '#57f287', '#faa61a', '#ed4245', '#eb459e',
+        '#ff73fa', '#00b0f4', '#4e5058', '#95ef1a', '#fee75c',
+        '#b9bbbe', '#1abc9c', '#3498db', '#9b59b6', '#e67e22'
+    ];
+
+    window.initDiscoHook = function() {
+        if (dhInitialized) return;
+        dhInitialized = true;
+
+        if (!document.getElementById('dh-embeds-list')) return;
+
+        dhEmbeds = [];
+        dhEmbedIdCounter = 0;
+
+        document.getElementById('dh-add-embed-btn').addEventListener('click', () => addDhEmbed());
+        document.getElementById('dh-clear-btn').addEventListener('click', clearDhAll);
+        document.getElementById('dh-export-json-btn').addEventListener('click', exportDhJSON);
+        document.getElementById('dh-import-json-btn').addEventListener('click', importDhJSON);
+        document.getElementById('dh-example-btn').addEventListener('click', loadDhExample);
+        document.getElementById('dh-send-btn').addEventListener('click', sendDhWebhook);
+        document.getElementById('dh-content').addEventListener('input', updateDhPreview);
+        document.getElementById('dh-webhook-url').addEventListener('input', () => {
+            localStorage.setItem('dh_saved_webhook', document.getElementById('dh-webhook-url').value);
+        });
+
+        const savedWebhook = localStorage.getItem('dh_saved_webhook');
+        if (savedWebhook) document.getElementById('dh-webhook-url').value = savedWebhook;
+    };
+
+    function dhCreateEmbedId() { return ++dhEmbedIdCounter; }
+
+    function addDhEmbed(data) {
+        const id = dhCreateEmbedId();
+        const embed = {
+            id,
+            title: data?.title || '',
+            description: data?.description || '',
+            color: data?.color || '#5865f2',
+            author_name: data?.author_name || '',
+            author_url: data?.author_url || '',
+            author_icon_url: data?.author_icon_url || '',
+            footer_text: data?.footer_text || '',
+            footer_icon_url: data?.footer_icon_url || '',
+            thumbnail_url: data?.thumbnail_url || '',
+            image_url: data?.image_url || '',
+            fields: data?.fields ? data.fields.map(f => ({ ...f })) : [],
+            url: data?.url || ''
+        };
+        dhEmbeds.push(embed);
+        renderDhEmbedCard(embed);
+        updateDhPreview();
+    }
+
+    function renderDhEmbedCard(embed) {
+        const container = document.getElementById('dh-embeds-list');
+        const card = document.createElement('div');
+        card.className = 'dh-embed-card';
+        card.id = `dh-embed-card-${embed.id}`;
+        card.innerHTML = `
+            <div class="dh-embed-header" data-id="${embed.id}">
+                <div class="dh-embed-header-left">
+                    <span class="dh-embed-header-color" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${embed.color}"></span>
+                    Embed #${dhEmbeds.indexOf(embed) + 1}
+                </div>
+                <div class="dh-embed-header-actions">
+                    <button class="dh-move-up" title="Mover para cima">↑</button>
+                    <button class="dh-move-down" title="Mover para baixo">↓</button>
+                    <button class="dh-duplicate" title="Duplicar">⧉</button>
+                    <button class="dh-toggle-body" title="Expandir/Recolher">−</button>
+                    <button class="dh-remove danger" title="Remover">✕</button>
+                </div>
+            </div>
+            <div class="dh-embed-body">
+                <div class="dh-field-row">
+                    <div class="dh-field-group">
+                        <label>Title</label>
+                        <input type="text" class="dh-embed-title-input" value="${escapeHtml(embed.title)}" placeholder="Título do embed">
+                    </div>
+                    <div class="dh-field-group">
+                        <label>URL (link do título)</label>
+                        <input type="url" class="dh-embed-url-input" value="${escapeHtml(embed.url)}" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="dh-field-group">
+                    <label>Description</label>
+                    <textarea class="dh-embed-desc-input" rows="2" placeholder="Descrição do embed">${escapeHtml(embed.description)}</textarea>
+                </div>
+                <div class="dh-field-row">
+                    <div class="dh-field-group">
+                        <label>Color</label>
+                        <div class="dh-color-input-wrap">
+                            <input type="color" class="dh-embed-color-picker" value="${embed.color}">
+                            <input type="text" class="dh-embed-color-text" value="${embed.color}" placeholder="#5865f2">
+                        </div>
+                        <div class="dh-color-presets">${DH_COLOR_PRESETS.map(c =>
+                            `<div class="dh-color-preset ${c === embed.color ? 'active' : ''}" style="background:${c}" data-color="${c}"></div>`
+                        ).join('')}</div>
+                    </div>
+                    <div class="dh-field-group">
+                        <label>Thumbnail URL</label>
+                        <input type="url" class="dh-embed-thumb-input" value="${escapeHtml(embed.thumbnail_url)}" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="dh-field-row">
+                    <div class="dh-field-group">
+                        <label>Author Name</label>
+                        <input type="text" class="dh-embed-author-name-input" value="${escapeHtml(embed.author_name)}" placeholder="Nome do autor">
+                    </div>
+                    <div class="dh-field-group">
+                        <label>Author URL</label>
+                        <input type="url" class="dh-embed-author-url-input" value="${escapeHtml(embed.author_url)}" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="dh-field-group">
+                    <label>Author Icon URL</label>
+                    <input type="url" class="dh-embed-author-icon-input" value="${escapeHtml(embed.author_icon_url)}" placeholder="https://...">
+                </div>
+                <div class="dh-field-row">
+                    <div class="dh-field-group">
+                        <label>Footer Text</label>
+                        <input type="text" class="dh-embed-footer-text-input" value="${escapeHtml(embed.footer_text)}" placeholder="Texto do footer">
+                    </div>
+                    <div class="dh-field-group">
+                        <label>Footer Icon URL</label>
+                        <input type="url" class="dh-embed-footer-icon-input" value="${escapeHtml(embed.footer_icon_url)}" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="dh-field-group">
+                    <label>Image URL</label>
+                    <input type="url" class="dh-embed-image-input" value="${escapeHtml(embed.image_url)}" placeholder="https://...">
+                </div>
+                <div class="dh-field-group">
+                    <label>Fields</label>
+                    <div class="dh-fields-container" id="dh-fields-${embed.id}"></div>
+                    <button class="dh-add-field-btn" data-id="${embed.id}">+ Add Field</button>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(card);
+
+        const body = card.querySelector('.dh-embed-body');
+        const header = card.querySelector('.dh-embed-header');
+
+        header.querySelector('.dh-toggle-body').addEventListener('click', (e) => {
+            e.stopPropagation();
+            body.classList.toggle('collapsed');
+            header.querySelector('.dh-toggle-body').textContent = body.classList.contains('collapsed') ? '+' : '−';
+        });
+
+        header.querySelector('.dh-remove').addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeDhEmbed(embed.id);
+        });
+
+        header.querySelector('.dh-duplicate').addEventListener('click', (e) => {
+            e.stopPropagation();
+            duplicateDhEmbed(embed.id);
+        });
+
+        header.querySelector('.dh-move-up').addEventListener('click', (e) => {
+            e.stopPropagation();
+            moveDhEmbed(embed.id, -1);
+        });
+
+        header.querySelector('.dh-move-down').addEventListener('click', (e) => {
+            e.stopPropagation();
+            moveDhEmbed(embed.id, 1);
+        });
+
+        header.addEventListener('click', () => {
+            body.classList.toggle('collapsed');
+            header.querySelector('.dh-toggle-body').textContent = body.classList.contains('collapsed') ? '+' : '−';
+        });
+
+        const idx = dhEmbeds.findIndex(e => e.id === embed.id);
+        const embedRef = dhEmbeds[idx];
+
+        const bindInput = (selector, key, transform) => {
+            const el = card.querySelector(selector);
+            if (!el) return;
+            el.addEventListener('input', () => {
+                embedRef[key] = transform ? transform(el.value) : el.value;
+                updateHeaderColor(embed.id);
+                updateDhPreview();
+            });
+        };
+
+        bindInput('.dh-embed-title-input', 'title');
+        bindInput('.dh-embed-url-input', 'url');
+        bindInput('.dh-embed-desc-input', 'description');
+        bindInput('.dh-embed-color-picker', 'color');
+        bindInput('.dh-embed-color-text', 'color');
+        bindInput('.dh-embed-thumb-input', 'thumbnail_url');
+        bindInput('.dh-embed-author-name-input', 'author_name');
+        bindInput('.dh-embed-author-url-input', 'author_url');
+        bindInput('.dh-embed-author-icon-input', 'author_icon_url');
+        bindInput('.dh-embed-footer-text-input', 'footer_text');
+        bindInput('.dh-embed-footer-icon-input', 'footer_icon_url');
+        bindInput('.dh-embed-image-input', 'image_url');
+
+        card.querySelectorAll('.dh-color-preset').forEach(el => {
+            el.addEventListener('click', () => {
+                const color = el.dataset.color;
+                embedRef.color = color;
+                const picker = card.querySelector('.dh-embed-color-picker');
+                const text = card.querySelector('.dh-embed-color-text');
+                if (picker) picker.value = color;
+                if (text) text.value = color;
+                card.querySelectorAll('.dh-color-preset').forEach(p => p.classList.remove('active'));
+                el.classList.add('active');
+                updateHeaderColor(embed.id);
+                updateDhPreview();
+            });
+        });
+
+        card.querySelector('.dh-add-field-btn').addEventListener('click', () => {
+            addDhField(embed.id);
+        });
+
+        embedRef.fields.forEach(f => {
+            renderDhField(embed.id, f);
+        });
+
+        updateHeaderColor(embed.id);
+    }
+
+    function renderDhField(embedId, field) {
+        const container = document.getElementById(`dh-fields-${embedId}`);
+        if (!container) return;
+        const idx = dhEmbeds.find(e => e.id === embedId).fields.indexOf(field);
+        const item = document.createElement('div');
+        item.className = 'dh-field-item';
+        item.dataset.fieldIdx = idx;
+        item.innerHTML = `
+            <input type="text" class="dh-field-name" value="${escapeHtml(field.name || '')}" placeholder="Nome">
+            <textarea class="dh-field-value" rows="1" placeholder="Valor">${escapeHtml(field.value || '')}</textarea>
+            <label class="dh-field-inline-label">
+                <input type="checkbox" class="dh-field-inline" ${field.inline ? 'checked' : ''}>
+                <span>Inline</span>
+            </label>
+            <button class="dh-field-remove" title="Remover campo">✕</button>
+        `;
+
+        container.appendChild(item);
+
+        const embedRef = dhEmbeds.find(e => e.id === embedId);
+        const fieldRef = embedRef.fields.find(f => f === field);
+
+        item.querySelector('.dh-field-name').addEventListener('input', (e) => {
+            fieldRef.name = e.target.value;
+            updateDhPreview();
+        });
+        item.querySelector('.dh-field-value').addEventListener('input', (e) => {
+            fieldRef.value = e.target.value;
+            updateDhPreview();
+        });
+        item.querySelector('.dh-field-inline').addEventListener('change', (e) => {
+            fieldRef.inline = e.target.checked;
+            updateDhPreview();
+        });
+        item.querySelector('.dh-field-remove').addEventListener('click', () => {
+            embedRef.fields = embedRef.fields.filter(f => f !== fieldRef);
+            container.removeChild(item);
+            updateDhPreview();
+        });
+    }
+
+    function addDhField(embedId) {
+        const embedRef = dhEmbeds.find(e => e.id === embedId);
+        if (!embedRef) return;
+        const field = { name: '', value: '', inline: false };
+        embedRef.fields.push(field);
+        renderDhField(embedId, field);
+        updateDhPreview();
+    }
+
+    function removeDhEmbed(id) {
+        dhEmbeds = dhEmbeds.filter(e => e.id !== id);
+        const card = document.getElementById(`dh-embed-card-${id}`);
+        if (card) card.remove();
+        renumberDhEmbeds();
+        updateDhPreview();
+    }
+
+    function duplicateDhEmbed(id) {
+        const embed = dhEmbeds.find(e => e.id === id);
+        if (!embed) return;
+        const newEmbed = JSON.parse(JSON.stringify(embed));
+        newEmbed.id = dhCreateEmbedId();
+        dhEmbeds.push(newEmbed);
+        renderDhEmbedCard(newEmbed);
+        updateDhPreview();
+    }
+
+    function moveDhEmbed(id, direction) {
+        const idx = dhEmbeds.findIndex(e => e.id === id);
+        if (idx === -1) return;
+        const newIdx = idx + direction;
+        if (newIdx < 0 || newIdx >= dhEmbeds.length) return;
+        [dhEmbeds[idx], dhEmbeds[newIdx]] = [dhEmbeds[newIdx], dhEmbeds[idx]];
+        const container = document.getElementById('dh-embeds-list');
+        container.innerHTML = '';
+        dhEmbeds.forEach(e => renderDhEmbedCard(e));
+        updateDhPreview();
+    }
+
+    function renumberDhEmbeds() {
+        dhEmbeds.forEach((e, i) => {
+            const card = document.getElementById(`dh-embed-card-${e.id}`);
+            if (card) {
+                const left = card.querySelector('.dh-embed-header-left');
+                if (left) left.innerHTML = `<span class="dh-embed-header-color" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${e.color}"></span> Embed #${i + 1}`;
+            }
+        });
+    }
+
+    function updateHeaderColor(id) {
+        const embed = dhEmbeds.find(e => e.id === id);
+        if (!embed) return;
+        const card = document.getElementById(`dh-embed-card-${id}`);
+        if (card) {
+            const colorDot = card.querySelector('.dh-embed-header-color');
+            if (colorDot) colorDot.style.background = embed.color;
+            card.querySelectorAll('.dh-color-preset').forEach(p => {
+                p.classList.toggle('active', p.dataset.color === embed.color);
+            });
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    function getDhPayload() {
+        const content = document.getElementById('dh-content').value || '';
+        const embeds = dhEmbeds.map(e => {
+            const embed = {};
+            if (e.title) embed.title = e.title;
+            if (e.description) embed.description = e.description;
+            if (e.url) embed.url = e.url;
+            if (e.color) embed.color = parseInt(e.color.replace('#', ''), 16);
+            if (e.author_name) {
+                embed.author = { name: e.author_name };
+                if (e.author_url) embed.author.url = e.author_url;
+                if (e.author_icon_url) embed.author.icon_url = e.author_icon_url;
+            }
+            if (e.footer_text) {
+                embed.footer = { text: e.footer_text };
+                if (e.footer_icon_url) embed.footer.icon_url = e.footer_icon_url;
+            }
+            if (e.thumbnail_url) embed.thumbnail = { url: e.thumbnail_url };
+            if (e.image_url) embed.image = { url: e.image_url };
+            if (e.fields && e.fields.length > 0) {
+                embed.fields = e.fields.map(f => ({
+                    name: f.name || ' ',
+                    value: f.value || ' ',
+                    inline: !!f.inline
+                }));
+            }
+            return embed;
+        }).filter(e => Object.keys(e).length > 0);
+
+        const payload = {};
+        if (content) payload.content = content;
+        if (embeds.length > 0) payload.embeds = embeds;
+        return payload;
+    }
+
+    function updateDhPreview() {
+        const container = document.getElementById('dh-preview-messages');
+        if (!container) return;
+        const payload = getDhPayload();
+        const content = document.getElementById('dh-content').value || '';
+
+        const count = document.getElementById('dh-content-count');
+        if (count) {
+            count.textContent = `${content.length}/2000`;
+            count.className = 'dh-char-count';
+            if (content.length > 2000) count.classList.add('exceed');
+            else if (content.length > 1800) count.classList.add('warn');
+        }
+
+        if (!content && (!payload.embeds || payload.embeds.length === 0)) {
+            container.innerHTML = `
+                <div class="dh-preview-placeholder">
+                    <div style="font-size: 3rem; margin-bottom: 10px; opacity: 0.3;">💬</div>
+                    <div style="color: var(--color-text-secondary);">Preencha os dados ao lado para ver o preview</div>
+                </div>`;
+            return;
+        }
+
+        let html = '';
+        if (content) {
+            html += `<div class="dh-msg-content">${formatDhContent(content)}</div>`;
+        }
+
+        if (payload.embeds) {
+            payload.embeds.forEach(embed => {
+                html += renderDhEmbedPreview(embed);
+            });
+        }
+
+        container.innerHTML = html;
+    }
+
+    function formatDhContent(text) {
+        return escapeHtml(text)
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            .replace(/~~(.+?)~~/g, '<s>$1</s>')
+            .replace(/__(.+?)__/g, '<u>$1</u>')
+            .replace(/`(.+?)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>')
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+            .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    }
+
+    function renderDhEmbedPreview(embed) {
+        const color = embed.color ? `#${embed.color.toString(16).padStart(6, '0')}` : '#5865f2';
+        let html = `<div class="dh-embed-preview"><div class="dh-embed-color" style="background:${color}"></div><div class="dh-embed-body-preview">`;
+
+        if (embed.thumbnail) {
+            html += `<div class="dh-embed-thumbnail"><img src="${escapeHtml(embed.thumbnail.url)}" alt="" onerror="this.style.display='none'"></div>`;
+        }
+
+        if (embed.author) {
+            html += `<div class="dh-embed-author">`;
+            if (embed.author.icon_url) html += `<img src="${escapeHtml(embed.author.icon_url)}" alt="" onerror="this.style.display='none'">`;
+            html += `<span>`;
+            if (embed.author.url) html += `<a href="${escapeHtml(embed.author.url)}" target="_blank" rel="noopener">`;
+            html += escapeHtml(embed.author.name);
+            if (embed.author.url) html += `</a>`;
+            html += `</span></div>`;
+        }
+
+        if (embed.title) {
+            html += `<div class="dh-embed-title">`;
+            if (embed.url) html += `<a href="${escapeHtml(embed.url)}" target="_blank" rel="noopener">`;
+            html += escapeHtml(embed.title);
+            if (embed.url) html += `</a>`;
+            html += `</div>`;
+        }
+
+        if (embed.description) {
+            html += `<div class="dh-embed-description">${formatDhContent(embed.description)}</div>`;
+        }
+
+        if (embed.fields && embed.fields.length > 0) {
+            html += `<div class="dh-embed-fields">`;
+            embed.fields.forEach(f => {
+                const inlineClass = f.inline ? ' inline' : '';
+                html += `<div class="dh-embed-field${inlineClass}">`;
+                html += `<div class="dh-embed-field-name">${escapeHtml(f.name)}</div>`;
+                html += `<div class="dh-embed-field-value">${formatDhContent(f.value)}</div>`;
+                html += `</div>`;
+            });
+            html += `</div>`;
+        }
+
+        if (embed.image) {
+            html += `<div class="dh-embed-image"><img src="${escapeHtml(embed.image.url)}" alt="" onerror="this.style.display='none'"></div>`;
+        }
+
+        if (embed.footer || embed.timestamp) {
+            html += `<div class="dh-embed-footer">`;
+            if (embed.footer) {
+                if (embed.footer.icon_url) html += `<img src="${escapeHtml(embed.footer.icon_url)}" alt="" onerror="this.style.display='none'">`;
+                html += `<span>${escapeHtml(embed.footer.text)}</span>`;
+            }
+            if (embed.timestamp) {
+                const ts = new Date(embed.timestamp);
+                if (!isNaN(ts)) html += `<span class="dh-embed-timestamp">${ts.toLocaleDateString('pt-BR')}</span>`;
+            }
+            html += `</div>`;
+        }
+
+        html += `</div></div>`;
+        return html;
+    }
+
+    async function sendDhWebhook() {
+        const url = document.getElementById('dh-webhook-url').value.trim();
+        const feedback = document.getElementById('dh-feedback');
+        if (!url) {
+            feedback.className = 'dh-send-status error';
+            feedback.textContent = 'Insira uma URL de Webhook primeiro.';
+            return;
+        }
+
+        const payload = getDhPayload();
+        if (!payload.content && (!payload.embeds || payload.embeds.length === 0)) {
+            feedback.className = 'dh-send-status error';
+            feedback.textContent = 'Adicione conteúdo ou pelo menos um embed.';
+            return;
+        }
+
+        const btn = document.getElementById('dh-send-btn');
+        const originalText = btn.textContent;
+        btn.textContent = 'Enviando...';
+        btn.disabled = true;
+        feedback.className = 'dh-send-status loading';
+        feedback.textContent = 'Enviando...';
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                feedback.className = 'dh-send-status success';
+                const wait = response.status === 204 ? '' : ' (resposta recebida)';
+                feedback.textContent = `✅ Mensagem enviada com sucesso!${wait}`;
+            } else {
+                const errText = await response.text().catch(() => 'Erro desconhecido');
+                feedback.className = 'dh-send-status error';
+                feedback.textContent = `❌ Erro ${response.status}: ${errText.substring(0, 200)}`;
+            }
+        } catch (err) {
+            feedback.className = 'dh-send-status error';
+            feedback.textContent = `❌ Falha na conexão: ${err.message}`;
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    function clearDhAll() {
+        const webhook = document.getElementById('dh-webhook-url').value;
+        localStorage.setItem('dh_saved_webhook', webhook);
+        document.getElementById('dh-content').value = '';
+        document.getElementById('dh-embeds-list').innerHTML = '';
+        dhEmbeds = [];
+        dhEmbedIdCounter = 0;
+        document.getElementById('dh-feedback').textContent = '';
+        document.getElementById('dh-feedback').className = '';
+        updateDhPreview();
+    }
+
+    function exportDhJSON() {
+        const payload = getDhPayload();
+        showDhModal('📤 Exportar JSON', JSON.stringify(payload, null, 2), false);
+    }
+
+    function importDhJSON() {
+        showDhModal('📥 Importar JSON', '', true);
+    }
+
+    function showDhModal(title, jsonContent, isImport) {
+        const existing = document.querySelector('.dh-modal-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'dh-modal-overlay';
+        overlay.innerHTML = `
+            <div class="dh-modal">
+                <h3>${title}</h3>
+                <textarea id="dh-json-textarea" ${isImport ? 'placeholder="Cole o JSON do payload aqui..."' : ''}>${escapeHtml(jsonContent)}</textarea>
+                <div class="dh-modal-actions">
+                    <button class="dh-modal-close">Cancelar</button>
+                    ${isImport ? '<button class="dh-modal-import primary">Importar</button>' : '<button class="dh-modal-copy primary">Copiar</button>'}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        overlay.querySelector('.dh-modal-close').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+        if (isImport) {
+            overlay.querySelector('.dh-modal-import').addEventListener('click', () => {
+                const text = document.getElementById('dh-json-textarea').value;
+                try {
+                    const data = JSON.parse(text);
+                    importDhFromPayload(data);
+                    overlay.remove();
+                } catch (e) {
+                    alert('JSON inválido: ' + e.message);
+                }
+            });
+        } else {
+            overlay.querySelector('.dh-modal-copy').addEventListener('click', () => {
+                const ta = document.getElementById('dh-json-textarea');
+                ta.select();
+                document.execCommand('copy');
+                overlay.querySelector('.dh-modal-copy').textContent = 'Copiado!';
+                setTimeout(() => overlay.remove(), 800);
+            });
+        }
+    }
+
+    function importDhFromPayload(data) {
+        document.getElementById('dh-embeds-list').innerHTML = '';
+        dhEmbeds = [];
+        dhEmbedIdCounter = 0;
+
+        if (data.content) {
+            document.getElementById('dh-content').value = data.content;
+        }
+
+        if (data.embeds && Array.isArray(data.embeds)) {
+            data.embeds.forEach(ed => {
+                addDhEmbed({
+                    title: ed.title || '',
+                    description: ed.description || '',
+                    color: ed.color ? '#' + ed.color.toString(16).padStart(6, '0') : '#5865f2',
+                    url: ed.url || '',
+                    author_name: ed.author?.name || '',
+                    author_url: ed.author?.url || '',
+                    author_icon_url: ed.author?.icon_url || '',
+                    footer_text: ed.footer?.text || '',
+                    footer_icon_url: ed.footer?.icon_url || '',
+                    thumbnail_url: ed.thumbnail?.url || '',
+                    image_url: ed.image?.url || '',
+                    fields: (ed.fields || []).map(f => ({
+                        name: f.name || '',
+                        value: f.value || '',
+                        inline: !!f.inline
+                    }))
+                });
+            });
+        }
+        updateDhPreview();
+    }
+
+    function loadDhExample() {
+        clearDhAll();
+        document.getElementById('dh-content').value = 'Bem-vindo ao **DiscoHook**! 🎉\n\nUse este editor para criar mensagens personalizadas com embeds ricos para o seu servidor Discord.';
+        addDhEmbed({
+            title: 'O que é isso?',
+            description: 'DiscoHook é um editor visual de embeds do Discord. Você pode criar mensagens estilizadas com cores, campos, imagens e muito mais, e enviá-las via Webhook.',
+            color: '#58b9ff',
+            author_name: 'DiscoHook',
+            footer_text: 'Criado com DiscoHook',
+            fields: [
+                { name: '📝 Content', value: 'Texto simples acima dos embeds', inline: true },
+                { name: '🎨 Embeds', value: 'Mensagens ricas com formatação', inline: true },
+                { name: '🔗 Webhook', value: 'Envie para qualquer canal do Discord', inline: false }
+            ]
+        });
+        addDhEmbed({
+            title: 'Discord Bot',
+            description: 'Nosso bot complementar pode ajudar com formatação, reaction roles e restaurar mensagens.',
+            color: '#5865f2',
+            fields: [
+                { name: '/format', value: 'Formatação especial para menções e emojis', inline: true },
+                { name: '/reaction-role', value: 'Cargos por reação', inline: true }
+            ]
+        });
+        updateDhPreview();
+        document.getElementById('dh-feedback').className = '';
+        document.getElementById('dh-feedback').textContent = '';
+    }
 
     // Initial load
     loadDataForCurrentTab();

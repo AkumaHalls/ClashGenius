@@ -236,6 +236,452 @@
         #analytics-table tbody tr:hover {
             background-color: rgba(255, 255, 255, 0.05);
         }
+
+        /* =========================================================
+           DISCOHOOK EMBED EDITOR STYLES
+           ========================================================= */
+        .dh-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            min-height: 500px;
+        }
+        @media (max-width: 1100px) {
+            .dh-layout { grid-template-columns: 1fr; }
+            .dh-preview { min-height: 300px; }
+        }
+        .dh-preview {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .dh-preview-header {
+            padding: 10px 15px;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            color: var(--color-text-secondary);
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .dh-preview-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .dh-preview-placeholder {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--color-text-secondary);
+            font-size: 0.9em;
+        }
+        .dh-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .dh-webhook-row {
+            display: flex;
+            align-items: center;
+        }
+        .dh-content-row label {
+            font-size: 0.9em;
+            color: var(--color-text-secondary);
+            margin-bottom: 4px;
+        }
+        .dh-char-count {
+            font-size: 0.8em;
+            color: var(--color-text-secondary);
+        }
+        .dh-char-count.warn { color: #f1c40f; }
+        .dh-char-count.exceed { color: #e74c3c; }
+        .dh-embeds-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .dh-embed-card {
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .dh-embed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            user-select: none;
+        }
+        .dh-embed-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85em;
+            color: var(--color-text-secondary);
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 600;
+        }
+        .dh-embed-header-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .dh-embed-header-actions button {
+            background: none;
+            border: none;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+        .dh-embed-header-actions button:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .dh-embed-header-actions button.danger:hover {
+            background: rgba(255,107,107,0.2);
+            color: #ff6b6b;
+        }
+        .dh-embed-body {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .dh-embed-body.collapsed { display: none; }
+        .dh-field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .dh-field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .dh-field-group label {
+            font-size: 0.78em;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .dh-field-group input,
+        .dh-field-group textarea,
+        .dh-field-group select {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            background: rgba(0,0,0,0.4);
+            color: var(--color-text-main);
+            font-size: 0.85em;
+            font-family: var(--font-body);
+            transition: border-color 0.2s;
+        }
+        .dh-field-group input:focus,
+        .dh-field-group textarea:focus,
+        .dh-field-group select:focus {
+            border-color: var(--color-accent);
+            outline: none;
+        }
+        .dh-field-group textarea { resize: vertical; min-height: 40px; }
+        .dh-color-presets {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .dh-color-preset {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .dh-color-preset:hover { transform: scale(1.15); }
+        .dh-color-preset.active { border-color: #fff; }
+        .dh-color-input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dh-color-input-wrap input[type="color"] {
+            width: 32px;
+            height: 28px;
+            padding: 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            background: transparent;
+            cursor: pointer;
+        }
+        .dh-color-input-wrap input[type="text"] {
+            flex: 1;
+            min-width: 0;
+        }
+        .dh-fields-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .dh-field-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr 40px 24px;
+            gap: 6px;
+            align-items: center;
+            padding: 6px;
+            background: rgba(0,0,0,0.15);
+            border-radius: 4px;
+        }
+        .dh-field-item input,
+        .dh-field-item textarea {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 3px;
+            background: rgba(0,0,0,0.3);
+            color: var(--color-text-main);
+            font-size: 0.82em;
+        }
+        .dh-field-item textarea { resize: vertical; min-height: 28px; }
+        .dh-field-item .dh-field-inline-label {
+            font-size: 0.7em;
+            color: var(--color-text-secondary);
+            text-align: center;
+        }
+        .dh-field-item .dh-field-remove {
+            background: none;
+            border: none;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 1.1em;
+            padding: 2px;
+            line-height: 1;
+        }
+        .dh-add-field-btn {
+            background: none;
+            border: 1px dashed rgba(255,255,255,0.15);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            transition: all 0.2s;
+        }
+        .dh-add-field-btn:hover {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+        }
+        .dh-actions-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .dh-actions-row .control-btn {
+            flex: 0 0 auto;
+            padding: 8px 14px;
+            font-size: 0.85em;
+        }
+
+        /* Discord-style preview message */
+        .dh-msg-content {
+            color: #dbdee1;
+            font-size: 0.9375rem;
+            line-height: 1.375;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding: 0 0 4px 0;
+        }
+        .dh-msg-content a { color: #00a8fc; text-decoration: none; }
+        .dh-msg-content a:hover { text-decoration: underline; }
+        .dh-msg-content strong { color: #fff; }
+        .dh-msg-content em { font-style: italic; }
+        .dh-embed-preview {
+            display: flex;
+            max-width: 520px;
+            background: #2b2d31;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .dh-embed-color {
+            width: 4px;
+            flex-shrink: 0;
+        }
+        .dh-embed-body-preview {
+            flex: 1;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border: 1px solid #292b2f;
+            border-left: none;
+            border-radius: 0 4px 4px 0;
+        }
+        .dh-embed-author {
+            font-size: 0.75rem;
+            color: #b9bbbe;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dh-embed-author img {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .dh-embed-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .dh-embed-title a { color: #00a8fc; text-decoration: none; }
+        .dh-embed-title a:hover { text-decoration: underline; }
+        .dh-embed-description {
+            font-size: 0.875rem;
+            color: #dbdee1;
+            line-height: 1.125rem;
+            white-space: pre-wrap;
+        }
+        .dh-embed-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .dh-embed-field {
+            font-size: 0.875rem;
+            line-height: 1.125rem;
+        }
+        .dh-embed-field.inline {
+            display: inline-block;
+            width: calc(50% - 4px);
+            margin-right: 4px;
+        }
+        .dh-embed-field-name {
+            font-weight: 600;
+            color: #fff;
+            font-size: 0.875rem;
+            margin-bottom: 2px;
+        }
+        .dh-embed-field-value {
+            color: #dbdee1;
+            white-space: pre-wrap;
+        }
+        .dh-embed-thumbnail {
+            float: right;
+            margin-left: 16px;
+        }
+        .dh-embed-thumbnail img {
+            width: 80px;
+            height: 80px;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+        .dh-embed-image {
+            margin-top: 8px;
+        }
+        .dh-embed-image img {
+            max-width: 100%;
+            border-radius: 4px;
+        }
+        .dh-embed-footer {
+            font-size: 0.75rem;
+            color: #b9bbbe;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .dh-embed-footer img {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .dh-embed-timestamp {
+            font-size: 0.75rem;
+            color: #b9bbbe;
+        }
+        .dh-send-status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+        .dh-send-status.success { background: rgba(46,204,113,0.15); color: #2ecc71; border: 1px solid rgba(46,204,113,0.3); }
+        .dh-send-status.error { background: rgba(231,76,60,0.15); color: #e74c3c; border: 1px solid rgba(231,76,60,0.3); }
+        .dh-send-status.loading { background: rgba(255,255,255,0.05); color: var(--color-text-secondary); border: 1px solid rgba(255,255,255,0.1); }
+
+        /* JSON modal */
+        .dh-modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dh-modal {
+            background: #1a1a2e;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .dh-modal h3 { margin: 0 0 10px 0; font-family: 'Rajdhani', sans-serif; color: var(--neon-cyan); }
+        .dh-modal textarea {
+            flex: 1;
+            min-height: 300px;
+            font-family: monospace;
+            font-size: 0.85em;
+            background: rgba(0,0,0,0.4);
+            color: #e2e8f0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            padding: 10px;
+            resize: vertical;
+        }
+        .dh-modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            justify-content: flex-end;
+        }
+        .dh-modal-actions button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.3);
+            color: var(--color-text-main);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .dh-modal-actions button:hover { background: rgba(255,255,255,0.1); }
+        .dh-modal-actions button.primary { background: #5865f2; border-color: #5865f2; }
+        .dh-modal-actions button.primary:hover { background: #4752c4; }
     </style>
 </head>
 <body class="admin-page">
@@ -264,6 +710,7 @@
                     <li><a href="#" class="nav-link" data-section="admin-analytics" style="color: #00ffcc;" data-tooltip="📊 Analytics IA: Classificação de jogadores por machine learning">📊 Analytics IA</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-acoes" data-tooltip="Ações do bot: cache, sincronização, anúncios">Ações</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-db" data-tooltip="Visualizador da base de dados MongoDB">Base de Dados</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-discohook" style="color: #58b9ff;" data-tooltip="🎨 Criar e enviar embeds personalizados via Webhook">🎨 DiscoHook</a></li>
                 </ul>
             </nav>
 
@@ -482,6 +929,53 @@
                         </div>
                          <p class="control-description">Exibe os registros mais recentes salvos no MongoDB.</p>
                          <p id="db-feedback" class="feedback-text" style="margin-top: 15px;"></p>
+                    </div>
+                </div>
+
+                <div id="admin-discohook" class="admin-section">
+                    <div class="control-section" style="max-width: 100% !important;">
+                        <h3>🎨 DiscoHook - Editor de Embeds</h3>
+                        <p class="control-description" style="margin-bottom: 20px;">
+                            Crie mensagens com embeds ricos e envie para seu servidor Discord via Webhook.
+                        </p>
+                        
+                        <div class="dh-layout">
+                            <div class="dh-preview" id="dh-preview">
+                                <div class="dh-preview-header">Preview</div>
+                                <div class="dh-preview-messages" id="dh-preview-messages">
+                                    <div class="dh-preview-placeholder">
+                                        <div style="font-size: 3rem; margin-bottom: 10px; opacity: 0.3;">💬</div>
+                                        <div style="color: var(--color-text-secondary);">Preencha os dados ao lado para ver o preview</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="dh-editor">
+                                <div class="dh-webhook-row">
+                                    <input type="url" id="dh-webhook-url" class="admin-input" placeholder="https://discord.com/api/webhooks/..." style="flex: 1; margin-bottom: 0;">
+                                    <button id="dh-send-btn" class="control-btn" style="white-space: nowrap; margin-left: 8px;">📤 Enviar</button>
+                                </div>
+                                <p id="dh-feedback" class="feedback-text" style="margin-top: 5px;"></p>
+
+                                <div class="dh-content-row">
+                                    <label style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span>Content</span>
+                                        <span id="dh-content-count" class="dh-char-count">0/2000</span>
+                                    </label>
+                                    <textarea id="dh-content" class="admin-textarea" rows="3" placeholder="Texto da mensagem..."></textarea>
+                                </div>
+
+                                <div class="dh-embeds-list" id="dh-embeds-list"></div>
+
+                                <div class="dh-actions-row">
+                                    <button id="dh-add-embed-btn" class="control-btn" style="background: rgba(88, 101, 242, 0.2); border-color: #5865f2;">➕ Add Embed</button>
+                                    <button id="dh-import-json-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">📥 JSON</button>
+                                    <button id="dh-export-json-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">📤 JSON</button>
+                                    <button id="dh-clear-btn" class="control-btn" style="background: rgba(255, 107, 107, 0.15); border-color: #ff6b6b;">🗑️ Clear All</button>
+                                    <button id="dh-example-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">📋 Exemplo</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div> 
