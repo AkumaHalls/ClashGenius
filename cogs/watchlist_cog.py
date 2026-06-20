@@ -168,8 +168,7 @@ class WatchlistCog(commands.Cog, name="Lista de Observação"):
         """Retorna todos os jogadores na watchlist."""
         if self.watchlist_collection is None: return []
         try:
-            cursor = self.watchlist_collection.find({}).sort("name", 1)
-            # Retorna a lista diretamente
+            cursor = self.watchlist_collection.find({}).sort("date_added", -1)
             return await cursor.to_list(length=None)
         except Exception as e: logger.error(f"Erro ao buscar a watchlist completa: {e}", exc_info=True); return []
 
