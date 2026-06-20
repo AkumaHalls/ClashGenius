@@ -1,5 +1,5 @@
 discord.py==2.5.2
-geniuslib @ git+https://github.com/AkumaHalls/GeniusLib.git@d2ba2ff
+geniuslib @ git+https://github.com/AkumaHalls/GeniusLib.git@v4.3.0
 python-dotenv
 aiohttp
 pytz
