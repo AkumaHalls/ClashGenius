@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 import logging
 import datetime
+import re
 import pytz
 from typing import Dict, Any
 
 import geniuslib as coc
 from geniuslib.formatters import format_th, format_trophies, format_player_brief, format_clan_brief, format_number
 from geniuslib.upgrade_tracker import get_th_upgrade_summary
+from cogs.post_war_analysis import analyze_war
 try:
     from geniuslib.upgrade_tracker import _TH_MAX_LEVELS
     _HAS_TH_TABLE = bool(_TH_MAX_LEVELS.get("building"))
@@ -467,58 +469,21 @@ class WebApiCog(commands.Cog, name="Web API"):
                          war_end_date_str = end_time.astimezone(self.bot.timezone).strftime('%d/%m')
                     except ValueError: pass
 
-                our_members = latest_war_doc.get("our_clan_members_in_war", [])
-
-                best_attacker = None
-                best_score = -1
-                for m in our_members:
-                    stars = sum(a.get("stars", 0) for a in m.get("attacks_made", []))
-                    dest = sum(a.get("destruction", 0) for a in m.get("attacks_made", []))
-                    score = (stars * 100) + dest
-                    if score > best_score and stars > 0:
-                        best_score = score
-                        best_attacker = m
-
-                if best_attacker:
-                    war_heroes.append({
-                        "name": best_attacker.get("name"), "town_hall": best_attacker.get("townhall"),
-                        "rank": 1, "reason": "🎯 Precisão Balística (MVP): Letalidade máxima atingida. Executou ataques perfeitos que consolidaram o momentum da guerra para a equipe."
-                    })
-
-                best_defender = None
-                best_def_score = -999
-                for m in our_members:
-                    defs = m.get("defenses_received", [])
-                    if len(defs) > 0:
-                        stars_lost = sum(d.get("stars", 0) for d in defs)
-                        score = (len(defs) * 50) - (stars_lost * 25)
-                        if score > best_def_score and (not best_attacker or m.get("tag") != best_attacker.get("tag")):
-                            best_def_score = score
-                            best_defender = m
-
-                if best_defender:
-                    defs_count = len(best_defender.get("defenses_received", []))
-                    war_heroes.append({
-                        "name": best_defender.get("name"), "town_hall": best_defender.get("townhall"),
-                        "rank": 2, "reason": f"🛡️ A Muralha: Resiliência extrema detectada. Absorveu {defs_count} ataques inimigos, blindando o mapa e forçando o oponente a desperdiçar munição vital."
-                    })
-
-                best_cleanup = None
-                best_cleanup_score = -1
-                for m in our_members:
-                    if (best_attacker and m.get("tag") == best_attacker.get("tag")) or \
-                       (best_defender and m.get("tag") == best_defender.get("tag")): continue
-                    
-                    cleanup_stars_gained = sum(1 for a in m.get("attacks_made", []) if a.get("stars") == 3)
-                    if cleanup_stars_gained > best_cleanup_score:
-                        best_cleanup_score = cleanup_stars_gained
-                        best_cleanup = m
-
-                if best_cleanup and best_cleanup_score > 0:
-                    war_heroes.append({
-                        "name": best_cleanup.get("name"), "town_hall": best_cleanup.get("townhall"),
-                        "rank": 3, "reason": "🧹 Especialista em Varredura: Frieza matemática. Atuou como força de resgate letal, finalizando bases abertas e varrendo as estrelas restantes do mapa."
-                    })
+                try:
+                    analysis = analyze_war(latest_war_doc)
+                    for award in analysis.get("awards", []):
+                        player_str = award.get("player", "")
+                        m = re.match(r'(.+?)\s*\(CV(\d+)\)', player_str)
+                        name = m.group(1) if m else player_str
+                        th = int(m.group(2)) if m else 0
+                        war_heroes.append({
+                            "name": name,
+                            "town_hall": th,
+                            "rank": len(war_heroes) + 1,
+                            "reason": award["title"] + ": " + award["reason"]
+                        })
+                except Exception as e:
+                    logger.warning(f"analyze_war falhou nos destaques web: {e}")
 
         top_10 = active_members[:10]
         chart_data = {"labels": [m.name for m in top_10], "donations": [m.donations for m in top_10], "received": [m.received for m in top_10]}

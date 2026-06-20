@@ -353,6 +353,10 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
         "star_efficiency": star_efficiency,
     }
 
+def analyze_war(war_doc: Dict) -> Dict:
+    """Análise pública de guerra — retorna awards, top_attacks, insights."""
+    return _calculate_post_war_stats(war_doc)
+
 def create_post_war_analysis_embed(war_doc: Dict) -> Optional[discord.Embed]:
     """Gera o embed de análise pós-guerra a partir do documento."""
     if not war_doc:
