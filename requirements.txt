@@ -1,0 +1,18 @@
+discord.py==2.5.2
+geniuslib @ git+https://github.com/AkumaHalls/GeniusLib.git@d2ba2ff
+python-dotenv
+aiohttp
+pytz
+motor
+aiohttp-session
+cryptography
+pandas
+xgboost
+lightgbm
+Pillow>=10.0.0
+psutil
+numpy==1.26.4
+scikit-learn==1.4.1.post1
+thefuzz==0.22.1
+python-Levenshtein==0.25.0
+scipy

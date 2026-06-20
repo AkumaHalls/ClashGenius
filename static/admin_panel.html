@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - Clash Genius</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Estilos do Menu de Navegação */
+        .admin-nav ul { list-style: none; padding: 0; margin: 0 0 20px 0; display: flex; flex-wrap: wrap; background-color: rgba(0,0,0,0.2); border-radius: var(--border-radius-base); padding: 5px; }
+        .admin-nav li { margin: 5px; }
+        .admin-nav a { font-family: var(--font-body); color: var(--color-text-secondary); text-decoration: none; font-size: 0.9em; padding: 8px 12px; border-radius: var(--border-radius-base); transition: background-color 0.2s, color 0.2s; white-space: nowrap; font-weight: 500; display: block; cursor: pointer; }
+        .admin-nav a:hover { color: #ffffff; background-color: var(--color-accent-hover); }
+        .admin-nav a.active-nav-link { color: #ffffff; background-color: var(--color-accent); }
+        
+        /* Comportamento das Abas */
+        .admin-sections-wrapper { position: relative; overflow: hidden; width: 100%;}
+        .admin-sections-wrapper.allow-scroll { overflow: visible; }
+        #admin-discohook.active-section { overflow: visible; height: auto; }
+        .admin-section { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .admin-section.active-section { display: block; opacity: 1; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Formulários Padrão */
+        .admin-input, .admin-textarea, .settings-input, .settings-textarea { width: 100%; padding: 10px 12px; margin-bottom: 10px; border: 1px solid var(--color-border-light); border-radius: var(--border-radius-base); background-color: var(--color-background); color: var(--color-text-main); font-family: var(--font-body); font-size: 0.95em; box-sizing: border-box; transition: border-color 0.2s, background-color 0.2s; }
+        .admin-input:focus, .admin-textarea:focus, .settings-input:focus, .settings-textarea:focus { border-color: var(--color-accent); background-color: #2d3748; outline: none; }
+        select.settings-input { appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="292.4" height="292.4"><path fill="%23a0aec0" d="M287 69.4a17.6 17.6 0 0 0-13-5.4H18.4c-5 0-9.3 1.8-12.9 5.4A17.6 17.6 0 0 0 0 82.2c0 5 1.8 9.3 5.4 12.9l128 127.9c3.6 3.6 7.8 5.4 12.8 5.4s9.2-1.8 12.8-5.4L287 95c3.5-3.5 5.4-7.8 5.4-12.8 0-5-1.9-9.2-5.4-12.8z"/></svg>'); background-repeat: no-repeat; background-position: right 15px top 50%; background-size: 12px auto; padding-right: 40px; cursor: pointer; }
+        select.settings-input option { background-color: var(--color-card-background); color: var(--color-text-main); padding: 10px; }
+        .settings-textarea, .admin-textarea { min-height: 80px; resize: vertical; }
+        .form-group { margin-bottom: 15px; }
+        #settings-form .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 0.9em; color: var(--color-text-secondary); text-align: left; }
+        .form-group.full-width { grid-column: 1 / -1; }
+        .watchlist-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 10px; background-color: rgba(74, 85, 104, 0.1); border-radius: var(--border-radius-base); }
+        .watchlist-filters input[type="text"] { flex-grow: 1; min-width: 200px; margin-bottom: 0; }
+
+        /* Admin Header Cyberpunk */
+        .admin-header h2 {
+            font-family: 'Orbitron', sans-serif !important;
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 2px;
+        }
+        
+        .admin-card {
+            background: rgba(12, 12, 24, 0.95) !important;
+            border: 1px solid rgba(0, 255, 249, 0.2) !important;
+            box-shadow: 0 0 30px rgba(0, 255, 249, 0.08) !important;
+        }
+        
+        .admin-card h3 {
+            font-family: 'Orbitron', sans-serif !important;
+            color: var(--neon-cyan) !important;
+            letter-spacing: 1px;
+        }
+        
+        .admin-card h4 {
+            color: var(--color-text-main) !important;
+            font-family: 'Rajdhani', sans-serif !important;
+            font-weight: 600 !important;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .control-section {
+            border-top-color: rgba(0, 255, 249, 0.1) !important;
+        }
+        
+        /* Radar Dossier Cyberpunk */
+        .dossier-grid .btn-admin {
+            font-family: 'Rajdhani', sans-serif !important;
+            font-weight: 600 !important;
+            letter-spacing: 1px;
+            cursor: pointer;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+        .dossier-grid .btn-admin:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px currentColor;
+        }
+        
+        /* Admin Nav Cyberpunk */
+        .admin-nav {
+            border-bottom: 1px solid rgba(0, 255, 249, 0.1);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+        }
+        .admin-nav ul {
+            background: rgba(0, 0, 0, 0.3) !important;
+            border: 1px solid rgba(0, 255, 249, 0.08) !important;
+        }
+        .admin-nav a {
+            font-family: 'Rajdhani', sans-serif !important;
+            font-weight: 600 !important;
+            letter-spacing: 1px;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .admin-nav a:hover {
+            border-color: var(--neon-cyan) !important;
+            box-shadow: 0 0 15px rgba(0, 255, 249, 0.2) !important;
+        }
+        .admin-nav a.active-nav-link {
+            border-color: var(--neon-cyan) !important;
+            background: rgba(0, 255, 249, 0.15) !important;
+            color: var(--neon-cyan) !important;
+        }
+        
+        /* Form Cyberpunk */
+        .admin-input, .admin-textarea, .settings-input, .settings-textarea {
+            background: rgba(0, 0, 0, 0.5) !important;
+            border: 1px solid rgba(0, 255, 249, 0.15) !important;
+            color: var(--color-text-main) !important;
+            transition: all 0.3s ease;
+        }
+        .admin-input:focus, .admin-textarea:focus, .settings-input:focus, .settings-textarea:focus {
+            border-color: var(--neon-cyan) !important;
+            box-shadow: 0 0 15px rgba(0, 255, 249, 0.2) !important;
+        }
+        
+        /* Watchlist Table Cyberpunk */
+        #admin-watchlist-table th {
+            color: var(--neon-cyan) !important;
+            background: rgba(0, 0, 0, 0.6) !important;
+        }
+        #admin-watchlist-table td {
+            border-bottom: 1px solid rgba(0, 255, 249, 0.05) !important;
+        }
+        
+        /* Analytics Table Cyberpunk */
+        #analytics-table th {
+            color: var(--neon-cyan) !important;
+            background: rgba(0, 0, 0, 0.6) !important;
+        }
+        
+        /* Cyber Tooltip System for Admin */
+        .cyber-tooltip {
+            visibility: hidden;
+            width: 240px;
+            background: rgba(10, 10, 20, 0.95);
+            color: var(--color-text-main);
+            text-align: center;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--neon-cyan);
+            box-shadow: 0 0 20px rgba(0, 255, 249, 0.2);
+            position: absolute;
+            z-index: 9999;
+            bottom: 130%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: all 0.3s ease;
+            font-size: 0.85em;
+            font-family: var(--font-body);
+            pointer-events: none;
+            line-height: 1.4;
+            white-space: normal;
+            font-weight: 500;
+        }
+        .cyber-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -6px;
+            border: 6px solid transparent;
+            border-top-color: var(--neon-cyan);
+        }
+        [data-tooltip]:hover .cyber-tooltip {
+            visibility: visible;
+            opacity: 1;
+            bottom: 140%;
+        }
+        
+        /* =========================================================
+           >>> CORREÇÕES DE ESTÉTICA E SCROLL (O FIM DO ESTICADO) <<<
+           ========================================================= */
+
+        /* 1. Impede que as abas simples fiquem esticadas feias na largura de 1400px */
+        #admin-geral .control-section,
+        #admin-diagnostico .control-section,
+        #admin-configuracoes .control-section,
+        #admin-acoes .control-section {
+            max-width: 850px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* 2. Mantém o Radar Pericial elegante */
+        #radar-dossier-container {
+            max-width: 1050px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* 3. O FIM da Tabela "3 em 3"! Aumenta a altura para liberar espaço vertical */
+        #admin-analytics .table-container-admin,
+        #admin-db .table-container-admin,
+        #admin-watchlist .table-container-admin {
+            max-height: 650px !important; /* Salva-vidas da rolagem */
+            height: auto;
+            overflow-y: auto;
+            overflow-x: auto;
+            border: 1px solid var(--color-border);
+            border-radius: var(--border-radius-base);
+        }
+
+        /* 4. Estilo da Tabela Analytics e cabeçalho congelado */
+        #analytics-table {
+            width: 100%;
+            min-width: 800px;
+            border-collapse: collapse;
+            background-color: rgba(0,0,0,0.15);
+        }
+        #analytics-table th, #analytics-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            white-space: nowrap;
+        }
+        #analytics-table th {
+            background-color: rgba(20, 25, 35, 0.95); /* Escuro para o texto rolar por baixo invisível */
+            color: #a0aec0;
+            font-weight: 600;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        #analytics-table tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        /* =========================================================
+           DISCOHOOK EMBED EDITOR STYLES
+           ========================================================= */
+        .dh-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        @media (max-width: 1100px) {
+            .dh-layout { grid-template-columns: 1fr; }
+            .dh-preview { min-height: 300px; }
+        }
+        .dh-preview {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .dh-preview-header {
+            padding: 10px 15px;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            color: var(--color-text-secondary);
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .dh-preview-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .dh-preview-placeholder {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--color-text-secondary);
+            font-size: 0.9em;
+        }
+        .dh-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .dh-webhook-row {
+            display: flex;
+            align-items: center;
+        }
+        .dh-content-row label {
+            font-size: 0.9em;
+            color: var(--color-text-secondary);
+            margin-bottom: 4px;
+        }
+        .dh-char-count {
+            font-size: 0.8em;
+            color: var(--color-text-secondary);
+        }
+        .dh-char-count.warn { color: #f1c40f; }
+        .dh-char-count.exceed { color: #e74c3c; }
+        .dh-embeds-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .dh-embed-card {
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .dh-embed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            user-select: none;
+        }
+        .dh-embed-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85em;
+            color: var(--color-text-secondary);
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 600;
+        }
+        .dh-embed-header-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .dh-embed-header-actions button {
+            background: none;
+            border: none;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+        .dh-embed-header-actions button:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .dh-embed-header-actions button.danger:hover {
+            background: rgba(255,107,107,0.2);
+            color: #ff6b6b;
+        }
+        .dh-embed-body {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .dh-embed-body.collapsed { display: none; }
+        .dh-field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .dh-field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .dh-field-group label {
+            font-size: 0.78em;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .dh-field-group input,
+        .dh-field-group textarea,
+        .dh-field-group select {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            background: rgba(0,0,0,0.4);
+            color: var(--color-text-main);
+            font-size: 0.85em;
+            font-family: var(--font-body);
+            transition: border-color 0.2s;
+        }
+        .dh-field-group input:focus,
+        .dh-field-group textarea:focus,
+        .dh-field-group select:focus {
+            border-color: var(--color-accent);
+            outline: none;
+        }
+        .dh-field-group textarea { resize: vertical; min-height: 40px; }
+        .dh-color-presets {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .dh-color-preset {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .dh-color-preset:hover { transform: scale(1.15); }
+        .dh-color-preset.active { border-color: #fff; }
+        .dh-color-input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dh-color-input-wrap input[type="color"] {
+            width: 32px;
+            height: 28px;
+            padding: 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            background: transparent;
+            cursor: pointer;
+        }
+        .dh-color-input-wrap input[type="text"] {
+            flex: 1;
+            min-width: 0;
+        }
+        .dh-fields-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .dh-field-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr 40px 24px;
+            gap: 6px;
+            align-items: center;
+            padding: 6px;
+            background: rgba(0,0,0,0.15);
+            border-radius: 4px;
+        }
+        .dh-field-item input,
+        .dh-field-item textarea {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 3px;
+            background: rgba(0,0,0,0.3);
+            color: var(--color-text-main);
+            font-size: 0.82em;
+        }
+        .dh-field-item textarea { resize: vertical; min-height: 28px; }
+        .dh-field-item .dh-field-inline-label {
+            font-size: 0.7em;
+            color: var(--color-text-secondary);
+            text-align: center;
+        }
+        .dh-field-item .dh-field-remove {
+            background: none;
+            border: none;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 1.1em;
+            padding: 2px;
+            line-height: 1;
+        }
+        .dh-add-field-btn {
+            background: none;
+            border: 1px dashed rgba(255,255,255,0.15);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            transition: all 0.2s;
+        }
+        .dh-add-field-btn:hover {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+        }
+        .dh-actions-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .dh-actions-row .control-btn {
+            flex: 0 0 auto;
+            padding: 8px 14px;
+            font-size: 0.85em;
+        }
+
+        /* Discord-style preview message */
+        .dh-msg-content {
+            color: #dbdee1;
+            font-size: 0.9375rem;
+            line-height: 1.375;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding: 0 0 4px 0;
+        }
+        .dh-msg-content a { color: #00a8fc; text-decoration: none; }
+        .dh-msg-content a:hover { text-decoration: underline; }
+        .dh-msg-content strong { color: #fff; }
+        .dh-msg-content em { font-style: italic; }
+        .dh-embed-preview {
+            display: flex;
+            max-width: 520px;
+            background: #2b2d31;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .dh-embed-color {
+            width: 4px;
+            flex-shrink: 0;
+        }
+        .dh-embed-body-preview {
+            flex: 1;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border: 1px solid #292b2f;
+            border-left: none;
+            border-radius: 0 4px 4px 0;
+        }
+        .dh-embed-author {
+            font-size: 0.75rem;
+            color: #b9bbbe;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dh-embed-author img {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .dh-embed-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .dh-embed-title a { color: #00a8fc; text-decoration: none; }
+        .dh-embed-title a:hover { text-decoration: underline; }
+        .dh-embed-description {
+            font-size: 0.875rem;
+            color: #dbdee1;
+            line-height: 1.125rem;
+            white-space: pre-wrap;
+        }
+        .dh-embed-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .dh-embed-field {
+            font-size: 0.875rem;
+            line-height: 1.125rem;
+        }
+        .dh-embed-field.inline {
+            display: inline-block;
+            width: calc(50% - 4px);
+            margin-right: 4px;
+        }
+        .dh-embed-field-name {
+            font-weight: 600;
+            color: #fff;
+            font-size: 0.875rem;
+            margin-bottom: 2px;
+        }
+        .dh-embed-field-value {
+            color: #dbdee1;
+            white-space: pre-wrap;
+        }
+        .dh-embed-thumbnail {
+            float: right;
+            margin-left: 16px;
+        }
+        .dh-embed-thumbnail img {
+            width: 80px;
+            height: 80px;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+        .dh-embed-image {
+            margin-top: 8px;
+        }
+        .dh-embed-image img {
+            max-width: 100%;
+            border-radius: 4px;
+        }
+        .dh-embed-footer {
+            font-size: 0.75rem;
+            color: #b9bbbe;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .dh-embed-footer img {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .dh-embed-timestamp {
+            font-size: 0.75rem;
+            color: #b9bbbe;
+        }
+        .dh-send-status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+        .dh-send-status.success { background: rgba(46,204,113,0.15); color: #2ecc71; border: 1px solid rgba(46,204,113,0.3); }
+        .dh-send-status.error { background: rgba(231,76,60,0.15); color: #e74c3c; border: 1px solid rgba(231,76,60,0.3); }
+        .dh-send-status.loading { background: rgba(255,255,255,0.05); color: var(--color-text-secondary); border: 1px solid rgba(255,255,255,0.1); }
+
+        /* JSON modal */
+        .dh-modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dh-modal {
+            background: #1a1a2e;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .dh-modal h3 { margin: 0 0 10px 0; font-family: 'Rajdhani', sans-serif; color: var(--neon-cyan); }
+        .dh-modal textarea {
+            flex: 1;
+            min-height: 300px;
+            font-family: monospace;
+            font-size: 0.85em;
+            background: rgba(0,0,0,0.4);
+            color: #e2e8f0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            padding: 10px;
+            resize: vertical;
+        }
+        .dh-modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            justify-content: flex-end;
+        }
+        .dh-modal-actions button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.3);
+            color: var(--color-text-main);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .dh-modal-actions button:hover { background: rgba(255,255,255,0.1); }
+        .dh-modal-actions button.primary { background: #5865f2; border-color: #5865f2; }
+        .dh-modal-actions button.primary:hover { background: #4752c4; }
+    </style>
+</head>
+<body class="admin-page" id="admin-body">
+    <canvas id="particle-background"></canvas>
+    <div class="admin-panel-container">
+        <div class="admin-card">
+            
+            <div class="admin-header">
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <h2>Painel do Administrador</h2>
+                    <div class="radar-bell-container" id="radar-bell-btn" onclick="toggleRadarDrawer()" title="Radar de Inatividade" data-viewer-hide>
+                        <span>🔔</span>
+                        <span id="radar-badge" class="radar-badge" style="display: none;">0</span>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span id="user-role-badge" style="font-family:'Fira Code',monospace;font-size:0.75em;padding:4px 10px;border-radius:4px;background:rgba(0,255,249,0.1);border:1px solid rgba(0,255,249,0.3);color:var(--neon-cyan);"></span>
+                    <a href="/painel" class="logout-btn" style="background:rgba(0,255,249,0.1) !important;border-color:var(--neon-cyan) !important;color:var(--neon-cyan) !important;" title="Voltar ao painel principal">Painel</a>
+                    <a href="/admin/logout" class="logout-btn">Sair</a>
+                </div>
+            </div>
+
+            <nav class="admin-nav">
+                <ul>
+                    <li><a href="#" class="nav-link" data-section="admin-geral" data-tooltip="Controles gerais do bot e informações do sistema">Geral</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-diagnostico" data-tooltip="Status da API CoC e logs recentes do bot">Diagnóstico</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-configuracoes" data-tooltip="Canais, cargos e configurações do Discord">Configurações</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-watchlist" data-tooltip="Gerenciar lista de observação de jogadores">Watchlist</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-radar" style="color: #ffd700;" data-tooltip="🧠 Radar Pericial: Detecção de smurfs e contas vinculadas">🧠 Radar Pericial</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-analytics" style="color: #00ffcc;" data-tooltip="📊 Analytics IA: Classificação de jogadores por machine learning">📊 <span class="ai-indicator"></span>Analytics IA</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-acoes" data-tooltip="Ações do bot: cache, sincronização, anúncios">Ações</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-db" data-tooltip="Visualizador da base de dados MongoDB">Base de Dados</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-discohook" style="color: #58b9ff;" data-tooltip="🎨 Criar e enviar embeds personalizados via Webhook">🎨 DiscoHook</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-users" style="color: #ff6b9d;" data-tooltip="🔑 Gerenciar usuários do painel" data-admin-only>🔑 Usuários</a></li>
+                </ul>
+            </nav>
+
+            <div class="admin-sections-wrapper">
+                <div id="admin-geral" class="admin-section">
+                    <div class="control-section">
+                        <h3>Controles Gerais</h3>
+                        <div class="maintenance-status">
+                            Status Manutenção: <span id="maintenance-status-text" class="status-badge">Carregando...</span>
+                        </div>
+                        <button id="toggle-maintenance-btn" class="control-btn">Ativar/Desativar</button>
+                        <p class="control-description">Pausa alertas e redireciona usuários para a página de manutenção.</p>
+                        <br>
+                        <button id="send-test-embed-btn" class="control-btn">Enviar Mensagem de Teste</button>
+                        <p class="control-description">Verifica a comunicação com o canal de logs principal do Discord.</p>
+                    </div>
+                     <div class="control-section">
+                         <h3>Informações do Sistema</h3>
+                         <p><strong>Versão do Bot:</strong> <span id="bot-version-text">-</span></p>
+                    </div>
+                     <p id="geral-feedback" class="feedback-text" style="margin-top: 15px;"></p>
+                </div>
+
+                <div id="admin-diagnostico" class="admin-section">
+                    <div class="control-section">
+                        <h3>Diagnóstico do Sistema</h3>
+                        <div class="status-line">
+                            <strong>Status da API (Supercell):</strong>
+                            <span id="api-status-badge" class="status-badge">Verificando...</span>
+                            <span id="api-status-message" class="status-message"></span>
+                        </div>
+                        <div class="logs-container">
+                            <h4>Logs Recentes do Bot (Últimos 50)</h4>
+                            <pre id="recent-logs-box">Carregando logs...</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="admin-configuracoes" class="admin-section">
+                    <div class="control-section">
+                        <h3>Gerenciamento de Configurações do Discord</h3>
+                        <p class="control-description" style="margin-top:0; margin-bottom: 20px;">
+                            Selecione os canais e cargos diretamente do seu servidor do Discord.
+                        </p>
+                        <form id="settings-form">
+                            <h4>Arquitetura de Canais (Setores)</h4>
+                            <div class="form-grid">
+                                <div class="form-group"><label for="channel_id">📝 Canal: Logs Gerais (Troféus, Ligas, Status API)</label><select id="channel_id" name="channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="post_war_analysis_channel_id">🛡️ Canal: Alertas de Guerra</label><select id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="post_war_verdict_channel_id" style="color: #00ffcc;">📊 Canal: Análise Pós-Guerra (Veredito)</label><select id="post_war_verdict_channel_id" name="post_war_verdict_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="watchlist_alert_channel_id">👥 Canal: RH do Clã</label><select id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="low_performance_channel_id">📉 Canal: Relatório de Faxina</label><select id="low_performance_channel_id" name="low_performance_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="clan_games_channel_id">🏰 Canal: Eventos Secundários</label><select id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="capital_report_channel_id">🖼️ Canal: Imagem Capital</label><select id="capital_report_channel_id" name="capital_report_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="cwl_planner_channel_id">🔮 Canal: Cérebro CWL</label><select id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="donations_channel_id">🎁 Canal: Notificações de Doação</label><select id="donations_channel_id" name="donations_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="smurf_log_channel_id" style="color: #ffd700;">🕵️ Canal: Logs Smurfs</label><select id="smurf_log_channel_id" name="smurf_log_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="maintenance_alert_channel_id" style="color: #ff6b6b;">🚨 Canal: Alertas de Manutenção</label><select id="maintenance_alert_channel_id" name="maintenance_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                            </div>
+                            
+                            <h4>Cargos (Roles)</h4>
+                            <div class="form-grid">
+                                <div class="form-group"><label for="role_id_1star_alert">Cargo (Aviso): Fazer apenas 1 Estrela</label><select id="role_id_1star_alert" name="role_id_1star_alert" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
+                                <div class="form-group"><label for="role_id_missed_attack">Cargo (Aviso): Esquecer de Atacar</label><select id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
+                                <div class="form-group"><label for="leader_role_id">Cargo Liderança: Líder</label><select id="leader_role_id" name="leader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
+                                <div class="form-group"><label for="coleader_role_id">Cargo Liderança: Co-Líder</label><select id="coleader_role_id" name="coleader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
+                            </div>
+
+                            <h4>Avisos e Funções</h4>
+                            <div class="form-grid">
+                                 <div class="form-group full-width">
+                                    <label for="auto_add_watchlist_enabled">Vigiar jogadores automaticamente após esquecer ataque?</label>
+                                    <select id="auto_add_watchlist_enabled" name="auto_add_watchlist_enabled" class="settings-input" style="width: 250px;">
+                                        <option value="true">Ativado (Sim)</option>
+                                        <option value="false">Desativado (Não)</option>
+                                    </select>
+                                 </div>
+                                <div class="form-group full-width">
+                                    <label for="maintenance_message">Mensagem de Manutenção (Web)</label>
+                                    <textarea id="maintenance_message" name="maintenance_message" rows="3" class="settings-textarea"></textarea>
+                                </div>
+                            </div>
+                             
+                            <button type="submit" class="control-btn" style="width: 100%;">Salvar Configurações</button>
+                            <p id="settings-feedback" class="feedback-text" style="text-align: center;"></p>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="admin-watchlist" class="admin-section">
+                     <div class="control-section">
+                        <h3>Gerenciar Lista de Observação (Watchlist)</h3>
+                        <form id="admin-add-watchlist-form">
+                            <h4>Adicionar Jogador</h4>
+                            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;"> <div class="form-group" style="grid-column: 1 / 2;">
+                                    <label for="watchlist-player-tag">Tag do Jogador</label>
+                                    <input type="text" id="watchlist-player-tag" name="player_tag" class="admin-input" required placeholder="#ABC123XYZ">
+                                </div>
+                                 <div class="form-group" style="grid-column: 2 / 3;">
+                                    <label for="watchlist-player-name">Nome (Opcional)</label>
+                                    <input type="text" id="watchlist-player-name" name="player_name" class="admin-input" placeholder="Buscará se vazio">
+                                </div>
+                                <div class="form-group" style="grid-column: 3 / 4;">
+                                    <label for="watchlist-reason">Motivo</label>
+                                    <input type="text" id="watchlist-reason" name="reason" class="admin-input" required placeholder="Ex: Não atacou na guerra">
+                                </div>
+                            </div>
+                             <div class="form-group full-width"> <label for="watchlist-details">Detalhes (Opcional)</label>
+                                <textarea id="watchlist-details" name="details" rows="2" class="admin-textarea" placeholder="Ex: Guerra vs Tropa XYZ em 15/10/2025"></textarea>
+                            </div>
+                            <button type="submit" class="control-btn">Adicionar à Lista</button>
+                            <p id="watchlist-add-feedback" class="feedback-text"></p>
+                        </form>
+                        
+                        <h4 style="margin-top: 25px;">Jogadores na Lista</h4>
+                        
+                        <div class="watchlist-filters">
+                            <input type="text" id="watchlist-filter-name" class="admin-input" placeholder="Filtrar por Nome...">
+                            <input type="text" id="watchlist-filter-tag" class="admin-input" placeholder="Filtrar por Tag...">
+                        </div>
+
+                         <div class="table-container-admin">
+                            <table id="admin-watchlist-table" style="width: 100%;">
+                                <thead><tr><th>Nome</th><th>Tag</th><th>Motivo</th><th>Detalhes</th><th>Data Adição</th><th>Ação</th></tr></thead>
+                                <tbody><tr><td colspan="6">Carregando lista...</td></tr></tbody>
+                            </table>
+                        </div>
+                         <p id="watchlist-list-feedback" class="feedback-text"></p>
+                    </div>
+                </div>
+
+                <div id="admin-radar" class="admin-section">
+                    <div class="control-section">
+                        <h3>Radar Pericial de Contas Secundárias (Smurfs)</h3>
+                        <p class="control-description" style="margin-bottom: 20px;">
+                            Visualize e julgue as conexões comportamentais detectadas pela Inteligência Artificial. <br><span class="ai-indicator"></span>A IA analisa <b>doações cruzadas</b> e <b>ataques sincronizados</b> em tempo real.
+                        </p>
+                        
+                        <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+                            <button onclick="loadRadarDossier()" class="btn-admin" data-viewer-hide style="background:rgba(0,255,249,0.1); color:#00fff9; border:1px solid rgba(0,255,249,0.3);">🔄 Atualizar</button>
+                            <button onclick="cleanupSmurfDB()" class="btn-admin" data-viewer-hide style="background:rgba(255,100,50,0.1); color:#ff6432; border:1px solid rgba(255,100,50,0.3);">🧹 Limpar Banco de Dados</button>
+                        </div>
+                        <div id="radar-dossier-container">
+                            <div style="text-align:center;"><div class="loading-spinner" style="margin: 20px auto;"></div></div>
+                        </div>
+                        <p id="radar-feedback" class="feedback-text" style="margin-top: 15px;"></p>
+                    </div>
+                </div>
+
+                <div id="admin-analytics" class="admin-section">
+                    <div class="control-section">
+                        <h3>Analytics de Jogadores (Machine Learning)</h3>
+                        <p class="control-description"><span class="ai-indicator"></span>A Inteligência Artificial analisa as últimas 50 guerras para classificar o desempenho e prever matematicamente a chance de um jogador atacar na próxima guerra.</p>
+                        
+                        <div class="table-container-admin">
+                            <table id="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Tag</th>
+                                        <th><span class="ai-indicator"></span>Classificação (Tier IA)</th>
+                                        <th>Chance de Atacar</th>
+                                        <th>Guerras Lidas</th>
+                                    </tr>
+                                </thead>
+                                <tbody><tr><td colspan="5"><span class="ai-indicator"></span>Processando dados com Inteligência Artificial...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="admin-acoes" class="admin-section">
+                    <div class="control-section">
+                        <h3>Ações do Bot</h3>
+                        <div class="action-buttons-group">
+                            <h4>Cache</h4>
+                            <button class="control-btn action-btn" data-action="clear_cache" data-payload='{"cache_key": "all"}'>Limpar Todo o Cache Web</button>
+                        </div>
+                        <div class="action-buttons-group">
+                            <h4>Guerras</h4>
+                            <button class="control-btn action-btn" data-action="force_sync_war" data-payload='{}'>Forçar Sincronização de Guerra</button>
+                        </div>
+                        <div class="action-buttons-group">
+                            <h4>Comandos Slash (/ )</h4>
+                            <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "guild"}'>Sincronizar (Servidor)</button>
+                            <button class="control-btn action-btn" data-action="sync_commands" data-payload='{"scope": "global"}'>Sincronizar (Global)</button>
+                        </div>
+                        <div class="action-buttons-group">
+                            <h4>Exportação de Dados (GeniusLib v4.2.0)</h4>
+                            <button class="control-btn action-btn" data-action="export_clan_json" data-payload='{}'>📤 Exportar Clã (JSON)</button>
+                            <button class="control-btn action-btn" data-action="export_players_csv" data-payload='{}'>📤 Exportar Membros (CSV)</button>
+                        </div>
+                        <div class="announcement-section">
+                            <h4>Enviar Anúncio Global</h4>
+                            <div class="form-group">
+                                <label for="announcement-channel-id">ID do Canal de Destino</label>
+                                <input type="text" id="announcement-channel-id" class="admin-input" placeholder="Cole o ID numérico do canal aqui">
+                            </div>
+                            <div class="form-group">
+                                <label for="announcement-message">Mensagem</label>
+                                <textarea id="announcement-message" rows="4" class="admin-textarea" placeholder="Digite sua mensagem aqui..."></textarea>
+                            </div>
+                            <button id="send-announcement-btn" class="control-btn">Enviar Anúncio</button>
+                        </div>
+                         <p id="actions-feedback" class="feedback-text" style="margin-top: 15px;"></p>
+                    </div>
+                </div>
+
+                <div id="admin-db" class="admin-section">
+                     <div class="control-section">
+                        <h3>Visualizador da Base de Dados (Últimos 5)</h3>
+                        <h4>Histórico de Guerras</h4>
+                        <div class="table-container-admin">
+                            <table id="db-wars-table" style="width: 100%;">
+                                <thead><tr><th>Oponente</th><th>Data Fim</th><th>ID (Clique para copiar)</th></tr></thead>
+                                <tbody><tr><td colspan="3">Carregando...</td></tr></tbody>
+                            </table>
+                        </div>
+                        <h4>Notas de Jogadores</h4>
+                        <div class="table-container-admin" style="margin-top: 20px;">
+                            <table id="db-notes-table" style="width: 100%;">
+                                <thead><tr><th>Tag do Jogador</th><th>Nota</th><th>Prioridade</th></tr></thead>
+                                <tbody><tr><td colspan="3">Carregando...</td></tr></tbody>
+                            </table>
+                        </div>
+                         <p class="control-description">Exibe os registros mais recentes salvos no MongoDB.</p>
+                         <p id="db-feedback" class="feedback-text" style="margin-top: 15px;"></p>
+                    </div>
+                </div>
+
+                <div id="admin-discohook" class="admin-section">
+                    <div class="control-section" style="max-width: 100% !important;">
+                        <h3>🎨 DiscoHook - Editor de Embeds</h3>
+                        <p class="control-description" style="margin-bottom: 20px;">
+                            Crie mensagens com embeds ricos e envie para seu servidor Discord via Webhook.
+                        </p>
+                        
+                        <div class="dh-layout">
+                            <div class="dh-preview" id="dh-preview">
+                                <div class="dh-preview-header">Preview</div>
+                                <div class="dh-preview-messages" id="dh-preview-messages">
+                                    <div class="dh-preview-placeholder">
+                                        <div style="font-size: 3rem; margin-bottom: 10px; opacity: 0.3;">💬</div>
+                                        <div style="color: var(--color-text-secondary);">Preencha os dados ao lado para ver o preview</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="dh-editor">
+                                <div class="dh-webhook-row">
+                                    <input type="url" id="dh-webhook-url" class="admin-input" placeholder="https://discord.com/api/webhooks/..." style="flex: 1; margin-bottom: 0;">
+                                    <button id="dh-send-btn" class="control-btn" style="white-space: nowrap; margin-left: 8px;">📤 Enviar</button>
+                                </div>
+                                <div id="dh-webhook-info" style="display: none; margin-top: 6px; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 6px; align-items: center; gap: 10px; font-size: 0.85em;">
+                                    <img id="dh-webhook-avatar" src="" alt="" style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover;">
+                                    <span id="dh-webhook-name" style="color: var(--color-text-main); font-weight: 600;"></span>
+                                    <span id="dh-webhook-channel" style="color: var(--color-text-secondary); font-size: 0.85em;"></span>
+                                </div>
+                                <p id="dh-feedback" class="feedback-text" style="margin-top: 5px;"></p>
+
+                                <div class="dh-content-row">
+                                    <label style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span>Content</span>
+                                        <span id="dh-content-count" class="dh-char-count">0/2000</span>
+                                    </label>
+                                    <textarea id="dh-content" class="admin-textarea" rows="3" placeholder="Texto da mensagem..."></textarea>
+                                </div>
+
+                                <div class="dh-embeds-list" id="dh-embeds-list"></div>
+
+                                <div class="dh-actions-row">
+                                    <button id="dh-add-embed-btn" class="control-btn" style="background: rgba(88, 101, 242, 0.2); border-color: #5865f2;">➕ Add Embed</button>
+                                    <button id="dh-import-json-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">📥 JSON</button>
+                                    <button id="dh-export-json-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">📤 JSON</button>
+                                    <button id="dh-clear-btn" class="control-btn" style="background: rgba(255, 107, 107, 0.15); border-color: #ff6b6b;">🗑️ Clear All</button>
+                                    <button id="dh-example-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">📋 Exemplo</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div> 
+
+            <!-- Usuários Section -->
+            <div id="admin-users" class="admin-section">
+                <div class="control-section">
+                    <h3>🔑 Gerenciamento de Usuários</h3>
+                    <p class="control-description" style="margin-top:0;margin-bottom:15px;">
+                        Gerencie as solicitações de acesso de co-líderes e visualize todos os usuários cadastrados.
+                    </p>
+                    
+                    <h4>Solicitações Pendentes</h4>
+                    <div id="pending-users-list">
+                        <p style="color:var(--color-text-secondary);font-style:italic;">Carregando...</p>
+                    </div>
+
+                    <h4 style="margin-top:20px;">Usuários Ativos</h4>
+                    <div id="active-users-list">
+                        <p style="color:var(--color-text-secondary);font-style:italic;">Carregando...</p>
+                    </div>
+
+                    <p id="users-feedback" class="feedback-text" style="margin-top:15px;"></p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="radar-drawer" class="radar-drawer">
+        <div class="radar-header">
+            <h3>📡 Radar de Inatividade</h3>
+            <button onclick="toggleRadarDrawer()" class="close-radar">✖</button>
+        </div>
+        <div id="radar-content" class="radar-content">
+            </div>
+    </div>
+
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>
