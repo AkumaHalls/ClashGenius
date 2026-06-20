@@ -422,39 +422,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const chartData = data.activity_chart_data;
         if (activityChartCanvas && chartData && chartData.labels && chartData.labels.length > 0 && chartData.donations && chartData.received) {
-            try {
-                const ctx = activityChartCanvas.getContext('2d');
-                if (!ctx) throw new Error("Não foi possível obter o contexto 2D do canvas."); 
-                activityChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: chartData.labels,
-                        datasets: [
-                            { label: 'Tropas Doadas', data: chartData.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
-                            { label: 'Tropas Recebidas', data: chartData.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
-                        ]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.7)' } },
-                            x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }
-                        },
-                        plugins: { legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } }
-                    }
-                });
-            } catch (e) {
-                if (activityChartCanvas) {
+            (function renderChart() {
+                if (typeof Chart === 'undefined') {
+                    setTimeout(renderChart, 500);
+                    return;
+                }
+                try {
                     const ctx = activityChartCanvas.getContext('2d');
-                    if (ctx) {
-                        ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
-                        ctx.fillStyle = 'rgba(255, 100, 100, 0.8)'; 
-                        ctx.textAlign = 'center';
-                        ctx.font = '14px Open Sans';
-                        ctx.fillText('Erro ao renderizar o gráfico.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
+                    if (!ctx) throw new Error("Contexto 2D indisponível.");
+                    activityChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: chartData.labels,
+                            datasets: [
+                                { label: 'Tropas Doadas', data: chartData.donations, backgroundColor: 'rgba(54, 162, 235, 0.6)' },
+                                { label: 'Tropas Recebidas', data: chartData.received, backgroundColor: 'rgba(255, 99, 132, 0.6)' }
+                            ]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            scales: {
+                                y: { beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.7)' } },
+                                x: { ticks: { color: 'rgba(255, 255, 255, 0.7)' } }
+                            },
+                            plugins: { legend: { labels: { color: 'rgba(255, 255, 255, 0.8)' } } }
+                        }
+                    });
+                } catch (e) {
+                    if (activityChartCanvas) {
+                        const ctx = activityChartCanvas.getContext('2d');
+                        if (ctx) {
+                            ctx.clearRect(0, 0, activityChartCanvas.width, activityChartCanvas.height);
+                            ctx.fillStyle = 'rgba(255, 100, 100, 0.8)';
+                            ctx.textAlign = 'center';
+                            ctx.font = '14px Open Sans';
+                            ctx.fillText('Erro ao renderizar o gráfico.', activityChartCanvas.width / 2, activityChartCanvas.height / 2);
+                        }
                     }
                 }
-            }
+            })();
         } else if (activityChartCanvas) {
             try {
                 const ctx = activityChartCanvas.getContext('2d');
