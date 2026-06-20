@@ -236,6 +236,11 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(lastUpdatedEl, `Última atualização: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`);
     }
 
+    function escapeHtml(str) {
+        const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+        return String(str).replace(/[&<>"']/g, c => map[c]);
+    }
+
     function setText(element, text, defaultValue = '-') {
         if (element) {
             const finalText = (text === null || text === undefined || text === '') ? defaultValue : String(text);
@@ -386,10 +391,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<div class="podium-item ${medals[index] || ''}" style="position: relative;">
                         <span class="podium-rank">${rankIcon}</span>
                         <div class="podium-details">
-                            <div class="member-name">${donor.name || 'N/A'} (CV${donor.town_hall || '?'})</div>
+                            <div class="member-name">${escapeHtml(donor.name || 'N/A')} (CV${escapeHtml(donor.town_hall || '?')})</div>
                             <div class="donation-count"><strong>${(donor.donations || 0).toLocaleString()}</strong> tropas doadas</div>
                         </div>
-                        ${donor.reason ? `<span class="tooltip-text" style="width:250px; background-color: var(--color-background); color: #fff; text-align: center; border-radius: 6px; padding: 10px; position: absolute; z-index: 10; bottom: 110%; left: 50%; margin-left: -125px; opacity: 0; transition: opacity 0.3s; font-size: 0.85em; border: 1px solid var(--color-border-light); box-shadow: 0 4px 8px rgba(0,0,0,0.3); pointer-events: none;">${donor.reason}</span>` : ''}
+                        ${donor.reason ? `<span class="tooltip-text" style="width:250px; background-color: var(--color-background); color: #fff; text-align: center; border-radius: 6px; padding: 10px; position: absolute; z-index: 10; bottom: 110%; left: 50%; margin-left: -125px; opacity: 0; transition: opacity 0.3s; font-size: 0.85em; border: 1px solid var(--color-border-light); box-shadow: 0 4px 8px rgba(0,0,0,0.3); pointer-events: none;">${escapeHtml(donor.reason)}</span>` : ''}
                     </div>`;
         }).join('') : '<p>Nenhum doador encontrado.</p>');
 
@@ -402,12 +407,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const rankIcon = medals[hero.rank - 1] || `${hero.rank}.`; 
 
             const titleHtml = isMvp
-                ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p><h4 class="mvp-name">${hero.name || 'N/A'} <span>(CV${hero.town_hall || '?'})</span></h4>`
-                : `<div class="attack-header">${rankIcon} ${hero.name || 'N/A'} (CV${hero.town_hall || '?'})</div>`;
+                ? `<p class="mvp-title">Jogador Mais Valioso (MVP)</p><h4 class="mvp-name">${escapeHtml(hero.name || 'N/A')} <span>(CV${escapeHtml(hero.town_hall || '?')})</span></h4>`
+                : `<div class="attack-header">${rankIcon} ${escapeHtml(hero.name || 'N/A')} (CV${escapeHtml(hero.town_hall || '?')})</div>`;
 
             return `<div class="${heroClass}">
                         ${titleHtml}
-                        <span class="tooltip-text" style="pointer-events: none;">${hero.reason || 'Sem detalhes'}</span>
+                        <span class="tooltip-text" style="pointer-events: none;">${escapeHtml(hero.reason || 'Sem detalhes')}</span>
                     </div>`;
         }).join('') : '<p>Nenhum herói para destacar na última guerra ou análise indisponível.</p>'); 
 
@@ -512,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="war-ended-content">
                             <h3 class="war-ended-title" style="color: ${resultColor};">${resultText}</h3>
                             <p class="war-ended-score">${ourStars}⭐ vs ${oppStars}⭐</p>
-                            <p class="war-ended-sub">${warData.clan_name} vs ${warData.opponent_name}</p>
+                            <p class="war-ended-sub">${escapeHtml(warData.clan_name)} vs ${escapeHtml(warData.opponent_name)}</p>
                         </div>
                     </div>
                 `);
@@ -586,9 +591,9 @@ document.addEventListener('DOMContentLoaded', () => {
         setHtml(eventsTableBody, data.all_attacks?.length > 0 ? data.all_attacks.map(att => `
             <tr>
                 <td>${att.order ?? '-'}</td>
-                <td>${att.attacker_name || '?'} (CV${att.attacker_townhall || '?'})</td>
+                <td>${escapeHtml(att.attacker_name || '?')} (CV${escapeHtml(att.attacker_townhall || '?')})</td>
                 <td><span class="attack-stars">${createStarString(att.stars)}</span> ${att.destruction ?? 0}%</td>
-                <td>${att.defender_name || '?'} (CV${att.defender_townhall || '?'})</td>
+                <td>${escapeHtml(att.defender_name || '?')} (CV${escapeHtml(att.defender_townhall || '?')})</td>
                 <td>${att.duration ?? '-'}</td>
             </tr>
         `).join('') : '<tr><td colspan="5">Nenhum ataque registado.</td></tr>');
@@ -599,14 +604,14 @@ document.addEventListener('DOMContentLoaded', () => {
             setHtml(teamMembersEl, teamMembersData?.length > 0 ? teamMembersData.map(member => {
                 const attacksHtml = '<h5>Ataques Feitos:</h5><ul class="member-attack-list">' +
                     (member.attacks_made?.length > 0
-                        ? member.attacks_made.map(atk => `<li>${createStarString(atk.stars)} ${atk.destruction ?? 0}% vs ${atk.defender_name || '?'} (CV${atk.defender_townhall || '?'})</li>`).join('')
+                        ? member.attacks_made.map(atk => `<li>${createStarString(atk.stars)} ${atk.destruction ?? 0}% vs ${escapeHtml(atk.defender_name || '?')} (CV${escapeHtml(atk.defender_townhall || '?')})</li>`).join('')
                         : '<li>Nenhum ataque feito.</li>') + '</ul>';
                 const defensesHtml = '<h5>Defesas Recebidas:</h5><ul class="member-defense-list">' +
                     (member.defenses_received?.length > 0
-                        ? member.defenses_received.map(def => `<li>${createStarString(def.stars)} ${def.destruction ?? 0}% por ${def.attacker_name || '?'} (CV${def.attacker_townhall || '?'})</li>`).join('')
+                        ? member.defenses_received.map(def => `<li>${createStarString(def.stars)} ${def.destruction ?? 0}% por ${escapeHtml(def.attacker_name || '?')} (CV${escapeHtml(def.attacker_townhall || '?')})</li>`).join('')
                         : '<li>Nenhuma defesa registada.</li>') + '</ul>';
                 return `<div class="team-member-card">
-                            <h4><img src="/static/images/townhall${member.townhall || 1}.png" alt="CV${member.townhall || '?'}" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='28px';"/> ${member.map_position || '?'}. ${member.name || 'N/A'} (CV${member.townhall || '?'})</h4>
+                            <h4><img src="/static/images/townhall${member.townhall || 1}.png" alt="CV${escapeHtml(member.townhall || '?')}" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='28px';"/> ${member.map_position || '?'}. ${escapeHtml(member.name || 'N/A')} (CV${escapeHtml(member.townhall || '?')})</h4>
                             <p>Ataques: ${member.attacks_used ?? 0}/${war.attacks_per_member}</p>
                             ${attacksHtml}${defensesHtml}
                         </div>`;
@@ -652,14 +657,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!planData || !planData.success) {
                 const timerEl = warAdvisorContentEl.querySelector('#advisorPhaseTimer');
                 if(timerEl) timerEl.style.display = 'none';
-                setHtml(warAdvisorContentEl, `<div class="advisor-plan-container"><p class="message-box">${planData?.error || 'Nenhuma recomendação disponível.'}</p></div>`);
+                setHtml(warAdvisorContentEl, `<div class="advisor-plan-container"><p class="message-box">${escapeHtml(planData?.error || 'Nenhuma recomendação disponível.')}</p></div>`);
                 return;
             }
             let contentHtml = `
                 <div id="advisorPhaseTimer" class="advisor-phase-timer" style="display: none;"><h4>MUDANÇA DE FASE</h4><p id="advisorPhaseTimerText">Calculando...</p></div>
                 <div class="advisor-header">
-                    <h3>${planData.phase_title || 'Plano de Ataque'}</h3>
-                    <p>${planData.prediction_summary || '-'}</p>
+                    <h3>${escapeHtml(planData.phase_title || 'Plano de Ataque')}</h3>
+                    <p>${escapeHtml(planData.prediction_summary || '-')}</p>
                 </div>
                 <div class="advisor-grid">`;
             contentHtml += planData.recommendations?.length > 0 ? planData.recommendations.map(rec => {
@@ -671,15 +676,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return `
                     <div class="advisor-card type-${rec.attack_type || 'unknown'}">
                         <div class="advisor-member-info">
-                            <h4>${rec.member_pos || '?'}. ${rec.member_name || 'N/A'} (CV${rec.member_th || '?'})</h4>
+                            <h4>${rec.member_pos || '?'}. ${escapeHtml(rec.member_name || 'N/A')} (CV${escapeHtml(rec.member_th || '?')})</h4>
                             <span>Ataque Nº ${rec.attack_number || '?'}</span>
                         </div>
                         <div class="advisor-target-info">
                             <p>Alvo Recomendado</p>
-                            <span>#${rec.recommended_target_pos || '?'} (CV${rec.recommended_target_th || '?'})</span>
+                            <span>#${rec.recommended_target_pos || '?'} (CV${escapeHtml(rec.recommended_target_th || '?')})</span>
                         </div>
                         <div class="advisor-justification">
-                            <p><span class="ai-indicator"></span><strong>IA:</strong> ${rec.justification || '-'}</p>
+                            <p><span class="ai-indicator"></span><strong>IA:</strong> ${escapeHtml(rec.justification || '-')}</p>
                         </div>
                         ${alternativesHtml}
                         <div class="advisor-confidence">
@@ -732,16 +737,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setHtml(missedAttacksContainerEl, data.wars_with_missed_attacks.map(war => `
             <div class="war-group">
-                <h3 class="war-group-header">Guerra vs <strong>${war.opponent_name || '?'}</strong> (${war.end_date || '?'}) ${war.is_latest ? '<span class="latest-war-badge">💥 Última Guerra</span>' : ''}</h3>
+                <h3 class="war-group-header">Guerra vs <strong>${escapeHtml(war.opponent_name || '?')}</strong> (${escapeHtml(war.end_date || '?')}) ${war.is_latest ? '<span class="latest-war-badge">💥 Última Guerra</span>' : ''}</h3>
                 <div class="player-card-grid">
                     ${war.missed_attacks_members?.map(member => `
                         <div class="missed-attack-card ${member.attacks_left >= 2 ? 'severity-high' : 'severity-medium'} war-warning-tooltip">
                             <span class="ww-tooltip-text">${member.attacks_left >= 2 ? '🚨 ATENÇÃO: Este membro esqueceu 2 ou mais ataques! Infração grave.' : '⚠️ Alerta: Este membro não realizou todos os seus ataques nesta guerra.'}</span>
                             <div class="player-info">
-                                <h4>${member.name || '?'} <span>(CV${member.town_hall || '?'})</span></h4>
+                                <h4>${escapeHtml(member.name || '?')} <span>(CV${escapeHtml(member.town_hall || '?')})</span></h4>
                                 <div class="player-tag-container">
-                                    <span class="player-tag">${member.tag || '#?'}</span>
-                                    <button class="copy-tag-btn" data-tag="${member.tag || '#?'}">Copiar</button>
+                                    <span class="player-tag">${escapeHtml(member.tag || '#?')}</span>
+                                    <button class="copy-tag-btn" data-tag="${escapeHtml(member.tag || '#?')}">Copiar</button>
                                 </div>
                             </div>
                             <div class="attacks-info">
@@ -812,7 +817,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.clans && Array.isArray(data.clans) && data.clans.length > 0) {
             clansHtml = '<div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 15px;">';
             data.clans.forEach(c => {
-                clansHtml += `<div style="background: rgba(0,0,0,0.3); padding: 8px 15px; border-radius: 20px; display:flex; align-items:center; font-size: 0.95em; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><img src="${c.badge_url || DEFAULT_BADGE_URL}" style="width: 24px; height: 24px; margin-right: 10px;"> <span style="font-weight: bold; letter-spacing: 0.5px;">${c.name}</span></div>`;
+                clansHtml += `<div style="background: rgba(0,0,0,0.3); padding: 8px 15px; border-radius: 20px; display:flex; align-items:center; font-size: 0.95em; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><img src="${c.badge_url || DEFAULT_BADGE_URL}" style="width: 24px; height: 24px; margin-right: 10px;"> <span style="font-weight: bold; letter-spacing: 0.5px;">${escapeHtml(c.name)}</span></div>`;
             });
             clansHtml += '</div>';
         } else {
@@ -841,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="stats-grid" style="margin-bottom: 25px;">
                 <div class="stat-card" style="padding: 20px; text-align: center; background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%);">
                     <h4 style="color: var(--color-text-secondary); font-size: 0.85em; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">Temporada</h4>
-                    <div class="stat-value" style="font-size: 1.5em; color: var(--color-text-main); font-weight: bold;">${seasonStr}</div>
+                    <div class="stat-value" style="font-size: 1.5em; color: var(--color-text-main); font-weight: bold;">${escapeHtml(seasonStr)}</div>
                 </div>
                 <div class="stat-card" style="padding: 20px; text-align: center; background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%);">
                     <h4 style="color: var(--color-text-secondary); font-size: 0.85em; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">Estado do Grupo</h4>
@@ -877,7 +882,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  const name = p.name || (p.player && p.player.name) || 'Membro Oculto';
                  const th = p.town_hall || (p.player && p.player.town_hall) || '?';
                  const icon = p.status === 'priority' ? '⭐' : (p.status === 'unavailable' ? '🛑' : '');
-                 return `<p>${icon} ${name} (CV${th}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
+                 return `<p>${icon} ${escapeHtml(name)} (CV${escapeHtml(th)}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
              }).join('');
         } else {
             placarHtml += '<p>Nenhum dado de participação gerado.</p>';
@@ -926,8 +931,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let tColor = opp.threat_level.includes("Extremo") ? "#e74c3c" : (opp.threat_level.includes("Baixa") ? "#2ecc71" : "#f1c40f");
                 planHtml += `
                 <div style="background: rgba(0,0,0,0.3); border-left: 4px solid ${tColor}; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-                    <h4 style="margin: 0 0 5px 0; color: ${tColor};">Análise ML: vs ${opp.clan_name}</h4>
-                    <p style="margin: 0; font-size: 0.9em;">Classificação: <strong>${opp.threat_level}</strong> | Tática <span class="ai-indicator"></span>IA: ${dayData.strategy_used}</p>
+                    <h4 style="margin: 0 0 5px 0; color: ${tColor};">Análise ML: vs ${escapeHtml(opp.clan_name)}</h4>
+                    <p style="margin: 0; font-size: 0.9em;">Classificação: <strong>${escapeHtml(opp.threat_level)}</strong> | Tática <span class="ai-indicator"></span>IA: ${escapeHtml(dayData.strategy_used)}</p>
                 </div>`;
             }
 
@@ -940,9 +945,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const inTh = sub.in?.town_hall || (sub.in?.player && sub.in.player.town_hall) || '?';
                     return `
                     <div class="xai-sub">
-                        <p style="color: #e74c3c; margin-bottom:2px;">⬇️ <strong>Sai:</strong> ${outName} (CV${outTh}) - <em>${sub.out_reason || 'Rotação'}</em></p>
-                        <p style="color: #2ecc71; margin-bottom:5px;">⬆️ <strong>Entra:</strong> ${inName} (CV${inTh})</p>
-                        <div class="xai-badge"><span class="ai-indicator"></span>IA: ${sub.reason || 'Escalado pela matriz.'}</div>
+                        <p style="color: #e74c3c; margin-bottom:2px;">⬇️ <strong>Sai:</strong> ${escapeHtml(outName)} (CV${escapeHtml(outTh)}) - <em>${escapeHtml(sub.out_reason || 'Rotação')}</em></p>
+                        <p style="color: #2ecc71; margin-bottom:5px;">⬆️ <strong>Entra:</strong> ${escapeHtml(inName)} (CV${escapeHtml(inTh)})</p>
+                        <div class="xai-badge"><span class="ai-indicator"></span>IA: ${escapeHtml(sub.reason || 'Escalado pela matriz.')}</div>
                     </div>`;
                 }).join('')
                 : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs e Titulares Fixos.' : '<span class="ai-indicator"></span>A IA sugere manter a escalação do dia anterior.'}</p>`;
@@ -964,10 +969,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     return `
                     <div class="roster-player" ${p.status === 'priority' ? 'style="border-left: 3px solid var(--color-accent);"' : ''}>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span>${i + 1}. ${icon} ${name} (CV${th})</span>
+                            <span>${i + 1}. ${icon} ${escapeHtml(name)} (CV${escapeHtml(th)})</span>
                             <span style="color:var(--color-text-secondary); font-size:0.8em;">${p.days_played || 0}d</span>
                         </div>
-                        ${p.xai_justification ? `<div style="font-size: 0.7em; color: #a0aec0; margin-top: 5px; font-family: monospace;">> ${p.xai_justification}</div>` : ''}
+                        ${p.xai_justification ? `<div style="font-size: 0.7em; color: #a0aec0; margin-top: 5px; font-family: monospace;">> ${escapeHtml(p.xai_justification)}</div>` : ''}
                     </div>`;
                 }).join('')
                 : '<p>Nenhum jogador na escalação.</p>';
@@ -987,7 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .map((p, i) => {
                         const name = p.name || (p.player && p.player.name) || '?';
                         const th = p.town_hall || (p.player && p.player.town_hall) || '?';
-                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
+                        return `<p>${i+1}. ${escapeHtml(name)} (CV${escapeHtml(th)}) - ${p.days_played || 0}d</p>`;
                     })
                     .join('');
             }
@@ -998,7 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .map((p, i) => {
                         const name = p.name || (p.player && p.player.name) || '?';
                         const th = p.town_hall || (p.player && p.player.town_hall) || '?';
-                        return `<p>${i+1}. ${name} (CV${th}) - ${p.days_played || 0}d</p>`;
+                        return `<p>${i+1}. ${escapeHtml(name)} (CV${escapeHtml(th)}) - ${p.days_played || 0}d</p>`;
                     })
                     .join('');
             }
@@ -1039,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateCwlSchedule(planData);
             } else {
                 if(cwlOverviewContainerEl) {
-                     setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao gerar rotação: ${planData?.error || 'Não há membros suficientes marcados como Ativos.'}</div>`);
+                     setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao gerar rotação: ${escapeHtml(planData?.error || 'Não há membros suficientes marcados como Ativos.')}</div>`);
                      cwlOverviewContainerEl.style.gridTemplateColumns = '1fr';
                 }
             }
@@ -1078,7 +1083,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCwlHeaderUI(data);
 
         if (data.warning) {
-            setHtml(cwlPlanWarningEl, `<strong>Aviso da <span class="ai-indicator"></span>IA:</strong> ${data.warning}`);
+            setHtml(cwlPlanWarningEl, `<strong>Aviso da <span class="ai-indicator"></span>IA:</strong> ${escapeHtml(data.warning)}`);
             cwlPlanWarningEl.style.display = 'block';
         } else if (cwlPlanWarningEl) {
             cwlPlanWarningEl.style.display = 'none';
@@ -1106,7 +1111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          populateCwlOverview(planData); 
                          populateCwlSchedule(planData);
                      } else {
-                         if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao recalcular: ${planData?.error || 'Tente novamente.'}</div>`);
+                          if(cwlOverviewContainerEl) setHtml(cwlOverviewContainerEl, `<div class="error-text" style="grid-column: 1/-1;">Erro ao recalcular: ${escapeHtml(planData?.error || 'Tente novamente.')}</div>`);
                      }
                  });
             }
@@ -1149,10 +1154,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const ops = w.opponent_stars || 0;
             const resultClass = w.result === 'Vitória' ? 'win' : (w.result === 'Derrota' ? 'loss' : 'tie');
             const label = w.end_time_formatted ? w.end_time_formatted.split(' ')[0] : '?';
-            return `<div class="war-summary-bar ${resultClass}" title="${w.opponent_name || '?'}: ${cls}⭐ vs ${ops}⭐">
+            return `<div class="war-summary-bar ${resultClass}" title="${escapeHtml(w.opponent_name || '?')}: ${cls}⭐ vs ${ops}⭐">
                         <span class="wsb-result">${cls}⭐</span>
                         <span class="wsb-label">${label}</span>
-                        <span class="wsb-tooltip">${w.opponent_name || '?'}<br>${cls}⭐ x ${ops}⭐</span>
+                        <span class="wsb-tooltip">${escapeHtml(w.opponent_name || '?')}<br>${cls}⭐ x ${ops}⭐</span>
                     </div>`;
         }).join(''));
     }
@@ -1164,7 +1169,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!data || data.error || !data.log?.length) {
             if(noWarLogMessageEl) { noWarLogMessageEl.style.display = 'block'; setText(noWarLogMessageEl, data?.error || "Log de guerra indisponível."); }
-            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${data?.error || "Nenhum registo encontrado."}</td></tr>`);
+            setHtml(warLogTableBodyEl, `<tr><td colspan="6">${escapeHtml(data?.error || "Nenhum registo encontrado.")}</td></tr>`);
             return;
         }
 
@@ -1174,10 +1179,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const warId = e.war_id || e.id || e._id || '';
             return `
             <tr class="historic-war-row" data-war-id="${warId}">
-                <td>${e.end_time_formatted || '?'}</td>
-                <td><img src="${e.opponent_badge_url || DEFAULT_BADGE_URL}" alt="Emblema" class="log-opponent-badge">${e.opponent_name || 'N/A'}</td>
+                <td>${escapeHtml(e.end_time_formatted || '?')}</td>
+                <td><img src="${e.opponent_badge_url || DEFAULT_BADGE_URL}" alt="Emblema" class="log-opponent-badge">${escapeHtml(e.opponent_name || 'N/A')}</td>
                 <td>${e.clan_stars ?? '?'}⭐ vs ${e.opponent_stars ?? '?'}⭐</td>
-                <td class="war-result-${e.result?.toLowerCase() || 'unknown'}">${e.result || '?'}</td>
+                <td class="war-result-${e.result?.toLowerCase() || 'unknown'}">${escapeHtml(e.result || '?')}</td>
                 <td>${e.team_size || '?'}</td>
                 <td>${e.is_cwl ? "CWL" : "Normal"}</td>
             </tr>`;
@@ -1232,7 +1237,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="podium-item ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">
                     <span class="podium-rank">${medals[i] || `${i+1}.`}</span>
                     <div class="podium-details">
-                        <div class="member-name">${m.name}</div>
+                        <div class="member-name">${escapeHtml(m.name)}</div>
                         <div class="donation-count"><strong>🪙 ${m.looted.toLocaleString()}</strong> ouro (Ataques: ${m.attacks}/${m.limit})</div>
                     </div>
                 </div>
@@ -1243,7 +1248,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (capZeroAttacksListEl) {
             setHtml(capZeroAttacksListEl, zeroAttacks.length > 0 ? zeroAttacks.map(m => `
                 <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
-                    <strong>${m.name}</strong>
+                    <strong>${escapeHtml(m.name)}</strong>
                     <span class="text-danger" style="font-weight:bold;">0 Ataques</span>
                 </div>
             `).join('') : '<p class="text-success" style="padding: 15px; font-weight: bold;">Incrível! Todos do clã atacaram.</p>');
@@ -1252,7 +1257,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (capIncompleteAttacksListEl) {
             setHtml(capIncompleteAttacksListEl, incompleteAttacks.length > 0 ? incompleteAttacks.map(m => `
                 <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
-                    <strong>${m.name}</strong>
+                    <strong>${escapeHtml(m.name)}</strong>
                     <span class="text-warning" style="font-weight:bold;">Fez ${m.attacks} de ${m.limit}</span>
                 </div>
             `).join('') : '<p style="padding: 15px;">Nenhum ataque incompleto.</p>');
@@ -1302,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setHtml(cgTopPlayersListEl, topPlayers.length > 0 ? topPlayers.map((m, i) => `
                 <div class="cg-player-item">
                     <div class="cg-player-info">
-                        <span>${i+1}.</span> <strong>${m.name}</strong> <span style="font-size: 0.8em; color: var(--color-text-secondary);">(${m.role})</span>
+                        <span>${i+1}.</span> <strong>${escapeHtml(m.name)}</strong> <span style="font-size: 0.8em; color: var(--color-text-secondary);">(${escapeHtml(m.role)})</span>
                     </div>
                     <div class="cg-player-score ${m.score >= maxPlayerPoints ? 'max-score' : ''}">
                         ${m.score.toLocaleString()} ${m.score >= maxPlayerPoints ? '🔥' : ''}
@@ -1314,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cgZeroPlayersListEl) {
             setHtml(cgZeroPlayersListEl, zeroPlayers.length > 0 ? zeroPlayers.map(m => `
                 <div class="cg-player-item">
-                    <div class="cg-player-info"><strong>${m.name}</strong></div>
+                    <div class="cg-player-info"><strong>${escapeHtml(m.name)}</strong></div>
                     <div class="cg-player-score text-danger">0</div>
                 </div>
             `).join('') : '<p class="text-success" style="padding: 15px; font-weight:bold;">Todos pontuaram! 🎉</p>');
@@ -1338,7 +1343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(membersClanNameEl, data?.clan_name);
 
         if (!data || data.error || !data.members) {
-            setHtml(membersGridEl, `<p class="message-box">${data?.error || "Não foi possível carregar os membros."}</p>`);
+            setHtml(membersGridEl, `<p class="message-box">${escapeHtml(data?.error || "Não foi possível carregar os membros.")}</p>`);
             return;
         }
 
@@ -1358,8 +1363,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const watchlistTooltipHtml = m.isOnWatchlist
                 ? `<span class="watchlist-tooltip">
                     <strong>Em Observação!</strong><br>
-                    Motivo: ${m.watchlistReason || 'Não especificado'}<br>
-                    ${m.watchlistDetails ? `Detalhes: ${m.watchlistDetails}` : ''}
+                    Motivo: ${escapeHtml(m.watchlistReason || 'Não especificado')}<br>
+                    ${m.watchlistDetails ? `Detalhes: ${escapeHtml(m.watchlistDetails)}` : ''}
                 </span>`
                 : '';
             const noteText = m.note || 'Clique para editar...';
@@ -1375,20 +1380,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     lastWarDateFormatted = 'Inválida';
                 }
             }
-            const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">⚔️ ${lastWarDateFormatted}</span>`;
+            const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">⚔️ ${escapeHtml(lastWarDateFormatted)}</span>`;
 
             const isPriority = m.cwl_status === 'priority';
             const priorityClass = isPriority ? 'vip-golden-card' : '';
             const vipRibbonHtml = isPriority ? `<div class="vip-ribbon">⭐ TITULAR</div>` : '';
 
             return `
-            <div class="member-card ${watchlistClass} ${priorityClass} ${missedAttackClass}" data-th="${m.town_hall || '?'}" data-name="${(m.name || '').toLowerCase()}">
+            <div class="member-card ${watchlistClass} ${priorityClass} ${missedAttackClass}" data-th="${escapeHtml(m.town_hall || '?')}" data-name="${escapeHtml((m.name || '').toLowerCase())}">
                 ${vipRibbonHtml}
-                <div class="member-card-header" data-player-tag="${m.tag || ''}">
-                    <img src="/static/images/townhall${m.town_hall || 1}.png" alt="CV${m.town_hall || '?'}" class="member-th-icon" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='40px';">
+                <div class="member-card-header" data-player-tag="${escapeHtml(m.tag || '')}">
+                    <img src="/static/images/townhall${m.town_hall || 1}.png" alt="CV${escapeHtml(m.town_hall || '?')}" class="member-th-icon" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='40px';">
                     <div class="member-info">
-                        <h4>${m.name || 'N/A'} ${watchlistIconHtml} ${missedAttackIconHtml}</h4>
-                        <p>${m.role || 'Membro'} • 🏆 ${m.trophies || 0}</p>
+                        <h4>${escapeHtml(m.name || 'N/A')} ${watchlistIconHtml} ${missedAttackIconHtml}</h4>
+                        <p>${escapeHtml(m.role || 'Membro')} • 🏆 ${m.trophies || 0}</p>
                     </div>
                     ${watchlistTooltipHtml}
                 </div>
@@ -1398,8 +1403,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${lastWarHtml} </div>
                 <div class="member-card-note">
                     <div class="note-container note-priority-${notePriority}">
-                        <span class="note-text">${noteText}</span>
-                        <input type="text" class="note-input" value="${m.note || ''}" style="display: none;">
+                        <span class="note-text">${escapeHtml(noteText)}</span>
+                        <input type="text" class="note-input" value="${escapeHtml(m.note || '')}" style="display: none;">
                         <div class="priority-selector">
                             ${['green', 'yellow', 'red', 'none'].map(prio => `
                                 <button class="priority-btn priority-${prio} ${prio === notePriority ? 'active' : ''}" data-priority="${prio}">
@@ -1409,7 +1414,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 </div>
-                <div class="member-cwl-status" data-player-tag="${m.tag || ''}">
+                <div class="member-cwl-status" data-player-tag="${escapeHtml(m.tag || '')}">
                     <label>CWL:</label>
                     <div class="cwl-status-selector">
                         <button class="cwl-status-btn ${m.cwl_status === 'priority' ? 'active' : ''}" data-status="priority" title="Titular Absoluto (IA fura-fila)">⭐ Fixo</button>
@@ -1551,7 +1556,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let detailedData = await fetchData(`player_profile/${encodeURIComponent(playerTag)}`);
         if (!detailedData || detailedData.error) {
-             setHtml(memberProfileContent, `<p class="message-box">${detailedData?.error || 'Erro ao comunicar com a <span class="ai-indicator"></span>IA e Supercell.'}</p>`);
+             setHtml(memberProfileContent, `<p class="message-box">${escapeHtml(detailedData?.error || 'Erro ao comunicar com a IA e Supercell.')}</p>`);
              return;
         }
 
@@ -1577,7 +1582,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgName = heroImageMap[(hero.name || '').toLowerCase()] || 'default_hero.png';
             return `
                 <div class="hero-item-new">
-                    <img src="/static/images/heroes/${imgName}" alt="${hero.name}" onerror="this.src='/static/images/default_badge.png'">
+                    <img src="/static/images/heroes/${imgName}" alt="${escapeHtml(hero.name)}" onerror="this.src='/static/images/default_badge.png'">
                     <div class="hero-lvl-box">${hero.level} <span style="font-size:0.7em;color:var(--color-text-secondary);">/ ${hero.max_level}</span></div>
                 </div>`;
         }).join('') : '<p class="message-box" style="width:100%;">Nenhum herói da vila principal encontrado.</p>';
@@ -1585,7 +1590,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cwlStatus = profileData.cwl_status || 'active';
         
         const cwlStatusHtml = userIsAdmin ? `
-            <div class="member-cwl-status" data-player-tag="${profileData.tag || ''}" style="margin-bottom: 20px;">
+            <div class="member-cwl-status" data-player-tag="${escapeHtml(profileData.tag || '')}" style="margin-bottom: 20px;">
                 <label>Status na CWL:</label>
                 <div class="cwl-status-selector">
                     <button class="cwl-status-btn ${cwlStatus === 'priority' ? 'active' : ''}" data-status="priority">⭐ Fixo</button>
@@ -1639,7 +1644,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="ia-tier-icon">${tierIcon}</span>
                         <div class="ia-tier-info">
                             <span class="ia-tier-label">Classificação (K-Means)</span>
-                            <strong class="ia-tier-name" style="color: ${tierColor};">${mlTier}</strong>
+                            <strong class="ia-tier-name" style="color: ${tierColor};">${escapeHtml(mlTier)}</strong>
                         </div>
                     </div>
                     <div class="ia-tier-badge ia-conf-badge">
@@ -1683,12 +1688,12 @@ document.addEventListener('DOMContentLoaded', () => {
         setHtml(memberProfileContent, `
             <div class="profile-header-new">
                 <div class="profile-league-badge">
-                    <img src="${profileData.league_icon || DEFAULT_BADGE_URL}" alt="${profileData.league || 'Liga'}" title="${profileData.league || 'Sem Liga'}">
+                    <img src="${profileData.league_icon || DEFAULT_BADGE_URL}" alt="${escapeHtml(profileData.league || 'Liga')}" title="${escapeHtml(profileData.league || 'Sem Liga')}">
                 </div>
                 <div class="profile-title-new">
-                    <h2>${profileData.name || '?'} <img src="/static/images/townhall${profileData.town_hall || 1}.png" class="profile-th-icon" alt="CV" title="CV ${profileData.town_hall}" onerror="this.src=DEFAULT_BADGE_URL;"></h2>
-                    <span class="profile-tag-new">${profileData.tag || '#?'}</span>
-                    <span class="profile-role-new">${profileData.role || 'Membro'}</span>
+                    <h2>${escapeHtml(profileData.name || '?')} <img src="/static/images/townhall${profileData.town_hall || 1}.png" class="profile-th-icon" alt="CV" title="CV ${profileData.town_hall}" onerror="this.src=DEFAULT_BADGE_URL;"></h2>
+                    <span class="profile-tag-new">${escapeHtml(profileData.tag || '#?')}</span>
+                    <span class="profile-role-new">${escapeHtml(profileData.role || 'Membro')}</span>
                 </div>
             </div>
 
@@ -1698,7 +1703,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="p-card"><span class="p-icon">📥</span><span class="p-val">${profileData.received || 0}</span><span class="p-label">Recebidas</span></div>
                 <div class="p-card" title="Última guerra registrada no sistema">
                     <span class="p-icon">🛡️</span>
-                    <span class="p-val" style="font-size:1em; margin-top:5px;">${lastWarDateFormatted}</span>
+                    <span class="p-val" style="font-size:1em; margin-top:5px;">${escapeHtml(lastWarDateFormatted)}</span>
                     <span class="p-label">Últ. Guerra</span>
                 </div>
             </div>
@@ -1712,10 +1717,10 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <div class="profile-actions-bar" style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap; justify-content:center;">
-                <button class="control-btn profile-upgrade-btn" data-tag="${profileData.tag}" style="background:linear-gradient(135deg,#b300ff,#ff00aa); color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-weight:600; font-size:0.9em;">
+                <button class="control-btn profile-upgrade-btn" data-tag="${escapeHtml(profileData.tag)}" style="background:linear-gradient(135deg,#b300ff,#ff00aa); color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-weight:600; font-size:0.9em;">
                     🔨 Upgrades
                 </button>
-                ${userIsAdmin ? `<button class="control-btn profile-export-btn" data-tag="${profileData.tag}" data-name="${profileData.name}" style="background:linear-gradient(135deg,#00fff9,#0080ff); color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-weight:600; font-size:0.9em;">
+                ${userIsAdmin ? `<button class="control-btn profile-export-btn" data-tag="${escapeHtml(profileData.tag)}" data-name="${escapeHtml(profileData.name)}" style="background:linear-gradient(135deg,#00fff9,#0080ff); color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-weight:600; font-size:0.9em;">
                     📤 Exportar
                 </button>` : ''}
             </div>
@@ -1853,7 +1858,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 let upgradesHtml = `<div class="profile-upgrades-container" style="margin-top:15px;padding:14px;background:rgba(0,255,249,0.1);border:1px solid rgba(0,255,249,0.4);border-radius:10px;box-shadow:0 0 15px rgba(0,255,249,0.15);">`;
                 upgradesHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <h4 style="margin:0;color:#00fff9;text-shadow:0 0 10px rgba(0,255,249,0.4);">🔨 Upgrades — ${data.name}</h4>
+                    <h4 style="margin:0;color:#00fff9;text-shadow:0 0 10px rgba(0,255,249,0.4);">🔨 Upgrades — ${escapeHtml(data.name)}</h4>
                     <span style="color:#0ff;font-size:0.85em;background:rgba(0,255,249,0.1);padding:2px 10px;border-radius:10px;border:1px solid rgba(0,255,249,0.3);">TH${thLabel}</span>
                     <span style="font-size:0.75em;color:#888;background:rgba(255,255,255,0.05);padding:0 8px;border-radius:4px;">${data._has_th_table === true ? '🧠 v4.2.1' : data._has_th_table === false ? '⚠️ GeniusLib antiga' : ''}</span>
                 </div>`;

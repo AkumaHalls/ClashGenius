@@ -495,6 +495,30 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         if role == 'viewer' and request.method == 'POST': return web.json_response({"status":"forbidden", "message": "Membro Sênior não pode modificar."}, status=403)
         return await handler(request)
 
+    # CSRF middleware for admin sub-app
+    @web.middleware
+    async def admin_csrf_middleware(request, handler):
+        if request.method in ('GET', 'HEAD', 'OPTIONS', 'TRACE'):
+            return await handler(request)
+        if request.path in ('/api/admin/auth/login', '/api/admin/auth/register'):
+            return await handler(request)
+        session = await get_session(request)
+        csrf_token = session.get('csrf_token')
+        if not csrf_token:
+            return web.json_response({"status":"error","message":"CSRF token não encontrado."}, status=403)
+        request_csrf = request.headers.get('X-CSRF-Token', '')
+        if not request_csrf or request_csrf != csrf_token:
+            return web.json_response({"status":"error","message":"CSRF token inválido."}, status=403)
+        return await handler(request)
+
+    async def api_get_csrf_token(r):
+        session = await get_session(r)
+        token = session.get('csrf_token')
+        if not token:
+            token = secrets.token_hex(32)
+            session['csrf_token'] = token
+        return web.json_response({"csrf_token": token})
+
     async def api_admin_diagnostics(r): return web.json_response(await admin_cog.get_diagnostics())
     async def api_admin_get_settings(r): session = await get_session(r); return web.json_response(await admin_cog.get_settings(session))
     async def api_admin_update_settings(r): return web.json_response(await admin_cog.update_settings(await r.json()))
@@ -573,6 +597,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         session['username'] = username
         session['role'] = user['role']
         session['guild_id'] = guild_id if guild_id else None
+        session['csrf_token'] = secrets.token_hex(32)
         return web.json_response({"status": "success", "role": user['role'], "username": username})
 
     async def api_auth_register(r):
@@ -703,7 +728,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         role = session.get('role', '')
         return web.json_response({"username": username, "role": role, "authenticated": bool(role or session.get('admin'))})
 
-    admin_api_app = web.Application(middlewares=[admin_auth_middleware]);
+    admin_api_app = web.Application(middlewares=[admin_auth_middleware, admin_csrf_middleware]);
     admin_api_app.router.add_get("/diagnostics", api_admin_diagnostics); admin_api_app.router.add_get("/settings", api_admin_get_settings);
     admin_api_app.router.add_post("/settings", api_admin_update_settings); admin_api_app.router.add_get("/db_viewer", api_admin_db_viewer);
     admin_api_app.router.add_post("/actions", api_admin_actions); admin_api_app.router.add_get("/watchlist", api_admin_get_watchlist);
@@ -720,16 +745,33 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     admin_api_app.router.add_get("/auth/users", api_auth_users);
     admin_api_app.router.add_get("/auth/me", api_auth_me);
     admin_api_app.router.add_post("/auth/role", api_auth_role);
+    admin_api_app.router.add_get("/csrf_token", api_get_csrf_token);
 
     app.add_subapp("/api/admin/", admin_api_app);
 
     static_dir = os.path.join(os.path.dirname(__file__), "static")
+
+    # Security headers middleware for main app
+    @web.middleware
+    async def security_headers_middleware(request, handler):
+        resp = await handler(request)
+        resp.headers['X-Content-Type-Options'] = 'nosniff'
+        resp.headers['X-Frame-Options'] = 'DENY'
+        resp.headers['Referrer-Policy'] = 'same-origin'
+        return resp
+
+    app.middlewares.append(security_headers_middleware)
     async def admin_login_page(r): return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
     async def admin_panel_page(r):
         session=await get_session(r)
         role=session.get('role')
         if not role and not session.get('admin'): return web.HTTPFound('/admin')
-        return web.FileResponse(os.path.join(static_dir,"admin_panel.html"))
+        csrf_token = session.get('csrf_token') or secrets.token_hex(32)
+        session['csrf_token'] = csrf_token
+        with open(os.path.join(static_dir, "admin_panel.html"), 'r', encoding='utf-8') as f:
+            html = f.read()
+        html = html.replace('</head>', f'<meta name="csrf-token" content="{csrf_token}"></head>')
+        return web.Response(text=html, content_type='text/html')
     async def admin_login_handler(r):
         data=await r.post(); guild_id_from_form = data.get('guild_id', ''); password = data.get('password', '')
         _db = getattr(bot_instance, 'db', None)
@@ -742,6 +784,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         # Master password: always works, creates first admin if no users exist
         if password == ADMIN_PASSWORD:
             session=await get_session(r)
+            session['csrf_token'] = secrets.token_hex(32)
             if user_count == 0:
                 session['admin']=True; session['role']='admin'; session['username']='root'
                 return web.HTTPFound('/admin/panel')
@@ -788,7 +831,13 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     try: secret_key_bytes = FERNET_KEY.encode(); secret_key_decoded = base64.urlsafe_b64decode(secret_key_bytes)
     except (AttributeError, ValueError, TypeError): secret_key_decoded = FERNET_KEY
     if not secret_key_decoded: secret_key_decoded = Fernet.generate_key()
-    setup_session(app, EncryptedCookieStorage(secret_key_decoded))
+    setup_session(app, EncryptedCookieStorage(
+        secret_key_decoded,
+        max_age=86400,
+        secure=True,
+        httponly=True,
+        same_site='Lax'
+    ))
 
     runner = web.AppRunner(app);
     await runner.setup();

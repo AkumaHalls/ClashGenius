@@ -7,6 +7,11 @@ window.toggleRadarDrawer = function() {
     if (drawer) drawer.classList.toggle('open');
 };
 
+function escapeHtml(str) {
+    const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+    return String(str).replace(/[&<>"']/g, c => map[c]);
+}
+
 // A Mente da IA: Faz a leitura das datas e julga as penalidades
 window.updateRadarNotifications = function(members) {
     const drawerContent = document.getElementById('radar-content');
@@ -42,17 +47,17 @@ window.updateRadarNotifications = function(members) {
                 alertType = "INFRAÇÃO GRAVE (30+ dias)";
                 icon = "⛔";
                 colorClass = "alert-critical";
-                message = `Atenção: O membro <strong>${member.name}</strong> violou a diretriz principal do clã. O sistema forense registra exatos <strong>${diffDays} dias</strong> sem qualquer participação no campo de guerra. Remoção recomendada.`;
+                message = `Atenção: O membro <strong>${escapeHtml(member.name)}</strong> violou a diretriz principal do clã. O sistema forense registra exatos <strong>${diffDays} dias</strong> sem qualquer participação no campo de guerra. Remoção recomendada.`;
             } else if (diffDays >= 22) {
                 alertType = "ALERTA VERMELHO (22+ dias)";
                 icon = "🚨";
                 colorClass = "alert-danger";
-                message = `Risco altíssimo de desligamento: A conta de <strong>${member.name}</strong> está congelada há <strong>${diffDays} dias</strong>. Sugere-se intervenção imediata da liderança para cobrança.`;
+                message = `Risco altíssimo de desligamento: A conta de <strong>${escapeHtml(member.name)}</strong> está congelada há <strong>${diffDays} dias</strong>. Sugere-se intervenção imediata da liderança para cobrança.`;
             } else {
                 alertType = "ATENÇÃO TÁTICA (15+ dias)";
                 icon = "🎯";
                 colorClass = "alert-warning";
-                message = `A conta <strong>${member.name}</strong> acaba de entrar no radar de ociosidade. A nossa telemetria aponta <strong>${diffDays} dias</strong> sem se voluntariar para o confronto.`;
+                message = `A conta <strong>${escapeHtml(member.name)}</strong> acaba de entrar no radar de ociosidade. A nossa telemetria aponta <strong>${diffDays} dias</strong> sem se voluntariar para o confronto.`;
             }
 
             const alertHTML = `
@@ -201,6 +206,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentActiveSectionId = localStorage.getItem('activeAdminSection') || initialSectionId;
 
     // --- Funções API --- 
+    function getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
     async function fetchAdminAPI(endpoint, options = {}) {
         const isPostWithoutBodyResponse = options.method === 'POST' && (endpoint.startsWith('watchlist/') || endpoint === 'actions' || endpoint === 'settings');
         
@@ -212,6 +222,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...options.headers
             }
         };
+
+        // Add CSRF token for non-GET requests
+        if (options.method && options.method !== 'GET') {
+            const csrfToken = getCsrfToken();
+            if (csrfToken) {
+                defaultOptions.headers['X-CSRF-Token'] = csrfToken;
+            }
+        }
 
             const finalOptions = options.method === 'GET' ? 
                 { ...defaultOptions, ...options } : 
@@ -284,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const select = document.getElementById(id);
             if (select && discordData.channels) {
                 select.innerHTML = '<option value="0">Nenhum / Desativado</option>' + 
-                    discordData.channels.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                    discordData.channels.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
             }
         });
 
@@ -292,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const select = document.getElementById(id);
             if (select && discordData.roles) {
                 select.innerHTML = '<option value="0">Nenhum / Desativado</option>' + 
-                    discordData.roles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+                    discordData.roles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
             }
         });
     }
@@ -368,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dbWarsTableBody.innerHTML = data.last_wars.length > 0
                 ? data.last_wars.map(w => {
                      const row = document.createElement('tr');
-                     row.innerHTML = `<td>${w.opponent || 'N/A'}</td><td>${formatDbDate(w.end_time)}</td>`;
+                     row.innerHTML = `<td>${escapeHtml(w.opponent || 'N/A')}</td><td>${formatDbDate(w.end_time)}</td>`;
                      row.appendChild(createClickToCopyCell(w.id)); 
                      return row.outerHTML;
                   }).join('')
@@ -382,9 +400,9 @@ document.addEventListener('DOMContentLoaded', () => {
             dbNotesTableBody.innerHTML = data.last_notes.length > 0
                 ? data.last_notes.map(n => `
                     <tr>
-                        <td>${n.player_tag || 'N/A'}</td>
-                        <td>${n.note || '-'}</td>
-                        <td class="priority-cell priority-${n.priority || 'none'}">${n.priority || 'none'}</td>
+                        <td>${escapeHtml(n.player_tag || 'N/A')}</td>
+                        <td>${escapeHtml(n.note || '-')}</td>
+                        <td class="priority-cell priority-${escapeHtml(n.priority || 'none')}">${escapeHtml(n.priority || 'none')}</td>
                     </tr>`).join('')
                 : '<tr><td colspan="3">Nenhuma nota de jogador encontrada.</td></tr>';
         } else if (dbNotesTableBody) {
@@ -416,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetchAdminAPI('watchlist'); 
             if (response.error) {
-                 watchlistTableBody.innerHTML = `<tr><td colspan="6" class="error-text">Erro: ${response.error}</td></tr>`;
+                 watchlistTableBody.innerHTML = `<tr><td colspan="6" class="error-text">Erro: ${escapeHtml(response.error)}</td></tr>`;
                  displayFeedback(watchlistListFeedback, `Erro: ${response.error}`, true);
                  return;
             }
@@ -441,12 +459,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return `
                 <tr>
-                    <td><strong>${player.name || 'N/A'}</strong></td>
-                    <td style="font-family: monospace; color: var(--color-accent);">${player._id || 'N/A'}</td>
-                    <td>${player.reason || '-'}</td>
-                    <td>${player.details || '-'}</td>
-                    <td>${dateStr}</td>
-                    <td>${isViewer ? '' : `<button class="admin-remove-btn btn-admin btn-danger" data-tag="${player._id || ''}" style="padding: 5px 10px;">Remover</button>`}</td>
+                    <td><strong>${escapeHtml(player.name || 'N/A')}</strong></td>
+                    <td style="font-family: monospace; color: var(--color-accent);">${escapeHtml(player._id || 'N/A')}</td>
+                    <td>${escapeHtml(player.reason || '-')}</td>
+                    <td>${escapeHtml(player.details || '-')}</td>
+                    <td>${escapeHtml(dateStr)}</td>
+                    <td>${isViewer ? '' : `<button class="admin-remove-btn btn-admin btn-danger" data-tag="${escapeHtml(player._id || '')}" style="padding: 5px 10px;">Remover</button>`}</td>
                 </tr>`;
             }).join('');
 
@@ -529,7 +547,7 @@ async function loadRadarDossier() {
             const data = await fetchAdminAPI('smurf_dossier');
             
             if(data && data.error) {
-                container.innerHTML = `<p class="error-text">${data.error}</p>`;
+                container.innerHTML = `<p class="error-text">${escapeHtml(data.error)}</p>`;
                 return;
             }
             
@@ -563,11 +581,11 @@ async function loadRadarDossier() {
                     doc.thoughts.forEach(t => {
                         let weightBadge = '';
                         if(t.weight !== "Info" && t.weight !== "Trace") {
-                            weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; font-weight:bold; color: ${color};">[Peso: ${t.weight}]</span>`;
+                            weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; font-weight:bold; color: ${color};">[Peso: ${escapeHtml(t.weight)}]</span>`;
                         } else {
-                            weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; color: #a0aec0;">[${t.axis}]</span>`;
+                            weightBadge = `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius:3px; margin-right: 8px; color: #a0aec0;">[${escapeHtml(t.axis)}]</span>`;
                         }
-                        terminalHtml += `<div style="margin-bottom: 8px; padding-left: 10px; border-left: 2px solid ${color}55;">${weightBadge} <span style="color: #e2e8f0;">${t.text}</span></div>`;
+                        terminalHtml += `<div style="margin-bottom: 8px; padding-left: 10px; border-left: 2px solid ${color}55;">${weightBadge} <span style="color: #e2e8f0;">${escapeHtml(t.text)}</span></div>`;
                     });
                 }
                 
@@ -577,14 +595,14 @@ async function loadRadarDossier() {
                         <div>
                             <span style="font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; color: ${color}; font-weight: bold;">Identificação XAI</span>
                             <h4 style="margin: 5px 0 0 0; font-size: 1.2em; display:flex; align-items:center; gap: 10px;">
-                                👑 ${doc.main_name} <span style="font-size:0.7em; color:var(--color-text-secondary);">${doc.main_tag}</span>
+                                👑 ${escapeHtml(doc.main_name)} <span style="font-size:0.7em; color:var(--color-text-secondary);">${escapeHtml(doc.main_tag)}</span>
                                 <span style="color:${color};">↔️</span>
-                                👶 ${doc.smurf_name} <span style="font-size:0.7em; color:var(--color-text-secondary);">${doc.smurf_tag}</span>
+                                👶 ${escapeHtml(doc.smurf_name)} <span style="font-size:0.7em; color:var(--color-text-secondary);">${escapeHtml(doc.smurf_tag)}</span>
                             </h4>
                         </div>
                         <div style="text-align: right;">
                             <div style="font-size: 1.8em; font-weight: 900; color: ${color}; line-height: 1;">${doc.confidence}%</div>
-                            <div style="font-size: 0.8em; color: var(--color-text-secondary); text-transform:uppercase;">${doc.risk_label}</div>
+                            <div style="font-size: 0.8em; color: var(--color-text-secondary); text-transform:uppercase;">${escapeHtml(doc.risk_label)}</div>
                         </div>
                     </div>
                     
@@ -600,8 +618,8 @@ async function loadRadarDossier() {
                     </div>
                     
                     <div style="padding: 15px 20px; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(255,255,255,0.05); display: flex; gap: 15px;">
-                        <button onclick="judgeSmurf('${doc.pair_id}', 'absolve_smurf')" class="btn-admin" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid #2ecc71; flex: 1; transition: all 0.2s;">🟢 Falso Positivo (Limpar)</button>
-                        <button onclick="judgeSmurf('${doc.pair_id}', 'condemn_smurf')" class="btn-admin" style="background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid #e74c3c; flex: 1; transition: all 0.2s;">🔴 Condenar p/ Watchlist</button>
+                        <button onclick="judgeSmurf('${escapeHtml(doc.pair_id)}', 'absolve_smurf')" class="btn-admin" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid #2ecc71; flex: 1; transition: all 0.2s;">🟢 Falso Positivo (Limpar)</button>
+                        <button onclick="judgeSmurf('${escapeHtml(doc.pair_id)}', 'condemn_smurf')" class="btn-admin" style="background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid #e74c3c; flex: 1; transition: all 0.2s;">🔴 Condenar p/ Watchlist</button>
                     </div>
                 </div>`;
             });
@@ -710,16 +728,16 @@ async function loadRadarDossier() {
 
                 return `
                 <tr>
-                    <td><strong>${m.name}</strong></td>
-                    <td style="font-family: monospace; color: var(--color-accent);">${m.tag}</td>
-                    <td style="font-weight: bold;">${tier}</td>
+                    <td><strong>${escapeHtml(m.name)}</strong></td>
+                    <td style="font-family: monospace; color: var(--color-accent);">${escapeHtml(m.tag)}</td>
+                    <td style="font-weight: bold;">${escapeHtml(tier)}</td>
                     <td style="color: ${probColor}; font-weight: 900; font-size: 1.1em;">${prob}</td>
                     <td>${wars} / 50</td>
                 </tr>`;
             }).join('');
 
         } catch (error) {
-            tbody.innerHTML = `<tr><td colspan="5" class="error-text">Erro ao carregar Analytics: ${error.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="error-text">Erro ao carregar Analytics: ${escapeHtml(error.message)}</td></tr>`;
         }
     }
 
@@ -1457,18 +1475,18 @@ async function loadRadarDossier() {
             container.innerHTML = data.map(u => `
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;margin-bottom:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,215,0,0.2);border-radius:6px;">
                     <div>
-                        <strong style="color:var(--neon-orange);">${u.username}</strong>
-                        ${u.discord ? `<span style="color:var(--color-text-secondary);margin-left:10px;">🎮 ${u.discord}</span>` : ''}
+                        <strong style="color:var(--neon-orange);">${escapeHtml(u.username)}</strong>
+                        ${u.discord ? `<span style="color:var(--color-text-secondary);margin-left:10px;">🎮 ${escapeHtml(u.discord)}</span>` : ''}
                         <span style="color:var(--color-text-secondary);font-size:0.85em;margin-left:10px;">📅 ${new Date(u.created_at).toLocaleString('pt-BR')}</span>
                     </div>
                     <div>
-                        <button onclick="approveUser('${u.username}')" style="background:rgba(46,204,113,0.2);border:1px solid #2ecc71;color:#2ecc71;padding:6px 15px;border-radius:4px;cursor:pointer;margin-right:5px;font-family:'Rajdhani',sans-serif;font-weight:600;">✓ Aprovar</button>
-                        <button onclick="rejectUser('${u.username}')" style="background:rgba(231,76,60,0.2);border:1px solid #e74c3c;color:#e74c3c;padding:6px 15px;border-radius:4px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;">✕ Rejeitar</button>
+                        <button onclick="approveUser('${escapeHtml(u.username)}')" style="background:rgba(46,204,113,0.2);border:1px solid #2ecc71;color:#2ecc71;padding:6px 15px;border-radius:4px;cursor:pointer;margin-right:5px;font-family:'Rajdhani',sans-serif;font-weight:600;">✓ Aprovar</button>
+                        <button onclick="rejectUser('${escapeHtml(u.username)}')" style="background:rgba(231,76,60,0.2);border:1px solid #e74c3c;color:#e74c3c;padding:6px 15px;border-radius:4px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;">✕ Rejeitar</button>
                     </div>
                 </div>
             `).join('');
         } catch(e) {
-            container.innerHTML = `<p class="error-text">Erro ao carregar: ${e.message}</p>`;
+            container.innerHTML = `<p class="error-text">Erro ao carregar: ${escapeHtml(e.message)}</p>`;
         }
     }
 
@@ -1500,12 +1518,12 @@ async function loadRadarDossier() {
                     <tbody>
                         ${active.map(u => `
                             <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-                                <td style="padding:8px;font-weight:600;">${u.username}</td>
+                                <td style="padding:8px;font-weight:600;">${escapeHtml(u.username)}</td>
                                 <td style="padding:8px;"><span style="padding:2px 8px;border-radius:3px;font-size:0.85em;background:${u.role === 'admin' ? 'rgba(0,255,249,0.15)' : 'rgba(255,165,0,0.15)'};color:${u.role === 'admin' ? 'var(--neon-cyan)' : 'var(--neon-orange)'};">${u.role === 'admin' ? '🛡️ Admin' : '👁️ Membro Sênior'}</span></td>
-                                <td style="padding:8px;color:var(--color-text-secondary);">${u.discord || '-'}</td>
+                                <td style="padding:8px;color:var(--color-text-secondary);">${escapeHtml(u.discord || '-')}</td>
                                 <td style="padding:8px;color:var(--color-text-secondary);font-size:0.85em;">${u.created_at ? new Date(u.created_at).toLocaleString('pt-BR') : '-'}</td>
                                 <td style="padding:8px;">
-                                    <select onchange="changeUserRole('${u.username}', this.value)" style="background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:4px 8px;border-radius:4px;font-family:'Rajdhani',sans-serif;font-size:0.85em;">
+                                    <select onchange="changeUserRole('${escapeHtml(u.username)}', this.value)" style="background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:4px 8px;border-radius:4px;font-family:'Rajdhani',sans-serif;font-size:0.85em;">
                                         <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
                                         <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>Membro Sênior</option>
                                     </select>
@@ -1517,7 +1535,7 @@ async function loadRadarDossier() {
                 <p style="color:var(--color-text-secondary);font-size:0.85em;margin-top:10px;">Total: ${active.length} usuário(s) ativo(s)</p>
             `;
         } catch(e) {
-            container.innerHTML = `<p class="error-text">Erro ao carregar: ${e.message}</p>`;
+            container.innerHTML = `<p class="error-text">Erro ao carregar: ${escapeHtml(e.message)}</p>`;
         }
     }
 
