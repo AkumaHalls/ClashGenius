@@ -1569,7 +1569,8 @@ document.addEventListener('DOMContentLoaded', () => {
             'archer queen': 'archer-queen.png',
             'grand warden': 'grand-warden.png',
             'royal champion': 'royal-champion.png',
-            'minion prince': 'minion-prince.png'
+            'minion prince': 'minion-prince.png',
+            'dragon duke': 'DragonDuke.png'
         };
 
         const heroesHtml = profileData.heroes?.length > 0 ? profileData.heroes.map(hero => {
