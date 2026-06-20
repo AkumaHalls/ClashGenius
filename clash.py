@@ -835,8 +835,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
         secret_key_decoded,
         max_age=86400,
         secure=True,
-        httponly=True,
-        same_site='Lax'
+        httponly=True
     ))
 
     runner = web.AppRunner(app);
