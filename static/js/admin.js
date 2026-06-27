@@ -533,10 +533,12 @@ document.addEventListener('DOMContentLoaded', () => {
                  displayFeedback(watchlistListFeedback, response.message || "Operação concluída.");
                  loadWatchlist(); 
              } else {
+                 displayFeedback(watchlistListFeedback, response.message || 'Erro ao remover.', true);
                  button.disabled = false; 
                  button.textContent = 'Remover';
              }
         } catch (error) {
+           displayFeedback(watchlistListFeedback, `Erro: ${error.message}`, true);
            button.disabled = false; 
            button.textContent = 'Remover';
         }
