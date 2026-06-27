@@ -299,11 +299,6 @@ def check_password(password: str, stored: str) -> bool:
     except Exception:
         return False
 
-async def get_or_create_admin_collection(db):
-    db = getattr(db, 'db', db)
-    existing = await db.panel_users.count_documents({})
-    return db
-
 # --- Servidor Web ---
 async def setup_web_server(bot_instance: ClashGeniusBot):
     logger.info("setup_web_server: Aguardando fim do setup_hook...")
@@ -831,10 +826,11 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     try: secret_key_bytes = FERNET_KEY.encode(); secret_key_decoded = base64.urlsafe_b64decode(secret_key_bytes)
     except (AttributeError, ValueError, TypeError): secret_key_decoded = FERNET_KEY
     if not secret_key_decoded: secret_key_decoded = Fernet.generate_key()
+    is_secure = os.environ.get("RENDER", "") == "true" or BASE_URL and BASE_URL.startswith("https")
     setup_session(app, EncryptedCookieStorage(
         secret_key_decoded,
         max_age=86400,
-        secure=True,
+        secure=is_secure,
         httponly=True
     ))
 

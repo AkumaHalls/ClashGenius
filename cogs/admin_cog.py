@@ -125,7 +125,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                 settings_from_db = await self.db.system_config.find_one({"_id": "bot_settings"})
                 if settings_from_db:
                     merged_settings.update(settings_from_db)
-            except Exception as e: pass
+            except Exception as e: logger.warning(f"Falha ao carregar config do DB: {e}")
         
         merged_settings.pop('_id', None)
 

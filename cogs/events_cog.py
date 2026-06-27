@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-1
+# -*- coding: utf-8 -*-
 import logging
 import discord
 from discord.ext import commands, tasks
