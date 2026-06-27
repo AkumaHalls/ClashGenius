@@ -73,7 +73,7 @@ CAPITAL_REPORT_CHANNEL_ID = int(os.getenv("CAPITAL_REPORT_CHANNEL_ID", 0))
 MAINTENANCE_ALERT_CHANNEL_ID = int(os.getenv("MAINTENANCE_ALERT_CHANNEL_ID", 0))
 WAR_PREFERENCE_CHANNEL_ID = int(os.getenv("WAR_PREFERENCE_CHANNEL_ID", 0))
 
-BOT_VERSION = "31.2.1-GeniusLib-v4.3.0" 
+BOT_VERSION = "31.2.2-GeniusLib-v4.3.0" 
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -848,7 +848,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
 async def main():
     intents = discord.Intents.default(); intents.message_content = True; intents.members = True; intents.guilds = True
-    bot = ClashGeniusBot(command_prefix="!", intents=intents)
+    bot = ClashGeniusBot(command_prefix="!", intents=intents, allowed_mentions=discord.AllowedMentions(roles=True))
     try:
         logger.info("Iniciando bot (bot.start)...")
         await bot.start(DISCORD_TOKEN)
