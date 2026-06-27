@@ -231,9 +231,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-            const finalOptions = options.method === 'GET' ? 
-                { ...defaultOptions, ...options } : 
-                { ...defaultOptions, ...options };
+            const finalOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...(options.headers || {})
+                }
+            };
 
         try {
             const response = await fetch(`/api/admin/${endpoint}`, finalOptions);

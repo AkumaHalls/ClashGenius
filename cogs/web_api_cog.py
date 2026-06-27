@@ -260,7 +260,8 @@ class WebApiCog(commands.Cog, name="Web API"):
                 "role": player.role.name.capitalize() if hasattr(player, 'role') and hasattr(player.role, 'name') else "Membro",
                 "hitrate": hitrate
             }
-        except Exception as e: 
+        except Exception as e:
+            logger.error(f"Erro em fetch_player_profile_for_web: {e}", exc_info=True)
             return {"error": "Falha de conexão com a API da Supercell."}
 
     async def fetch_clan_members_for_web(self):

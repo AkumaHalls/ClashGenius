@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import asyncio
 import discord
 from discord.ext import commands
 from pymongo.errors import PyMongoError
@@ -9,6 +10,8 @@ logger = logging.getLogger("maintenance_cog")
 
 class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
     """Cog para comandos de manutenção do bot e do banco de dados."""
+
+    MAINTENANCE_ROLE_ID = 1362076878458065037
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -39,9 +42,23 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
                   "\n**Acesso ao Painel:** " + ("Apenas Admins" if self.bot.maintenance_mode else "Público"),
             inline=False
         )
+        role_mention = f"<@&{self.MAINTENANCE_ROLE_ID}>"
         channel_id = self.bot.maintenance_alert_channel_id or self.bot.channel_id
         channel = self.bot.get_channel(channel_id)
-        if channel: await channel.send(embed=embed)
+        if not channel:
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except Exception:
+                channel = None
+        if channel:
+            try:
+                await channel.send(content=role_mention, embed=embed)
+            except discord.errors.HTTPException as e:
+                if e.status == 429:
+                    await asyncio.sleep(5)
+                    await channel.send(content=role_mention, embed=embed)
+                else:
+                    raise e
         
         return web.json_response({"status": "success", "maintenance_mode": self.bot.maintenance_mode})
 
@@ -50,6 +67,11 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
         embed = discord.Embed(title="✅ Mensagem de Teste (Web)", description="Comunicação OK!", color=discord.Color.blue())
         channel_id = self.bot.maintenance_alert_channel_id or self.bot.channel_id
         channel = self.bot.get_channel(channel_id)
+        if not channel:
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except Exception:
+                channel = None
         if channel:
             await channel.send(embed=embed)
             return web.json_response({"status": "success"})

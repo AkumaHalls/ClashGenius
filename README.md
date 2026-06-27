@@ -1,6 +1,6 @@
 # ⚡ CLASHGENIUS — O GÊNIO DAS GUERRAS 🧠🔥
 
-![Versão](https://img.shields.io/badge/versão-31.2.0--GeniusLib--v4.3.0-ff00aa?style=flat-square&logo=python)
+![Versão](https://img.shields.io/badge/versão-31.2.1--GeniusLib--v4.3.0-ff00aa?style=flat-square&logo=python)
 ![Status](https://img.shields.io/badge/Status-Operacional-00ff41?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.10%2B-0080ff?logo=python&style=flat-square)
 ![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-00fff9?style=flat-square&logo=render)
@@ -228,7 +228,7 @@ ClashGenius/
 
 ---
 
-## 🔄 VERSÃO ATUAL: 31.2.0-GeniusLib-v4.3.0
+## 🔄 VERSÃO ATUAL: 31.2.1-GeniusLib-v4.3.0
 
 ### Últimas atualizações (v31.2.0)
 
@@ -264,5 +264,5 @@ MIT — Use, modifique e compartilhe livremente.
 
 <p align="center">
   <sub>Feito com ❤️ por +Constantine+ e a comunidade</sub><br>
-  <sub>Clash Genius Bot v31.2.0-GeniusLib-v4.3.0</sub>
+  <sub>Clash Genius Bot v31.2.1-GeniusLib-v4.3.0</sub>
 </p>

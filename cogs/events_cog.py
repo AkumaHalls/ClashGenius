@@ -456,7 +456,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         embed.add_field(name="Novo Status", value=status_text, inline=True)
         embed.add_field(name="CV", value=format_th(getattr(member, 'town_hall', 0)), inline=True)
 
-        channel_id = self.bot.war_preference_channel_id or 1474748075057741917
+        channel_id = self.bot.war_preference_channel_id or self.bot.channel_id
         await self._send_log_embed(embed, target_channel_id=channel_id)
 
     @tasks.loop(minutes=5)
