@@ -133,37 +133,56 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             if not war_log: return
             now = datetime.datetime.now(pytz.utc)
             for entry in war_log[:5]:
-                if entry.state == coc.WarState.war_ended and entry.end_time and entry.end_time.time:
-                    end_utc = entry.end_time.time.replace(tzinfo=pytz.utc)
-                    if (now - end_utc).total_seconds() > 7200:
-                        continue
-                    war_id = self._get_war_id(entry)
-                    if war_id in self.bot.processed_war_ids:
-                        continue
-                    if not entry.clan or not entry.opponent:
-                        continue
-                    if entry.clan.tag != self.bot.clan_tag and entry.opponent.tag != self.bot.clan_tag:
-                        continue
-                    logger.info(f"_scan_war_log_for_missed: Guerra perdida encontrada! ID: {war_id}")
-                    war_result = coc.get_war_result(entry, self.bot.clan_tag)
-                    missed_count = coc.count_missed_attacks(entry, self.bot.clan_tag)
-                    opp = entry.opponent if entry.clan.tag == self.bot.clan_tag else entry.clan
-                    our_clan = entry.clan if entry.clan.tag == self.bot.clan_tag else entry.opponent
-                    embed = discord.Embed(
-                        title=f"🚩 Ataques Perdidos (Recuperado do Histórico)",
-                        color=discord.Color.dark_gold()
-                    )
-                    embed.add_field(name="Placar Final", value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opp.name}:** {opp.stars}⭐", inline=False)
-                    embed.add_field(name="Resultado", value=f"**{war_result.upper()}**", inline=False)
-                    missed_members = [m for m in our_clan.members if len(m.attacks) < (entry.attacks_per_member or 1)]
-                    if missed_members:
-                        lines = [f"**{m.name}** ({m.tag}): {(entry.attacks_per_member or 1) - len(m.attacks)} perdido(s)" for m in missed_members]
-                        embed.add_field(name="Jogadores com Ataques Pendentes", value="\n".join(lines), inline=False)
-                    role_mention = f"<@&{self.bot.role_id_missed_attack}>" if self.bot.role_id_missed_attack else ""
-                    await self._send_log_embed(embed, content=f"{role_mention} Alerta!", target_channel_id=self.bot.post_war_analysis_channel_id)
-                    self.bot.processed_war_ids.add(war_id)
+                if not entry.end_time or not entry.end_time.time:
+                    continue
+                end_utc = entry.end_time.time.replace(tzinfo=pytz.utc)
+                if (now - end_utc).total_seconds() > 7200:
+                    continue
+                war_id = self._get_war_id(entry)
+                if war_id in self.bot.processed_war_ids:
+                    continue
+                if not entry.clan or not entry.opponent:
+                    continue
+                if entry.clan.tag != self.bot.clan_tag and entry.opponent.tag != self.bot.clan_tag:
+                    continue
+                logger.info(f"_scan_war_log_for_missed: Guerra perdida encontrada! ID: {war_id}")
+
+                our_clan = entry.clan if entry.clan.tag == self.bot.clan_tag else entry.opponent
+                opp = entry.opponent if entry.clan.tag == self.bot.clan_tag else entry.clan
+
+                war_result = entry.result if hasattr(entry, 'result') else "unknown"
+                if war_result == "unknown":
+                    if our_clan.stars > opp.stars: war_result = "win"
+                    elif our_clan.stars < opp.stars: war_result = "lose"
+                    else: war_result = "tie"
+
+                apm = entry.attacks_per_member or 1
+                missed_members = [m for m in our_clan.members if len(m.attacks) < apm]
+                total_expected = apm * len(our_clan.members)
+                total_used = getattr(our_clan, 'attacks_used', None)
+                if total_used is None:
+                    total_used = len(our_clan.attacks) if hasattr(our_clan, 'attacks') and our_clan.attacks else 0
+                missed_count = total_expected - total_used
+
+                if missed_count <= 0 and not missed_members:
+                    continue
+
+                embed = discord.Embed(
+                    title=f"🚩 Ataques Perdidos (Recuperado do Histórico)",
+                    color=discord.Color.dark_gold()
+                )
+                embed.add_field(name="Placar Final", value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opp.name}:** {opp.stars}⭐", inline=False)
+                embed.add_field(name="Resultado", value=f"**{war_result.upper()}**", inline=False)
+                if missed_members:
+                    lines = [f"**{m.name}** ({m.tag}): {apm - len(m.attacks)} perdido(s)" for m in missed_members]
+                    embed.add_field(name="Jogadores com Ataques Pendentes", value="\n".join(lines), inline=False)
+                elif missed_count > 0:
+                    embed.add_field(name="Ataques Perdidos", value=f"Total de **{missed_count}** ataque(s) não utilizado(s) no clã.", inline=False)
+                role_mention = f"<@&{self.bot.role_id_missed_attack}>" if self.bot.role_id_missed_attack else ""
+                await self._send_log_embed(embed, content=f"{role_mention} Alerta!", target_channel_id=self.bot.post_war_analysis_channel_id)
+                self.bot.processed_war_ids.add(war_id)
         except Exception as e:
-            logger.debug(f"_scan_war_log_for_missed: {e}")
+            logger.warning(f"_scan_war_log_for_missed: {e}", exc_info=True)
 
     async def process_ended_war(self, war: coc.ClanWar, war_id: str) -> bool:
         """Processa uma guerra finalizada, salva no DB, envia alertas e adiciona à watchlist."""
@@ -296,6 +315,8 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
              logger.info(f"check_war_end_task: {processed_in_this_run} guerra(s) terminada(s) processada(s) nesta execução.")
         else:
              logger.debug("check_war_end_task: Nenhuma guerra terminada nova encontrada nesta execução.")
+
+        await self._scan_war_log_for_missed()
 
 
     @commands.command(name='syncwar')
