@@ -40,6 +40,9 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 {"name": e.name, "level": e.level, "max_level": e.max_level, "village": e.village}
                 for e in getattr(player, 'equipment', [])
             ]
+
+            troops_data = [{"name": t.name, "level": t.level, "max_level": t.max_level} for t in getattr(player, 'troops', []) if getattr(t, 'village', 'home') == 'home']
+            spells_data = [{"name": s.name, "level": s.level, "max_level": s.max_level} for s in getattr(player, 'spells', []) if getattr(s, 'village', 'home') == 'home']
             
             legend_stats = getattr(player, 'legend_statistics', None)
             legend_data = {}
@@ -125,6 +128,8 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 "heroes": heroes_data,
                 "pets": pets_data,
                 "equipment": equipment_data,
+                "troops": troops_data,
+                "spells": spells_data,
                 "legend_stats": legend_data,
                 "capital_gold": capital_gold,
                 "role": player.role.name.capitalize() if hasattr(player, 'role') and hasattr(player.role, 'name') else "Membro",
