@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${ASSETS_BASE_URL}/${category}/${cleaned}/icon.webp`;
     }
 
-    const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
     let phaseTimerInterval = null; 
     let globalMembersList = []; // <-- VARIAVEL GLOBAL ADICIONADA PARA SALVAR OS MEMBROS DO CLÃ
 
