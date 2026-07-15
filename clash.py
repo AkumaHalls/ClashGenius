@@ -26,7 +26,6 @@ from aiohttp_session import setup as setup_session, get_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 import base64
 from cryptography.fernet import Fernet
-import importlib.resources as pkg_resources
 
 # --- Configuração de Logging ---
 class MemoryLogHandler(logging.Handler):
@@ -75,7 +74,7 @@ CAPITAL_REPORT_CHANNEL_ID = int(os.getenv("CAPITAL_REPORT_CHANNEL_ID", 0))
 MAINTENANCE_ALERT_CHANNEL_ID = int(os.getenv("MAINTENANCE_ALERT_CHANNEL_ID", 0))
 WAR_PREFERENCE_CHANNEL_ID = int(os.getenv("WAR_PREFERENCE_CHANNEL_ID", 0))
 
-BOT_VERSION = "32.2.1-GeniusLib-v5.2.0" 
+BOT_VERSION = "32.2.2-GeniusLib-v5.3.0" 
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -770,20 +769,15 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
     # Servir assets da GeniusLib (compatível com pip install)
     try:
-        geniuslib_assets_dir = pkg_resources.files('geniuslib').joinpath('static', 'assets')
-        if geniuslib_assets_dir.is_dir():
-            app.router.add_static('/static/images/assets/', path=str(geniuslib_assets_dir), name='assets')
-            logger.info(f"Assets da GeniusLib servidos de (importlib): {geniuslib_assets_dir}")
+        from geniuslib.utils import get_assets_dir as _get_assets_dir
+        geniuslib_assets_dir = _get_assets_dir()
+        if os.path.isdir(geniuslib_assets_dir):
+            app.router.add_static('/assets/', path=geniuslib_assets_dir, name='assets')
+            logger.info(f"Assets da GeniusLib servidos de: {geniuslib_assets_dir}")
         else:
             raise FileNotFoundError(f"Assets dir not found: {geniuslib_assets_dir}")
     except Exception as e:
-        # Fallback: caminho relativo ao diretório do código
-        geniuslib_assets_dir = os.path.join(os.path.dirname(geniuslib.__file__), "static", "assets")
-        if os.path.isdir(geniuslib_assets_dir):
-            app.router.add_static('/static/images/assets/', path=geniuslib_assets_dir, name='assets')
-            logger.info(f"Assets da GeniusLib servidos de (fallback): {geniuslib_assets_dir}")
-        else:
-            logger.warning(f"Assets da GeniusLib NÃO encontrados em nenhum local")
+        logger.warning(f"Assets da GeniusLib NÃO encontrados: {e}")
 
     # Security headers middleware for main app
     @web.middleware

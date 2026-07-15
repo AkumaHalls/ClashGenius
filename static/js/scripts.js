@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
     const DEFAULT_BADGE_URL = '/static/images/default_badge.png';
-    const ASSETS_BASE_URL = '/static/images/assets';
+    const ASSETS_BASE_URL = '/assets';
 
     /** Gera URL para um asset do Clash of Clans.
      * @param {string} category - Ex: 'troops', 'heroes', 'spells', 'equipment', 'pets'
