@@ -1746,6 +1746,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${heroesHtml}
             </div>
 
+            ${profileData.pets?.length > 0 ? `
+            <h3 class="profile-section-title">Pets</h3>
+            <div class="profile-heroes-grid">
+                ${profileData.pets.map(pet => {
+                    const imgSrc = getAssetUrl('pets', pet.name);
+                    return `
+                        <div class="hero-item-new">
+                            <img src="${imgSrc}" alt="${escapeHtml(pet.name)}" onerror="this.src='${DEFAULT_BADGE_URL}'">
+                            <div class="hero-lvl-box">${pet.level} <span style="font-size:0.7em;color:var(--color-text-secondary);">/ ${pet.max_level}</span></div>
+                        </div>`;
+                }).join('')}
+            </div>` : ''}
+
+            ${profileData.troops?.length > 0 ? `
+            <h3 class="profile-section-title">Tropas</h3>
+            <div class="profile-heroes-grid">
+                ${profileData.troops.map(troop => {
+                    const imgSrc = getAssetUrl('troops', troop.name);
+                    return `
+                        <div class="hero-item-new">
+                            <img src="${imgSrc}" alt="${escapeHtml(troop.name)}" onerror="this.src='${DEFAULT_BADGE_URL}'">
+                            <div class="hero-lvl-box">${troop.level} <span style="font-size:0.7em;color:var(--color-text-secondary);">/ ${troop.max_level}</span></div>
+                        </div>`;
+                }).join('')}
+            </div>` : ''}
+
+            ${profileData.spells?.length > 0 ? `
+            <h3 class="profile-section-title">Feitiços</h3>
+            <div class="profile-heroes-grid">
+                ${profileData.spells.map(spell => {
+                    const imgSrc = getAssetUrl('spells', spell.name);
+                    return `
+                        <div class="hero-item-new">
+                            <img src="${imgSrc}" alt="${escapeHtml(spell.name)}" onerror="this.src='${DEFAULT_BADGE_URL}'">
+                            <div class="hero-lvl-box">${spell.level} <span style="font-size:0.7em;color:var(--color-text-secondary);">/ ${spell.max_level}</span></div>
+                        </div>`;
+                }).join('')}
+            </div>` : ''}
+
+            ${profileData.equipment?.length > 0 ? `
+            <h3 class="profile-section-title">Equipamentos</h3>
+            <div class="profile-heroes-grid">
+                ${profileData.equipment.map(eq => {
+                    const imgSrc = getAssetUrl('equipment', eq.name);
+                    return `
+                        <div class="hero-item-new">
+                            <img src="${imgSrc}" alt="${escapeHtml(eq.name)}" onerror="this.src='${DEFAULT_BADGE_URL}'">
+                            <div class="hero-lvl-box">${eq.level} <span style="font-size:0.7em;color:var(--color-text-secondary);">/ ${eq.max_level}</span></div>
+                        </div>`;
+                }).join('')}
+            </div>` : ''}
+
             <div class="profile-actions-bar" style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap; justify-content:center;">
                 <button class="control-btn profile-upgrade-btn" data-tag="${escapeHtml(profileData.tag)}" style="background:linear-gradient(135deg,#b300ff,#ff00aa); color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-weight:600; font-size:0.9em;">
                     🔨 Upgrades
