@@ -4,6 +4,28 @@ Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Cha
 
 ---
 
+## [32.2.2] — 2026-07-15
+
+### Alterado
+- **Assets servidos via GeniusLib** — usa get_assets_dir() do GeniusLib v5.3.0 em vez de cópia local
+- Rota estática mudou de `/static/images/assets/` para `/assets/`
+- Removida cópia de 3000+ arquivos .webp de `static/images/assets/`
+- Removido import pkg_resources não utilizado
+
+### Alterado
+- Versão do bot: 32.2.2-GeniusLib-v5.3.0
+
+---
+
+## [32.2.1] — 2026-07-15
+
+### Corrigido
+- **Tropas e Feitiços ausentes no perfil** — profile_cog.fetch_player_profile_data() não retornava 	roops nem spells (endpoint correto era chamado, mas os dados não estavam no dict de retorno)
+
+### Alterado
+- Versão do bot: 32.2.1-GeniusLib-v5.2.0
+
+---
 ## [32.2.0] ΓÇö 2026-07-15
 
 ### Adicionado
