@@ -26,6 +26,7 @@ from aiohttp_session import setup as setup_session, get_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 import base64
 from cryptography.fernet import Fernet
+import importlib.resources as pkg_resources
 
 # --- Configuração de Logging ---
 class MemoryLogHandler(logging.Handler):
@@ -767,11 +768,22 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
 
     static_dir = os.path.join(os.path.dirname(__file__), "static")
 
-    # Servir assets da GeniusLib
-    geniuslib_assets_dir = os.path.join(os.path.dirname(geniuslib.__file__), "static", "assets")
-    if os.path.isdir(geniuslib_assets_dir):
-        app.router.add_static('/static/images/assets/', path=geniuslib_assets_dir, name='assets')
-        logger.info(f"Assets da GeniusLib servidos de: {geniuslib_assets_dir}")
+    # Servir assets da GeniusLib (compatível com pip install)
+    try:
+        geniuslib_assets_dir = pkg_resources.files('geniuslib').joinpath('static', 'assets')
+        if geniuslib_assets_dir.is_dir():
+            app.router.add_static('/static/images/assets/', path=str(geniuslib_assets_dir), name='assets')
+            logger.info(f"Assets da GeniusLib servidos de (importlib): {geniuslib_assets_dir}")
+        else:
+            raise FileNotFoundError(f"Assets dir not found: {geniuslib_assets_dir}")
+    except Exception as e:
+        # Fallback: caminho relativo ao diretório do código
+        geniuslib_assets_dir = os.path.join(os.path.dirname(geniuslib.__file__), "static", "assets")
+        if os.path.isdir(geniuslib_assets_dir):
+            app.router.add_static('/static/images/assets/', path=geniuslib_assets_dir, name='assets')
+            logger.info(f"Assets da GeniusLib servidos de (fallback): {geniuslib_assets_dir}")
+        else:
+            logger.warning(f"Assets da GeniusLib NÃO encontrados em nenhum local")
 
     # Security headers middleware for main app
     @web.middleware
