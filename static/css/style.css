@@ -2837,27 +2837,30 @@ th {
 
 /* VIP Admin Border - Rainbow Cyberpunk Animated */
 .vip-admin-border {
+    border: 3px solid transparent !important;
+    background-image:
+        linear-gradient(rgba(10, 10, 20, 0.9), rgba(10, 10, 20, 0.9)),
+        linear-gradient(90deg, #ff0040, #ff6600, #ffd700, #00ff41, #00fff9, #0080ff, #b300ff, #ff00aa, #ff0040);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    background-size: 100% 100%, 400% 400%;
+    animation: admin-border-dance 3s linear infinite;
+    box-shadow:
+        0 0 15px rgba(179, 0, 255, 0.5),
+        0 0 30px rgba(0, 255, 249, 0.2),
+        inset 0 0 15px rgba(179, 0, 255, 0.1) !important;
     position: relative;
-    overflow: hidden;
-}
-.vip-admin-border::before {
-    content: '';
-    position: absolute;
-    top: -2px; left: -2px; right: -2px; bottom: -2px;
-    background: linear-gradient(
-        45deg,
-        #ff0040, #ff6600, #ffd700, #00ff41,
-        #00fff9, #0080ff, #b300ff, #ff00aa, #ff0040
-    );
-    background-size: 400% 400%;
-    animation: admin-border-dance 4s linear infinite;
-    z-index: -1;
-    border-radius: var(--border-radius-base);
 }
 @keyframes admin-border-dance {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+    0% { background-position: 0% 0%, 0% 50%; }
+    50% { background-position: 0% 0%, 100% 50%; }
+    100% { background-position: 0% 0%, 0% 50%; }
+}
+.vip-admin-border:hover {
+    box-shadow:
+        0 0 25px rgba(179, 0, 255, 0.7),
+        0 0 50px rgba(0, 255, 249, 0.4),
+        inset 0 0 20px rgba(179, 0, 255, 0.2) !important;
 }
 .vip-admin-border .member-info h4 {
     background: linear-gradient(90deg, #ff0040, #ffd700, #00fff9, #b300ff);
@@ -2865,7 +2868,7 @@ th {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    animation: admin-text-shimmer 3s linear infinite;
+    animation: admin-text-shimmer 2s linear infinite;
 }
 @keyframes admin-text-shimmer {
     0% { background-position: 0% center; }
@@ -2874,6 +2877,11 @@ th {
 .vip-admin-border .vip-ribbon {
     background: linear-gradient(90deg, #ff0040, #b300ff, #00fff9) !important;
     color: #fff !important;
+    animation: ribbon-glow 2s ease-in-out infinite;
+}
+@keyframes ribbon-glow {
+    0%, 100% { box-shadow: 0 0 8px rgba(179, 0, 255, 0.5); }
+    50% { box-shadow: 0 0 20px rgba(0, 255, 249, 0.8); }
 }
 .vip-admin-border .member-card-header,
 .vip-admin-border .member-card-stats,
@@ -2881,6 +2889,15 @@ th {
 .vip-admin-border .member-cwl-status {
     position: relative;
     z-index: 2;
+}
+
+/* Admin Border takes priority over Golden VIP */
+.vip-admin-border.vip-golden-card {
+    border-color: transparent !important;
+    box-shadow:
+        0 0 15px rgba(179, 0, 255, 0.5),
+        0 0 30px rgba(0, 255, 249, 0.2),
+        inset 0 0 15px rgba(179, 0, 255, 0.1) !important;
 }
 
 /* Input Cyberpunk */

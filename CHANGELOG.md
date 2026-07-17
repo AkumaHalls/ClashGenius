@@ -4,6 +4,18 @@ Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Cha
 
 ---
 
+## [32.3.1] — 2026-07-17
+
+### Corrigido
+- **Admin Border visual mais chamativo** — borda rainbow agora usa `background-clip: border-box` com gradiente visível na borda + glow neon forte, substituindo o pseudo-elemento `::before` que ficava atrás do card
+- Admin Border tem prioridade sobre o golden VIP quando ambas as classes estão presentes
+- Ribbon admin agora tem animação de glow pulsante
+
+### Alterado
+- Versão do bot: 32.3.1-GeniusLib-v5.3.0
+
+---
+
 ## [32.3.0] — 2026-07-17
 
 ### Adicionado

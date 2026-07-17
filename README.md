@@ -1,6 +1,6 @@
 ﻿# ClashGenius — O Gênio das Guerras
 
-![Versao](https://img.shields.io/badge/versao-32.3.0--GeniusLib--v5.3.0-182c61?style=flat-square&logo=python)
+![Versao](https://img.shields.io/badge/versao-32.3.1--GeniusLib--v5.3.0-182c61?style=flat-square&logo=python)
 ![Status](https://img.shields.io/badge/Status-Operacional-16a34a?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.10%2B-2563eb?logo=python&style=flat-square)
 ![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-0ea5e9?style=flat-square&logo=render)
@@ -433,8 +433,9 @@ ClashGenius/
 
 Consulte [CHANGELOG.md](CHANGELOG.md) para o histórico completo de versões.
 
-### Versão Atual: 32.3.0-GeniusLib-v5.3.0
+### Versão Atual: 32.3.1-GeniusLib-v5.3.0
 
+- **v32.3.1** — Fix: Admin Border visual mais chamativo (borda rainbow visível + glow neon)
 - **v32.3.0** — Admin Border rainbow cyberpunk + fix: ícone missed attack pós-perdão + histórico no perfil
 - **v32.2.3** — Botão de changelog no admin panel com embed formatado para Discord
 - **v32.2.2** — Assets servidos via GeniusLib, rota estática `/assets/`
@@ -458,5 +459,5 @@ Uso Privado — Todos os direitos reservados. Sem autorização expressa do auto
 
 <p align="center">
   <sub>Feito com dedicação por +Constantine+ e a comunidade</sub><br>
-  <sub>ClashGenius v32.3.0-GeniusLib-v5.3.0</sub>
+  <sub>ClashGenius v32.3.1-GeniusLib-v5.3.0</sub>
 </p>
