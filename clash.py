@@ -73,8 +73,9 @@ LOW_PERFORMANCE_CHANNEL_ID = int(os.getenv("LOW_PERFORMANCE_CHANNEL_ID", 0))
 CAPITAL_REPORT_CHANNEL_ID = int(os.getenv("CAPITAL_REPORT_CHANNEL_ID", 0))
 MAINTENANCE_ALERT_CHANNEL_ID = int(os.getenv("MAINTENANCE_ALERT_CHANNEL_ID", 0))
 WAR_PREFERENCE_CHANNEL_ID = int(os.getenv("WAR_PREFERENCE_CHANNEL_ID", 0))
+CHANGELOG_CHANNEL_ID = int(os.getenv("CHANGELOG_CHANNEL_ID", "1526649554240536687"))
 
-BOT_VERSION = "32.2.2-GeniusLib-v5.3.0" 
+BOT_VERSION = "32.2.3-GeniusLib-v5.3.0" 
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -101,6 +102,7 @@ class ClashGeniusBot(commands.Bot):
         self.capital_report_channel_id = CAPITAL_REPORT_CHANNEL_ID
         self.maintenance_alert_channel_id = MAINTENANCE_ALERT_CHANNEL_ID
         self.war_preference_channel_id = WAR_PREFERENCE_CHANNEL_ID
+        self.changelog_channel_id = CHANGELOG_CHANNEL_ID
         self.bot_version = BOT_VERSION
         self.timezone = TIMEZONE
         self.base_url = BASE_URL
@@ -579,6 +581,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             elif action=="absolve_smurf": return web.json_response(await admin_cog.absolve_smurf(payload.get("pair_id")), dumps=lambda v: json.dumps(v, default=str))
             elif action=="condemn_smurf": return web.json_response(await admin_cog.condemn_smurf(payload.get("pair_id")), dumps=lambda v: json.dumps(v, default=str))
             elif action=="smurf_cleanup": return web.json_response(await admin_cog.smurf_cleanup(), dumps=lambda v: json.dumps(v, default=str))
+            elif action=="send_changelog": return web.json_response(await admin_cog.send_changelog())
             else: return web.json_response({"status":"error","message":"Ação desconhecida."},status=400)
         except Exception as e:
             logger.error(f"Erro em api_admin_actions (Ação: {action}): {e}", exc_info=True)

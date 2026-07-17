@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
+import re
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -116,7 +118,8 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "leader_role_id": getattr(self.bot, 'leader_role_id', 0),
             "coleader_role_id": getattr(self.bot, 'coleader_role_id', 0),
             "maintenance_message": getattr(self.bot, 'maintenance_message', "Manutenção!"),
-            "auto_add_watchlist_enabled": getattr(self.bot, 'auto_add_watchlist_enabled', True)
+            "auto_add_watchlist_enabled": getattr(self.bot, 'auto_add_watchlist_enabled', True),
+            "changelog_channel_id": getattr(self.bot, 'changelog_channel_id', 0)
         }
 
         merged_settings = defaults.copy()
@@ -194,6 +197,84 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                 else: raise e
             return {"status": "success", "message": "Anúncio enviado com sucesso!"}
         except Exception as e: return {"status": "error", "message": f"Erro interno: {e}"}
+
+    async def send_changelog(self) -> Dict[str, Any]:
+        channel_id = getattr(self.bot, 'changelog_channel_id', 0)
+        if not channel_id:
+            return {"status": "error", "message": "CHANGELOG_CHANNEL_ID não configurado."}
+        try:
+            changelog_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "CHANGELOG.md")
+            with open(changelog_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except FileNotFoundError:
+            return {"status": "error", "message": "Arquivo CHANGELOG.md não encontrado."}
+
+        sections = re.split(r'\n---\n', content)
+        entry = sections[1] if len(sections) > 1 else sections[0]
+
+        version_match = re.search(r'\[([^\]]+)\]\s*—\s*(\d{4}-\d{2}-\d{2})', entry)
+        if not version_match:
+            return {"status": "error", "message": "Não foi possível extrair versão do CHANGELOG.md."}
+
+        version = version_match.group(1)
+        date_str = version_match.group(2)
+        try:
+            date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+            date_formatted = date_obj.strftime("%d/%m/%Y")
+        except ValueError:
+            date_formatted = date_str
+
+        category_emoji = {
+            "adicionado": "✨", "added": "✨",
+            "alterado": "🔧", "changed": "🔧",
+            "corrigido": "🐛", "fixed": "🐛",
+            "removido": "🗑️", "removed": "🗑️",
+            "sincronizado": "🔄", "synchronized": "🔄",
+        }
+
+        categories = re.split(r'\n### ', entry.strip())
+        embed = discord.Embed(
+            title=f"📋 Changelog — v{version}",
+            description=f"**Data:** {date_formatted}",
+            color=discord.Color.gold(),
+            timestamp=datetime.datetime.now(self.bot.timezone)
+        )
+
+        for cat_block in categories:
+            if not cat_block.strip():
+                continue
+            lines = cat_block.strip().split("\n")
+            cat_name = lines[0].strip()
+            emoji = category_emoji.get(cat_name.lower(), "📌")
+            items = []
+            for line in lines[1:]:
+                line = line.strip()
+                if line.startswith("- "):
+                    items.append(f"• {line[2:]}")
+            if items:
+                value = "\n".join(items)
+                if len(value) > 1024:
+                    value = value[:1020] + "..."
+                embed.add_field(name=f"{emoji} {cat_name}", value=value, inline=False)
+
+        bot_version = getattr(self.bot, 'bot_version', '?')
+        embed.set_footer(text=f"ClashGenius v{bot_version}")
+
+        try:
+            channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
+        except discord.errors.NotFound:
+            return {"status": "error", "message": f"Canal {channel_id} não encontrado. Verifique o ID."}
+
+        try:
+            await channel.send(embed=embed)
+        except discord.errors.HTTPException as e:
+            if e.status == 429:
+                await asyncio.sleep(5)
+                await channel.send(embed=embed)
+            else:
+                raise e
+
+        return {"status": "success", "message": f"Changelog v{version} enviado com sucesso!"}
 
     async def clear_web_cache(self, cache_key: str) -> Dict[str, Any]:
         if cache_key == 'all':

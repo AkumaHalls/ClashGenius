@@ -4,6 +4,20 @@ Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Cha
 
 ---
 
+## [32.2.3] — 2026-07-17
+
+### Adicionado
+- **Botão de Changelog no Admin Panel** — novo botão "📋 Enviar Changelog para Discord" na aba Ações que lê o CHANGELOG.md e envia embed formatado para o canal #atualizacao
+- Embed com cores, versão, data, e categorias com emojis (✨ Adicionado, 🔧 Alterado, 🐛 Corrigido, 🗑️ Removido)
+- Variável de ambiente `CHANGELOG_CHANNEL_ID` (default: canal #atualizacao)
+- `changelog_channel_id` adicionado às configurações editáveis pelo admin panel
+
+### Alterado
+- Versão do bot: 32.2.3-GeniusLib-v5.3.0
+- Badge do README atualizada para v32.2.3
+
+---
+
 ## [32.2.2] — 2026-07-15
 
 ### Alterado

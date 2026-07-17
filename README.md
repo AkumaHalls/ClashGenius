@@ -1,6 +1,6 @@
 ﻿# ClashGenius ΓÇö O Genio das Guerras
 
-![Versao](https://img.shields.io/badge/versao-32.1.0--GeniusLib--v5.1.2-182c61?style=flat-square&logo=python)
+![Versao](https://img.shields.io/badge/versao-32.2.3--GeniusLib--v5.3.0-182c61?style=flat-square&logo=python)
 ![Status](https://img.shields.io/badge/Status-Operacional-16a34a?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.10%2B-2563eb?logo=python&style=flat-square)
 ![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-0ea5e9?style=flat-square&logo=render)
