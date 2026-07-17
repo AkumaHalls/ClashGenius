@@ -331,6 +331,7 @@ class WebApiCog(commands.Cog, name="Web API"):
                 "donations": member.donations, "received": member.received,
                 "note": note_data.get("text", ""), "note_priority": note_data.get("priority", "none"),
                 "cwl_status": note_data.get("cwl_status", "active"),
+                "admin_border": note_data.get("admin_border", False),
                 "isOnWatchlist": bool(watchlist_entry),
                 "watchlistReason": watchlist_entry.get('reason', None) if watchlist_entry else None,
                 "watchlistDetails": watchlist_entry.get('details', None) if watchlist_entry else None,

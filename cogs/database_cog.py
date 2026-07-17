@@ -26,7 +26,8 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
                 note_doc["_id"]: {
                     "text": note_doc.get("text", ""),
                     "priority": note_doc.get("priority", "none"),
-                    "cwl_status": note_doc.get("cwl_status", "active") # Adiciona o status da CWL
+                    "cwl_status": note_doc.get("cwl_status", "active"),
+                    "admin_border": note_doc.get("admin_border", False)
                 } 
                 async for note_doc in notes_cursor if "_id" in note_doc
             }
@@ -67,6 +68,22 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
             logger.info(f"Status CWL de {player_tag_decoded} atualizado para '{status}'.")
         except Exception as e:
             logger.error(f"Erro ao atualizar status CWL para {player_tag}: {e}", exc_info=True)
+            raise
+
+    async def update_player_admin_border(self, player_tag: str, enabled: bool):
+        """Ativa/desativa a borda animada de administrador para um jogador."""
+        if self.db is None:
+            raise ConnectionError("Banco de dados não conectado.")
+        try:
+            player_tag_decoded = coc.utils.correct_tag(player_tag)
+            await self.db.player_notes.update_one(
+                {"_id": player_tag_decoded},
+                {"$set": {"admin_border": enabled}},
+                upsert=True
+            )
+            logger.info(f"Borda admin de {player_tag_decoded} atualizada para '{enabled}'.")
+        except Exception as e:
+            logger.error(f"Erro ao atualizar borda admin para {player_tag}: {e}", exc_info=True)
             raise
 
     def _sanitize_keys_for_mongo(self, obj: Any) -> Any:

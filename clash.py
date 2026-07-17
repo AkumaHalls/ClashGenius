@@ -75,7 +75,7 @@ MAINTENANCE_ALERT_CHANNEL_ID = int(os.getenv("MAINTENANCE_ALERT_CHANNEL_ID", 0))
 WAR_PREFERENCE_CHANNEL_ID = int(os.getenv("WAR_PREFERENCE_CHANNEL_ID", 0))
 CHANGELOG_CHANNEL_ID = int(os.getenv("CHANGELOG_CHANNEL_ID", "1526649554240536687"))
 
-BOT_VERSION = "32.2.3-GeniusLib-v5.3.0" 
+BOT_VERSION = "32.3.0-GeniusLib-v5.3.0" 
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 class ClashGeniusBot(commands.Bot):
@@ -386,6 +386,23 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
             return web.json_response({"success": True, "message": f"Status for {player_tag} updated to {status}."})
         except Exception as e: return web.json_response({"error": "Internal server error while updating status."}, status=500)
 
+    async def api_update_admin_border_handler(request):
+        player_tag = request.match_info.get('player_tag')
+        if not player_tag: return web.json_response({"error": "Player tag is required."}, status=400)
+        session = await get_session(request)
+        role = session.get('role', '')
+        is_admin_session = session.get('admin', False)
+        if role == 'viewer' and not is_admin_session:
+            return web.json_response({"error": "Sem permissão para alterar borda admin."}, status=403)
+        try:
+            data = await request.json()
+            enabled = bool(data.get('enabled', False))
+            if not db_cog: return web.json_response({"error": "Internal server error (DB Cog missing)."}, status=500)
+            await db_cog.update_player_admin_border(player_tag, enabled)
+            bot_instance.web_api_cache.pop('members', None)
+            return web.json_response({"success": True, "message": f"Admin border for {player_tag} set to {enabled}."})
+        except Exception as e: return web.json_response({"error": "Internal server error while updating admin border."}, status=500)
+
     async def api_historic_war_handler(request):
         if bot_instance.db is None: return web.json_response({"error": "Banco de dados não configurado."}, status=503)
         war_id = request.match_info['war_id']
@@ -442,6 +459,7 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
     app.router.add_get("/api/war_log", api_war_log_handler); app.router.add_get("/api/cwl_info", api_cwl_info_handler);
     app.router.add_get("/api/highlights", api_highlights_handler); app.router.add_post("/api/notes/{player_tag:.*}", api_save_player_note_handler);
     app.router.add_post("/api/cwl/player_status/{player_tag:.*}", api_update_cwl_status_handler)
+    app.router.add_post("/api/admin_border/{player_tag:.*}", api_update_admin_border_handler)
     app.router.add_get("/api/war_history/{war_id:.*}", api_historic_war_handler); app.router.add_get("/api/player_profile/{player_tag:.*}", api_member_profile_handler);
     app.router.add_post("/api/cwl/generate_plan", api_cwl_generate_plan_handler); app.router.add_get("/api/war_advisor_plan", api_war_advisor_plan_handler);
     app.router.add_get("/api/coc_status", api_coc_status_handler); app.router.add_get("/api/status", admin_get_status_handler);
@@ -552,13 +570,13 @@ async def setup_web_server(bot_instance: ClashGeniusBot):
                  except coc.NotFound: name = tag
                  except Exception as e: logger.warning(f"Erro ao buscar nome para tag {tag} em add_watchlist: {e}"); name = tag
         result = await admin_cog.add_to_watchlist_admin(tag, name, reason, details)
-        if result: bot_instance.web_api_cache.pop('members',None); return web.json_response({"status":"success","message":"Jogador adicionado/atualizado na watchlist."})
+        if result: bot_instance.web_api_cache.pop('members',None); bot_instance.web_api_cache.pop('missed_attacks',None); return web.json_response({"status":"success","message":"Jogador adicionado/atualizado na watchlist."})
         else: return web.json_response({"status":"error","message":"Erro interno ao adicionar à watchlist."},status=500)
     async def api_admin_remove_watchlist(r):
         data=await r.json(); tag=data.get('player_tag')
         if not tag: return web.json_response({"status":"error","message":"Tag obrigatória."}, status=400)
         success = await admin_cog.remove_from_watchlist_admin(tag)
-        if success: bot_instance.web_api_cache.pop('members',None); return web.json_response({"status":"success","message":"Jogador removido da watchlist."})
+        if success: bot_instance.web_api_cache.pop('members',None); bot_instance.web_api_cache.pop('missed_attacks',None); return web.json_response({"status":"success","message":"Jogador removido da watchlist."})
         else:
             w_cog = bot_instance.get_cog("Lista de Observação")
             entry_exists = await w_cog.is_on_watchlist(tag) if w_cog else False

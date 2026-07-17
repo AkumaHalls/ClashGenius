@@ -2810,6 +2810,79 @@ th {
 .note-priority-yellow .note-text { background: rgba(255, 215, 0, 0.15) !important; border: 1px solid rgba(255, 215, 0, 0.3); }
 .note-priority-red .note-text { background: rgba(255, 0, 64, 0.15) !important; border: 1px solid rgba(255, 0, 64, 0.3); }
 
+/* Admin Border Button */
+.admin-border-btn {
+    background: rgba(179, 0, 255, 0.15);
+    border: 1px solid rgba(179, 0, 255, 0.4);
+    color: var(--neon-purple);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: 500;
+    transition: all 0.2s;
+    font-family: var(--font-body);
+}
+.admin-border-btn:hover {
+    background: rgba(179, 0, 255, 0.3);
+    box-shadow: 0 0 10px rgba(179, 0, 255, 0.3);
+}
+.admin-border-btn.active {
+    background: linear-gradient(135deg, #ff0040, #b300ff, #00fff9);
+    color: white;
+    font-weight: 700;
+    border-color: transparent;
+    box-shadow: 0 0 12px rgba(179, 0, 255, 0.4);
+}
+
+/* VIP Admin Border - Rainbow Cyberpunk Animated */
+.vip-admin-border {
+    position: relative;
+    overflow: hidden;
+}
+.vip-admin-border::before {
+    content: '';
+    position: absolute;
+    top: -2px; left: -2px; right: -2px; bottom: -2px;
+    background: linear-gradient(
+        45deg,
+        #ff0040, #ff6600, #ffd700, #00ff41,
+        #00fff9, #0080ff, #b300ff, #ff00aa, #ff0040
+    );
+    background-size: 400% 400%;
+    animation: admin-border-dance 4s linear infinite;
+    z-index: -1;
+    border-radius: var(--border-radius-base);
+}
+@keyframes admin-border-dance {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+.vip-admin-border .member-info h4 {
+    background: linear-gradient(90deg, #ff0040, #ffd700, #00fff9, #b300ff);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: admin-text-shimmer 3s linear infinite;
+}
+@keyframes admin-text-shimmer {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
+}
+.vip-admin-border .vip-ribbon {
+    background: linear-gradient(90deg, #ff0040, #b300ff, #00fff9) !important;
+    color: #fff !important;
+}
+.vip-admin-border .member-card-header,
+.vip-admin-border .member-card-stats,
+.vip-admin-border .member-card-note,
+.vip-admin-border .member-cwl-status {
+    position: relative;
+    z-index: 2;
+}
+
 /* Input Cyberpunk */
 .member-filters input[type="text"], .settings-input, .admin-input, .admin-textarea {
     border-color: rgba(0, 255, 249, 0.2) !important;

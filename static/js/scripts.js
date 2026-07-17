@@ -201,6 +201,59 @@ document.addEventListener('DOMContentLoaded', () => {
             position: relative;
             z-index: 2;
         }
+        .vip-admin-border {
+            border: 2px solid transparent !important;
+            background: rgba(20, 20, 30, 0.95) !important;
+            position: relative;
+            overflow: hidden;
+        }
+        .vip-admin-border::before {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            background: linear-gradient(45deg, #ff0040, #ff6600, #ffd700, #00ff41, #00fff9, #0080ff, #b300ff, #ff00aa, #ff0040);
+            background-size: 400% 400%;
+            animation: admin-border-dance 4s linear infinite;
+            z-index: -1;
+            border-radius: var(--border-radius-base);
+        }
+        @keyframes admin-border-dance {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .vip-admin-border .member-info h4 {
+            background: linear-gradient(90deg, #ff0040, #ffd700, #00fff9, #b300ff);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: admin-text-shimmer 3s linear infinite;
+        }
+        @keyframes admin-text-shimmer {
+            0% { background-position: 0% center; }
+            100% { background-position: 200% center; }
+        }
+        .vip-admin-border:hover {
+            box-shadow: 0 6px 25px rgba(179, 0, 255, 0.3), 0 0 40px rgba(0, 255, 249, 0.15);
+        }
+        .admin-border-btn {
+            background: rgba(179, 0, 255, 0.15);
+            border: 1px solid rgba(179, 0, 255, 0.4);
+            color: #b300ff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-family: var(--font-body);
+        }
+        .admin-border-btn:hover { background: rgba(179, 0, 255, 0.3); box-shadow: 0 0 8px rgba(179, 0, 255, 0.3); }
+        .admin-border-btn.active {
+            background: linear-gradient(135deg, #ff0040, #b300ff, #00fff9);
+            color: white; font-weight: 700; border-color: transparent;
+        }
         .xai-badge { display: inline-block; font-size: 0.8em; padding: 2px 6px; background: rgba(54, 162, 235, 0.2); border: 1px solid #36a2eb; color: #36a2eb; border-radius: 4px; margin-top: 5px; font-family: monospace; }
         .xai-sub { background: rgba(0,0,0,0.3); padding: 10px; border-left: 3px solid var(--color-warning); margin-bottom: 10px; font-size: 0.9em; border-radius: 4px;}
         .podium-item:hover .tooltip-text { visibility: visible; opacity: 1; }
@@ -1378,6 +1431,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const memberTagsMissingAttacks = new Set();
         globalMissedAttacks.forEach(w => {
+            if (!w.is_latest) return;
             (w.missed_attacks_members || []).forEach(m => {
                 if (m.tag) memberTagsMissingAttacks.add(m.tag);
             });
@@ -1415,9 +1469,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const priorityClass = isPriority ? 'vip-golden-card' : '';
             const vipRibbonHtml = isPriority ? `<div class="vip-ribbon">⭐ TITULAR</div>` : '';
 
+            const isAdminBorder = m.admin_border === true;
+            const adminBorderClass = isAdminBorder ? 'vip-admin-border' : '';
+            const adminRibbonHtml = isAdminBorder ? `<div class="vip-ribbon" style="background:linear-gradient(90deg,#ff0040,#b300ff,#00fff9);color:#fff;">🛡️ ADMIN</div>` : '';
+
             return `
-            <div class="member-card ${watchlistClass} ${priorityClass} ${missedAttackClass}" data-th="${escapeHtml(m.town_hall || '?')}" data-name="${escapeHtml((m.name || '').toLowerCase())}">
-                ${vipRibbonHtml}
+            <div class="member-card ${watchlistClass} ${priorityClass} ${adminBorderClass} ${missedAttackClass}" data-th="${escapeHtml(m.town_hall || '?')}" data-name="${escapeHtml((m.name || '').toLowerCase())}">
+                ${vipRibbonHtml}${adminRibbonHtml}
                 <div class="member-card-header" data-player-tag="${escapeHtml(m.tag || '')}">
                     <img src="${getAssetUrl('buildings/home-village', 'town_hall', m.town_hall || 1)}" alt="CV${escapeHtml(m.town_hall || '?')}" class="member-th-icon" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='40px';">
                     <div class="member-info">
@@ -1450,6 +1508,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="cwl-status-btn ${m.cwl_status === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
                         <button class="cwl-status-btn ${m.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Reserva</button>
                     </div>
+                    ${userIsAdmin ? `<button class="admin-border-btn ${isAdminBorder ? 'active' : ''}" data-player-tag="${escapeHtml(m.tag || '')}" title="Borda Animada de Admin">🛡️ Admin</button>` : ''}
                 </div>
             </div>`;
         }).join(''));
@@ -1495,6 +1554,9 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.replaceWith(btn.cloneNode(true));
         });
         membersGridEl?.querySelectorAll('.cwl-status-btn').forEach(btn => {
+            btn.replaceWith(btn.cloneNode(true));
+        });
+        membersGridEl?.querySelectorAll('.admin-border-btn').forEach(btn => {
             btn.replaceWith(btn.cloneNode(true));
         });
         membersGridEl?.querySelectorAll('.note-text').forEach(span => {
@@ -1551,6 +1613,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
+        membersGridEl?.querySelectorAll('.admin-border-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const playerTag = btn.dataset.playerTag;
+                const isActive = btn.classList.contains('active');
+                const newState = !isActive;
+                btn.classList.toggle('active', newState);
+                const success = await setPlayerAdminBorder(playerTag, newState);
+                if (!success) {
+                    alert('Erro ao salvar borda admin. Tente novamente.');
+                    btn.classList.toggle('active', !newState);
+                } else {
+                    loadAllData();
+                }
+            });
+        });
     }
 
     async function setPlayerCwlStatus(playerTag, status) {
@@ -1563,6 +1640,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return response && !response.error; 
         } catch (e) {
             console.error("Erro ao definir status CWL:", e);
+            return false;
+        }
+    }
+
+    async function setPlayerAdminBorder(playerTag, enabled) {
+        try {
+            const response = await fetchData(`admin_border/${encodeURIComponent(playerTag)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled })
+            });
+            return response && !response.error;
+        } catch (e) {
+            console.error("Erro ao definir borda admin:", e);
             return false;
         }
     }
@@ -1618,6 +1709,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('') : '<p class="message-box" style="width:100%;">Nenhum herói da vila principal encontrado.</p>';
 
         const cwlStatus = profileData.cwl_status || 'active';
+        const adminBorderEnabled = profileData.admin_border === true;
         
         const cwlStatusHtml = userIsAdmin ? `
             <div class="member-cwl-status" data-player-tag="${escapeHtml(profileData.tag || '')}" style="margin-bottom: 20px;">
@@ -1627,10 +1719,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="cwl-status-btn ${cwlStatus === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
                     <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
                 </div>
+                <button class="admin-border-btn ${adminBorderEnabled ? 'active' : ''}" data-player-tag="${escapeHtml(profileData.tag || '')}" title="Borda Animada de Admin">🛡️ Admin</button>
             </div>` : `
             <div class="member-cwl-status" style="margin-bottom: 20px; justify-content: flex-start; gap: 15px;">
                 <label>Status CWL:</label>
                 <span style="color: ${cwlStatus === 'priority' ? 'var(--color-accent)' : (cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)')}; font-weight:bold;">${cwlStatus === 'priority' ? '⭐ Titular Fixo' : (cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas')}</span>
+                ${adminBorderEnabled ? '<span style="color:#b300ff;font-weight:bold;">🛡️ Admin</span>' : ''}
             </div>`;
 
         const hitrate = profileData.hitrate || { total_wars: 0, attacks_made: 0, attacks_missed: 0, total_stars: 0, three_star_attacks: 0, avg_destruction: 0 };
@@ -1741,6 +1835,30 @@ document.addEventListener('DOMContentLoaded', () => {
             ${cwlStatusHtml}
             ${brainMapHtml}
 
+            ${(globalMissedAttacks.filter(w => (w.missed_attacks_members || []).some(m => m.tag === profileData.tag)).length > 0) ? `
+            <h3 class="profile-section-title">📋 Registro de Ataques Perdidos</h3>
+            <div style="background:rgba(0,0,0,0.25);border-radius:var(--border-radius-base);padding:15px;border:1px solid var(--color-border);margin-bottom:25px;">
+                ${globalMissedAttacks.filter(w => (w.missed_attacks_members || []).some(m => m.tag === profileData.tag)).map(w => {
+                    const playerMissed = w.missed_attacks_members.find(m => m.tag === profileData.tag);
+                    if (!playerMissed) return '';
+                    return `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--color-divider);gap:10px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:1.3em;">⚔️</span>
+                            <div>
+                                <strong style="color:var(--color-text-main);">vs ${escapeHtml(w.opponent_name || 'Desconhecido')}</strong><br>
+                                <span style="font-size:0.85em;color:var(--color-text-secondary);">${escapeHtml(w.end_date || 'Data?')}</span>
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="background:rgba(255,0,64,0.2);color:var(--neon-red);padding:4px 10px;border-radius:4px;font-weight:700;font-size:0.9em;">
+                                ${playerMissed.attacks_left} ataque(s) perdido(s)
+                            </span>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>` : ''}
+
             <h3 class="profile-section-title">Progresso de Heróis</h3>
             <div class="profile-heroes-grid">
                 ${heroesHtml}
@@ -1832,6 +1950,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.target.classList.remove('active');
                     } else {
                          fetchData('members').then(d => { if(d && !d.error){ globalMembersList = d.members; populateMembersList(d); } });
+                    }
+                });
+            });
+            memberProfileContent.querySelectorAll('.admin-border-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const playerTag = btn.dataset.playerTag;
+                    const isActive = btn.classList.contains('active');
+                    const newState = !isActive;
+                    btn.classList.toggle('active', newState);
+                    const success = await setPlayerAdminBorder(playerTag, newState);
+                    if (!success) {
+                        alert('Erro ao salvar borda admin.');
+                        btn.classList.toggle('active', !newState);
+                    } else {
+                        fetchData('members').then(d => { if(d && !d.error){ globalMembersList = d.members; populateMembersList(d); } });
                     }
                 });
             });
@@ -2246,8 +2379,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const d = await fetchData('war_log');
                 if (d && !d.error) populateWarLog(d);
             } else if (s === 'members-list-nav') {
-                const d = await fetchData('members');
+                const [d, ma] = await Promise.all([fetchData('members'), fetchData('missed_attacks_history')]);
                 if (d && !d.error) { globalMembersList = d.members; populateMembersList(d); }
+                if (ma && !ma.error) { globalMissedAttacks = ma.wars_with_missed_attacks || []; }
             } else if (s === 'legend-nav') {
                 // Legend tab data loaded on demand via fetch button
             }

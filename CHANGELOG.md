@@ -4,6 +4,27 @@ Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Cha
 
 ---
 
+## [32.3.0] — 2026-07-17
+
+### Adicionado
+- **Admin Border** — Borda animada rainbow cyberpunk para marcar administradores (co-lideres)
+  - Botão "🛡️ Admin" nos cards dos membros e no modal de perfil (somente admin/master)
+  - Ribbon "🛡️ ADMIN" com gradiente animado no card do membro
+  - Endpoint `POST /api/admin_border/{player_tag}` com verificação de permissão
+  - Campo `admin_border` salvo no MongoDB (`player_notes`)
+- **Histórico de Ataques Perdidos no Perfil** — nova seção "📋 Registro de Ataques Perdidos" no modal de perfil do jogador mostrando data da guerra, oponente e quantidade de ataques perdidos
+
+### Corrigido
+- **Ícone de ataque perdido após perdão** — o ícone ❗ agora só considera a guerra mais recente (flag `is_latest`), não mais todo o histórico. Antes, um jogador perdoado continuava com o ícone por guerras antigas
+- **Cache de missed_attacks não invalidado** — ao adicionar/remover da watchlist, o cache `missed_attacks` agora também é limpo junto com o cache `members`
+- **Dados missed_attacks desatualizados no refresh** — ao refrescar a aba de membros, `globalMissedAttacks` agora também é atualizado via `Promise.all`
+
+### Alterado
+- Versão do bot: 32.3.0-GeniusLib-v5.3.0
+- Badge do README atualizada para v32.3.0
+
+---
+
 ## [32.2.3] — 2026-07-17
 
 ### Adicionado
