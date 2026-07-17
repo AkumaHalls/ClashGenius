@@ -451,7 +451,7 @@ Consulte [CHANGELOG.md](CHANGELOG.md) para o histórico completo de versões.
 
 ## Licença
 
-MIT — Use, modifique e compartilhe livremente.
+Uso Privado — Todos os direitos reservados. Sem autorização expressa do autor, é vedado o uso comercial, distribuição ou qualquer forma de compartilhamento deste software.
 
 ---
 
