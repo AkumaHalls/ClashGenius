@@ -201,7 +201,6 @@ class EnsembleMLSystem:
 # ================== SISTEMA PRINCIPAL ==================
 
 class WarPredictionSystemV3:
-    MAX_WAR_HISTORY = 500
 
     def __init__(self, db_connection=None):
         self.db = db_connection
@@ -262,7 +261,7 @@ class WarPredictionSystemV3:
     async def _load_historical_data(self):
         if self.db is None: return []
         try:
-            cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(self.MAX_WAR_HISTORY)
+            cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1)
             processed_wars = []
             async for doc in cursor:
                 try:

@@ -2,7 +2,37 @@
 
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+---
+
+## [33.0.0] - 2026-07-19
+
+### Adicionado
+- **config.py** - modulo centralizado de constantes (env vars, canais, roles, cache, versao)
+- **web/ package** - decomposicao do monolith clash.py em modulos:
+  - web/auth.py - helpers de autenticacao (get_db, hash_password, check_password)
+  - web/middleware.py - security headers (com CSP), admin auth, CSRF
+  - web/auth_routes.py - handlers de login, registro, aprovacao, roles
+  - web/routes.py - 25+ endpoints publicos da API
+  - web/admin_routes.py - admin API + paginas HTML admin
+  - web/server.py - setup do aiohttp app, sessions, static files
+- **Content-Security-Policy** header em todas as respostas web
+
+### Removido
+- **MAX_WAR_HISTORY** - limite artificial de 500 guerras removido de todos os modulos. Historico agora e ilimitado
+- **Senha admin hardcoded "admin123"** - ADMIN_PASSWORD agora e obrigatorio via variavel de ambiente
+- **Fallback getattr(bot, 'mongo')** - codigo morto removido (8 ocorrencias), substituido por helper get_db()
+- **lightgbm** removido do requirements.txt (nao era importado)
+
+### Corrigido
+- **time.sleep(3600) sincrono** bloqueando event loop para await asyncio.sleep(3600)
+- **clash.py monolith** (930 linhas) decomposto em 6 modulos (~295 linhas restantes, -68%)
+
+### Alterado
+- Versao do bot: 33.0.0-GeniusLib-v5.3.0
+- Badge do README atualizada para v33.0.0
+
 ---
+
 
 ## [32.3.1] — 2026-07-17
 

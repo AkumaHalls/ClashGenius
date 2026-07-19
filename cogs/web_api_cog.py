@@ -46,8 +46,6 @@ logger = logging.getLogger("web_api_cog")
 class WebApiCog(commands.Cog, name="Web API"):
     """Cog para gerenciar toda a lógica de busca de dados para o painel web."""
 
-    MAX_WAR_HISTORY = 500
-
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
@@ -240,8 +238,7 @@ class WebApiCog(commands.Cog, name="Web API"):
             }
             
             if self.db:
-                # Agora varre a memória profunda baseada no MAX_WAR_HISTORY (500) em vez de ser burra com 50
-                cursor = self.db.war_history.find({"our_clan_members_in_war.tag": player.tag}).sort("war_data.end_time_iso", -1).limit(self.MAX_WAR_HISTORY)
+                cursor = self.db.war_history.find({"our_clan_members_in_war.tag": player.tag}).sort("war_data.end_time_iso", -1)
                 total_destruction = 0
                 async for war_doc in cursor:
                     hitrate["total_wars"] += 1
@@ -386,7 +383,7 @@ class WebApiCog(commands.Cog, name="Web API"):
     async def fetch_war_log_for_web(self):
         if self.db is None: return {"error": "Histórico indisponível (DB não conectado)."}
         
-        log_cursor = self.db.war_history.find({}, {"war_data": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING).limit(self.MAX_WAR_HISTORY)
+        log_cursor = self.db.war_history.find({}, {"war_data": 1, "_id": 1}).sort("war_data.end_time_iso", DESCENDING)
         
         entries = []
         async for war_doc in log_cursor:

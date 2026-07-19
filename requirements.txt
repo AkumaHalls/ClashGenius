@@ -8,7 +8,6 @@ aiohttp-session
 cryptography
 pandas
 xgboost
-lightgbm
 Pillow>=10.0.0
 psutil
 numpy==1.26.4

@@ -276,9 +276,6 @@ class EnsembleMLSystem:
 class WarPredictionSystemV3:
     """Sistema principal que integra a engenharia de features, o ML e a geração de explicações."""
     
-    # === VARIÁVEL DINÂMICA DE HISTÓRICO ===
-    MAX_WAR_HISTORY = 500
-    
     def __init__(self, db_connection=None):
         self.db = db_connection
         self.logger = logging.getLogger("war_prediction_v3")
@@ -355,8 +352,7 @@ class WarPredictionSystemV3:
         """Carrega e processa dados históricos do MongoDB para treinamento."""
         if self.db is None: return []
         try:
-            # Usa a variável dinâmica MAX_WAR_HISTORY
-            cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1).limit(self.MAX_WAR_HISTORY)
+            cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1)
             processed_wars = []
             async for doc in cursor:
                 try:

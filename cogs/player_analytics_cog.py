@@ -13,9 +13,6 @@ logger = logging.getLogger("player_analytics_cog")
 class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
     """Cog de Machine Learning Avançado para Predição Forense de Assiduidade e Clustering."""
 
-    # === VARIÁVEL DINÂMICA DE HISTÓRICO ===
-    MAX_WAR_HISTORY = 500
-
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.scaler = StandardScaler()
@@ -29,8 +26,8 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
         if self.bot.db is None:
             return pd.DataFrame()
 
-        # Busca as guerras ordenadas da MAIS ANTIGA (1) para a MAIS RECENTE (-1) com limite dinâmico
-        cursor = self.bot.db.war_history.find({}).sort("war_data.end_time_iso", 1).limit(self.MAX_WAR_HISTORY)
+        # Busca as guerras ordenadas da MAIS ANTIGA (1) para a MAIS RECENTE (-1)
+        cursor = self.bot.db.war_history.find({}).sort("war_data.end_time_iso", 1)
         
         records = []
         war_idx = 0
