@@ -3,6 +3,23 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [33.2.0] - 2026-07-19
+
+### Alterado
+- static/css/style.css - adicionadas classes .star-icon, .icon-sm, .icon-inline, .war-ended-icon para substituir emojis por icones de jogo
+- static/js/scripts.js - refatorado createStarString() para retornar HTML com img ao inves de texto com emojis; adicionada helper icon() com 15+ icones do jogo; substituidos ~150+ emojis em templates dinamicos
+- static/painel.html - substituidos ~50+ emojis estaticos por imagens de icones do jogo
+- static/admin_panel.html - substituidos ~80+ emojis por imagens de icones, SVGs ou texto
+- static/admin_login.html - substituidos ~15 emojis por texto simples
+- static/js/admin.js - substituidos 33 emojis por imagens de icones, SVGs ou texto
+- static/maintenance.html - substituidos 2 emojis por SVGs de engrenagem
+
+### Removido
+- Todos os emojis do painel web (HTML, JS, CSS) - substituidos por imagens de icones do jogo servidas via /assets/
+- Emojis do Discord bot NAO foram alterados (fora do escopo)
+
+---
+
 ## [33.1.0] — 2026-07-19
 
 ### Adicionado
