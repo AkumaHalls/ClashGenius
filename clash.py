@@ -21,7 +21,7 @@ from config import (
     CLAN_GAMES_CHANNEL_ID, CWL_PLANNER_CHANNEL_ID, DONATIONS_CHANNEL_ID, SMURF_LOG_CHANNEL_ID,
     WATCHLIST_ALERT_CHANNEL_ID, LOW_PERFORMANCE_CHANNEL_ID, CAPITAL_REPORT_CHANNEL_ID,
     MAINTENANCE_ALERT_CHANNEL_ID, WAR_PREFERENCE_CHANNEL_ID, CHANGELOG_CHANNEL_ID,
-    ROLE_ID_1STAR_ALERT, ROLE_ID_MISSED_ATTACK, LEADER_ROLE_ID, COLEADER_ROLE_ID,
+    ROLE_ID_1STAR_ALERT, ROLE_ID_MISSED_ATTACK, LEADER_ROLE_ID, COLEADER_ROLE_ID, MAINTENANCE_ROLE_ID,
     AUTO_ADD_WATCHLIST_ENABLED, BOT_VERSION, TIMEZONE,
 )
 
@@ -63,6 +63,7 @@ class ClashGeniusBot(commands.Bot):
         self.watchlist_alert_channel_id = WATCHLIST_ALERT_CHANNEL_ID if WATCHLIST_ALERT_CHANNEL_ID else CHANNEL_ID
         self.leader_role_id = LEADER_ROLE_ID
         self.coleader_role_id = COLEADER_ROLE_ID
+        self.maintenance_role_id = MAINTENANCE_ROLE_ID
         self.auto_add_watchlist_enabled = AUTO_ADD_WATCHLIST_ENABLED
         self.low_performance_channel_id = LOW_PERFORMANCE_CHANNEL_ID
         self.capital_report_channel_id = CAPITAL_REPORT_CHANNEL_ID
@@ -159,8 +160,11 @@ class ClashGeniusBot(commands.Bot):
                 self.role_id_missed_attack = bot_settings.get("role_id_missed_attack", self.role_id_missed_attack)
                 self.leader_role_id = bot_settings.get("leader_role_id", self.leader_role_id)
                 self.coleader_role_id = bot_settings.get("coleader_role_id", self.coleader_role_id)
+                self.maintenance_role_id = bot_settings.get("maintenance_role_id", self.maintenance_role_id)
                 self.maintenance_message = bot_settings.get("maintenance_message", self.maintenance_message)
                 self.auto_add_watchlist_enabled = str(bot_settings.get("auto_add_watchlist_enabled", self.auto_add_watchlist_enabled)).lower() in ['true', 'on', '1', 'yes']
+                self.war_preference_channel_id = bot_settings.get("war_preference_channel_id", self.war_preference_channel_id)
+                self.changelog_channel_id = bot_settings.get("changelog_channel_id", self.changelog_channel_id)
                 logger.info("Configurações 'bot_settings' carregadas.")
             else: logger.warning("Doc 'bot_settings' não encontrado. Usando defaults.")
 
