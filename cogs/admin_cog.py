@@ -117,6 +117,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "role_id_missed_attack": getattr(self.bot, 'role_id_missed_attack', 0),
             "leader_role_id": getattr(self.bot, 'leader_role_id', 0),
             "coleader_role_id": getattr(self.bot, 'coleader_role_id', 0),
+            "maintenance_role_id": getattr(self.bot, 'maintenance_role_id', 0),
             "maintenance_message": getattr(self.bot, 'maintenance_message', "Manutenção!"),
             "auto_add_watchlist_enabled": getattr(self.bot, 'auto_add_watchlist_enabled', True),
             "changelog_channel_id": getattr(self.bot, 'changelog_channel_id', 0)

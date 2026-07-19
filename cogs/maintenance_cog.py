@@ -11,8 +11,6 @@ logger = logging.getLogger("maintenance_cog")
 class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
     """Cog para comandos de manutenção do bot e do banco de dados."""
 
-    MAINTENANCE_ROLE_ID = 1362076878458065037
-
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
@@ -42,7 +40,7 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
                   "\n**Acesso ao Painel:** " + ("Apenas Admins" if self.bot.maintenance_mode else "Público"),
             inline=False
         )
-        role_mention = f"<@&{self.MAINTENANCE_ROLE_ID}>"
+        role_mention = f"<@&{getattr(self.bot, 'maintenance_role_id', 0)}>"
         channel_id = self.bot.maintenance_alert_channel_id or self.bot.channel_id
         channel = self.bot.get_channel(channel_id)
         if not channel:

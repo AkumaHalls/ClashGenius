@@ -1,8 +1,42 @@
 ﻿# Changelog ΓÇö ClashGenius
 
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
+---
 
----
+## [33.1.0] — 2026-07-19
+
+### Adicionado
+- **MAINTENANCE_ROLE_ID** em config.py — cargo de manutenção agora é configurável via env var e pelo painel admin
+- **admin_cog.py** - maintenance_role_id adicionado ao get_settings/update_settings
+- **admin_panel.html** - campo "Cargo: Manutenção" no form de configurações (dropdown de cargos)
+- **.env.example** - template com todas as variáveis de ambiente documentadas
+- **static/js/utils.js** - módulo compartilhado com escapeHtml para eliminar duplicação entre scripts.js e admin.js
+
+### Corrigido
+- **web/auth.py get_db()** retornava web.Response em caso de erro — callers tratavam como objeto DB e causavam AttributeError. Agora retorna None
+- **cogs/tasks_cog.py** try/except quebrado com segundo except inacessível. Simplificado para um único except Exception
+- **static/js/scripts.js:662** avg_duration exibia clan_avg_stars (bug de copy-paste). Corrigido para clan_avg_duration
+- **web/auth.py check_password** engolia silenciosamente qualquer exceção. Agora loga warnings para erros de formato de hash
+- **web/middleware.py** CSP incluía 'unsafe-eval' desnecessário (nenhum eval() no JS). Removido
+- **cogs/war_predictor_cog.py** duplicava toda a lógica ML do war_predictor.py (~375 linhas). Reescrito para importar do módulo standalone
+- **simple_cache.py** log de eviction contava itens já deletados incorretamente. Log agora é emitido antes da remoção e conta corretamente
+- **admin.js** 4 catch blocks vazios (watchlist add, settings save, action execute, announcement send) agora mostram feedback de erro ao usuário
+- **config.py** CHANGELOG_CHANNEL_ID tinha default hardcoded "1526649554240536687" que silenciava erros de configuração. Default agora é "0"
+- **cogs/__init__.py** docstring dizia "modules" em vez de "cogs"
+- **admin.js** execCommand('copy') deprecado substituído por navigator.clipboard.writeText (Clipboard API moderna)
+- **admin.js** fetchRadarInactivityData executava em todas as páginas. Agora só executa no painel admin
+
+### Removido
+- **player_notes.json** arquivo morto vazio — notas são armazenadas no MongoDB (player_notes collection)
+- **escapeHtml duplicado** entre scripts.js e admin.js — extraído para static/js/utils.js
+- **código duplicado war_predictor** — ~375 linhas de classes ML removidas do cog, importadas do módulo standalone
+- **MAINTENANCE_ROLE_ID hardcoded** em maintenance_cog.py — agora usa config via bot.maintenance_role_id
+
+### Alterado
+- Versao do bot: 33.1.0-GeniusLib-v5.3.0
+- Badge do README atualizada para v33.1.0
+
+---
 
 ## [33.0.0] — 2026-07-19
 

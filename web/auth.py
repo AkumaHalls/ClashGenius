@@ -14,12 +14,10 @@ logger = logging.getLogger("web.auth")
 
 def get_db(bot_instance):
     """Obtém a referência ao banco de dados do bot.
-    Elimina o padrão repetido de getattr(bot, 'db') + fallback morto para 'mongo'.
+    Retorna None se o banco não estiver disponível — o caller deve
+    verificar antes de usar.
     """
-    db = getattr(bot_instance, 'db', None)
-    if db is None:
-        return web.Response(text='Database not available', status=500)
-    return db
+    return getattr(bot_instance, 'db', None)
 
 
 def hash_password(password: str) -> str:
@@ -34,7 +32,8 @@ def check_password(password: str, stored: str) -> bool:
     try:
         salt, pwd_hash = stored.split('$', 1)
         return hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex() == pwd_hash
-    except Exception:
+    except (ValueError, AttributeError) as e:
+        logger.warning("check_password: formato de hash inválido — %s", e)
         return False
 
 

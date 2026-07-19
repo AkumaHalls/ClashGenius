@@ -312,11 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(lastUpdatedEl, `Última atualização: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`);
     }
 
-    function escapeHtml(str) {
-        const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
-        return String(str).replace(/[&<>"']/g, c => map[c]);
-    }
-
     function setText(element, text, defaultValue = '-') {
         if (element) {
             const finalText = (text === null || text === undefined || text === '') ? defaultValue : String(text);
@@ -659,7 +654,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(query(`#${prefix}statsOpponentDestruction`), war.opponent_destruction?.replace('%', ''));
         setText(query(`#${prefix}statsOpponentAttacksUsed`), `${war.opponent_attacks_used}/${war.team_size * war.attacks_per_member}`);
         setText(query(`#${prefix}statsOurAvgStars`), war.clan_avg_stars);
-        setText(query(`#${prefix}statsOurAvgDuration`), war.clan_avg_stars); 
+        setText(query(`#${prefix}statsOurAvgDuration`), war.clan_avg_duration); 
         setText(query(`#${prefix}statsOpponentAvgStars`), war.opponent_avg_stars);
         if(war.clan_star_distribution){
                 for(let i=0; i<=3; i++) setText(query(`#${prefix}statsOurStars${i}`), war.clan_star_distribution[i]);

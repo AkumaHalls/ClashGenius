@@ -42,17 +42,18 @@ LOW_PERFORMANCE_CHANNEL_ID = int(os.getenv("LOW_PERFORMANCE_CHANNEL_ID", 0))
 CAPITAL_REPORT_CHANNEL_ID = int(os.getenv("CAPITAL_REPORT_CHANNEL_ID", 0))
 MAINTENANCE_ALERT_CHANNEL_ID = int(os.getenv("MAINTENANCE_ALERT_CHANNEL_ID", 0))
 WAR_PREFERENCE_CHANNEL_ID = int(os.getenv("WAR_PREFERENCE_CHANNEL_ID", 0))
-CHANGELOG_CHANNEL_ID = int(os.getenv("CHANGELOG_CHANNEL_ID", "1526649554240536687"))
+CHANGELOG_CHANNEL_ID = int(os.getenv("CHANGELOG_CHANNEL_ID", "0"))
 
 # ================== ROLES ==================
 ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
 ROLE_ID_MISSED_ATTACK = int(os.getenv("ROLE_ID_MISSED_ATTACK", 0))
 LEADER_ROLE_ID = int(os.getenv("LEADER_ROLE_ID", 0))
 COLEADER_ROLE_ID = int(os.getenv("COLEADER_ROLE_ID", 0))
+MAINTENANCE_ROLE_ID = int(os.getenv("MAINTENANCE_ROLE_ID", 0))
 
 # ================== CONFIGURAÇÕES DO BOT ==================
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
-BOT_VERSION = "33.0.0-GeniusLib-v5.3.0"
+BOT_VERSION = "33.1.0-GeniusLib-v5.3.0"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 # ================== CACHE ==================

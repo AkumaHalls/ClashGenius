@@ -85,14 +85,15 @@ class SimpleCache:
         if len(self._store) >= self.maxsize:
             sorted_keys = sorted(self._store, key=lambda k: self._store[k]["expires"])
             qtd = max(1, len(self._store) // 4)
+            logger.warning(
+                "_evict: cache cheio (%d/%d), removendo %d itens expirados + %d mais velhos",
+                len(self._store),
+                self.maxsize,
+                len(expired),
+                qtd,
+            )
             for k in sorted_keys[:qtd]:
                 del self._store[k]
-            logger.warning(
-                "_evict: cache cheio (%d/%d), removidos %d itens mais velhos",
-                len(self._store) + len(expired) + qtd,
-                self.maxsize,
-                len(expired) + qtd,
-            )
 
 
 cache = SimpleCache(default_ttl=30)

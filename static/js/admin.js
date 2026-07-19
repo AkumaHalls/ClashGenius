@@ -7,11 +7,6 @@ window.toggleRadarDrawer = function() {
     if (drawer) drawer.classList.toggle('open');
 };
 
-function escapeHtml(str) {
-    const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
-    return String(str).replace(/[&<>"']/g, c => map[c]);
-}
-
 // A Mente da IA: Faz a leitura das datas e julga as penalidades
 window.updateRadarNotifications = function(members) {
     const drawerContent = document.getElementById('radar-content');
@@ -109,9 +104,11 @@ window.fetchRadarInactivityData = async function() {
     }
 };
 
-// Dispara a leitura assim que a página carrega
-window.fetchRadarInactivityData();
-setInterval(window.fetchRadarInactivityData, 30 * 60 * 1000);
+// Dispara a leitura assim que a página carrega (apenas no painel admin)
+if (window.location.pathname.includes('admin')) {
+    window.fetchRadarInactivityData();
+    setInterval(window.fetchRadarInactivityData, 30 * 60 * 1000);
+}
 
 // =========================================================
 // RESTANTE DO CÓDIGO PADRÃO DO PAINEL ADMIN
@@ -301,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!discordData || discordData.error) return;
 
         const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'post_war_verdict_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id', 'smurf_log_channel_id', 'maintenance_alert_channel_id'];
-        const roleSelects = ['role_id_1star_alert', 'role_id_missed_attack', 'leader_role_id', 'coleader_role_id'];
+        const roleSelects = ['role_id_1star_alert', 'role_id_missed_attack', 'leader_role_id', 'coleader_role_id', 'maintenance_role_id'];
 
         channelSelects.forEach(id => {
             const select = document.getElementById(id);
@@ -369,20 +366,13 @@ document.addEventListener('DOMContentLoaded', () => {
              td.textContent = text;
              td.style.cursor = 'pointer';
              td.title = 'Clique para copiar';
-             td.onclick = () => {
-                 const textArea = document.createElement("textarea");
-                 textArea.value = text;
-                 document.body.appendChild(textArea);
-                 textArea.select();
+             td.onclick = async () => {
                  try {
-                     const successful = document.execCommand('copy');
-                     if(successful){
-                         const originalText = td.textContent;
-                         td.textContent = 'Copiado!';
-                         setTimeout(() => { td.textContent = originalText; }, 1500);
-                     } else { throw new Error('execCommand failed'); }
+                     await navigator.clipboard.writeText(text);
+                     const originalText = td.textContent;
+                     td.textContent = 'Copiado!';
+                     setTimeout(() => { td.textContent = originalText; }, 1500);
                  } catch (err) { console.error('Falha ao copiar ID:', err); }
-                 document.body.removeChild(textArea);
              };
              return td;
          };
@@ -507,8 +497,8 @@ document.addEventListener('DOMContentLoaded', () => {
                  loadWatchlist(); 
              } else {
                   displayFeedback(watchlistAddFeedback, response.message || 'Erro desconhecido ao adicionar.', true);
-             }
-        } catch (error) {}
+              }
+        } catch (error) { displayFeedback(watchlistAddFeedback, 'Erro de conexão ao adicionar.', true); }
     }
 
     async function handleRemoveWatchlist(event) {
@@ -893,7 +883,7 @@ async function loadRadarDossier() {
                     body: JSON.stringify(settings)
                 });
                 displayFeedback(settingsFeedback, response.message || 'Configurações salvas.');
-            } catch(error) { }
+            } catch(error) { displayFeedback(settingsFeedback, 'Erro de conexão ao salvar.', true); }
         });
     }
 
@@ -935,7 +925,7 @@ async function loadRadarDossier() {
                     body: JSON.stringify({ action, payload })
                 });
                 displayFeedback(actionsFeedback, response.message || `Ação '${action}' concluída.`);
-            } catch (error) {}
+            } catch (error) { displayFeedback(actionsFeedback, 'Erro de conexão ao executar ação.', true); }
              finally { button.disabled = false; button.textContent = originalText; }
         });
     });
@@ -960,7 +950,7 @@ async function loadRadarDossier() {
                 });
                 displayFeedback(actionsFeedback, response.message || 'Enviado.');
                  if((response.status === 'success' || !response.error) && announcementMessageInput) announcementMessageInput.value = ''; 
-            } catch (error) {}
+            } catch (error) { displayFeedback(actionsFeedback, 'Erro de conexão ao enviar anúncio.', true); }
              finally { sendAnnouncementBtn.disabled = false; sendAnnouncementBtn.textContent = originalText; }
         });
     }

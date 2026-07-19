@@ -12,10 +12,6 @@ from typing import Dict, Any, Optional
 
 try:
     from cogs.post_war_analysis import create_post_war_analysis_embed
-except ImportError:
-    create_post_war_analysis_embed = None
-    logger = logging.getLogger("tasks_cog")
-    logger.error("Falha ao importar create_post_war_analysis_embed de cogs.post_war_analysis")
 except Exception:
     create_post_war_analysis_embed = None
 
