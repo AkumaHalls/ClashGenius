@@ -297,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateDiscordDropdowns(discordData) {
         if (!discordData || discordData.error) return;
 
-        const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'post_war_verdict_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id', 'smurf_log_channel_id', 'maintenance_alert_channel_id'];
+        const channelSelects = ['channel_id', 'post_war_analysis_channel_id', 'post_war_verdict_channel_id', 'clan_games_channel_id', 'cwl_planner_channel_id', 'donations_channel_id', 'watchlist_alert_channel_id', 'low_performance_channel_id', 'capital_report_channel_id', 'smurf_log_channel_id', 'maintenance_alert_channel_id', 'changelog_channel_id', 'war_preference_channel_id'];
         const roleSelects = ['role_id_1star_alert', 'role_id_missed_attack', 'leader_role_id', 'coleader_role_id', 'maintenance_role_id'];
 
         channelSelects.forEach(id => {

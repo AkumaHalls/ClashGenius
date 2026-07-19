@@ -113,6 +113,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             "capital_report_channel_id": getattr(self.bot, 'capital_report_channel_id', 0),
             "smurf_log_channel_id": getattr(self.bot, 'smurf_log_channel_id', 0), # INJEÇÃO DA VARIÁVEL
             "maintenance_alert_channel_id": getattr(self.bot, 'maintenance_alert_channel_id', 0),
+            "war_preference_channel_id": getattr(self.bot, 'war_preference_channel_id', 0),
             "role_id_1star_alert": getattr(self.bot, 'role_id_1star_alert', 0),
             "role_id_missed_attack": getattr(self.bot, 'role_id_missed_attack', 0),
             "leader_role_id": getattr(self.bot, 'leader_role_id', 0),
