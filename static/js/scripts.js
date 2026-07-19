@@ -298,12 +298,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         muteButtonEl.addEventListener('click', () => {
             backgroundMusicEl.muted = !backgroundMusicEl.muted;
-            muteButtonEl.textContent = backgroundMusicEl.muted ? '🔇' : '🔊';
+            muteButtonEl.innerHTML = backgroundMusicEl.muted ? '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 8.5v1.2l3.02 3.02c.07-.57.11-1.15.11-1.72zM16.5 12c0 .76-.18 1.48-.48 2.13l1.45 1.45A8.39 8.39 0 0018 12c0-3.54-2.46-6.52-5.76-7.33v2.07C14.23 7.47 16.5 9.53 16.5 12zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.47 8.47 0 003.69-1.81L19.73 21 21 19.73l-9-9L4.27 3z"/></svg>' : '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 8.5v7a4.47 4.47 0 002.5-3.5zM14 3.23v2.06a6.5 6.5 0 010 13.42v2.06A8.5 8.5 0 0014 3.23z"/></svg>';
             localStorage.setItem('musicMuted', backgroundMusicEl.muted.toString()); 
         });
         if (localStorage.getItem('musicMuted') === 'true') {
             backgroundMusicEl.muted = true;
-            muteButtonEl.textContent = '🔇';
+            muteButtonEl.innerHTML = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 8.5v1.2l3.02 3.02c.07-.57.11-1.15.11-1.72zM16.5 12c0 .76-.18 1.48-.48 2.13l1.45 1.45A8.39 8.39 0 0018 12c0-3.54-2.46-6.52-5.76-7.33v2.07C14.23 7.47 16.5 9.53 16.5 12zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.47 8.47 0 003.69-1.81L19.73 21 21 19.73l-9-9L4.27 3z"/></svg>';
         }
     }
 
@@ -378,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (el.querySelector('.ww-tooltip-text')) return;
             const tip = document.createElement('span');
             tip.className = 'ww-tooltip-text';
-            tip.textContent = el.dataset.warning || '⚠️ Este membro não realizou todos os ataques na guerra!';
+            tip.textContent = el.dataset.warning || 'ATENCAO: Este membro não realizou todos os ataques na guerra!';
             el.appendChild(tip);
             el.classList.add('war-warning-tooltip');
         });
@@ -457,7 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setHtml(topDonorsListEl, data.top_donors?.length > 0 ? data.top_donors.map((donor, index) => {
             const medals = ['gold', 'silver', 'bronze'];
-            const medal_icons = ['🥇', '🥈', '🥉'];
+            const medal_icons = ['<img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm">', '<img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm">', '<img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm">'];
             const rankIcon = medal_icons[index] || `${index + 1}.`; 
             return `<div class="podium-item ${medals[index] || ''}" style="position: relative;">
                         <span class="podium-rank">${rankIcon}</span>
@@ -470,11 +470,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('') : '<p>Nenhum doador encontrado.</p>');
 
         const warHeroTitleEl = document.getElementById('warHeroTitle');
-        setText(warHeroTitleEl, '⚔️ Heróis da Última Guerra'); 
+        setText(warHeroTitleEl, 'Heroes da Ultima Guerra'); 
         setHtml(bestAttacksListEl, data.war_heroes?.length > 0 ? data.war_heroes.map(hero => {
             const isMvp = hero.rank === 1;
             const heroClass = isMvp ? 'mvp-card' : 'attack-item';
-            const medals = ['🥇', '🥈', '🥉'];
+            const medals = ['<img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm">', '<img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm">', '<img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm">'];
             const rankIcon = medals[hero.rank - 1] || `${hero.rank}.`; 
 
             const titleHtml = isMvp
@@ -548,8 +548,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createStarString(stars) {
         const starCount = parseInt(stars, 10); 
-        if (isNaN(starCount) || starCount < 0) return '⚫⚫⚫'; 
-        return '⭐'.repeat(starCount) + '⚫'.repeat(Math.max(0, 3 - starCount));
+        const FILLED = `<img src="${ASSETS_BASE_URL}/icons/Icon_HV_Attack_Star.png" class="star-icon" alt="*">`;
+        const EMPTY = `<img src="${ASSETS_BASE_URL}/bot/icons/no_star.png" class="star-icon" alt="-">`;
+        if (isNaN(starCount) || starCount < 0) return EMPTY + EMPTY + EMPTY; 
+        return FILLED.repeat(starCount) + EMPTY.repeat(Math.max(0, 3 - starCount));
+    }
+
+    function icon(name, cls) {
+        const ICONS = {
+            sword: '/assets/icons/Icon_HV_Sword.png',
+            shield: '/assets/icons/Icon_HV_Shield.png',
+            trophy: '/assets/icons/Icon_HV_Podium.png',
+            star: '/assets/icons/Icon_HV_Attack_Star.png',
+            noStar: '/assets/bot/icons/no_star.png',
+            warStar: '/assets/bot/icons/war_star.png',
+            flag: '/assets/icons/Icon_HV_Start_Flag.png',
+            shieldArrow: '/assets/icons/Icon_HV_Shield_Arrow.png',
+            raidAttack: '/assets/icons/Icon_HV_Raid_Attack.png',
+            trophyBest: '/assets/icons/Icon_HV_Trophy_Best.png',
+            xp: '/assets/icons/Icon_HV_XP.png',
+            in: '/assets/icons/Icon_HV_In.png',
+            out: '/assets/icons/Icon_HV_Out.png',
+            clanGamesMedal: '/assets/icons/Icon_HV_Clan_Games_Medal.png',
+            goldPass: '/assets/icons/Icon_HV_Gold_Pass.png',
+            planet: '/assets/icons/Icon_HV_Planet.png'
+        };
+        const src = ICONS[name] || ICONS.star;
+        const clsAttr = cls ? ` ${cls}` : '';
+        return `<img src="${src}" class="icon-sm${clsAttr}" alt="${name}">`;
     }
 
     function populateWarDetails(data, containerId = 'war-details-nav', isModal = false) {
@@ -580,20 +606,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isEnded) {
                 const ourStars = warData.clan_stars ?? 0;
                 const oppStars = warData.opponent_stars ?? 0;
-                let resultEmoji, resultText, resultColor;
+                let resultIcon, resultText, resultColor;
                 if (ourStars > oppStars) {
-                    resultEmoji = '🏆'; resultText = 'VITÓRIA'; resultColor = 'var(--color-success)';
+                    resultIcon = icon('trophy'); resultText = 'VITÓRIA'; resultColor = 'var(--color-success)';
                 } else if (oppStars > ourStars) {
-                    resultEmoji = '💀'; resultText = 'DERROTA'; resultColor = 'var(--color-danger)';
+                    resultIcon = icon('noStar'); resultText = 'DERROTA'; resultColor = 'var(--color-danger)';
                 } else {
-                    resultEmoji = '⚖️'; resultText = 'EMPATE'; resultColor = 'var(--color-warning)';
+                    resultIcon = icon('shield'); resultText = 'EMPATE'; resultColor = 'var(--color-warning)';
                 }
                 setHtml(predictionTextEl, `
                     <div class="war-ended-banner" style="border-color: ${resultColor};">
-                        <div class="war-ended-icon">${resultEmoji}</div>
+                        <div class="war-ended-icon">${resultIcon}</div>
                         <div class="war-ended-content">
                             <h3 class="war-ended-title" style="color: ${resultColor};">${resultText}</h3>
-                            <p class="war-ended-score">${ourStars}⭐ vs ${oppStars}⭐</p>
+                            <p class="war-ended-score">${ourStars} <img src="${ASSETS_BASE_URL}/icons/Icon_HV_Attack_Star.png" class="star-icon" alt="*"> vs ${oppStars} <img src="${ASSETS_BASE_URL}/icons/Icon_HV_Attack_Star.png" class="star-icon" alt="*"></p>
                             <p class="war-ended-sub">${escapeHtml(warData.clan_name)} vs ${escapeHtml(warData.opponent_name)}</p>
                         </div>
                     </div>
@@ -604,7 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setText(predictionTextEl, data.prediction.summary_panel);
                 predictionTagsEl.innerHTML = `
                     <div class="prediction-tag">
-                        <span class="prediction-tag-icon">🎯</span>
+                        <span class="prediction-tag-icon">${icon('flag')}</span>
                         <div class="prediction-tag-text">
                             <span class="tag-label">Probabilidade</span>
                             <span class="tag-value">${(data.prediction.probability || 0).toFixed(1)}%</span>
@@ -612,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="tooltip-text">Chance de vitória do nosso clã no final da guerra, calculada pela IA.</span>
                     </div>
                     <div class="prediction-tag">
-                        <span class="prediction-tag-icon">🧠</span>
+                        <span class="prediction-tag-icon">${icon('star')}</span>
                         <div class="prediction-tag-text">
                             <span class="tag-label">Confiança</span>
                             <span class="tag-value">${(data.prediction.confidence || 0).toFixed(1)}%</span>
@@ -721,9 +747,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = ourS > oppS ? 'Vencemos' : (oppS > ourS ? 'Perdemos' : 'Empatamos');
             setHtml(warAdvisorContentEl, `
                 <div class="war-ended-advisor">
-                    <div class="war-ended-icon">🏁</div>
+                    <div class="war-ended-icon">${icon('flag')}</div>
                     <h3>Guerra Encerrada</h3>
-                    <p>${result}! ${ourS}⭐ vs ${oppS}⭐</p>
+                    <p>${result}! ${ourS} <img src="${ASSETS_BASE_URL}/icons/Icon_HV_Attack_Star.png" class="star-icon" alt="*"> vs ${oppS} <img src="${ASSETS_BASE_URL}/icons/Icon_HV_Attack_Star.png" class="star-icon" alt="*"></p>
                     <p class="war-ended-sub">O plano de ataque não está mais disponível. Consulte o Histórico de Guerras para análises pós-guerra.</p>
                 </div>
             `);
@@ -814,11 +840,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setHtml(missedAttacksContainerEl, data.wars_with_missed_attacks.map(war => `
             <div class="war-group">
-                <h3 class="war-group-header">Guerra vs <strong>${escapeHtml(war.opponent_name || '?')}</strong> (${escapeHtml(war.end_date || '?')}) ${war.is_latest ? '<span class="latest-war-badge">💥 Última Guerra</span>' : ''}</h3>
+                <h3 class="war-group-header">Guerra vs <strong>${escapeHtml(war.opponent_name || '?')}</strong> (${escapeHtml(war.end_date || '?')}) ${war.is_latest ? '<span class="latest-war-badge"><img src="/assets/icons/Icon_HV_Start_Flag.png" class="icon-sm"> Última Guerra</span>' : ''}</h3>
                 <div class="player-card-grid">
                     ${war.missed_attacks_members?.map(member => `
                         <div class="missed-attack-card ${member.attacks_left >= 2 ? 'severity-high' : 'severity-medium'} war-warning-tooltip">
-                            <span class="ww-tooltip-text">${member.attacks_left >= 2 ? '🚨 ATENÇÃO: Este membro esqueceu 2 ou mais ataques! Infração grave.' : '⚠️ Alerta: Este membro não realizou todos os seus ataques nesta guerra.'}</span>
+                            <span class="ww-tooltip-text">${member.attacks_left >= 2 ? 'ALERTA: Este membro esqueceu 2 ou mais ataques! Infração grave.' : 'ATENCAO: Este membro não realizou todos os seus ataques nesta guerra.'}</span>
                             <div class="player-info">
                                 <h4>${escapeHtml(member.name || '?')} <span>(CV${escapeHtml(member.town_hall || '?')})</span></h4>
                                 <div class="player-tag-container">
@@ -877,13 +903,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (isPrep) {
-                mainStatusText = `⏳ Preparação (Dia ${data.current_day})`;
+                mainStatusText = `Preparação (Dia ${data.current_day})`;
             } else {
-                mainStatusText = `⚔️ Em Guerra (Dia ${data.current_day})`;
+                mainStatusText = `${icon('sword')} Em Guerra (Dia ${data.current_day})`;
                 statusColor = "var(--color-success)";
             }
         } else {
-            mainStatusText = "🔍 Buscando Oponentes..."; 
+            mainStatusText = "Buscando Oponentes..."; 
             statusColor = "var(--color-info)";
         }
 
@@ -898,21 +924,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             clansHtml += '</div>';
         } else {
-            clansHtml = "<p style='color:var(--color-warning); margin-top:10px; font-style: italic;'>⚠️ Dados do grupo ausentes no cache antigo. Clique em 'Recalcular Rotação Inteligente' para forçar a atualização.</p>";
+            clansHtml = "<p style='color:var(--color-warning); margin-top:10px; font-style: italic;'>Dados do grupo ausentes no cache antigo. Clique em 'Recalcular Rotação Inteligente' para forçar a atualização.</p>";
         }
 
         let roundsText = '';
         if (data.rounds && Array.isArray(data.rounds) && data.rounds.length > 0) {
             roundsText = '<div style="display: flex; justify-content: center; gap: 10px; margin-top: 15px; flex-wrap: wrap;">';
             data.rounds.forEach((r, i) => {
-                 let icon = r === 'warEnded' ? '✅' : (r === 'inWar' ? '⚔️' : '⏳');
+                 let roundIcon = r === 'warEnded' ? icon('star') : (r === 'inWar' ? icon('sword') : icon('flag'));
                  let color = r === 'warEnded' ? 'var(--color-success)' : (r === 'inWar' ? 'var(--color-accent)' : 'var(--color-text-secondary)');
                  let bgColor = r === 'warEnded' ? 'rgba(46, 204, 113, 0.1)' : (r === 'inWar' ? 'rgba(231, 76, 60, 0.1)' : 'rgba(255, 255, 255, 0.05)');
-                 roundsText += `<div style="background: ${bgColor}; padding: 10px 15px; border-radius: 10px; border-bottom: 3px solid ${color}; font-weight: bold; font-size: 0.9em; text-align: center; min-width: 60px;">Dia ${i+1}<br><span style="font-size: 1.4em; display:block; margin-top: 8px;">${icon}</span></div>`;
+                 roundsText += `<div style="background: ${bgColor}; padding: 10px 15px; border-radius: 10px; border-bottom: 3px solid ${color}; font-weight: bold; font-size: 0.9em; text-align: center; min-width: 60px;">Dia ${i+1}<br><span style="display:block; margin-top: 8px;">${roundIcon}</span></div>`;
             });
             roundsText += '</div>';
         } else {
-            roundsText = "<p style='color:var(--color-warning); margin-top:10px; font-style: italic;'>⚠️ Cronograma ausente no cache antigo. Clique em 'Recalcular Rotação Inteligente'.</p>";
+            roundsText = "<p style='color:var(--color-warning); margin-top:10px; font-style: italic;'>Cronograma ausente no cache antigo. Clique em 'Recalcular Rotação Inteligente'.</p>";
         }
 
         const aestheticHeaderHtml = `
@@ -932,12 +958,12 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <div class="cwl-overview-card" style="margin-bottom: 25px; text-align: center; padding: 25px; border: 1px solid rgba(255,255,255,0.05); border-radius: 15px; background-color: rgba(0,0,0,0.15);">
-                <h3 style="margin-bottom: 5px; font-size: 1.2em; color: var(--color-text-main); text-transform: uppercase; letter-spacing: 1px;">🛡️ Clãs no Grupo</h3>
+                <h3 style="margin-bottom: 5px; font-size: 1.2em; color: var(--color-text-main); text-transform: uppercase; letter-spacing: 1px;">${icon('shield')} Clãs no Grupo</h3>
                 ${clansHtml}
             </div>
 
             <div class="cwl-overview-card" style="margin-bottom: 40px; text-align: center; padding: 25px; border-radius: 15px; background: rgba(0,0,0,0.2);">
-                <h3 style="margin-bottom: 5px; font-size: 1.2em; color: var(--color-text-main); text-transform: uppercase; letter-spacing: 1px;">📅 Cronograma Oficial</h3>
+                <h3 style="margin-bottom: 5px; font-size: 1.2em; color: var(--color-text-main); text-transform: uppercase; letter-spacing: 1px;">Cronograma Oficial</h3>
                 ${roundsText}
             </div>
         `;
@@ -950,7 +976,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const score = (planData && Array.isArray(planData.participation_score)) ? planData.participation_score : [];
         
-        let placarHtml = '<h4>📊 Placar de Participação (Estimado)</h4>'; 
+        let placarHtml = '<h4>Placar de Participação (Estimado)</h4>'; 
         placarHtml += '<div class="cwl-overview-list-bench">'; 
         
         if (score.length > 0) {
@@ -958,8 +984,8 @@ document.addEventListener('DOMContentLoaded', () => {
              placarHtml += score.map(p => {
                  const name = p.name || (p.player && p.player.name) || 'Membro Oculto';
                  const th = p.town_hall || (p.player && p.player.town_hall) || '?';
-                 const icon = p.status === 'priority' ? '⭐' : (p.status === 'unavailable' ? '🛑' : '');
-                 return `<p>${icon} ${escapeHtml(name)} (CV${escapeHtml(th)}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
+                 const pIcon = p.status === 'priority' ? icon('star') : (p.status === 'unavailable' ? `<span style="color:var(--color-danger);">&#10006;</span>` : '');
+                 return `<p>${pIcon} ${escapeHtml(name)} (CV${escapeHtml(th)}): <strong>${p.days_played || 0} / 7 dias</strong></p>`;
              }).join('');
         } else {
             placarHtml += '<p>Nenhum dado de participação gerado.</p>';
@@ -1022,15 +1048,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const inTh = sub.in?.town_hall || (sub.in?.player && sub.in.player.town_hall) || '?';
                     return `
                     <div class="xai-sub">
-                        <p style="color: #e74c3c; margin-bottom:2px;">⬇️ <strong>Sai:</strong> ${escapeHtml(outName)} (CV${escapeHtml(outTh)}) - <em>${escapeHtml(sub.out_reason || 'Rotação')}</em></p>
-                        <p style="color: #2ecc71; margin-bottom:5px;">⬆️ <strong>Entra:</strong> ${escapeHtml(inName)} (CV${escapeHtml(inTh)})</p>
+                        <p style="color: #e74c3c; margin-bottom:2px;"><strong>Sai:</strong> ${escapeHtml(outName)} (CV${escapeHtml(outTh)}) - <em>${escapeHtml(sub.out_reason || 'Rotação')}</em></p>
+                        <p style="color: #2ecc71; margin-bottom:5px;"><strong>Entra:</strong> ${escapeHtml(inName)} (CV${escapeHtml(inTh)})</p>
                         <div class="xai-badge"><span class="ai-indicator"></span>IA: ${escapeHtml(sub.reason || 'Escalado pela matriz.')}</div>
                     </div>`;
                 }).join('')
                 : `<p>${day == 1 ? 'Escalação inicial baseada nos melhores CVs e Titulares Fixos.' : '<span class="ai-indicator"></span>A IA sugere manter a escalação do dia anterior.'}</p>`;
 
             const roster = dayData.active_roster || [];
-            planHtml += `<h4 style="margin-top:20px;">⚔️ Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
+            planHtml += `<h4 style="margin-top:20px;">${icon('sword')} Escalação Ativa Sugerida (Dia ${day}) - ${roster.length}v${roster.length}</h4><div class="roster-grid">`;
             
             const sortedRoster = [...roster].sort((a, b) => {
                 const thA = a.town_hall || (a.player && a.player.town_hall) || 0;
@@ -1042,11 +1068,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? sortedRoster.map((p, i) => {
                     const name = p.name || (p.player && p.player.name) || '?';
                     const th = p.town_hall || (p.player && p.player.town_hall) || '?';
-                    const icon = p.status === 'priority' ? '⭐' : (p.status === 'unavailable' ? '🛑' : '');
+                    const pIcon = p.status === 'priority' ? icon('star') : (p.status === 'unavailable' ? `<span style="color:var(--color-danger);">&#10006;</span>` : '');
                     return `
                     <div class="roster-player" ${p.status === 'priority' ? 'style="border-left: 3px solid var(--color-accent);"' : ''}>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span>${i + 1}. ${icon} ${escapeHtml(name)} (CV${escapeHtml(th)})</span>
+                            <span>${i + 1}. ${pIcon} ${escapeHtml(name)} (CV${escapeHtml(th)})</span>
                             <span style="color:var(--color-text-secondary); font-size:0.8em;">${p.days_played || 0}d</span>
                         </div>
                         ${p.xai_justification ? `<div style="font-size: 0.7em; color: #a0aec0; margin-top: 5px; font-family: monospace;">> ${escapeHtml(p.xai_justification)}</div>` : ''}
@@ -1168,7 +1194,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (userIsAdmin) {
             if (!document.getElementById('recalc-cwl-btn')) {
-                 const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">🧠 Recalcular Rotação Inteligente</button>`;
+                 const btnHtml = `<button id="recalc-cwl-btn" class="control-btn" style="margin-bottom: 20px; width: 100%; background-color: var(--color-accent); font-weight: bold; border-radius: 10px; padding: 12px; font-size: 1.1em; transition: all 0.3s ease;">${icon('star')} Recalcular Rotação Inteligente</button>`;
                  if(cwlPlanResultEl) cwlPlanResultEl.insertAdjacentHTML('beforebegin', btnHtml);
                  
                  document.getElementById('recalc-cwl-btn')?.addEventListener('click', async () => {
@@ -1231,8 +1257,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const ops = w.opponent_stars || 0;
             const resultClass = w.result === 'Vitória' ? 'win' : (w.result === 'Derrota' ? 'loss' : 'tie');
             const label = w.end_time_formatted ? w.end_time_formatted.split(' ')[0] : '?';
-            return `<div class="war-summary-bar ${resultClass}" title="${escapeHtml(w.opponent_name || '?')}: ${cls}⭐ vs ${ops}⭐">
-                        <span class="wsb-result">${cls}⭐</span>
+            return `<div class="war-summary-bar ${resultClass}" title="${escapeHtml(w.opponent_name || '?')}: ${cls} * vs ${ops} *">
+                        <span class="wsb-result">${cls} <img src="${ASSETS_BASE_URL}/icons/Icon_HV_Attack_Star.png" class="star-icon" alt="*"></span>
                         <span class="wsb-label">${label}</span>
                         <span class="wsb-tooltip">${escapeHtml(w.opponent_name || '?')}<br>${cls}⭐ x ${ops}⭐</span>
                     </div>`;
@@ -1258,7 +1284,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <tr class="historic-war-row" data-war-id="${warId}">
                 <td>${escapeHtml(e.end_time_formatted || '?')}</td>
                 <td><img src="${e.opponent_badge_url || DEFAULT_BADGE_URL}" alt="Emblema" class="log-opponent-badge">${escapeHtml(e.opponent_name || 'N/A')}</td>
-                <td>${e.clan_stars ?? '?'}⭐ vs ${e.opponent_stars ?? '?'}⭐</td>
+                <td>${e.clan_stars ?? '?'} <img src="${ASSETS_BASE_URL}/icons/Icon_HV_Attack_Star.png" class="star-icon" alt="*"> vs ${e.opponent_stars ?? '?'} <img src="${ASSETS_BASE_URL}/icons/Icon_HV_Attack_Star.png" class="star-icon" alt="*"></td>
                 <td class="war-result-${e.result?.toLowerCase() || 'unknown'}">${escapeHtml(e.result || '?')}</td>
                 <td>${e.team_size || '?'}</td>
                 <td>${e.is_cwl ? "CWL" : "Normal"}</td>
@@ -1290,7 +1316,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(capStatusEl, statusPt);
         if(capStatusEl) capStatusEl.className = `status-badge ${raid.state === "ongoing" ? 'status-warning' : 'status-success'}`;
         
-        setText(capTotalLootEl, '🪙 ' + (raid.total_loot?.toLocaleString() || '0'));
+        setText(capTotalLootEl, (raid.total_loot?.toLocaleString() || '0'));
         setText(capTotalAttacksEl, raid.total_attacks || '0');
         setText(capDestroyedEl, raid.destroyed_districts || '0');
 
@@ -1309,13 +1335,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (capTopAttackersListEl) {
-            const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
+            const medals = ['<span class="medal-rank medal-gold">1</span>', '<span class="medal-rank medal-silver">2</span>', '<span class="medal-rank medal-bronze">3</span>', '<span class="medal-rank">4</span>', '<span class="medal-rank">5</span>'];
             setHtml(capTopAttackersListEl, topAttackers.length > 0 && topAttackers[0].attacks > 0 ? topAttackers.map((m, i) => `
                 <div class="podium-item ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">
                     <span class="podium-rank">${medals[i] || `${i+1}.`}</span>
                     <div class="podium-details">
                         <div class="member-name">${escapeHtml(m.name)}</div>
-                        <div class="donation-count"><strong>🪙 ${m.looted.toLocaleString()}</strong> ouro (Ataques: ${m.attacks}/${m.limit})</div>
+                        <div class="donation-count"><strong>${m.looted.toLocaleString()}</strong> ouro (Ataques: ${m.attacks}/${m.limit})</div>
                     </div>
                 </div>
             `).join('') : '<p style="padding: 15px;">Nenhum ataque registrado ainda.</p>');
@@ -1387,7 +1413,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>${i+1}.</span> <strong>${escapeHtml(m.name)}</strong> <span style="font-size: 0.8em; color: var(--color-text-secondary);">(${escapeHtml(m.role)})</span>
                     </div>
                     <div class="cg-player-score ${m.score >= maxPlayerPoints ? 'max-score' : ''}">
-                        ${m.score.toLocaleString()} ${m.score >= maxPlayerPoints ? '🔥' : ''}
+                        ${m.score.toLocaleString()}                         ${m.score >= maxPlayerPoints ? icon('star') : ''}
                     </div>
                 </div>
             `).join('') : '<p style="padding: 15px;">Ninguém pontuou ainda.</p>');
@@ -1399,7 +1425,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="cg-player-info"><strong>${escapeHtml(m.name)}</strong></div>
                     <div class="cg-player-score text-danger">0</div>
                 </div>
-            `).join('') : '<p class="text-success" style="padding: 15px; font-weight:bold;">Todos pontuaram! 🎉</p>');
+            `)                    .join('') : '<p class="text-success" style="padding: 15px; font-weight:bold;">Todos pontuaram!</p>');
         }
     }
 
@@ -1436,8 +1462,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasMissedAttack = memberTagsMissingAttacks.has(m.tag);
             const watchlistClass = m.isOnWatchlist ? 'on-watchlist' : '';
             const missedAttackClass = hasMissedAttack ? 'missed-attack-member' : '';
-            const watchlistIconHtml = m.isOnWatchlist ? '<span class="watchlist-icon">⚠️</span>' : '';
-            const missedAttackIconHtml = hasMissedAttack ? '<span class="missed-attack-icon-member" data-tooltip="Este membro não realizou todos os ataques na última guerra!">❗</span>' : '';
+            const watchlistIconHtml = m.isOnWatchlist ? '<span class="watchlist-icon" style="color:var(--color-warning);">&#9888;</span>' : '';
+            const missedAttackIconHtml = hasMissedAttack ? '<span class="missed-attack-icon-member" style="color:var(--color-danger);" data-tooltip="Este membro não realizou todos os ataques na última guerra!">&#9888;</span>' : '';
             const watchlistTooltipHtml = m.isOnWatchlist
                 ? `<span class="watchlist-tooltip">
                     <strong>Em Observação!</strong><br>
@@ -1458,15 +1484,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     lastWarDateFormatted = 'Inválida';
                 }
             }
-            const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">⚔️ ${escapeHtml(lastWarDateFormatted)}</span>`;
+            const lastWarHtml = `<span title="Esta é a data da última guerra conhecida">${icon('sword')} ${escapeHtml(lastWarDateFormatted)}</span>`;
 
             const isPriority = m.cwl_status === 'priority';
             const priorityClass = isPriority ? 'vip-golden-card' : '';
-            const vipRibbonHtml = isPriority ? `<div class="vip-ribbon">⭐ TITULAR</div>` : '';
+            const vipRibbonHtml = isPriority ? `<div class="vip-ribbon">${icon('star')} TITULAR</div>` : '';
 
             const isAdminBorder = m.admin_border === true;
             const adminBorderClass = isAdminBorder ? 'vip-admin-border' : '';
-            const adminRibbonHtml = isAdminBorder ? `<div class="vip-ribbon" style="background:linear-gradient(90deg,#ff0040,#b300ff,#00fff9);color:#fff;">🛡️ ADMIN</div>` : '';
+            const adminRibbonHtml = isAdminBorder ? `<div class="vip-ribbon" style="background:linear-gradient(90deg,#ff0040,#b300ff,#00fff9);color:#fff;">${icon('shield')} ADMIN</div>` : '';
 
             return `
             <div class="member-card ${watchlistClass} ${priorityClass} ${adminBorderClass} ${missedAttackClass}" data-th="${escapeHtml(m.town_hall || '?')}" data-name="${escapeHtml((m.name || '').toLowerCase())}">
@@ -1475,13 +1501,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${getAssetUrl('buildings/home-village', 'town_hall', m.town_hall || 1)}" alt="CV${escapeHtml(m.town_hall || '?')}" class="member-th-icon" onerror="this.onerror=null; this.src=DEFAULT_BADGE_URL; this.style.height='40px';">
                     <div class="member-info">
                         <h4>${escapeHtml(m.name || 'N/A')} ${watchlistIconHtml} ${missedAttackIconHtml}</h4>
-                        <p>${escapeHtml(m.role || 'Membro')} • 🏆 ${m.trophies || 0}</p>
+                        <p>${escapeHtml(m.role || 'Membro')} • ${icon('trophy')} ${m.trophies || 0}</p>
                     </div>
                     ${watchlistTooltipHtml}
                 </div>
                 <div class="member-card-stats">
-                    <span>🎁 Doadas: ${m.donations || 0}</span>
-                    <span>📥 Recebidas: ${m.received || 0}</span>
+                    <span>Doadas: ${m.donations || 0}</span>
+                    <span>Recebidas: ${m.received || 0}</span>
                     ${lastWarHtml} </div>
                 <div class="member-card-note">
                     <div class="note-container note-priority-${notePriority}">
@@ -1499,11 +1525,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="member-cwl-status" data-player-tag="${escapeHtml(m.tag || '')}">
                     <label>CWL:</label>
                     <div class="cwl-status-selector">
-                        <button class="cwl-status-btn ${m.cwl_status === 'priority' ? 'active' : ''}" data-status="priority" title="Titular Absoluto (IA fura-fila)">⭐ Fixo</button>
+                        <button class="cwl-status-btn ${m.cwl_status === 'priority' ? 'active' : ''}" data-status="priority" title="Titular Absoluto (IA fura-fila)">${icon('star')} Fixo</button>
                         <button class="cwl-status-btn ${m.cwl_status === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
                         <button class="cwl-status-btn ${m.cwl_status === 'backup' ? 'active' : ''}" data-status="backup">Reserva</button>
                     </div>
-                    ${userIsAdmin ? `<button class="admin-border-btn ${isAdminBorder ? 'active' : ''}" data-player-tag="${escapeHtml(m.tag || '')}" title="Borda Animada de Admin">🛡️ Admin</button>` : ''}
+                    ${userIsAdmin ? `<button class="admin-border-btn ${isAdminBorder ? 'active' : ''}" data-player-tag="${escapeHtml(m.tag || '')}" title="Borda Animada de Admin">${icon('shield')} Admin</button>` : ''}
                 </div>
             </div>`;
         }).join(''));
@@ -1710,16 +1736,16 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="member-cwl-status" data-player-tag="${escapeHtml(profileData.tag || '')}" style="margin-bottom: 20px;">
                 <label>Status na CWL:</label>
                 <div class="cwl-status-selector">
-                    <button class="cwl-status-btn ${cwlStatus === 'priority' ? 'active' : ''}" data-status="priority">⭐ Fixo</button>
+                    <button class="cwl-status-btn ${cwlStatus === 'priority' ? 'active' : ''}" data-status="priority">${icon('star')} Fixo</button>
                     <button class="cwl-status-btn ${cwlStatus === 'active' ? 'active' : ''}" data-status="active">Ativo</button>
                     <button class="cwl-status-btn ${cwlStatus === 'backup' ? 'active' : ''}" data-status="backup">Backup</button>
                 </div>
-                <button class="admin-border-btn ${adminBorderEnabled ? 'active' : ''}" data-player-tag="${escapeHtml(profileData.tag || '')}" title="Borda Animada de Admin">🛡️ Admin</button>
+                <button class="admin-border-btn ${adminBorderEnabled ? 'active' : ''}" data-player-tag="${escapeHtml(profileData.tag || '')}" title="Borda Animada de Admin">${icon('shield')} Admin</button>
             </div>` : `
             <div class="member-cwl-status" style="margin-bottom: 20px; justify-content: flex-start; gap: 15px;">
                 <label>Status CWL:</label>
-                <span style="color: ${cwlStatus === 'priority' ? 'var(--color-accent)' : (cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)')}; font-weight:bold;">${cwlStatus === 'priority' ? '⭐ Titular Fixo' : (cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas')}</span>
-                ${adminBorderEnabled ? '<span style="color:#b300ff;font-weight:bold;">🛡️ Admin</span>' : ''}
+                <span style="color: ${cwlStatus === 'priority' ? 'var(--color-accent)' : (cwlStatus === 'active' ? 'var(--color-success)' : 'var(--color-warning)')}; font-weight:bold;">${cwlStatus === 'priority' ? icon('star') + ' Titular Fixo' : (cwlStatus === 'active' ? 'Ativo' : 'Banco de Reservas')}</span>
+                ${adminBorderEnabled ? '<span style="color:#b300ff;font-weight:bold;">' + icon('shield') + ' Admin</span>' : ''}
             </div>`;
 
         const hitrate = profileData.hitrate || { total_wars: 0, attacks_made: 0, attacks_missed: 0, total_stars: 0, three_star_attacks: 0, avg_destruction: 0 };
@@ -1743,11 +1769,11 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (mlTier.includes("Instável")) { tierColor = "#f39c12"; tierGlow = "rgba(243, 156, 18, 0.4)"; }
         else if (mlTier.includes("Risco") || mlTier.includes("Descartável")) { tierColor = "#e74c3c"; tierGlow = "rgba(231, 76, 60, 0.4)"; }
 
-        const tierIcon = mlTier.includes("General") ? '👑' : mlTier.includes("Especialista") ? '🎯' : mlTier.includes("Instável") ? '⚡' : mlTier.includes("Risco") || mlTier.includes("Descartável") ? '☠️' : '🤖';
+        const tierIcon = mlTier.includes("General") ? icon('trophy') : mlTier.includes("Especialista") ? icon('flag') : mlTier.includes("Instável") ? icon('sword') : mlTier.includes("Risco") || mlTier.includes("Descartável") ? icon('noStar') : icon('star');
 
         const brainMapHtml = `
             <div class="ia-diagnosis-card" style="--tier-color: ${tierColor}; --tier-glow: ${tierGlow};">
-                <div class="ia-bg-icon">🧠</div>
+                <div class="ia-bg-icon" style="font-size:6rem;opacity:0.05;">IA</div>
                 <div class="ia-scanline"></div>
 
                 <div class="ia-header">
@@ -1767,7 +1793,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                     <div class="ia-tier-badge ia-conf-badge">
-                        <span class="ia-tier-icon">🎲</span>
+                        <span class="ia-tier-icon"><img src="/assets/icons/Icon_HV_Sword.png" class="icon-sm"></span>
                         <div class="ia-tier-info">
                             <span class="ia-tier-label">Confiabilidade (R.Forest)</span>
                             <strong class="ia-conf-value" style="color: ${tierColor};">${mlProb.toFixed(1)}%</strong>
@@ -1777,7 +1803,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 <div class="ia-metrics">
                     <div class="ia-metric ${corParticipacao}">
-                        <span class="ia-metric-icon">🎯</span>
+                        <span class="ia-metric-icon">${icon('flag')}</span>
                         <div class="ia-metric-body">
                             <span class="ia-metric-label">Assiduidade</span>
                             <strong class="ia-metric-value">${txParticipacao}%</strong>
@@ -1785,15 +1811,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                     <div class="ia-metric text-gold">
-                        <span class="ia-metric-icon">⚔️</span>
+                        <span class="ia-metric-icon">${icon('sword')}</span>
                         <div class="ia-metric-body">
                             <span class="ia-metric-label">Poder de Fogo</span>
-                            <strong class="ia-metric-value">${mediaEstrelas} ⭐</strong>
+                            <strong class="ia-metric-value">${mediaEstrelas} ${icon('star')}</strong>
                             <span class="ia-metric-sub">Destruição Média: ${hitrate.avg_destruction}%</span>
                         </div>
                     </div>
                     <div class="ia-metric text-info">
-                        <span class="ia-metric-icon">🎯</span>
+                        <span class="ia-metric-icon">${icon('flag')}</span>
                         <div class="ia-metric-body">
                             <span class="ia-metric-label">Precisão Cirúrgica</span>
                             <strong class="ia-metric-value">${tx3Estrelas}%</strong>
@@ -1817,11 +1843,11 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <div class="profile-stats-cards">
-                <div class="p-card"><span class="p-icon">🏆</span><span class="p-val">${profileData.trophies || 0}</span><span class="p-label">Troféus</span></div>
-                <div class="p-card"><span class="p-icon">🎁</span><span class="p-val">${profileData.donations || 0}</span><span class="p-label">Doadas</span></div>
-                <div class="p-card"><span class="p-icon">📥</span><span class="p-val">${profileData.received || 0}</span><span class="p-label">Recebidas</span></div>
+                <div class="p-card"><span class="p-icon">${icon('trophy')}</span><span class="p-val">${profileData.trophies || 0}</span><span class="p-label">Troféus</span></div>
+                <div class="p-card"><span class="p-icon">${icon('flag')}</span><span class="p-val">${profileData.donations || 0}</span><span class="p-label">Doadas</span></div>
+                <div class="p-card"><span class="p-icon">${icon('out')}</span><span class="p-val">${profileData.received || 0}</span><span class="p-label">Recebidas</span></div>
                 <div class="p-card" title="Última guerra registrada no sistema">
-                    <span class="p-icon">🛡️</span>
+                    <span class="p-icon">${icon('shield')}</span>
                     <span class="p-val" style="font-size:1em; margin-top:5px;">${escapeHtml(lastWarDateFormatted)}</span>
                     <span class="p-label">Últ. Guerra</span>
                 </div>
@@ -1831,7 +1857,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ${brainMapHtml}
 
             ${(globalMissedAttacks.filter(w => (w.missed_attacks_members || []).some(m => m.tag === profileData.tag)).length > 0) ? `
-            <h3 class="profile-section-title">📋 Registro de Ataques Perdidos</h3>
+            <h3 class="profile-section-title">Registro de Ataques Perdidos</h3>
             <div style="background:rgba(0,0,0,0.25);border-radius:var(--border-radius-base);padding:15px;border:1px solid var(--color-border);margin-bottom:25px;">
                 ${globalMissedAttacks.filter(w => (w.missed_attacks_members || []).some(m => m.tag === profileData.tag)).map(w => {
                     const playerMissed = w.missed_attacks_members.find(m => m.tag === profileData.tag);
@@ -1839,7 +1865,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return `
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--color-divider);gap:10px;">
                         <div style="display:flex;align-items:center;gap:10px;">
-                            <span style="font-size:1.3em;">⚔️</span>
+                            <span style="font-size:1.3em;">${icon('sword')}</span>
                             <div>
                                 <strong style="color:var(--color-text-main);">vs ${escapeHtml(w.opponent_name || 'Desconhecido')}</strong><br>
                                 <span style="font-size:0.85em;color:var(--color-text-secondary);">${escapeHtml(w.end_date || 'Data?')}</span>
@@ -1913,15 +1939,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <div class="profile-actions-bar" style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap; justify-content:center;">
                 <button class="control-btn profile-upgrade-btn" data-tag="${escapeHtml(profileData.tag)}" style="background:linear-gradient(135deg,#b300ff,#ff00aa); color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-weight:600; font-size:0.9em;">
-                    🔨 Upgrades
+                    Upgrades
                 </button>
                 ${userIsAdmin ? `<button class="control-btn profile-export-btn" data-tag="${escapeHtml(profileData.tag)}" data-name="${escapeHtml(profileData.name)}" style="background:linear-gradient(135deg,#00fff9,#0080ff); color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-weight:600; font-size:0.9em;">
-                    📤 Exportar
+                    Exportar
                 </button>` : ''}
             </div>
 
             <div class="profile-chart-container">
-                <h3 class="profile-section-title">📊 Radar de Performance</h3>
+                <h3 class="profile-section-title">Radar de Performance</h3>
                 <div class="radar-chart-wrapper">
                     <canvas id="trophyChart"></canvas>
                 </div>
@@ -2046,7 +2072,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const data = await fetchData('player_upgrades/' + encodeURIComponent(tag));
-                if (data.error) { alert('❌ ' + data.error); return; }
+                if (data.error) { alert('ERRO: ' + data.error); return; }
 
                 const hasCosts = data.total_gold || data.total_elixir || data.total_dark_elixir;
                 const hasTime = data.total_time_seconds && data.total_time_seconds > 0;
@@ -2059,7 +2085,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     groups[type].push(u);
                 }
 
-                const typeIcons = { building: '🏠', troop: '⚔️', hero: '👑', spell: '🔮', pet: '🐾', equipment: '⚙️' };
+                const typeIcons = { building: icon('flag'), troop: icon('sword'), hero: icon('trophy'), spell: icon('star'), pet: icon('flag'), equipment: icon('shield') };
                 const typeLabels = { building: 'Construções', troop: 'Tropas', hero: 'Heróis', spell: 'Feitiços', pet: 'Companheiros', equipment: 'Equipamentos' };
 
                 let thLabel = data.current_th;
@@ -2068,26 +2094,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 let upgradesHtml = `<div class="profile-upgrades-container" style="margin-top:15px;padding:14px;background:rgba(0,255,249,0.1);border:1px solid rgba(0,255,249,0.4);border-radius:10px;box-shadow:0 0 15px rgba(0,255,249,0.15);">`;
                 upgradesHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <h4 style="margin:0;color:#00fff9;text-shadow:0 0 10px rgba(0,255,249,0.4);">🔨 Upgrades — ${escapeHtml(data.name)}</h4>
+                    <h4 style="margin:0;color:#00fff9;text-shadow:0 0 10px rgba(0,255,249,0.4);">Upgrades — ${escapeHtml(data.name)}</h4>
                     <span style="color:#0ff;font-size:0.85em;background:rgba(0,255,249,0.1);padding:2px 10px;border-radius:10px;border:1px solid rgba(0,255,249,0.3);">TH${thLabel}</span>
-                    <span style="font-size:0.75em;color:#888;background:rgba(255,255,255,0.05);padding:0 8px;border-radius:4px;">${data._has_th_table === true ? '🧠 v4.2.1' : data._has_th_table === false ? '⚠️ GeniusLib antiga' : ''}</span>
+                    <span style="font-size:0.75em;color:#888;background:rgba(255,255,255,0.05);padding:0 8px;border-radius:4px;">${data._has_th_table === true ? '<img src="/assets/icons/Icon_HV_Podium.png" class="icon-sm"> v4.2.1' : data._has_th_table === false ? 'GeniusLib antiga' : ''}</span>
                 </div>`;
                 upgradesHtml += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:0.9em;color:#fff;">`;
-                upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">📦 ${data.total_upgrades} upgrades</span>`;
+                upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">${data.total_upgrades} upgrades</span>`;
                 if (hasCosts) {
-                    if (data.total_gold) upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">🪙 ${data.total_gold.toLocaleString()} Ouro</span>`;
-                    if (data.total_elixir) upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">🧪 ${data.total_elixir.toLocaleString()} Elixir</span>`;
-                    if (data.total_dark_elixir) upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">💎 ${data.total_dark_elixir.toLocaleString()} Elixir N</span>`;
+                    if (data.total_gold) upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">${data.total_gold.toLocaleString()} Ouro</span>`;
+                    if (data.total_elixir) upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">${data.total_elixir.toLocaleString()} Elixir</span>`;
+                    if (data.total_dark_elixir) upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">${data.total_dark_elixir.toLocaleString()} Elixir N</span>`;
                 } else {
-                    upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;color:#ffaa00;">⚠️ Custos não disponíveis</span>`;
+                    upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;color:#ffaa00;">Custos não disponíveis</span>`;
                 }
                 if (hasTime) {
-                    upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">⏳ ~${data.estimated_real_time_days} dias (${data.builder_count} construtores)</span>`;
+                    upgradesHtml += `<span style="background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:6px;">~${data.estimated_real_time_days} dias (${data.builder_count} construtores)</span>`;
                 }
                 upgradesHtml += `</div>`;
 
                 for (const [type, items] of Object.entries(groups)) {
-                    const icon = typeIcons[type] || '📋';
+                    const icon = typeIcons[type] || '<img src="/assets/icons/Icon_HV_Shield.png" class="icon-sm">';
                     const label = typeLabels[type] || type;
                     const withCostType = type === 'building' || type === 'troop' || type === 'hero';
                     upgradesHtml += `<details style="margin-bottom:4px;" ${type === 'building' ? 'open' : ''}>
@@ -2095,9 +2121,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="max-height:250px;overflow-y:auto;margin-top:4px;padding-left:8px;background:rgba(0,0,0,0.2);border-radius:6px;padding:4px 6px;">`;
                     for (const u of items) {
                         let costs = [];
-                        if (u.gold) costs.push(`🪙${u.gold.toLocaleString()}`);
-                        if (u.elixir) costs.push(`🧪${u.elixir.toLocaleString()}`);
-                        if (u.dark_elixir) costs.push(`💎${u.dark_elixir.toLocaleString()}`);
+                        if (u.gold) costs.push(`${u.gold.toLocaleString()} O`);
+                        if (u.elixir) costs.push(`${u.elixir.toLocaleString()} E`);
+                        if (u.dark_elixir) costs.push(`${u.dark_elixir.toLocaleString()} EN`);
                         upgradesHtml += `<div style="padding:3px 0;font-size:0.88em;color:#eee;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;">
                             <span>${u.displayName} <span style="color:#999;font-size:0.9em;">${u.from_level} → ${u.to_level}</span></span>
                             <span style="color:#0ff;font-size:0.85em;">${costs.length ? costs.join(' ') : ''}</span>
@@ -2107,13 +2133,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 upgradesHtml += `<div style="text-align:right;margin-top:8px;">
-                    <button onclick="this.closest('.profile-upgrades-container').remove()" style="background:rgba(255,0,170,0.15);border:1px solid #ff00aa;color:#ff66cc;padding:5px 16px;border-radius:6px;cursor:pointer;font-size:0.85em;transition:0.2s;" onmouseover="this.style.background='rgba(255,0,170,0.3)'" onmouseout="this.style.background='rgba(255,0,170,0.15)'">✕ Fechar</button>
+                    <button onclick="this.closest('.profile-upgrades-container').remove()" style="background:rgba(255,0,170,0.15);border:1px solid #ff00aa;color:#ff66cc;padding:5px 16px;border-radius:6px;cursor:pointer;font-size:0.85em;transition:0.2s;" onmouseover="this.style.background='rgba(255,0,170,0.3)'" onmouseout="this.style.background='rgba(255,0,170,0.15)'">Fechar</button>
                 </div>`;
                 upgradesHtml += `</div>`;
 
                 memberProfileContent.querySelector('.profile-actions-bar').insertAdjacentHTML('afterend', upgradesHtml);
             } catch (err) {
-                alert('❌ Erro ao buscar upgrades.');
+                alert('ERRO: Erro ao buscar upgrades.');
             }
         });
 
@@ -2123,7 +2149,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!tag) return;
             try {
                 const profileData = await fetchData('player_profile/' + encodeURIComponent(tag));
-                if (profileData.error) { alert('❌ ' + profileData.error); return; }
+                if (profileData.error) { alert('ERRO: ' + profileData.error); return; }
                 const json = JSON.stringify(profileData, null, 2);
                 const blob = new Blob([json], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
@@ -2133,7 +2159,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 a.click();
                 URL.revokeObjectURL(url);
             } catch (err) {
-                alert('❌ Erro ao exportar.');
+                alert('ERRO: Erro ao exportar.');
             }
         });
 
@@ -2406,7 +2432,7 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.clipboard.writeText(btn.dataset.armyCode).then(() => {
             btn.textContent = '✓ Copiado!';
             btn.classList.add('copied');
-            setTimeout(() => { btn.textContent = '📋 Copiar'; btn.classList.remove('copied'); }, 2000);
+            setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('copied'); }, 2000);
         });
     });
 
@@ -2500,7 +2526,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (h.equipment && h.equipment.length > 0) {
                         html += `<span class="army-hero-detail"> (${h.equipment.map(eq => escapeHtmlLegend(eq)).join(', ')})</span>`;
                     }
-                    return `<div class="army-hero-row">👑 ${html}</div>`;
+                    return `<div class="army-hero-row">${icon('trophy')} ${html}</div>`;
                 }
                 function renderTroopBadge(t) {
                     return `<span class="army-troop-badge"><span class="army-troop-qty">${t.quantity}x</span> ${escapeHtmlLegend(t.name)}</span>`;
@@ -2512,14 +2538,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const code = armyCodes[JSON.stringify(a)];
                     let copyBtn = '';
                     if (code) {
-                        copyBtn = `<button class="army-copy-btn" data-army-code="${escapeHtmlLegend(code)}" title="Copiar código para importar no Clash">📋 Copiar</button>`;
+                        copyBtn = `<button class="army-copy-btn" data-army-code="${escapeHtmlLegend(code)}" title="Copiar código para importar no Clash">Copiar</button>`;
                     }
                     let statsPills = '';
                     if (entry.attacks > 0) {
-                        statsPills += `<span class="army-stat-pill stars">⭐ ${avgStars}</span>`;
-                        statsPills += `<span class="army-stat-pill destruction">💥 ${avgDestruction}%</span>`;
+                        statsPills += `<span class="army-stat-pill stars">${icon('star')} ${avgStars}</span>`;
+                        statsPills += `<span class="army-stat-pill destruction">${avgDestruction}%</span>`;
                     }
-                    statsPills += `<span class="army-stat-pill usage">📊 ${entry.count}x usado</span>`;
+                    statsPills += `<span class="army-stat-pill usage">${entry.count}x usado</span>`;
                     let html = `<div class="army-card">
                         <div class="army-card-header">
                             <div>
@@ -2549,13 +2575,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     finalHtml = sorted.map((e, i) => renderArmyCard(e, i)).join('');
                 } else {
                     if (threeStar.length > 0) {
-                        finalHtml += `<div class="army-section"><div class="army-section-title">🏆 Exércitos com 3 Estrelas (média)</div>${threeStar.map((e, i) => renderArmyCard(e, i)).join('')}</div>`;
+                        finalHtml += `<div class="army-section"><div class="army-section-title">${icon('trophy')} Exércitos com 3 Estrelas (média)</div>${threeStar.map((e, i) => renderArmyCard(e, i)).join('')}</div>`;
                     }
                     if (twoStar.length > 0) {
-                        finalHtml += `<div class="army-section"><div class="army-section-title">⭐ Exércitos com 2+ Estrelas (média)</div>${twoStar.map((e, i) => renderArmyCard(e, i + threeStar.length)).join('')}</div>`;
+                        finalHtml += `<div class="army-section"><div class="army-section-title">${icon('star')} Exércitos com 2+ Estrelas (média)</div>${twoStar.map((e, i) => renderArmyCard(e, i + threeStar.length)).join('')}</div>`;
                     }
                     if (other.length > 0) {
-                        finalHtml += `<div class="army-section"><div class="army-section-title">📊 Outros</div>${other.map((e, i) => renderArmyCard(e, i + threeStar.length + twoStar.length)).join('')}</div>`;
+                        finalHtml += `<div class="army-section"><div class="army-section-title">Outros</div>${other.map((e, i) => renderArmyCard(e, i + threeStar.length + twoStar.length)).join('')}</div>`;
                     }
                 }
                 setHtml(armyContainer, finalHtml);

@@ -40,17 +40,17 @@ window.updateRadarNotifications = function(members) {
 
             if (diffDays >= 30) {
                 alertType = "INFRAÇÃO GRAVE (30+ dias)";
-                icon = "⛔";
+                icon = '<img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm" alt="critical">';
                 colorClass = "alert-critical";
                 message = `Atenção: O membro <strong>${escapeHtml(member.name)}</strong> violou a diretriz principal do clã. O sistema forense registra exatos <strong>${diffDays} dias</strong> sem qualquer participação no campo de guerra. Remoção recomendada.`;
             } else if (diffDays >= 22) {
                 alertType = "ALERTA VERMELHO (22+ dias)";
-                icon = "🚨";
+                icon = '<img src="/assets/icons/Icon_HV_Raid_Attack.png" class="icon-sm" alt="alert">';
                 colorClass = "alert-danger";
                 message = `Risco altíssimo de desligamento: A conta de <strong>${escapeHtml(member.name)}</strong> está congelada há <strong>${diffDays} dias</strong>. Sugere-se intervenção imediata da liderança para cobrança.`;
             } else {
                 alertType = "ATENÇÃO TÁTICA (15+ dias)";
-                icon = "🎯";
+                icon = '<img src="/assets/icons/Icon_HV_Sword.png" class="icon-sm" alt="target">';
                 colorClass = "alert-warning";
                 message = `A conta <strong>${escapeHtml(member.name)}</strong> acaba de entrar no radar de ociosidade. A nossa telemetria aponta <strong>${diffDays} dias</strong> sem se voluntariar para o confronto.`;
             }
@@ -71,7 +71,7 @@ window.updateRadarNotifications = function(members) {
     if (alertCount === 0) {
         drawerContent.innerHTML = `
             <div class="radar-empty">
-                <div style="font-size: 3rem; margin-bottom: 10px;">✅</div>
+                <div style="font-size: 3rem; margin-bottom: 10px;"><img src="/assets/icons/Icon_HV_Shield.png" class="icon-sm" alt="clean"></div>
                 <p>O radar está limpo.<br>Nenhum membro detectado em inatividade bélica no momento!</p>
             </div>`;
         badge.style.display = 'none';
@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const roleBadge = document.getElementById('user-role-badge');
         if (roleBadge) {
             const isViewer = currentUserRole === 'viewer';
-            roleBadge.textContent = isViewer ? '👁️ Membro Sênior' : '🛡️ Admin';
+            roleBadge.textContent = isViewer ? 'Membro Sênior' : 'Admin';
             roleBadge.style.color = isViewer ? 'var(--neon-orange)' : 'var(--neon-cyan)';
             roleBadge.style.borderColor = isViewer ? 'rgba(255,165,0,0.3)' : 'rgba(0,255,249,0.3)';
             roleBadge.style.background = isViewer ? 'rgba(255,165,0,0.1)' : 'rgba(0,255,249,0.1)';
@@ -562,7 +562,7 @@ async function loadRadarDossier() {
             if(dossier.length === 0) {
                 container.innerHTML = `
                 <div style="text-align:center; padding: 30px; background: rgba(46, 204, 113, 0.05); border: 1px solid rgba(46, 204, 113, 0.2); border-radius: 8px;">
-                    <h3 style="color: var(--color-success); margin-bottom:10px;">🛡️ Clã Limpo (Status Verde)</h3>
+                    <h3 style="color: var(--color-success); margin-bottom:10px;"><img src="/assets/icons/Icon_HV_Shield.png" class="icon-sm" alt="clean"> Clã Limpo (Status Verde)</h3>
                     <p style="color: var(--color-text-secondary);">A Inteligência Forense cruzou todos os eixos de guerra, doação, laboratório e lexicologia nas últimas horas e não encontrou elos suspeitos.</p>
                 </div>`;
                 return;
@@ -592,9 +592,9 @@ async function loadRadarDossier() {
                         <div>
                             <span style="font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; color: ${color}; font-weight: bold;">Identificação XAI</span>
                             <h4 style="margin: 5px 0 0 0; font-size: 1.2em; display:flex; align-items:center; gap: 10px;">
-                                👑 ${escapeHtml(doc.main_name)} <span style="font-size:0.7em; color:var(--color-text-secondary);">${escapeHtml(doc.main_tag)}</span>
-                                <span style="color:${color};">↔️</span>
-                                👶 ${escapeHtml(doc.smurf_name)} <span style="font-size:0.7em; color:var(--color-text-secondary);">${escapeHtml(doc.smurf_tag)}</span>
+                                <img src="/assets/icons/Icon_HV_Podium.png" class="icon-sm" alt="main"> ${escapeHtml(doc.main_name)} <span style="font-size:0.7em; color:var(--color-text-secondary);">${escapeHtml(doc.main_tag)}</span>
+                                <span style="color:${color};"><img src="/assets/icons/Icon_HV_Raid_Attack.png" class="icon-sm" alt="link"></span>
+                                <img src="/assets/icons/no_star.png" class="icon-sm" alt="smurf"> ${escapeHtml(doc.smurf_name)} <span style="font-size:0.7em; color:var(--color-text-secondary);">${escapeHtml(doc.smurf_tag)}</span>
                             </h4>
                         </div>
                         <div style="text-align: right;">
@@ -608,15 +608,15 @@ async function loadRadarDossier() {
                     </div>
                     
                     <div style="padding: 20px;">
-                        <div style="margin-bottom: 8px; font-size: 0.85em; color: var(--color-text-secondary); text-transform:uppercase; font-weight:bold; letter-spacing: 1px;">🧠 Motor de Inferência (Cadeia Lógica)</div>
+                        <div style="margin-bottom: 8px; font-size: 0.85em; color: var(--color-text-secondary); text-transform:uppercase; font-weight:bold; letter-spacing: 1px;"><img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm" alt="AI"> Motor de Inferência (Cadeia Lógica)</div>
                         <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 15px; font-family: 'Courier New', monospace; font-size: 0.9em; line-height: 1.5; max-height: 250px; overflow-y: auto;">
                             ${terminalHtml}
                         </div>
                     </div>
                     
                     <div style="padding: 15px 20px; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(255,255,255,0.05); display: flex; gap: 15px;">
-                        <button onclick="judgeSmurf('${escapeHtml(doc.pair_id)}', 'absolve_smurf')" class="btn-admin" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid #2ecc71; flex: 1; transition: all 0.2s;">🟢 Falso Positivo (Limpar)</button>
-                        <button onclick="judgeSmurf('${escapeHtml(doc.pair_id)}', 'condemn_smurf')" class="btn-admin" style="background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid #e74c3c; flex: 1; transition: all 0.2s;">🔴 Condenar p/ Watchlist</button>
+                        <button onclick="judgeSmurf('${escapeHtml(doc.pair_id)}', 'absolve_smurf')" class="btn-admin" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid #2ecc71; flex: 1; transition: all 0.2s;"><img src="/assets/icons/Icon_HV_Shield.png" class="icon-sm" alt="safe"> Falso Positivo (Limpar)</button>
+                        <button onclick="judgeSmurf('${escapeHtml(doc.pair_id)}', 'condemn_smurf')" class="btn-admin" style="background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid #e74c3c; flex: 1; transition: all 0.2s;"><img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm" alt="danger"> Condenar p/ Watchlist</button>
                     </div>
                 </div>`;
             });
@@ -631,7 +631,7 @@ async function loadRadarDossier() {
     window.judgeSmurf = async (pairId, action) => {
         const isCondemn = action === 'condemn_smurf';
         const msg = isCondemn 
-            ? '⚠️ TEM CERTEZA?\n\nA Matriz Forense enviará ambas as contas para a Watchlist como "Smurfs Confirmadas" e apagará o dossiê da tela principal.' 
+            ? 'ATENÇÃO: TEM CERTEZA?\n\nA Matriz Forense enviará ambas as contas para a Watchlist como "Smurfs Confirmadas" e apagará o dossiê da tela principal.' 
             : 'Absolver Contas?\n\nA IA aprenderá que este padrão é falso positivo e atenuará a pontuação vetorial desta ligação.';
             
         if(!confirm(msg)) return;
@@ -653,7 +653,7 @@ async function loadRadarDossier() {
     };
 
     window.cleanupSmurfDB = async () => {
-        if(!confirm('🧹 TEM CERTEZA?\n\nIsso vai APAGAR TODAS as evidências do Radar Pericial e resetar o banco de dados.\n\nOs dados antigos (sistema v2.0) eram cheios de falsos positivos. Após limpar, o novo sistema v3.0 vai começar do zero com regras muito mais precisas.')) return;
+        if(!confirm('ATENÇÃO: TEM CERTEZA?\n\nIsso vai APAGAR TODAS as evidências do Radar Pericial e resetar o banco de dados.\n\nOs dados antigos (sistema v2.0) eram cheios de falsos positivos. Após limpar, o novo sistema v3.0 vai começar do zero com regras muito mais precisas.')) return;
 
         const feedback = document.getElementById('radar-feedback');
         displayFeedback(feedback, 'Limpando banco de dados do Radar Pericial...');
@@ -899,7 +899,7 @@ async function loadRadarDossier() {
                     const endpoint = action === 'export_clan_json' ? 'export/clan?format=json' : 'export/players?format=csv';
                     const resp = await fetch(`/api/admin/${endpoint}`);
                     const data = await resp.json();
-                    if (data.error) { displayFeedback(actionsFeedback, '❌ ' + data.error, true); return; }
+                    if (data.error) { displayFeedback(actionsFeedback, data.error, true); return; }
                     const ext = action === 'export_clan_json' ? 'json' : 'csv';
                     const mime = action === 'export_clan_json' ? 'application/json' : 'text/csv';
                     const blob = new Blob([data.data], { type: mime });
@@ -909,9 +909,9 @@ async function loadRadarDossier() {
                     a.download = `clashgenius_admin_export.${ext}`;
                     a.click();
                     URL.revokeObjectURL(url);
-                    displayFeedback(actionsFeedback, `✅ Exportação concluída!`);
+                    displayFeedback(actionsFeedback, `Exportação concluída!`);
                 } catch (error) {
-                    displayFeedback(actionsFeedback, '❌ Erro na exportação.', true);
+                    displayFeedback(actionsFeedback, 'Erro na exportação.', true);
                 }
                 finally { button.disabled = false; button.textContent = originalText; }
                 return;
@@ -1275,7 +1275,7 @@ async function loadRadarDossier() {
         }
 
         if (!content && (!payload.embeds || !payload.embeds.length)) {
-            container.innerHTML = '<div class="dh-preview-placeholder"><div style="font-size:3rem;margin-bottom:10px;opacity:0.3;">💬</div><div style="color:var(--color-text-secondary);">Preencha os dados ao lado para ver o preview</div></div>';
+            container.innerHTML = '<div class="dh-preview-placeholder"><div style="font-size:3rem;margin-bottom:10px;opacity:0.3;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></div><div style="color:var(--color-text-secondary);">Preencha os dados ao lado para ver o preview</div></div>';
             return;
         }
         var html = '';
@@ -1357,15 +1357,15 @@ async function loadRadarDossier() {
             var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             if (r.ok) {
                 fb.className = 'dh-send-status success';
-                fb.textContent = '✅ Mensagem enviada com sucesso!';
+                fb.textContent = 'Mensagem enviada com sucesso!';
             } else {
                 var err = await r.text().catch(function() { return 'Erro desconhecido'; });
                 fb.className = 'dh-send-status error';
-                fb.textContent = '❌ Erro ' + r.status + ': ' + err.substring(0, 200);
+                fb.textContent = 'Erro ' + r.status + ': ' + err.substring(0, 200);
             }
         } catch (err) {
             fb.className = 'dh-send-status error';
-            fb.textContent = '❌ Falha: ' + err.message;
+            fb.textContent = 'Falha: ' + err.message;
         }
         btn.textContent = orig; btn.disabled = false;
     }
@@ -1378,8 +1378,8 @@ async function loadRadarDossier() {
         dhUpdatePreview();
     }
 
-    function dhExportJSON() { dhShowModal('📤 Exportar JSON', JSON.stringify(dhGetPayload(), null, 2), false); }
-    function dhImportJSON() { dhShowModal('📥 Importar JSON', '', true); }
+    function dhExportJSON() { dhShowModal('Exportar JSON', JSON.stringify(dhGetPayload(), null, 2), false); }
+    function dhImportJSON() { dhShowModal('Importar JSON', '', true); }
 
     function dhShowModal(title, json, isImport) {
         var old = document.querySelector('.dh-modal-overlay');
@@ -1429,15 +1429,15 @@ async function loadRadarDossier() {
 
     function dhLoadExample() {
         dhClearAll();
-        el('dh-content').value = 'Bem-vindo ao **DiscoHook**! 🎉\n\nUse este editor para criar mensagens personalizadas com embeds ricos.';
+        el('dh-content').value = 'Bem-vindo ao **DiscoHook**!\n\nUse este editor para criar mensagens personalizadas com embeds ricos.';
         dhAddEmbed({
             title: 'O que é isso?',
             description: 'Editor visual de embeds do Discord. Crie mensagens estilizadas com cores, campos, imagens e envie via Webhook.',
             color: '#58b9ff', author_name: 'DiscoHook', footer_text: 'Criado com DiscoHook',
             fields: [
-                { name: '📝 Content', value: 'Texto acima dos embeds', inline: true },
-                { name: '🎨 Embeds', value: 'Mensagens ricas formatadas', inline: true },
-                { name: '🔗 Webhook', value: 'Envie para qualquer canal', inline: false }
+                { name: 'Content', value: 'Texto acima dos embeds', inline: true },
+                { name: 'Embeds', value: 'Mensagens ricas formatadas', inline: true },
+                { name: 'Webhook', value: 'Envie para qualquer canal', inline: false }
             ]
         });
         dhAddEmbed({
@@ -1473,8 +1473,8 @@ async function loadRadarDossier() {
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;margin-bottom:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,215,0,0.2);border-radius:6px;">
                     <div>
                         <strong style="color:var(--neon-orange);">${escapeHtml(u.username)}</strong>
-                        ${u.discord ? `<span style="color:var(--color-text-secondary);margin-left:10px;">🎮 ${escapeHtml(u.discord)}</span>` : ''}
-                        <span style="color:var(--color-text-secondary);font-size:0.85em;margin-left:10px;">📅 ${new Date(u.created_at).toLocaleString('pt-BR')}</span>
+                        ${u.discord ? `<span style="color:var(--color-text-secondary);margin-left:10px;">${escapeHtml(u.discord)}</span>` : ''}
+                        <span style="color:var(--color-text-secondary);font-size:0.85em;margin-left:10px;">${new Date(u.created_at).toLocaleString('pt-BR')}</span>
                     </div>
                     <div>
                         <button onclick="approveUser('${escapeHtml(u.username)}')" style="background:rgba(46,204,113,0.2);border:1px solid #2ecc71;color:#2ecc71;padding:6px 15px;border-radius:4px;cursor:pointer;margin-right:5px;font-family:'Rajdhani',sans-serif;font-weight:600;">✓ Aprovar</button>
@@ -1516,7 +1516,7 @@ async function loadRadarDossier() {
                         ${active.map(u => `
                             <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                                 <td style="padding:8px;font-weight:600;">${escapeHtml(u.username)}</td>
-                                <td style="padding:8px;"><span style="padding:2px 8px;border-radius:3px;font-size:0.85em;background:${u.role === 'admin' ? 'rgba(0,255,249,0.15)' : 'rgba(255,165,0,0.15)'};color:${u.role === 'admin' ? 'var(--neon-cyan)' : 'var(--neon-orange)'};">${u.role === 'admin' ? '🛡️ Admin' : '👁️ Membro Sênior'}</span></td>
+                                <td style="padding:8px;"><span style="padding:2px 8px;border-radius:3px;font-size:0.85em;background:${u.role === 'admin' ? 'rgba(0,255,249,0.15)' : 'rgba(255,165,0,0.15)'};color:${u.role === 'admin' ? 'var(--neon-cyan)' : 'var(--neon-orange)'};">${u.role === 'admin' ? 'Admin' : 'Membro Sênior'}</span></td>
                                 <td style="padding:8px;color:var(--color-text-secondary);">${escapeHtml(u.discord || '-')}</td>
                                 <td style="padding:8px;color:var(--color-text-secondary);font-size:0.85em;">${u.created_at ? new Date(u.created_at).toLocaleString('pt-BR') : '-'}</td>
                                 <td style="padding:8px;">
@@ -1568,7 +1568,7 @@ async function loadRadarDossier() {
     window.changeUserRole = async function(username, newRole) {
         const fb = document.getElementById('users-feedback');
         if (!fb) return;
-        fb.textContent = '⏳ Alterando role...';
+        fb.textContent = 'Alterando role...';
         fb.className = 'feedback-text';
         try {
             const data = await fetchAdminAPI('auth/role', {

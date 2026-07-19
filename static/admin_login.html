@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚠️ ACESSO RESTRITO - Clash Genius</title>
+    <title>ACESSO RESTRITO - Clash Genius</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <script>document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('keydown',e=>{if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&['I','J','C'].includes(e.key.toUpperCase()))||(e.ctrlKey&&e.key==='u'))e.preventDefault()});</script>
     <style>
@@ -200,7 +200,7 @@
                 <input type="hidden" id="login-guild-id" value="">
                 <button onclick="doLogin()">▶ ACESSAR</button>
                 <p id="login-feedback" style="color:#ff6b6b;"></p>
-                <p class="register-link" onclick="showRegister()"> <i>🔑</i> Não tem acesso? Solicite sua conta</p>
+                <p class="register-link" onclick="showRegister()">Não tem acesso? Solicite sua conta</p>
             </div>
 
             <!-- Register Form -->
@@ -211,7 +211,7 @@
                 <input type="text" id="reg-discord" placeholder="// SEU DISCORD (ex: usuario#1234) //" style="width:80%;padding:10px;margin-bottom:10px;background:rgba(0,0,0,0.8);border:1px solid rgba(0,255,249,0.3);color:#00ffcc;font-family:'Fira Code',monospace;text-align:center;">
                 <button onclick="doRegister()" style="background:linear-gradient(135deg,#0033cc,var(--neon-cyan),#0040ff)!important;">▶ SOLICITAR</button>
                 <p id="register-feedback" style="color:#00ffcc;"></p>
-                <p class="register-link" onclick="showLogin()"><i>⬅</i> Voltar ao login</p>
+                <p class="register-link" onclick="showLogin()">Voltar ao login</p>
             </div>
 
             <p id="master-password-fallback" style="font-size:0.7em;margin-top:15px;color:rgba(255,255,255,0.2);cursor:pointer;" onclick="useMasterPassword()">[senha mestra]</p>
@@ -221,13 +221,13 @@
     <!-- Master Password Form (hidden, shown by useMasterPassword) -->
     <div id="master-password-section" style="display:none;position:relative;z-index:2;">
         <div class="login-card" style="margin-top:20px;">
-            <h2 style="font-size:1.2em;">🔐 SENHA MESTRA</h2>
+            <h2 style="font-size:1.2em;">SENHA MESTRA</h2>
             <form action="/admin/login" method="POST" style="padding:20px;">
                 <input type="hidden" name="guild_id" id="mp-guild-id" value="">
                 <input type="password" name="password" placeholder="// SENHA MESTRA //" style="width:80%;padding:12px;margin-bottom:12px;background:rgba(0,0,0,0.8);border:1px solid rgba(255,0,64,0.3);color:#ff4444;font-family:'Fira Code',monospace;text-align:center;font-size:1.1em;" required autofocus>
                 <button type="submit">▶ ACESSAR</button>
             </form>
-            <p class="register-link" onclick="location.reload()" style="color:rgba(255,200,200,0.5);font-family:'Fira Code',monospace;font-size:0.8em;cursor:pointer;padding-bottom:15px;"><i>⬅</i> Voltar</p>
+            <p class="register-link" onclick="location.reload()" style="color:rgba(255,200,200,0.5);font-family:'Fira Code',monospace;font-size:0.8em;cursor:pointer;padding-bottom:15px;">Voltar</p>
         </div>
     </div>
     <script>
@@ -248,7 +248,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const guildId = urlParams.get('guild_id');
             if (guildId) document.getElementById('login-guild-id').value = guildId;
-            if (urlParams.has('error')) document.getElementById('login-feedback').textContent = '⚠️ ACESSO NEGADO: Senha incorreta.';
+            if (urlParams.has('error')) document.getElementById('login-feedback').textContent = 'ACESSO NEGADO: Senha incorreta.';
         });
 
         function showRegister() {
@@ -266,8 +266,8 @@
             const password = document.getElementById('login-password').value;
             const guildId = document.getElementById('login-guild-id').value;
             const fb = document.getElementById('login-feedback');
-            if (!username || !password) { fb.textContent = '⚠️ Preencha usuário e senha.'; return; }
-            fb.textContent = '⏳ Autenticando...';
+            if (!username || !password) { fb.textContent = 'Preencha usuario e senha.'; return; }
+            fb.textContent = 'Autenticando...';
             try {
                 const resp = await fetch('/api/admin/auth/login', {
                     method: 'POST',
@@ -278,10 +278,10 @@
                 if (data.status === 'success') {
                     window.location.href = '/admin/panel';
                 } else {
-                    fb.textContent = '⚠️ ' + (data.message || 'Falha na autenticação.');
+                    fb.textContent = data.message || 'Falha na autenticacao.';
                 }
             } catch(e) {
-                fb.textContent = '⚠️ Erro de conexão com o servidor.';
+                fb.textContent = 'Erro de conexao com o servidor.';
             }
         }
 
@@ -290,10 +290,10 @@
             const password = document.getElementById('reg-password').value;
             const discord = document.getElementById('reg-discord').value.trim();
             const fb = document.getElementById('register-feedback');
-            if (!username || !password) { fb.textContent = '⚠️ Preencha usuário e senha.'; return; }
-            if (username.length < 3) { fb.textContent = '⚠️ Usuário deve ter no mínimo 3 caracteres.'; return; }
-            if (password.length < 4) { fb.textContent = '⚠️ Senha deve ter no mínimo 4 caracteres.'; return; }
-            fb.textContent = '⏳ Enviando solicitação...';
+            if (!username || !password) { fb.textContent = 'Preencha usuario e senha.'; return; }
+            if (username.length < 3) { fb.textContent = 'Usuario deve ter no minimo 3 caracteres.'; return; }
+            if (password.length < 4) { fb.textContent = 'Senha deve ter no minimo 4 caracteres.'; return; }
+            fb.textContent = 'Enviando solicitacao...';
             try {
                 const resp = await fetch('/api/admin/auth/register', {
                     method: 'POST',
@@ -301,14 +301,14 @@
                     body: JSON.stringify({username, password, discord})
                 });
                 const data = await resp.json();
-                fb.textContent = data.status === 'success' ? '✅ ' + data.message : '⚠️ ' + (data.message || 'Erro ao solicitar.');
+                fb.textContent = data.status === 'success' ? data.message : (data.message || 'Erro ao solicitar.');
                 if (data.status === 'success') {
                     document.getElementById('reg-username').value = '';
                     document.getElementById('reg-password').value = '';
                     document.getElementById('reg-discord').value = '';
                 }
             } catch(e) {
-                fb.textContent = '⚠️ Erro de conexão com o servidor.';
+                fb.textContent = 'Erro de conexao com o servidor.';
             }
         }
 

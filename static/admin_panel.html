@@ -694,7 +694,7 @@
                 <div style="display: flex; align-items: center; gap: 20px;">
                     <h2>Painel do Administrador</h2>
                     <div class="radar-bell-container" id="radar-bell-btn" onclick="toggleRadarDrawer()" title="Radar de Inatividade" data-viewer-hide>
-                        <span>🔔</span>
+                        <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
                         <span id="radar-badge" class="radar-badge" style="display: none;">0</span>
                     </div>
                 </div>
@@ -711,12 +711,12 @@
                     <li><a href="#" class="nav-link" data-section="admin-diagnostico" data-tooltip="Status da API CoC e logs recentes do bot">Diagnóstico</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-configuracoes" data-tooltip="Canais, cargos e configurações do Discord">Configurações</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-watchlist" data-tooltip="Gerenciar lista de observação de jogadores">Watchlist</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-radar" style="color: #ffd700;" data-tooltip="🧠 Radar Pericial: Detecção de smurfs e contas vinculadas">🧠 Radar Pericial</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-analytics" style="color: #00ffcc;" data-tooltip="📊 Analytics IA: Classificação de jogadores por machine learning">📊 <span class="ai-indicator"></span>Analytics IA</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-radar" style="color: #ffd700;" data-tooltip="Radar Pericial: Detecção de smurfs e contas vinculadas">Radar Pericial</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-analytics" style="color: #00ffcc;" data-tooltip="Analytics IA: Classificação de jogadores por machine learning"><span class="ai-indicator"></span>Analytics IA</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-acoes" data-tooltip="Ações do bot: cache, sincronização, anúncios">Ações</a></li>
                     <li><a href="#" class="nav-link" data-section="admin-db" data-tooltip="Visualizador da base de dados MongoDB">Base de Dados</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-discohook" style="color: #58b9ff;" data-tooltip="🎨 Criar e enviar embeds personalizados via Webhook">🎨 DiscoHook</a></li>
-                    <li><a href="#" class="nav-link" data-section="admin-users" style="color: #ff6b9d;" data-tooltip="🔑 Gerenciar usuários do painel" data-admin-only>🔑 Usuários</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-discohook" style="color: #58b9ff;" data-tooltip="Criar e enviar embeds personalizados via Webhook">DiscoHook</a></li>
+                    <li><a href="#" class="nav-link" data-section="admin-users" style="color: #ff6b9d;" data-tooltip="Gerenciar usuários do painel" data-admin-only>Usuarios</a></li>
                 </ul>
             </nav>
 
@@ -764,19 +764,19 @@
                         <form id="settings-form">
                             <h4>Arquitetura de Canais (Setores)</h4>
                             <div class="form-grid">
-                                <div class="form-group"><label for="channel_id">📝 Canal: Logs Gerais (Troféus, Ligas, Status API)</label><select id="channel_id" name="channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="post_war_analysis_channel_id">🛡️ Canal: Alertas de Guerra</label><select id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="post_war_verdict_channel_id" style="color: #00ffcc;">📊 Canal: Análise Pós-Guerra (Veredito)</label><select id="post_war_verdict_channel_id" name="post_war_verdict_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="watchlist_alert_channel_id">👥 Canal: RH do Clã</label><select id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="low_performance_channel_id">📉 Canal: Relatório de Faxina</label><select id="low_performance_channel_id" name="low_performance_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="clan_games_channel_id">🏰 Canal: Eventos Secundários</label><select id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="capital_report_channel_id">🖼️ Canal: Imagem Capital</label><select id="capital_report_channel_id" name="capital_report_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="cwl_planner_channel_id">🔮 Canal: Cérebro CWL</label><select id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="donations_channel_id">🎁 Canal: Notificações de Doação</label><select id="donations_channel_id" name="donations_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="smurf_log_channel_id" style="color: #ffd700;">🕵️ Canal: Logs Smurfs</label><select id="smurf_log_channel_id" name="smurf_log_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="maintenance_alert_channel_id" style="color: #ff6b6b;">🚨 Canal: Alertas de Manutenção</label><select id="maintenance_alert_channel_id" name="maintenance_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="changelog_channel_id" style="color: #ffd700;">📋 Canal: Changelog</label><select id="changelog_channel_id" name="changelog_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
-                                <div class="form-group"><label for="war_preference_channel_id">⚔️ Canal: Preferência de Guerra</label><select id="war_preference_channel_id" name="war_preference_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="channel_id">Canal: Logs Gerais (Trofeus, Ligas, Status API)</label><select id="channel_id" name="channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="post_war_analysis_channel_id">Canal: Alertas de Guerra</label><select id="post_war_analysis_channel_id" name="post_war_analysis_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="post_war_verdict_channel_id" style="color: #00ffcc;">Canal: Analise Pos-Guerra (Veredito)</label><select id="post_war_verdict_channel_id" name="post_war_verdict_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="watchlist_alert_channel_id">Canal: RH do Clan</label><select id="watchlist_alert_channel_id" name="watchlist_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="low_performance_channel_id">Canal: Relatorio de Faxina</label><select id="low_performance_channel_id" name="low_performance_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="clan_games_channel_id">Canal: Eventos Secundarios</label><select id="clan_games_channel_id" name="clan_games_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="capital_report_channel_id">Canal: Imagem Capital</label><select id="capital_report_channel_id" name="capital_report_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="cwl_planner_channel_id">Canal: Cerebro CWL</label><select id="cwl_planner_channel_id" name="cwl_planner_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="donations_channel_id">Canal: Notificacoes de Doacao</label><select id="donations_channel_id" name="donations_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="smurf_log_channel_id" style="color: #ffd700;">Canal: Logs Smurfs</label><select id="smurf_log_channel_id" name="smurf_log_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="maintenance_alert_channel_id" style="color: #ff6b6b;">Canal: Alertas de Manutencao</label><select id="maintenance_alert_channel_id" name="maintenance_alert_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="changelog_channel_id" style="color: #ffd700;">Canal: Changelog</label><select id="changelog_channel_id" name="changelog_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
+                                <div class="form-group"><label for="war_preference_channel_id">Canal: Preferencia de Guerra</label><select id="war_preference_channel_id" name="war_preference_channel_id" class="settings-input"><option value="0">Carregando canais...</option></select></div>
                             </div>
                             
                             <h4>Cargos (Roles)</h4>
@@ -785,7 +785,7 @@
                                 <div class="form-group"><label for="role_id_missed_attack">Cargo (Aviso): Esquecer de Atacar</label><select id="role_id_missed_attack" name="role_id_missed_attack" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
                                 <div class="form-group"><label for="leader_role_id">Cargo Liderança: Líder</label><select id="leader_role_id" name="leader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
                                 <div class="form-group"><label for="coleader_role_id">Cargo Liderança: Co-Líder</label><select id="coleader_role_id" name="coleader_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
-                                <div class="form-group"><label for="maintenance_role_id" style="color: #ff6b6b;">🔧 Cargo: Manutenção</label><select id="maintenance_role_id" name="maintenance_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
+                                <div class="form-group"><label for="maintenance_role_id" style="color: #ff6b6b;">Cargo: Manutencao</label><select id="maintenance_role_id" name="maintenance_role_id" class="settings-input"><option value="0">Carregando cargos...</option></select></div>
                             </div>
 
                             <h4>Avisos e Funções</h4>
@@ -859,8 +859,8 @@
                         </p>
                         
                         <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-                            <button onclick="loadRadarDossier()" class="btn-admin" data-viewer-hide style="background:rgba(0,255,249,0.1); color:#00fff9; border:1px solid rgba(0,255,249,0.3);">🔄 Atualizar</button>
-                            <button onclick="cleanupSmurfDB()" class="btn-admin" data-viewer-hide style="background:rgba(255,100,50,0.1); color:#ff6432; border:1px solid rgba(255,100,50,0.3);">🧹 Limpar Banco de Dados</button>
+                            <button onclick="loadRadarDossier()" class="btn-admin" data-viewer-hide style="background:rgba(0,255,249,0.1); color:#00fff9; border:1px solid rgba(0,255,249,0.3);">Atualizar</button>
+                            <button onclick="cleanupSmurfDB()" class="btn-admin" data-viewer-hide style="background:rgba(255,100,50,0.1); color:#ff6432; border:1px solid rgba(255,100,50,0.3);">Limpar Banco de Dados</button>
                         </div>
                         <div id="radar-dossier-container">
                             <div style="text-align:center;"><div class="loading-spinner" style="margin: 20px auto;"></div></div>
@@ -909,12 +909,12 @@
                         </div>
                         <div class="action-buttons-group">
                             <h4>Exportação de Dados (GeniusLib v4.2.0)</h4>
-                            <button class="control-btn action-btn" data-action="export_clan_json" data-payload='{}'>📤 Exportar Clã (JSON)</button>
-                            <button class="control-btn action-btn" data-action="export_players_csv" data-payload='{}'>📤 Exportar Membros (CSV)</button>
+                            <button class="control-btn action-btn" data-action="export_clan_json" data-payload='{}'>Exportar Clan (JSON)</button>
+                            <button class="control-btn action-btn" data-action="export_players_csv" data-payload='{}'>Exportar Membros (CSV)</button>
                         </div>
                         <div class="action-buttons-group">
                             <h4>Changelog</h4>
-                            <button class="control-btn action-btn" data-action="send_changelog" data-payload='{}'>📋 Enviar Changelog para Discord</button>
+                            <button class="control-btn action-btn" data-action="send_changelog" data-payload='{}'>Enviar Changelog para Discord</button>
                         </div>
                         <div class="announcement-section">
                             <h4>Enviar Anúncio Global</h4>
@@ -956,7 +956,7 @@
 
                 <div id="admin-discohook" class="admin-section">
                     <div class="control-section" style="max-width: 100% !important;">
-                        <h3>🎨 DiscoHook - Editor de Embeds</h3>
+                        <h3>DiscoHook - Editor de Embeds</h3>
                         <p class="control-description" style="margin-bottom: 20px;">
                             Crie mensagens com embeds ricos e envie para seu servidor Discord via Webhook.
                         </p>
@@ -966,7 +966,7 @@
                                 <div class="dh-preview-header">Preview</div>
                                 <div class="dh-preview-messages" id="dh-preview-messages">
                                     <div class="dh-preview-placeholder">
-                                        <div style="font-size: 3rem; margin-bottom: 10px; opacity: 0.3;">💬</div>
+                                        <div style="font-size: 1.5rem; margin-bottom: 10px; opacity: 0.3; font-family: monospace;">{ }</div>
                                         <div style="color: var(--color-text-secondary);">Preencha os dados ao lado para ver o preview</div>
                                     </div>
                                 </div>
@@ -975,7 +975,7 @@
                             <div class="dh-editor">
                                 <div class="dh-webhook-row">
                                     <input type="url" id="dh-webhook-url" class="admin-input" placeholder="https://discord.com/api/webhooks/..." style="flex: 1; margin-bottom: 0;">
-                                    <button id="dh-send-btn" class="control-btn" style="white-space: nowrap; margin-left: 8px;">📤 Enviar</button>
+                                    <button id="dh-send-btn" class="control-btn" style="white-space: nowrap; margin-left: 8px;">Enviar</button>
                                 </div>
                                 <div id="dh-webhook-info" style="display: none; margin-top: 6px; padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 6px; align-items: center; gap: 10px; font-size: 0.85em;">
                                     <img id="dh-webhook-avatar" src="" alt="" style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover;">
@@ -995,11 +995,11 @@
                                 <div class="dh-embeds-list" id="dh-embeds-list"></div>
 
                                 <div class="dh-actions-row">
-                                    <button id="dh-add-embed-btn" class="control-btn" style="background: rgba(88, 101, 242, 0.2); border-color: #5865f2;">➕ Add Embed</button>
-                                    <button id="dh-import-json-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">📥 JSON</button>
-                                    <button id="dh-export-json-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">📤 JSON</button>
-                                    <button id="dh-clear-btn" class="control-btn" style="background: rgba(255, 107, 107, 0.15); border-color: #ff6b6b;">🗑️ Clear All</button>
-                                    <button id="dh-example-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">📋 Exemplo</button>
+                                    <button id="dh-add-embed-btn" class="control-btn" style="background: rgba(88, 101, 242, 0.2); border-color: #5865f2;">Add Embed</button>
+                                    <button id="dh-import-json-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">Importar JSON</button>
+                                    <button id="dh-export-json-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">Exportar JSON</button>
+                                    <button id="dh-clear-btn" class="control-btn" style="background: rgba(255, 107, 107, 0.15); border-color: #ff6b6b;">Limpar Tudo</button>
+                                    <button id="dh-example-btn" class="control-btn" style="background: rgba(255, 255, 255, 0.05);">Exemplo</button>
                                 </div>
                             </div>
                         </div>
@@ -1010,7 +1010,7 @@
             <!-- Usuários Section -->
             <div id="admin-users" class="admin-section">
                 <div class="control-section">
-                    <h3>🔑 Gerenciamento de Usuários</h3>
+                    <h3>Gerenciamento de Usuarios</h3>
                     <p class="control-description" style="margin-top:0;margin-bottom:15px;">
                         Gerencie as solicitações de acesso de co-líderes e visualize todos os usuários cadastrados.
                     </p>
@@ -1034,8 +1034,8 @@
 
     <div id="radar-drawer" class="radar-drawer">
         <div class="radar-header">
-            <h3>📡 Radar de Inatividade</h3>
-            <button onclick="toggleRadarDrawer()" class="close-radar">✖</button>
+            <h3>Radar de Inatividade</h3>
+            <button onclick="toggleRadarDrawer()" class="close-radar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div id="radar-content" class="radar-content">
             </div>

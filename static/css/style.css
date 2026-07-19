@@ -907,8 +907,13 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .cwl-clans-grid p img { vertical-align: middle; margin-right: 8px; height: 22px; }
 .log-opponent-badge { vertical-align: middle; margin-right: 5px; height: 20px; }
 
-.icon-trophy::before { content: '🏆'; margin-left: 4px; }
-.icon-sword::before { content: '⚔️'; margin-left: 4px; }
+.icon-trophy::before { content: url('/assets/icons/Icon_HV_Podium.png'); margin-left: 4px; width: 1em; height: 1em; }
+.icon-sword::before { content: url('/assets/icons/Icon_HV_Sword.png'); margin-left: 4px; width: 1em; height: 1em; }
+
+.star-icon { width: 1.1em; height: 1.1em; vertical-align: middle; margin: 0 1px; object-fit: contain; }
+.icon-sm { width: 1em; height: 1em; vertical-align: middle; margin: 0 2px; object-fit: contain; }
+.icon-inline { width: 1.2em; height: 1.2em; vertical-align: middle; margin: 0 3px; object-fit: contain; }
+.war-ended-icon img { width: 3rem; height: 3rem; object-fit: contain; }
 
 .site-footer {
     text-align: center;
@@ -1613,9 +1618,11 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     pointer-events: all !important;
 }
 .control-btn.disabled::before {
-    content: '🔒';
+    content: url('/assets/icons/Icon_HV_Shield.png');
     margin-right: 8px;
-    font-size: 0.9em;
+    width: 0.9em;
+    height: 0.9em;
+    vertical-align: middle;
 }
 
 .control-btn.disabled .tooltip-text {
