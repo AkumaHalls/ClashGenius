@@ -4,7 +4,7 @@ Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Cha
 
 ---
 
-## [33.0.0] - 2026-07-19
+## [33.0.0] — 2026-07-19
 
 ### Adicionado
 - **config.py** - modulo centralizado de constantes (env vars, canais, roles, cache, versao)
