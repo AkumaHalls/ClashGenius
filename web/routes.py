@@ -259,9 +259,9 @@ def register_public_routes(app, bot_instance):
     async def api_tournament_handler(request):
         tournament_cog = bot_instance.get_cog("Torneio")
         if tournament_cog:
-            data = await tournament_cog.generate_tournament_summary()
+            data = await tournament_cog.get_tournament_data_for_web()
             if data:
-                return web.json_response({"status": "ok", "title": data.title, "description": data.description}, dumps=lambda v: json.dumps(v, default=str))
+                return web.json_response(data, dumps=lambda v: json.dumps(v, default=str))
         return web.json_response({"status": "no_data"})
 
     # Registrar todas as rotas

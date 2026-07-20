@@ -86,14 +86,18 @@ class ActivityReportCog(commands.Cog, name="Relatório de Atividade"):
         latest_cursor = self.donation_snapshots.find({}).sort("timestamp", -1).limit(1)
         latest = await latest_cursor.to_list(length=1)
         
-        old_cursor = self.donation_snapshots.find({"timestamp": {"$gte": cutoff}}).sort("timestamp", 1).limit(1)
+        old_cursor = self.donation_snapshots.find({"timestamp": {"$lt": cutoff}}).sort("timestamp", -1).limit(1)
         old = await old_cursor.to_list(length=1)
         
-        if not latest or not old:
+        if not latest:
             return {}
         
         latest_snapshot = latest[0]
-        old_snapshot = old[0]
+        
+        if not old:
+            old_snapshot = latest_snapshot
+        else:
+            old_snapshot = old[0]
         
         donation_activity = {}
         for member in latest_snapshot.get("members", []):

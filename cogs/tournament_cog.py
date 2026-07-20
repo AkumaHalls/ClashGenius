@@ -36,7 +36,7 @@ class TournamentCog(commands.Cog, name="Torneio"):
             return False
         
         now = datetime.datetime.now(pytz.utc)
-        tournament_id = now.strftime("%Y-W%W")
+        tournament_id = now.strftime("%Y-W%V")
         
         existing = await self.tournament_snapshots.find_one({"_id": tournament_id})
         if existing:
@@ -68,7 +68,7 @@ class TournamentCog(commands.Cog, name="Torneio"):
             return None
         
         now = datetime.datetime.now(pytz.utc)
-        tournament_id = now.strftime("%Y-W%W")
+        tournament_id = now.strftime("%Y-W%V")
         
         snapshot = await self.tournament_snapshots.find_one({"_id": tournament_id})
         if not snapshot:
@@ -162,6 +162,67 @@ class TournamentCog(commands.Cog, name="Torneio"):
         
         return embed
 
+    async def get_tournament_data_for_web(self) -> dict:
+        """Retorna dados do torneio como dict para a web API."""
+        if self.tournament_snapshots is None:
+            return None
+        
+        now = datetime.datetime.now(pytz.utc)
+        tournament_id = now.strftime("%Y-W%V")
+        
+        snapshot = await self.tournament_snapshots.find_one({"_id": tournament_id})
+        if not snapshot:
+            return None
+        
+        clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
+        if not clan:
+            return None
+        
+        promotions = []
+        demotions = []
+        unchanged = []
+        
+        for old_member in snapshot.get("members", []):
+            tag = old_member.get("tag")
+            current_member = next((m for m in clan.members if m.tag == tag), None)
+            
+            if not current_member:
+                continue
+            
+            old_league = old_member.get("league", "N/A")
+            new_league = current_member.league.name if current_member.league else "N/A"
+            old_league_id = old_member.get("league_id", 0)
+            new_league_id = current_member.league.id if current_member.league else 0
+            old_trophies = old_member.get("trophies", 0)
+            new_trophies = current_member.trophies
+            
+            member_info = {
+                "name": current_member.name,
+                "tag": tag,
+                "old_league": old_league,
+                "new_league": new_league,
+                "old_trophies": old_trophies,
+                "new_trophies": new_trophies,
+                "trophy_diff": new_trophies - old_trophies
+            }
+            
+            if new_league_id > old_league_id:
+                promotions.append(member_info)
+            elif new_league_id < old_league_id:
+                demotions.append(member_info)
+            else:
+                unchanged.append(member_info)
+        
+        promotions.sort(key=lambda x: x["trophy_diff"], reverse=True)
+        demotions.sort(key=lambda x: x["trophy_diff"])
+        unchanged.sort(key=lambda x: x["new_trophies"], reverse=True)
+        
+        return {
+            "promotions": promotions,
+            "demotions": demotions,
+            "unchanged": unchanged
+        }
+
     @app_commands.command(name="torneio", description="🏅 Gera o resumo do torneio atual.")
     @app_commands.default_permissions(administrator=True)
     async def torneio_cmd(self, interaction: discord.Interaction):
@@ -191,7 +252,7 @@ class TournamentCog(commands.Cog, name="Torneio"):
             return
         
         now = datetime.datetime.now(pytz.utc)
-        tournament_id = now.strftime("%Y-W%W")
+        tournament_id = now.strftime("%Y-W%V")
         
         existing = await self.tournament_snapshots.find_one({"_id": tournament_id})
         if not existing:
@@ -208,8 +269,8 @@ class TournamentCog(commands.Cog, name="Torneio"):
         if self.bot.maintenance_mode or not getattr(self.bot, 'tournament_summary_channel_id', None):
             return
         
-        now = datetime.datetime.now(pytz.utc)
-        if now.weekday() == 0 and now.hour == 8:
+        now_br = datetime.datetime.now(pytz.timezone("America/Sao_Paulo"))
+        if now_br.weekday() == 0 and now_br.hour == 8:
             logger.info("Fim de torneio detectado, gerando resumo...")
             try:
                 embed = await self.generate_tournament_summary()
