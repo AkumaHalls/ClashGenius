@@ -45,7 +45,7 @@
                     <li><a href="#cwl-info-nav" class="nav-link" data-section="cwl-info-nav" data-tooltip="Liga de Guerras de Clãs e plano de rotação da IA">CWL</a></li>
                     <li><a href="#clan-games-nav" class="nav-link" data-section="clan-games-nav" data-tooltip="Progresso dos Jogos do Clã e membros que não pontuaram">Jogos</a></li>
                     <li><a href="#capital-nav" class="nav-link" data-section="capital-nav" data-tooltip="Raio-X da Capital: ataques, saques e ausentes">Capital do Clã</a></li>
-                    <li><a href="#legend-nav" class="nav-link" data-section="legend-nav" data-tooltip="Legend League: ataques, defesas, saques e histórico">Legend</a></li>
+                    <li><a href="#ranked-nav" class="nav-link" data-section="ranked-nav" data-tooltip="Ranked: atividade, torneio, Legend League e estatísticas">Ranked</a></li>
                     <li><a href="#war-log-nav" class="nav-link" data-section="war-log-nav" data-tooltip="Histórico completo de guerras do clã">Histórico</a></li>
                     <li><a href="#members-list-nav" class="nav-link" data-section="members-list-nav" data-tooltip="Lista completa de membros com notas e status CWL">Membros</a></li>
                 </ul>
@@ -426,74 +426,105 @@
                 @keyframes pulseLock { 0% { transform: scale(1) translateY(0); text-shadow: 0 0 15px rgba(255, 215, 0, 0.3); } 100% { transform: scale(1.15) translateY(-5px); text-shadow: 0 0 40px rgba(255, 215, 0, 1); } }
             </style>
 
-            <section id="legend-nav" class="card legend-card content-section">
-                <h2><img src="/assets/icons/Icon_HV_Podium.png" class="icon-sm" alt="*"> Legend League</h2>
+            <section id="ranked-nav" class="card ranked-card content-section">
+                <h2><img src="/assets/icons/Icon_HV_Podium.png" class="icon-sm" alt="*"> Ranked</h2>
 
-                <div class="legend-player-selector">
-                    <label for="legendPlayerTag">Tag do Jogador:</label>
-                    <input type="text" id="legendPlayerTag" placeholder="#XXXXXXXX" class="settings-input" style="width: 200px;">
-                    <button id="legendFetchBtn" class="control-btn action-btn">Buscar Dados</button>
+                <div class="ranked-tabs">
+                    <button class="war-tab-button active" data-tab="ranked-activity">Atividade</button>
+                    <button class="war-tab-button" data-tab="ranked-tournament">Torneio</button>
+                    <button class="war-tab-button" data-tab="ranked-legend">Legend League</button>
+                    <button class="war-tab-button" data-tab="ranked-stats">Estatísticas</button>
                 </div>
 
-                <div id="legendError" class="message-box" style="display: none;"></div>
+                <div id="ranked-activity" class="war-tab-content active">
+                    <h3><img src="/assets/icons/Icon_HV_Sword.png" class="icon-sm" alt="*"> Atividade do Clã</h3>
+                    <div id="rankedActivityContent" class="ranked-stats-container">
+                        <div class="message-box">Carregando dados de atividade...</div>
+                    </div>
+                </div>
 
-                <div id="legendLoading" class="message-box" style="display: none;">Carregando dados da Legend League...</div>
+                <div id="ranked-tournament" class="war-tab-content">
+                    <h3><img src="/assets/icons/Icon_HV_Start_Flag.png" class="icon-sm" alt="*"> Resumo do Torneio</h3>
+                    <div id="rankedTournamentContent" class="ranked-stats-container">
+                        <div class="message-box">Carregando dados do torneio...</div>
+                    </div>
+                </div>
 
-                <div id="legendContent" style="display: none;">
-                    <div class="legend-summary-grid">
-                        <div class="legend-stat-card">
-                            <div class="pulse-icon"><img src="/assets/icons/Icon_HV_Sword.png" class="icon-sm" alt="*"></div>
-                            <div class="pulse-label">Taxa de Vitória</div>
-                            <div class="pulse-value" id="legendWinRate">-</div>
+                <div id="ranked-legend" class="war-tab-content">
+                    <h3><img src="/assets/icons/Icon_HV_Podium.png" class="icon-sm" alt="*"> Legend League</h3>
+                    
+                    <div class="legend-player-selector">
+                        <label for="legendPlayerTag">Tag do Jogador:</label>
+                        <input type="text" id="legendPlayerTag" placeholder="#XXXXXXXX" class="settings-input" style="width: 200px;">
+                        <button id="legendFetchBtn" class="control-btn action-btn">Buscar Dados</button>
+                    </div>
+
+                    <div id="legendError" class="message-box" style="display: none;"></div>
+                    <div id="legendLoading" class="message-box" style="display: none;">Carregando dados da Legend League...</div>
+
+                    <div id="legendContent" style="display: none;">
+                        <div class="legend-summary-grid">
+                            <div class="legend-stat-card">
+                                <div class="pulse-icon"><img src="/assets/icons/Icon_HV_Sword.png" class="icon-sm" alt="*"></div>
+                                <div class="pulse-label">Taxa de Vitória</div>
+                                <div class="pulse-value" id="legendWinRate">-</div>
+                            </div>
+                            <div class="legend-stat-card">
+                                <div class="pulse-icon"><img src="/assets/icons/Icon_HV_Raid_Attack.png" class="icon-sm" alt="*"></div>
+                                <div class="pulse-label">Dano Médio</div>
+                                <div class="pulse-value" id="legendAvgDestruction">-</div>
+                            </div>
+                            <div class="legend-stat-card">
+                                <div class="pulse-icon"><img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm" alt="*"></div>
+                                <div class="pulse-label">Estrelas Médias</div>
+                                <div class="pulse-value" id="legendAvgStars">-</div>
+                            </div>
+                            <div class="legend-stat-card">
+                                <div class="pulse-icon"><img src="/assets/icons/Icon_HV_Shield.png" class="icon-sm" alt="*"></div>
+                                <div class="pulse-label">Consistência</div>
+                                <div class="pulse-value" id="legendConsistency">-</div>
+                            </div>
                         </div>
-                        <div class="legend-stat-card">
-                            <div class="pulse-icon"><img src="/assets/icons/Icon_HV_Raid_Attack.png" class="icon-sm" alt="*"></div>
-                            <div class="pulse-label">Dano Médio</div>
-                            <div class="pulse-value" id="legendAvgDestruction">-</div>
+
+                        <div class="legend-tabs">
+                            <button class="war-tab-button active" data-tab="legend-attacks">Ataques</button>
+                            <button class="war-tab-button" data-tab="legend-defenses">Defesas</button>
+                            <button class="war-tab-button" data-tab="legend-loot">Saques</button>
+                            <button class="war-tab-button" data-tab="legend-armies">Exércitos</button>
+                            <button class="war-tab-button" data-tab="legend-history">Histórico</button>
                         </div>
-                        <div class="legend-stat-card">
-                            <div class="pulse-icon"><img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm" alt="*"></div>
-                            <div class="pulse-label">Estrelas Médias</div>
-                            <div class="pulse-value" id="legendAvgStars">-</div>
+
+                        <div id="legend-attacks" class="war-tab-content active">
+                            <h3><img src="/assets/icons/Icon_HV_Sword.png" class="icon-sm" alt="*"> Análise de Ataques</h3>
+                            <div id="legendAttackStats" class="legend-stats-container"></div>
                         </div>
-                        <div class="legend-stat-card">
-                            <div class="pulse-icon"><img src="/assets/icons/Icon_HV_Shield.png" class="icon-sm" alt="*"></div>
-                            <div class="pulse-label">Consistência</div>
-                            <div class="pulse-value" id="legendConsistency">-</div>
+
+                        <div id="legend-defenses" class="war-tab-content">
+                            <h3><img src="/assets/icons/Icon_HV_Shield.png" class="icon-sm" alt="*"> Análise de Defesas</h3>
+                            <div id="legendDefenseStats" class="legend-stats-container"></div>
+                        </div>
+
+                        <div id="legend-loot" class="war-tab-content">
+                            <h3>Resumo de Saques</h3>
+                            <div id="legendLootStats" class="legend-stats-container"></div>
+                        </div>
+
+                        <div id="legend-armies" class="war-tab-content">
+                            <h3>Análise de Exércitos</h3>
+                            <div id="legendArmyStats" class="legend-stats-container"></div>
+                        </div>
+
+                        <div id="legend-history" class="war-tab-content">
+                            <h3>Progressão de Liga</h3>
+                            <div id="legendHistoryStats" class="legend-stats-container"></div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="legend-tabs">
-                        <button class="war-tab-button active" data-tab="legend-attacks">Ataques</button>
-                        <button class="war-tab-button" data-tab="legend-defenses">Defesas</button>
-                        <button class="war-tab-button" data-tab="legend-loot">Saques</button>
-                        <button class="war-tab-button" data-tab="legend-armies">Exércitos</button>
-                        <button class="war-tab-button" data-tab="legend-history">Histórico</button>
-                    </div>
-
-                    <div id="legend-attacks" class="war-tab-content active">
-                        <h3><img src="/assets/icons/Icon_HV_Sword.png" class="icon-sm" alt="*"> Análise de Ataques</h3>
-                        <div id="legendAttackStats" class="legend-stats-container"></div>
-                    </div>
-
-                    <div id="legend-defenses" class="war-tab-content">
-                        <h3><img src="/assets/icons/Icon_HV_Shield.png" class="icon-sm" alt="*"> Análise de Defesas</h3>
-                        <div id="legendDefenseStats" class="legend-stats-container"></div>
-                    </div>
-
-                    <div id="legend-loot" class="war-tab-content">
-                        <h3>Resumo de Saques</h3>
-                        <div id="legendLootStats" class="legend-stats-container"></div>
-                    </div>
-
-                    <div id="legend-armies" class="war-tab-content">
-                        <h3>Análise de Exércitos</h3>
-                        <div id="legendArmyStats" class="legend-stats-container"></div>
-                    </div>
-
-                    <div id="legend-history" class="war-tab-content">
-                        <h3>Progressão de Liga</h3>
-                        <div id="legendHistoryStats" class="legend-stats-container"></div>
+                <div id="ranked-stats" class="war-tab-content">
+                    <h3><img src="/assets/icons/Icon_HV_Attack_Star.png" class="icon-sm" alt="*"> Estatísticas Gerais</h3>
+                    <div id="rankedStatsContent" class="ranked-stats-container">
+                        <div class="message-box">Carregando estatísticas...</div>
                     </div>
                 </div>
             </section>

@@ -21,6 +21,7 @@ from config import (
     CLAN_GAMES_CHANNEL_ID, CWL_PLANNER_CHANNEL_ID, DONATIONS_CHANNEL_ID, SMURF_LOG_CHANNEL_ID,
     WATCHLIST_ALERT_CHANNEL_ID, LOW_PERFORMANCE_CHANNEL_ID, CAPITAL_REPORT_CHANNEL_ID,
     MAINTENANCE_ALERT_CHANNEL_ID, WAR_PREFERENCE_CHANNEL_ID, CHANGELOG_CHANNEL_ID,
+    ACTIVITY_REPORT_CHANNEL_ID, TOURNAMENT_SUMMARY_CHANNEL_ID,
     ROLE_ID_1STAR_ALERT, ROLE_ID_MISSED_ATTACK, LEADER_ROLE_ID, COLEADER_ROLE_ID, MAINTENANCE_ROLE_ID,
     AUTO_ADD_WATCHLIST_ENABLED, BOT_VERSION, TIMEZONE,
 )
@@ -70,6 +71,8 @@ class ClashGeniusBot(commands.Bot):
         self.maintenance_alert_channel_id = MAINTENANCE_ALERT_CHANNEL_ID
         self.war_preference_channel_id = WAR_PREFERENCE_CHANNEL_ID
         self.changelog_channel_id = CHANGELOG_CHANNEL_ID
+        self.activity_report_channel_id = ACTIVITY_REPORT_CHANNEL_ID
+        self.tournament_summary_channel_id = TOURNAMENT_SUMMARY_CHANNEL_ID
         self.bot_version = BOT_VERSION
         self.timezone = TIMEZONE
         self.base_url = BASE_URL
@@ -115,7 +118,7 @@ class ClashGeniusBot(commands.Bot):
             self.loop.create_task(self.coc_login_task())
 
             logger.info("--- Iniciando carregamento de Cogs ---")
-            cog_files = [ 'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog', 'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog', 'slash_cog', 'watchlist_cog', 'smurf_detection_cog', 'capital_cog', 'performance_cog', 'war_predictor_cog', 'battlelog_cog' ]
+            cog_files = [ 'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog', 'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog', 'slash_cog', 'watchlist_cog', 'smurf_detection_cog', 'capital_cog', 'performance_cog', 'war_predictor_cog', 'battlelog_cog', 'activity_report_cog', 'tournament_cog' ]
             loaded_cogs_count = 0
             for cog_name in cog_files:
                 try:

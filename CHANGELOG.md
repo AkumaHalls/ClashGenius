@@ -3,6 +3,33 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [33.3.0] - 2026-07-19
+
+### Adicionado
+- cogs/activity_report_cog.py - RelatÃ³rio de atividade diÃ¡rio (08:00 BRT) e semanal (domingo 20:00 BRT) com status de cada membro
+- cogs/tournament_cog.py - Resumo de fim de torneio com promoÃ§Ãµes/rebaixamentos de liga
+- Comando /atividade - Gera relatÃ³rio de atividade manualmente
+- Comando /torneio - Gera resumo do torneio atual
+- Comando /torneio_snapshot - Tira snapshot manual do torneio
+- Nova aba "Ranked" no painel web com sub-tabs: Atividade, Torneio, Legend League, EstatÃ­sticas
+- Endpoints /api/tournament para dados do torneio
+- CSS para seÃ§Ã£o Ranked com estilos de member list
+
+### Alterado
+- cogs/events_cog.py - NotificaÃ§Ã£o de mudanÃ§a de liga agora mostra PROMOÃ‡ÃƒO/REBAIXAMENTO com cores e thumbnails
+- static/painel.html - Aba "Legend" renomeada para "Ranked" com sub-tabs
+- static/js/scripts.js - Adicionadas funÃ§Ãµes populateRankedActivity e populateRankedTournament
+- static/css/style.css - Adicionados estilos para seÃ§Ã£o Ranked
+- config.py - Adicionados ACTIVITY_REPORT_CHANNEL_ID e TOURNAMENT_SUMMARY_CHANNEL_ID
+- .env.example - Adicionadas novas variÃ¡veis de ambiente
+- clash.py - Registrados novos cogs activity_report_cog e tournament_cog
+
+### Removido
+- cogs/events_cog.py - NotificaÃ§Ã£o obsoleta de "ganhou/perdeu X tropheus" (sistema de ligas antigo)
+- cogs/events_cog.py - Listener on_clan_member_trophies_change
+
+---
+
 ## [33.2.0] - 2026-07-19
 
 ### Alterado

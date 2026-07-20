@@ -256,6 +256,14 @@ def register_public_routes(app, bot_instance):
         result = await web_api_cog.compare_clans_for_web(tag1, tag2)
         return web.json_response(result, dumps=lambda v: json.dumps(v, default=str))
 
+    async def api_tournament_handler(request):
+        tournament_cog = bot_instance.get_cog("Torneio")
+        if tournament_cog:
+            data = await tournament_cog.generate_tournament_summary()
+            if data:
+                return web.json_response({"status": "ok", "title": data.title, "description": data.description}, dumps=lambda v: json.dumps(v, default=str))
+        return web.json_response({"status": "no_data"})
+
     # Registrar todas as rotas
     app.router.add_get("/api/clan", api_clan_handler)
     app.router.add_get("/api/members", api_members_handler)
@@ -284,3 +292,4 @@ def register_public_routes(app, bot_instance):
     app.router.add_get("/api/export/players", api_export_players_handler)
     app.router.add_get("/api/compare/players", api_compare_players_handler)
     app.router.add_get("/api/compare/clans", api_compare_clans_handler)
+    app.router.add_get("/api/tournament", api_tournament_handler)

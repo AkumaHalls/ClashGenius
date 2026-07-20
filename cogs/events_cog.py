@@ -3,7 +3,7 @@ import logging
 import discord
 from discord.ext import commands, tasks
 import geniuslib as coc
-from geniuslib.formatters import format_th, format_trophies, format_attack as fmt_attack
+from geniuslib.formatters import format_th, format_attack as fmt_attack
 import asyncio
 import datetime
 from typing import Optional
@@ -185,11 +185,6 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         @coc.ClanEvents.member_role()
         async def on_clan_member_role_change(old_member, new_member):
             await self.handle_clan_member_role_change(old_member, new_member)
-
-        @self.events_client.event
-        @coc.ClanEvents.member_trophies()
-        async def on_clan_member_trophies_change(old_member, new_member):
-            await self.handle_clan_member_trophies_change(old_member, new_member)
 
         @self.events_client.event
         @coc.ClanEvents.member_league()
@@ -379,30 +374,31 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         view = OpenProfileButtonView(self.bot, new_member.tag)
         await self._send_log_embed(embed, target_channel_id=self.bot.watchlist_alert_channel_id, view=view)
 
-    async def handle_clan_member_trophies_change(self, old_member, new_member):
-        if self.bot.maintenance_mode or (new_member.clan and coc.utils.correct_tag(new_member.clan.tag) != coc.utils.correct_tag(self.bot.clan_tag)): return
-        
-        diff = new_member.trophies - old_member.trophies
-        if abs(diff) < 5: return
-        action = "ganhou" if diff > 0 else "perdeu"
-        color = discord.Color.green() if diff > 0 else discord.Color.red()
-        emoji = "🏆" if diff > 0 else "💔"
-        embed = discord.Embed(description=f"{emoji} **{new_member.name}** {action} **{abs(diff)}** troféus (Total: {format_trophies(new_member.trophies)})", color=color)
-        
-        await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
-
     async def handle_clan_member_league_change(self, old_member, new_member):
         if self.bot.maintenance_mode or (new_member.clan and coc.utils.correct_tag(new_member.clan.tag) != coc.utils.correct_tag(self.bot.clan_tag)): return
         
-        old_league = old_member.league.name if old_member.league and hasattr(old_member.league, 'name') else "N/A"
-        new_league = new_member.league.name if new_member.league and hasattr(new_member.league, 'name') else "N/A"
-        if old_league == new_league: return
+        old_league = old_member.league if old_member.league and hasattr(old_member.league, 'name') else None
+        new_league = new_member.league if new_member.league and hasattr(new_member.league, 'name') else None
+        
+        old_name = old_league.name if old_league else "N/A"
+        new_name = new_league.name if new_league else "N/A"
+        if old_name == new_name: return
 
-        embed = discord.Embed(title="🛡️ Mudança de Liga", description=f"**{new_member.name}** mudou de liga!", color=0x6E2C00)
-        embed.add_field(name="Liga Anterior", value=old_league, inline=True)
-        embed.add_field(name="Nova Liga", value=new_league, inline=True)
-        if hasattr(new_member.league, 'icon') and hasattr(new_member.league.icon, 'medium'):
-            embed.set_thumbnail(url=new_member.league.icon.medium)
+        old_id = old_league.id if old_league else 0
+        new_id = new_league.id if new_league else 0
+        
+        if new_id > old_id:
+            title = "🏆 PROMOÇÃO!"
+            color = discord.Color.green()
+            emoji = "↑"
+        else:
+            title = "📉 REBAIXAMENTO"
+            color = discord.Color.red()
+            emoji = "↓"
+
+        embed = discord.Embed(title=title, description=f"**{new_member.name}** {emoji} {old_name} → {new_name}", color=color)
+        if new_league and hasattr(new_league, 'icon') and hasattr(new_league.icon, 'medium'):
+            embed.set_thumbnail(url=new_league.icon.medium)
             
         await self._send_log_embed(embed, target_channel_id=self.bot.channel_id)
 

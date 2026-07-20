@@ -4002,6 +4002,35 @@ body {
     color: var(--color-text-secondary); font-size: 0.85rem;
 }
 
+/* Ranked Section */
+.ranked-card { padding: 25px; }
+.ranked-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+.ranked-stats-container { padding: 10px 0; }
+.ranked-member-list { display: flex; flex-direction: column; gap: 8px; }
+.ranked-member-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 15px; background: rgba(0,0,0,0.2); border-radius: 8px;
+    border-left: 3px solid var(--color-border);
+}
+.ranked-member-item.active { border-left-color: var(--neon-green); }
+.ranked-member-item.partial { border-left-color: var(--neon-yellow); }
+.ranked-member-item.inactive { border-left-color: var(--neon-red); }
+.ranked-member-name { font-weight: 700; color: var(--color-text-title-card); min-width: 120px; }
+.ranked-member-stats { display: flex; gap: 15px; font-size: 0.8rem; color: var(--color-text-secondary); flex-wrap: wrap; }
+.ranked-member-stat { display: flex; align-items: center; gap: 4px; }
+.ranked-member-stat img { width: 14px; height: 14px; }
+.ranked-summary-box {
+    padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.05); margin-top: 15px;
+}
+.ranked-summary-title {
+    font-family: var(--font-title); font-size: 0.75rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px; color: var(--neon-cyan);
+    margin-bottom: 10px;
+}
+.ranked-promo { color: var(--neon-green); }
+.ranked-demo { color: var(--neon-red); }
+
 @media (max-width: 480px) {
     .clan-pulse-grid {
         grid-template-columns: 1fr;

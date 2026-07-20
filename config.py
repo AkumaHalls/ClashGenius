@@ -43,6 +43,8 @@ CAPITAL_REPORT_CHANNEL_ID = int(os.getenv("CAPITAL_REPORT_CHANNEL_ID", 0))
 MAINTENANCE_ALERT_CHANNEL_ID = int(os.getenv("MAINTENANCE_ALERT_CHANNEL_ID", 0))
 WAR_PREFERENCE_CHANNEL_ID = int(os.getenv("WAR_PREFERENCE_CHANNEL_ID", 0))
 CHANGELOG_CHANNEL_ID = int(os.getenv("CHANGELOG_CHANNEL_ID", "0"))
+ACTIVITY_REPORT_CHANNEL_ID = int(os.getenv("ACTIVITY_REPORT_CHANNEL_ID", 0))
+TOURNAMENT_SUMMARY_CHANNEL_ID = int(os.getenv("TOURNAMENT_SUMMARY_CHANNEL_ID", 0))
 
 # ================== ROLES ==================
 ROLE_ID_1STAR_ALERT = int(os.getenv("ROLE_ID_1STAR_ALERT", 0))
@@ -53,7 +55,7 @@ MAINTENANCE_ROLE_ID = int(os.getenv("MAINTENANCE_ROLE_ID", 0))
 
 # ================== CONFIGURAÇÕES DO BOT ==================
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
-BOT_VERSION = "33.2.0-GeniusLib-v5.3.0"
+BOT_VERSION = "33.3.0-GeniusLib-v5.3.0"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 # ================== CACHE ==================

@@ -2403,8 +2403,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const [d, ma] = await Promise.all([fetchData('members'), fetchData('missed_attacks_history')]);
                 if (d && !d.error) { globalMembersList = d.members; populateMembersList(d); }
                 if (ma && !ma.error) { globalMissedAttacks = ma.wars_with_missed_attacks || []; }
-            } else if (s === 'legend-nav') {
-                // Legend tab data loaded on demand via fetch button
+            } else if (s === 'ranked-nav') {
+                const [d, ts] = await Promise.all([fetchData('members'), fetchData('tournament')]);
+                if (d && !d.error) populateRankedActivity(d);
+                if (ts && !ts.error) populateRankedTournament(ts);
             }
             updateLastUpdated();
         } catch (e) {
@@ -2679,6 +2681,137 @@ document.addEventListener('DOMContentLoaded', () => {
         legendPlayerTagEl.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') loadLegendData();
         });
+    }
+
+    // === RANKED SECTION ===
+    function populateRankedActivity(data) {
+        const container = document.getElementById('rankedActivityContent');
+        if (!container || !data || !data.members) return;
+
+        const members = data.members;
+        const active = [];
+        const partial = [];
+        const inactive = [];
+
+        members.forEach(m => {
+            const lastWar = m.last_war_date ? new Date(m.last_war_date) : null;
+            const daysSinceWar = lastWar ? Math.floor((Date.now() - lastWar.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+            const hasDonations = (m.donations || 0) > 0;
+            const isOnWatchlist = m.isOnWatchlist;
+
+            let status = 'active';
+            if (daysSinceWar > 15 || isOnWatchlist) status = 'inactive';
+            else if (daysSinceWar > 7 || !hasDonations) status = 'partial';
+
+            const memberInfo = { name: m.name, th: m.town_hall, trophies: m.trophies, league: m.league || 'N/A', donations: m.donations || 0, daysSinceWar, isOnWatchlist };
+            if (status === 'active') active.push(memberInfo);
+            else if (status === 'partial') partial.push(memberInfo);
+            else inactive.push(memberInfo);
+        });
+
+        active.sort((a, b) => b.donations - a.donations);
+        partial.sort((a, b) => b.daysSinceWar - a.daysSinceWar);
+        inactive.sort((a, b) => a.name.localeCompare(b.name));
+
+        let html = '<div class="ranked-member-list">';
+        
+        if (active.length > 0) {
+            html += `<div class="ranked-summary-box"><div class="ranked-summary-title">🟢 Ativos (${active.length})</div></div>`;
+            active.slice(0, 10).forEach(m => {
+                html += `<div class="ranked-member-item active">
+                    <span class="ranked-member-name">${escapeHtml(m.name)}</span>
+                    <div class="ranked-member-stats">
+                        <span class="ranked-member-stat"><img src="/assets/icons/Icon_HV_Podium.png" alt="*"> ${m.trophies}t</span>
+                        <span class="ranked-member-stat">${m.league}</span>
+                        <span class="ranked-member-stat"><img src="/assets/icons/Icon_HV_Sword.png" alt="*"> ${m.daysSinceWar}d</span>
+                        <span class="ranked-member-stat">${m.donations} doações</span>
+                    </div>
+                </div>`;
+            });
+        }
+
+        if (partial.length > 0) {
+            html += `<div class="ranked-summary-box"><div class="ranked-summary-title">🟡 Parciais (${partial.length})</div></div>`;
+            partial.slice(0, 5).forEach(m => {
+                html += `<div class="ranked-member-item partial">
+                    <span class="ranked-member-name">${escapeHtml(m.name)}</span>
+                    <div class="ranked-member-stats">
+                        <span class="ranked-member-stat">${m.daysSinceWar}d sem guerra</span>
+                        <span class="ranked-member-stat">${m.donations} doações</span>
+                        ${m.isOnWatchlist ? '<span class="ranked-member-stat">⚠️ Observação</span>' : ''}
+                    </div>
+                </div>`;
+            });
+        }
+
+        if (inactive.length > 0) {
+            html += `<div class="ranked-summary-box"><div class="ranked-summary-title">🔴 Inativos (${inactive.length})</div></div>`;
+            inactive.slice(0, 5).forEach(m => {
+                html += `<div class="ranked-member-item inactive">
+                    <span class="ranked-member-name">${escapeHtml(m.name)}</span>
+                    <div class="ranked-member-stats">
+                        <span class="ranked-member-stat">${m.daysSinceWar}d sem guerra</span>
+                        <span class="ranked-member-stat">${m.donations} doações</span>
+                        ${m.isOnWatchlist ? '<span class="ranked-member-stat">⚠️ Observação</span>' : ''}
+                    </div>
+                </div>`;
+            });
+        }
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function populateRankedTournament(data) {
+        const container = document.getElementById('rankedTournamentContent');
+        if (!container || !data) {
+            if (container) container.innerHTML = '<div class="message-box">Nenhum dado de torneio disponível.</div>';
+            return;
+        }
+
+        let html = '<div class="ranked-member-list">';
+        
+        if (data.promotions && data.promotions.length > 0) {
+            html += `<div class="ranked-summary-box"><div class="ranked-summary-title">📈 Promoções (${data.promotions.length})</div></div>`;
+            data.promotions.slice(0, 10).forEach(m => {
+                html += `<div class="ranked-member-item active">
+                    <span class="ranked-member-name">${escapeHtml(m.name)}</span>
+                    <div class="ranked-member-stats">
+                        <span class="ranked-member-stat ranked-promo">↑ ${m.old_league} → ${m.new_league}</span>
+                        <span class="ranked-member-stat">${m.trophy_diff > 0 ? '+' : ''}${m.trophy_diff}t</span>
+                    </div>
+                </div>`;
+            });
+        }
+
+        if (data.demotions && data.demotions.length > 0) {
+            html += `<div class="ranked-summary-box"><div class="ranked-summary-title">📉 Rebaixamentos (${data.demotions.length})</div></div>`;
+            data.demotions.slice(0, 10).forEach(m => {
+                html += `<div class="ranked-member-item inactive">
+                    <span class="ranked-member-name">${escapeHtml(m.name)}</span>
+                    <div class="ranked-member-stats">
+                        <span class="ranked-member-stat ranked-demo">↓ ${m.old_league} → ${m.new_league}</span>
+                        <span class="ranked-member-stat">${m.trophy_diff}t</span>
+                    </div>
+                </div>`;
+            });
+        }
+
+        if (data.unchanged && data.unchanged.length > 0) {
+            html += `<div class="ranked-summary-box"><div class="ranked-summary-title">🏆 Top 5 do Clã</div></div>`;
+            data.unchanged.slice(0, 5).forEach((m, i) => {
+                html += `<div class="ranked-member-item">
+                    <span class="ranked-member-name">${i+1}. ${escapeHtml(m.name)}</span>
+                    <div class="ranked-member-stats">
+                        <span class="ranked-member-stat"><img src="/assets/icons/Icon_HV_Podium.png" alt="*"> ${m.new_trophies}t</span>
+                        <span class="ranked-member-stat">${m.new_league}</span>
+                    </div>
+                </div>`;
+            });
+        }
+
+        html += '</div>';
+        container.innerHTML = html;
     }
 
     loadAllData();
