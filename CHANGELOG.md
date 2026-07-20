@@ -3,7 +3,7 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
-## [33.3.1] - 2026-07-19
+## [33.3.1] — 2026-07-19
 
 ### Corrigido
 - cogs/tournament_cog.py - end_check_task usava hora UTC mas verificava horário BRT (08:00 UTC = 05:00 BRT), resumo nunca era enviado; agora usa datetime.now(America/Sao_Paulo)
@@ -16,7 +16,7 @@ Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Cha
 
 ---
 
-## [33.3.0] - 2026-07-19
+## [33.3.0] — 2026-07-19
 
 ### Adicionado
 - cogs/activity_report_cog.py - RelatÃ³rio de atividade diÃ¡rio (08:00 BRT) e semanal (domingo 20:00 BRT) com status de cada membro
@@ -43,7 +43,7 @@ Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Cha
 
 ---
 
-## [33.2.0] - 2026-07-19
+## [33.2.0] — 2026-07-19
 
 ### Alterado
 - static/css/style.css - adicionadas classes .star-icon, .icon-sm, .icon-inline, .war-ended-icon para substituir emojis por icones de jogo

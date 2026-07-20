@@ -4005,6 +4005,17 @@ body {
 /* Ranked Section */
 .ranked-card { padding: 25px; }
 .ranked-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+.ranked-tab-button {
+    padding: 8px 16px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; cursor: pointer; color: var(--color-text-secondary); font-size: 0.9rem; transition: all 0.2s;
+}
+.ranked-tab-button:hover { background: rgba(255,255,255,0.05); color: var(--color-text); }
+.ranked-tab-button.ranked-tab-active {
+    background: rgba(236, 180, 67, 0.2); color: var(--color-gold); border-color: var(--color-gold);
+    box-shadow: 0 0 10px rgba(236, 180, 67, 0.3);
+}
+.ranked-tab-content { display: none; padding-top: 15px; }
+.ranked-tab-content.ranked-tab-active { display: block; }
 .ranked-stats-container { padding: 10px 0; }
 .ranked-member-list { display: flex; flex-direction: column; gap: 8px; }
 .ranked-member-item {

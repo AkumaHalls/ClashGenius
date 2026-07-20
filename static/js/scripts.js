@@ -2278,6 +2278,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    document.querySelectorAll('.ranked-tab-button').forEach(button => {
+        button?.addEventListener('click', () => {
+            const parent = button.closest('.ranked-tabs');
+            if (!parent) return;
+            const section = parent.closest('.ranked-card');
+            if (!section) return;
+            section.querySelectorAll('.ranked-tab-button').forEach(btn => btn.classList.remove('ranked-tab-active'));
+            button.classList.add('ranked-tab-active');
+            const tabId = button.dataset.rankedTab;
+            section.querySelectorAll('.ranked-tab-content').forEach(content => {
+                content.classList.toggle('ranked-tab-active', content.id === tabId);
+            });
+        });
+    });
+
     if (closeModalButton) closeModalButton.addEventListener('click', () => { if(historicWarModal) historicWarModal.style.display = 'none'; });
     if (closeProfileModalButton) closeProfileModalButton.addEventListener('click', () => {
         if(memberProfileModal) memberProfileModal.style.display = 'none';
@@ -2405,7 +2420,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (ma && !ma.error) { globalMissedAttacks = ma.wars_with_missed_attacks || []; }
             } else if (s === 'ranked-nav') {
                 const [d, ts] = await Promise.all([fetchData('members'), fetchData('tournament')]);
-                if (d && !d.error) populateRankedActivity(d);
+                if (d && !d.error) { populateRankedActivity(d); populateRankedStats(d); }
                 if (ts && !ts.error) populateRankedTournament(ts);
             }
             updateLastUpdated();
@@ -2805,6 +2820,79 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="ranked-member-stats">
                         <span class="ranked-member-stat"><img src="/assets/icons/Icon_HV_Podium.png" alt="*"> ${m.new_trophies}t</span>
                         <span class="ranked-member-stat">${m.new_league}</span>
+                    </div>
+                </div>`;
+            });
+        }
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function populateRankedStats(data) {
+        const container = document.getElementById('rankedStatsContent');
+        if (!container || !data || !data.members) return;
+
+        const members = data.members;
+        const total = members.length;
+        const totalTrophies = members.reduce((s, m) => s + (m.trophies || 0), 0);
+        const totalDonations = members.reduce((s, m) => s + (m.donations || 0), 0);
+        const totalReceived = members.reduce((s, m) => s + (m.donations_received || 0), 0);
+        const avgTrophies = total ? Math.round(totalTrophies / total) : 0;
+        const avgDonations = total ? Math.round(totalDonations / total) : 0;
+
+        const thMap = {};
+        const leagueMap = {};
+        members.forEach(m => {
+            const th = m.town_hall || '?';
+            thMap[th] = (thMap[th] || 0) + 1;
+            const lg = m.league || 'N/A';
+            leagueMap[lg] = (leagueMap[lg] || 0) + 1;
+        });
+
+        const thSorted = Object.entries(thMap).sort((a, b) => parseInt(b[0]) - parseInt(a[0]));
+        const leagueSorted = Object.entries(leagueMap).sort((a, b) => b[1] - a[1]);
+
+        let html = '<div class="ranked-member-list">';
+
+        html += `<div class="ranked-summary-box"><div class="ranked-summary-title">📊 Resumo Geral</div></div>`;
+        html += `<div class="ranked-member-item">
+            <span class="ranked-member-name">Membros</span>
+            <div class="ranked-member-stats"><span class="ranked-member-stat">${total}</span></div>
+        </div>`;
+        html += `<div class="ranked-member-item">
+            <span class="ranked-member-name">Tropheus Totais</span>
+            <div class="ranked-member-stats"><span class="ranked-member-stat"><img src="/assets/icons/Icon_HV_Podium.png" alt="*"> ${totalTrophies.toLocaleString()} (média ${avgTrophies})</span></div>
+        </div>`;
+        html += `<div class="ranked-member-item">
+            <span class="ranked-member-name">Doações Totais</span>
+            <div class="ranked-member-stats"><span class="ranked-member-stat">${totalDonations.toLocaleString()} (média ${avgDonations})</span></div>
+        </div>`;
+        html += `<div class="ranked-member-item">
+            <span class="ranked-member-name">Recebidos Totais</span>
+            <div class="ranked-member-stats"><span class="ranked-member-stat">${totalReceived.toLocaleString()}</span></div>
+        </div>`;
+
+        if (thSorted.length > 0) {
+            html += `<div class="ranked-summary-box"><div class="ranked-summary-title">🏗️ Town Halls</div></div>`;
+            thSorted.forEach(([th, count]) => {
+                const pct = Math.round((count / total) * 100);
+                html += `<div class="ranked-member-item">
+                    <span class="ranked-member-name">TH${th}</span>
+                    <div class="ranked-member-stats">
+                        <span class="ranked-member-stat">${count} membros (${pct}%)</span>
+                    </div>
+                </div>`;
+            });
+        }
+
+        if (leagueSorted.length > 0) {
+            html += `<div class="ranked-summary-box"><div class="ranked-summary-title">🏆 Ligas</div></div>`;
+            leagueSorted.forEach(([lg, count]) => {
+                html += `<div class="ranked-member-item">
+                    <span class="ranked-member-name">${lg}</span>
+                    <div class="ranked-member-stats">
+                        <span class="ranked-member-stat">${count} membros</span>
                     </div>
                 </div>`;
             });
