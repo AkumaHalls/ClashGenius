@@ -36,11 +36,14 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         self.DECAY_PERCENTAGE = 0.15
         self.MIN_FUZZY_RATIO = 78
         self.DONATION_SYNC_THRESHOLD = 0
-        self.WAR_SYNC_SECONDS = 30
+        self.WAR_SYNC_SECONDS = 90
         self.TELEMETRY_DONATION_POINTS = 3
         self.TELEMETRY_WAR_POINTS = 8
         self.TELEMETRY_COOLDOWN_HOURS = 24
         self.ISOLATION_FOREST_CONTAMINATION = 0.15
+        self._if_score_cache: Dict[str, float] = {}
+        self._pair_if_score_cache: Dict[str, float] = {}
+        self._donation_pair_history_ttl: Dict[str, float] = {}
 
         # Bayesian prior: P(smurf) = 2% for any random pair
         self.BAYESIAN_PRIOR = 0.02
@@ -139,7 +142,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             return np.zeros(12)
 
     def _extract_hero_equipment_fingerprint(self, player: coc.Player) -> np.ndarray:
-        """Fingerprint de equipamentos dos heróis — sinal forte de individualidade."""
+        """Fingerprint de equipamentos dos heróis — sinal forte de individualidade.
+        Retorna vetor binário (tem/não tem) + nível normalizado apenas para equipamentos desbloqueados no TH."""
         eqp = player.hero_equipment if hasattr(player, 'hero_equipment') else []
         names_ordered = [
             "Barbarian Puppet", "Rage Vial", "Archer Puppet", "Invisibility Vial",
@@ -147,8 +151,23 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             "Royal Gem", "Seeking Shield", "Hog Rider Puppet", "Skeleton Spell",
             "Lava Puppet", "Frozen Arrow", "Giant Arrow", "Electro Boots",
         ]
+        # TH level determina quais equipamentos estão desbloqueados
+        th = player.town_hall
+        unlocked_slots = 0
+        if th >= 8: unlocked_slots = 1
+        if th >= 9: unlocked_slots = 2
+        if th >= 10: unlocked_slots = 3
+        if th >= 11: unlocked_slots = 4
+        if th >= 12: unlocked_slots = 5
+        if th >= 13: unlocked_slots = 6
+        if th >= 14: unlocked_slots = 7
+        if th >= 15: unlocked_slots = 8
+        # Apenas considera equipamentos até o slot desbloqueado
         vec = []
-        for name in names_ordered:
+        for i, name in enumerate(names_ordered):
+            if i >= unlocked_slots:
+                vec.append(0.0)  # Slot ainda não desbloqueado = 0
+                continue
             found = next((e for e in eqp if e.name == name), None)
             if found:
                 vec.append(found.level / max(found.max_level, 1))
@@ -167,8 +186,9 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
     def _analyze_mula_signature(self, player: coc.Player) -> Tuple[bool, int, str]:
-        """Forense de Laboratório: Analisa se o perfil de upgrade foca apenas em Doação."""
-        if player.town_hall < 12: return False, 0, "" 
+        """Forense de Laboratório: Analisa se o perfil de upgrade foca apenas em Doação.
+        Só suspeita em TH14+ (onde equipamentos e meta de doação são definidos)."""
+        if player.town_hall < 14: return False, 0, ""
             
         donation_troops = ["Electro Dragon", "Balloon", "Yeti", "Rage Spell", "Freeze Spell"]
         basic_troops = ["Barbarian", "Archer", "Giant", "Goblin"]
@@ -388,7 +408,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         n2 = re.sub(r'[^\w\s]', '', name2.lower())
         ratio = fuzzy.ratio(n1, n2)
         token_ratio = fuzzy.token_set_ratio(n1, n2)
-        return max(ratio, token_ratio // 2)
+        return max(ratio, token_ratio)
 
     # ==================== BASELINE ESTATÍSTICO DO CLÃ ====================
 
@@ -493,8 +513,11 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 )
                 model.fit(X)
                 self._isolation_forest = model
+                # Cache decision function thresholds for calibration
+                self._if_threshold = np.percentile(model.decision_function(X), 100 * self.ISOLATION_FOREST_CONTAMINATION)
             else:
                 self._isolation_forest = None
+                self._if_threshold = 0.0
 
             pair_vectors = []
             for i in range(len(member_players)):
@@ -504,17 +527,23 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                         vectors[j], troop_profiles[j], ach_profiles[j],
                     ])
                     pair_vectors.append(stacked)
+            
+            # Fix: check AFTER building all pair vectors
             if len(pair_vectors) >= 20:
                 pair_model = IsolationForest(
                     contamination=0.1, random_state=42, n_estimators=100
                 )
                 pair_model.fit(np.array(pair_vectors))
                 self._pair_isolation_forest = pair_model
+                self._pair_if_threshold = np.percentile(pair_model.decision_function(np.array(pair_vectors)), 10)
             else:
                 self._pair_isolation_forest = None
+                self._pair_if_threshold = 0.0
         except Exception:
             self._isolation_forest = None
             self._pair_isolation_forest = None
+            self._if_threshold = 0.0
+            self._pair_if_threshold = 0.0
 
         self._last_clan_players = player_info
 
@@ -524,8 +553,13 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             return 0.0
         try:
             vec = self._extract_feature_vector(player).reshape(1, -1)
-            score = self._isolation_forest.score_samples(vec)[0]
-            return max(0.0, min(1.0, -score / 10.0 + 0.5))
+            score = self._isolation_forest.decision_function(vec)[0]
+            # Calibrated: score < threshold = anomaly
+            if self._if_threshold != 0.0:
+                anomaly_score = max(0.0, min(1.0, (self._if_threshold - score) / (abs(self._if_threshold) + 0.1)))
+            else:
+                anomaly_score = 0.0
+            return anomaly_score
         except Exception:
             return 0.0
 
@@ -545,8 +579,12 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 self._extract_achievement_profile(p2),
             )
             stacked = np.concatenate([v1, t1, a1, v2, t2, a2]).reshape(1, -1)
-            score = self._pair_isolation_forest.score_samples(stacked)[0]
-            return max(0.0, min(1.0, -score / 10.0 + 0.5))
+            score = self._pair_isolation_forest.decision_function(stacked)[0]
+            if self._pair_if_threshold != 0.0:
+                anomaly_score = max(0.0, min(1.0, (self._pair_if_threshold - score) / (abs(self._pair_if_threshold) + 0.1)))
+            else:
+                anomaly_score = 0.0
+            return anomaly_score
         except Exception:
             return 0.0
 
@@ -610,6 +648,12 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                         }
                     )
         except Exception: pass
+        # Cleanup in-memory donation pair history (TTL 7 days)
+        now = datetime.datetime.now().timestamp()
+        expired = [k for k, v in self._donation_pair_history_ttl.items() if now - v > 7 * 86400]
+        for k in expired:
+            self._donation_pair_history.pop(k, None)
+            self._donation_pair_history_ttl.pop(k, None)
         # Treina XGBoost com feedback acumulado
         self._xgb_retrain_counter += 1
         if self._xgb_retrain_counter % 3 == 0:
@@ -647,6 +691,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                                 if d_amount > 0 and r_amount > 0 and d_amount == r_amount:
                                     pair_id = f"{min(d_member.tag, r_member.tag)}_{max(d_member.tag, r_member.tag)}"
                                     self._donation_pair_history[pair_id] = self._donation_pair_history.get(pair_id, 0) + 1
+                                    self._donation_pair_history_ttl[pair_id] = now_ts
                                     hit_count = self._donation_pair_history.get(pair_id, 0)
                                     if hit_count >= 2:
                                         await self._log_telemetry(

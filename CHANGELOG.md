@@ -3,6 +3,23 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [33.3.2] — 2026-07-27
+
+### Corrigido
+- cogs/smurf_detection_cog.py - _pair_isolation_forest nunca treinava: check de tamanho movido para **depois** do loop de construção dos pair_vectors
+- cogs/smurf_detection_cog.py - Hero equipment fingerprint retornava zeros para TH baixo: agora normaliza apenas slots desbloqueados por TH (TH8=1 slot...TH15=8 slots)
+- cogs/smurf_detection_cog.py - token_set_ratio artificialmente dividido por 2: removido // 2, usa max(ratio, token_ratio) direto
+- cogs/smurf_detection_cog.py - WAR_SYNC_SECONDS = 30s muito agressivo (falso positivo em guerras legítimas): aumentado para **90s**
+- cogs/smurf_detection_cog.py - _donation_pair_history vazava memória (dict sem TTL): adicionado _donation_pair_history_ttl + limpeza 24h no 
+egenerative_ai_task
+- cogs/smurf_detection_cog.py - Isolation Forest mal calibrado (score_samples heurístico): migrou para decision_function + percentil de contaminação calibrado
+- cogs/smurf_detection_cog.py - Mula signature disparava em TH12+: agora só em **TH14+** (onde equipamentos/meta de doação existem)
+
+### Alterado
+- cogs/smurf_detection_cog.py - Adicionados caches _if_score_cache, _pair_if_score_cache para evitar recomputação
+
+---
+
 ## [33.3.1] — 2026-07-19
 
 ### Corrigido
