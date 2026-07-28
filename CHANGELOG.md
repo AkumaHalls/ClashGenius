@@ -25,6 +25,7 @@ Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Cha
 - web/routes.py - Todos os cogs tinham null-check ausente (profile_cog, cwl_cog, admin_cog, web_api_cog, maintenance_cog)
 - web/middleware.py - `security_headers_middleware` não aplicava headers em responses de erro (exceptions não tratadas)
 - web/auth_routes.py - Route regex `{username:.*}` aceitava qualquer string; restrito para `{username:[a-z0-9_]+}`
+- requirements.txt - Dependências restauradas: pandas, Pillow, xgboost, scipy (usadas por smurf_detection_cog, capital_cog, war_advisor_cog)
 
 ### Adicionado
 - web/middleware.py - Rate limiting global: 10 req/min para login/registro, 120/min para APIs, 200/min para estáticos
@@ -39,9 +40,7 @@ Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Cha
 - temp_fix_changelog.ps1 - Script temporário de reparo
 - temp_fix_encoding.ps1 - Script temporário de encoding
 - temp_update_changelog.ps1 - Script temporário de changelog
-- requirements.txt - Dependências não utilizadas removidas: xgboost, scipy, pandas, Pillow, psutil
-- static/admin_login.html - JavaScript de bloqueio de devtools (F12,右键) — falsa sensação de segurança
-- static/admin_panel.html - JavaScript de bloqueio de devtools (F12,右键) — falsa sensação de segurança
+- requirements.txt - Dependência não utilizada removida: psutil
 
 ### Padronizado
 - web/routes.py - Formato de erro padronizado para `{"status": "error", "message": "..."}` em todos os endpoints
