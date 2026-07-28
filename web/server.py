@@ -13,7 +13,7 @@ from aiohttp_session import setup as setup_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from cryptography.fernet import Fernet
 
-from web.middleware import security_headers_middleware, admin_auth_middleware, admin_csrf_middleware
+from web.middleware import security_headers_middleware, admin_auth_middleware, admin_csrf_middleware, rate_limit_middleware
 from web.routes import register_public_routes
 from web.admin_routes import register_admin_routes
 from web.auth_routes import register_auth_routes
@@ -54,11 +54,17 @@ async def setup_web_server(bot_instance):
     except Exception as e:
         logger.warning(f"Assets da GeniusLib NÃO encontrados: {e}")
 
-    # Security headers (inclui CSP)
+    # Security headers (inclui CSP) + rate limiting
     app.middlewares.append(security_headers_middleware)
+    app.middlewares.append(rate_limit_middleware)
 
     # Registrar rotas públicas
     register_public_routes(app, bot_instance)
+
+    # Health check
+    async def health_check(r):
+        return web.json_response({"status": "ok", "version": bot_instance.bot_version})
+    app.router.add_get("/health", health_check)
 
     # Rotas de páginas
     app.router.add_static('/static/', path=static_dir, name='static')
@@ -93,25 +99,32 @@ async def setup_web_server(bot_instance):
 
     # Sessions (Fernet encrypted cookies)
     from config import FERNET_KEY, BASE_URL
+    if not FERNET_KEY:
+        logger.critical("### ERRO FATAL: FERNET_KEY não definido nas variáveis de ambiente. "
+                        "Sessões criptografadas não podem funcionar sem uma chave. ###")
+        return
     try:
         secret_key_bytes = FERNET_KEY.encode()
         secret_key_decoded = base64.urlsafe_b64decode(secret_key_bytes)
     except (AttributeError, ValueError, TypeError):
-        secret_key_decoded = FERNET_KEY
-    if not secret_key_decoded:
-        secret_key_decoded = Fernet.generate_key()
+        logger.critical("### ERRO FATAL: FERNET_KEY inválida (não é base64 válido). ###")
+        return
     is_secure = os.environ.get("RENDER", "") == "true" or (BASE_URL and BASE_URL.startswith("https"))
     setup_session(app, EncryptedCookieStorage(
         secret_key_decoded,
         max_age=86400,
         secure=is_secure,
-        httponly=True
+        httponly=True,
+        samesite='Lax'
     ))
 
     # Iniciar
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.environ.get("PORT", 10000))
+    try:
+        port = int(os.environ.get("PORT", 10000))
+    except (ValueError, TypeError):
+        port = 10000
     site = web.TCPSite(runner, '0.0.0.0', port)
     try:
         await site.start()

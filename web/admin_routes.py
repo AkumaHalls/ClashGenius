@@ -24,19 +24,29 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
 
     # --- Admin API handlers ---
     async def api_admin_diagnostics(r):
+        if not admin_cog:
+            return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
         return web.json_response(await admin_cog.get_diagnostics())
 
     async def api_admin_get_settings(r):
+        if not admin_cog:
+            return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
         session = await get_session(r)
         return web.json_response(await admin_cog.get_settings(session))
 
     async def api_admin_update_settings(r):
+        if not admin_cog:
+            return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
         return web.json_response(await admin_cog.update_settings(await r.json()))
 
     async def api_admin_db_viewer(r):
+        if not admin_cog:
+            return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
         return web.json_response(await admin_cog.get_db_viewer_data(), dumps=lambda v: json.dumps(v, default=str))
 
     async def api_admin_get_watchlist(r):
+        if not admin_cog:
+            return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
         return web.json_response(await admin_cog.get_watchlist_admin())
 
     async def api_admin_add_watchlist(r):
@@ -126,9 +136,13 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
             return web.json_response({"status": "error", "message": f"Erro interno ao processar '{action}'."}, status=500)
 
     async def api_admin_discord_data(r):
+        if not admin_cog:
+            return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
         return web.json_response(await admin_cog.get_discord_data())
 
     async def api_admin_smurf_dossier(r):
+        if not admin_cog:
+            return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
         return web.json_response(await admin_cog.get_smurf_dossier(), dumps=lambda v: json.dumps(v, default=str))
 
     async def api_get_csrf_token(r):
@@ -160,11 +174,11 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
         data = await r.post()
         guild_id_from_form = data.get('guild_id', '')
         password = data.get('password', '')
-        db = get_db(bot_instance)
-        if isinstance(db, web.Response):
-            return db
+        db, err = get_db(bot_instance)
+        if err:
+            return web.HTTPFound('/admin?error=1')
         user_count = await db.panel_users.count_documents({})
-        if password == ADMIN_PASSWORD:
+        if secrets.compare_digest(password, ADMIN_PASSWORD):
             session = await get_session(r)
             session['csrf_token'] = secrets.token_hex(32)
             if user_count == 0:
@@ -181,7 +195,7 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
                 session['guild_id'] = guild_id_from_form if guild_id_from_form else None
                 return web.HTTPFound('/admin/panel')
         else:
-            return web.HTTPFound(f"/admin?error=1&guild_id={guild_id_from_form}")
+            return web.HTTPFound("/admin?error=1")
 
     async def admin_logout_handler(r):
         session = await get_session(r)
@@ -194,6 +208,8 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
         role = session.get('role')
         if not role and not session.get('admin'):
             return web.json_response({"status": "unauthorized"}, status=403)
+        if not maintenance_cog:
+            return web.json_response({"status": "error", "message": "Maintenance cog não carregado."}, status=500)
         return await maintenance_cog.toggle_maintenance_mode_web()
 
     async def admin_send_test_embed_handler(r):
@@ -201,6 +217,8 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
         role = session.get('role')
         if not role and not session.get('admin'):
             return web.json_response({"status": "unauthorized"}, status=403)
+        if not maintenance_cog:
+            return web.json_response({"status": "error", "message": "Maintenance cog não carregado."}, status=500)
         return await maintenance_cog.send_test_embed_web()
 
     # --- Registrar rotas admin API ---
@@ -219,9 +237,13 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
     web_api_cog = bot_instance.get_cog("Web API")
 
     async def admin_export_clan(r):
+        if not web_api_cog:
+            return web.json_response({"status": "error", "message": "Web API cog não carregado."}, status=500)
         return web.json_response(await web_api_cog.export_clan_data_for_web('json'))
 
     async def admin_export_players(r):
+        if not web_api_cog:
+            return web.json_response({"status": "error", "message": "Web API cog não carregado."}, status=500)
         return web.json_response(await web_api_cog.export_players_for_web('json'))
 
     admin_api_app.router.add_get("/export/clan", admin_export_clan)

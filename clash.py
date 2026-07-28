@@ -2,6 +2,7 @@
 # Versão 33.0.0 - Decomposição do Web Server
 
 import os
+import signal
 import logging
 import asyncio
 import datetime
@@ -115,7 +116,7 @@ class ClashGeniusBot(commands.Bot):
                 self.db_ready.set()
 
             logger.info("Criando tarefa coc_login_task...")
-            self.loop.create_task(self.coc_login_task())
+            self._coc_login_task = self.loop.create_task(self.coc_login_task())
 
             logger.info("--- Iniciando carregamento de Cogs ---")
             cog_files = [ 'events_cog', 'tasks_cog', 'database_cog', 'general_cog', 'cwl_planner_cog', 'clan_games_cog', 'war_advisor_cog', 'profile_cog', 'maintenance_cog', 'web_api_cog', 'admin_cog', 'donation_cog', 'slash_cog', 'watchlist_cog', 'smurf_detection_cog', 'capital_cog', 'performance_cog', 'war_predictor_cog', 'battlelog_cog', 'activity_report_cog', 'tournament_cog' ]
@@ -131,7 +132,7 @@ class ClashGeniusBot(commands.Bot):
             logger.info(f"--- Carregamento de Cogs finalizado ({loaded_cogs_count}/{len(cog_files)} carregados) ---")
 
             logger.info("Criando tarefa setup_web_server...")
-            self.loop.create_task(setup_web_server(self))
+            self._web_server_task = self.loop.create_task(setup_web_server(self))
             logger.info("Tarefa setup_web_server criada.")
 
         finally:
@@ -274,6 +275,12 @@ from web.server import setup_web_server
 async def main():
     intents = discord.Intents.default(); intents.message_content = True; intents.members = True; intents.guilds = True
     bot = ClashGeniusBot(command_prefix="!", intents=intents, allowed_mentions=discord.AllowedMentions(roles=True))
+    loop = asyncio.get_running_loop()
+    for sig_name in (signal.SIGINT, signal.SIGTERM) if hasattr(signal, 'SIGINT') else ():
+        try:
+            loop.add_signal_handler(sig_name, lambda: asyncio.create_task(bot.close()))
+        except NotImplementedError:
+            pass
     try:
         logger.info("Iniciando bot (bot.start)...")
         await bot.start(DISCORD_TOKEN)

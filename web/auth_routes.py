@@ -27,15 +27,15 @@ def register_auth_routes(admin_api_app, bot_instance):
         guild_id = data.get('guild_id', '')
         if not username or not password:
             return web.json_response({"status": "error", "message": "Usuário e senha obrigatórios."}, status=400)
-        db = get_db(bot_instance)
-        if isinstance(db, web.Response):
-            return db
+        db, err = get_db(bot_instance)
+        if err:
+            return err
 
         user = await db.panel_users.find_one({"_id": username})
         if not user or user.get('status') != 'active':
-            return web.json_response({"status": "error", "message": "Usuário não encontrado ou inativo."}, status=401)
+            return web.json_response({"status": "error", "message": "Credenciais inválidas."}, status=401)
         if not check_password(password, user['password_hash']):
-            return web.json_response({"status": "error", "message": "Senha incorreta."}, status=401)
+            return web.json_response({"status": "error", "message": "Credenciais inválidas."}, status=401)
         session = await get_session(r)
         session['authenticated'] = True
         session['username'] = username
@@ -53,9 +53,9 @@ def register_auth_routes(admin_api_app, bot_instance):
             return web.json_response({"status": "error", "message": "Usuário (3+ chars) e senha (4+ chars) obrigatórios."}, status=400)
         if not re.match(r'^[a-z0-9_]+$', username):
             return web.json_response({"status": "error", "message": "Usuário apenas letras minúsculas, números e underscore."}, status=400)
-        db = get_db(bot_instance)
-        if isinstance(db, web.Response):
-            return db
+        db, err = get_db(bot_instance)
+        if err:
+            return err
 
         existing = await db.panel_users.find_one({"_id": username})
         if existing:
@@ -73,9 +73,9 @@ def register_auth_routes(admin_api_app, bot_instance):
         return web.json_response({"status": "success", "message": "Solicitação enviada! Aguarde aprovação do administrador."})
 
     async def api_auth_pending(r):
-        db = get_db(bot_instance)
-        if isinstance(db, web.Response):
-            return db
+        db, err = get_db(bot_instance)
+        if err:
+            return err
 
         cursor = db.panel_users.find({"status": "pending"})
         users = []
@@ -85,9 +85,9 @@ def register_auth_routes(admin_api_app, bot_instance):
 
     async def api_auth_approve(r):
         username = r.match_info.get('username', '').strip().lower()
-        db = get_db(bot_instance)
-        if isinstance(db, web.Response):
-            return db
+        db, err = get_db(bot_instance)
+        if err:
+            return err
 
         result = await db.panel_users.update_one(
             {"_id": username, "status": "pending"},
@@ -99,9 +99,9 @@ def register_auth_routes(admin_api_app, bot_instance):
 
     async def api_auth_reject(r):
         username = r.match_info.get('username', '').strip().lower()
-        db = get_db(bot_instance)
-        if isinstance(db, web.Response):
-            return db
+        db, err = get_db(bot_instance)
+        if err:
+            return err
 
         result = await db.panel_users.delete_one({"_id": username, "status": "pending"})
         if result.deleted_count:
@@ -120,9 +120,9 @@ def register_auth_routes(admin_api_app, bot_instance):
             return web.json_response({"status": "error", "message": "Visualizador não pode alterar roles."}, status=403)
         if session.get('username', '').lower() == target:
             return web.json_response({"status": "error", "message": "Não pode alterar sua própria role."}, status=400)
-        db = get_db(bot_instance)
-        if isinstance(db, web.Response):
-            return db
+        db, err = get_db(bot_instance)
+        if err:
+            return err
 
         result = await db.panel_users.update_one(
             {"_id": target},
@@ -133,9 +133,9 @@ def register_auth_routes(admin_api_app, bot_instance):
         return web.json_response({"status": "error", "message": "Usuário não encontrado."}, status=404)
 
     async def api_auth_users(r):
-        db = get_db(bot_instance)
-        if isinstance(db, web.Response):
-            return db
+        db, err = get_db(bot_instance)
+        if err:
+            return err
 
         cursor = db.panel_users.find({})
         users = []
@@ -159,8 +159,8 @@ def register_auth_routes(admin_api_app, bot_instance):
     admin_api_app.router.add_post("/auth/login", api_auth_login)
     admin_api_app.router.add_post("/auth/register", api_auth_register)
     admin_api_app.router.add_get("/auth/pending", api_auth_pending)
-    admin_api_app.router.add_post("/auth/approve/{username:.*}", api_auth_approve)
-    admin_api_app.router.add_post("/auth/reject/{username:.*}", api_auth_reject)
+    admin_api_app.router.add_post("/auth/approve/{username:[a-z0-9_]+}", api_auth_approve)
+    admin_api_app.router.add_post("/auth/reject/{username:[a-z0-9_]+}", api_auth_reject)
     admin_api_app.router.add_get("/auth/users", api_auth_users)
     admin_api_app.router.add_get("/auth/me", api_auth_me)
     admin_api_app.router.add_post("/auth/role", api_auth_role)

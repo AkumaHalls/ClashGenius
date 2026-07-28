@@ -29,9 +29,9 @@ def register_public_routes(app, bot_instance):
         cache_entry = bot_instance.web_api_cache.get(key)
         force_call = kwargs.get('force_api_call', False)
         if not bot_instance.coc_client_ready.is_set():
-            return web.json_response({"error": "Bot iniciando (Aguardando API CoC)..."}, status=503)
+            return web.json_response({"status": "error", "message": "Bot iniciando (Aguardando API CoC)..."}, status=503)
         if not bot_instance.api_client:
-            return web.json_response({"error": "Falha na conexão com a API Clash of Clans."}, status=503)
+            return web.json_response({"status": "error", "message": "Falha na conexão com a API Clash of Clans."}, status=503)
         if not force_call and cache_entry and (now - cache_entry["timestamp"]).total_seconds() < bot_instance.WEB_API_CACHE_DURATION_SECONDS:
             return web.json_response(cache_entry["data"], dumps=lambda v: json.dumps(v, default=str))
         try:
@@ -40,16 +40,16 @@ def register_public_routes(app, bot_instance):
                 bot_instance.web_api_cache[key] = {"data": data, "timestamp": now}
             elif 'error' in data:
                 status_code = 503 if "API" in data.get('error', '') else (404 if "não encontrado" in data.get('error', '').lower() else 500)
-                return web.json_response(data, status=status_code, dumps=lambda v: json.dumps(v, default=str))
+                return web.json_response({"status": "error", "message": data.get('error', 'Erro desconhecido')}, status=status_code, dumps=lambda v: json.dumps(v, default=str))
             return web.json_response(data, dumps=lambda v: json.dumps(v, default=str))
         except coc.LoginError:
             bot_instance.coc_client_ready.clear()
             bot_instance.api_client = None
             import asyncio
-            asyncio.create_task(bot_instance.coc_login_task())
-            return web.json_response({"error": "Erro de autenticação com a API CoC. Tentando reconectar..."}, status=503)
+            bot_instance._reconnect_task = asyncio.create_task(bot_instance.coc_login_task())
+            return web.json_response({"status": "error", "message": "Erro de autenticação com a API CoC. Tentando reconectar..."}, status=503)
         except Exception as e:
-            return web.json_response({"error": f"Erro interno no servidor ao processar '{key}'."}, status=500)
+            return web.json_response({"status": "error", "message": "Erro interno no servidor."}, status=500)
 
     # --- Handlers simples ---
     async def api_clan_handler(r):
@@ -80,10 +80,14 @@ def register_public_routes(app, bot_instance):
         clan_games_cog = bot_instance.get_cog("Jogos do Clã")
         if clan_games_cog:
             return await handle_web_response(r, 'clan_games', clan_games_cog.fetch_clan_games_data_for_web)
-        return web.json_response({"error": "Módulo dos Jogos do Clã não encontrado."}, status=500)
+        return web.json_response({"status": "error", "message": "Módulo dos Jogos do Clã não encontrado."}, status=500)
 
     async def api_save_player_note_handler(request):
+        from aiohttp_session import get_session
         from web.auth import get_db
+        session = await get_session(request)
+        if not session.get('role') and not session.get('admin'):
+            return web.json_response({"status": "error", "message": "Autenticação necessária."}, status=401)
         db_cog = bot_instance.get_cog("Banco de Dados")
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         data = await request.json()
@@ -92,55 +96,59 @@ def register_public_routes(app, bot_instance):
             bot_instance.web_api_cache.pop('members', None)
             return web.Response(status=204)
         except ConnectionError:
-            return web.json_response({"error": "Erro de conexão com o banco de dados."}, status=500)
+            return web.json_response({"status": "error", "message": "Erro de conexão com o banco de dados."}, status=500)
         except Exception:
-            return web.json_response({"error": "Erro interno ao salvar nota."}, status=500)
+            return web.json_response({"status": "error", "message": "Erro interno ao salvar nota."}, status=500)
 
     async def api_update_cwl_status_handler(request):
-        from web.auth import get_db
+        from aiohttp_session import get_session
+        session = await get_session(request)
+        if not session.get('role') and not session.get('admin'):
+            return web.json_response({"status": "error", "message": "Autenticação necessária."}, status=401)
         db_cog = bot_instance.get_cog("Banco de Dados")
         player_tag = request.match_info.get('player_tag')
         if not player_tag:
-            return web.json_response({"error": "Player tag is required."}, status=400)
+            return web.json_response({"status": "error", "message": "Player tag is required."}, status=400)
         try:
             data = await request.json()
             status = data.get('status')
             if status not in ['active', 'backup', 'priority']:
-                return web.json_response({"error": "Invalid status."}, status=400)
+                return web.json_response({"status": "error", "message": "Invalid status."}, status=400)
             if not db_cog:
-                return web.json_response({"error": "Internal server error (DB Cog missing)."}, status=500)
+                return web.json_response({"status": "error", "message": "Internal server error (DB Cog missing)."}, status=500)
             await db_cog.update_player_cwl_status(player_tag, status)
             bot_instance.web_api_cache.pop('members', None)
-            return web.json_response({"success": True, "message": f"Status for {player_tag} updated to {status}."})
+            return web.json_response({"status": "success", "message": f"Status for {player_tag} updated to {status}."})
         except Exception:
-            return web.json_response({"error": "Internal server error while updating status."}, status=500)
+            return web.json_response({"status": "error", "message": "Internal server error while updating status."}, status=500)
 
     async def api_update_admin_border_handler(request):
         from aiohttp_session import get_session
-        from web.auth import get_db
-        db_cog = bot_instance.get_cog("Banco de Dados")
-        player_tag = request.match_info.get('player_tag')
-        if not player_tag:
-            return web.json_response({"error": "Player tag is required."}, status=400)
         session = await get_session(request)
         role = session.get('role', '')
         is_admin_session = session.get('admin', False)
-        if role == 'viewer' and not is_admin_session:
-            return web.json_response({"error": "Sem permissão para alterar borda admin."}, status=403)
+        if not role and not is_admin_session:
+            return web.json_response({"status": "error", "message": "Autenticação necessária."}, status=401)
+        if role == 'viewer':
+            return web.json_response({"status": "error", "message": "Sem permissão para alterar borda admin."}, status=403)
+        db_cog = bot_instance.get_cog("Banco de Dados")
+        player_tag = request.match_info.get('player_tag')
+        if not player_tag:
+            return web.json_response({"status": "error", "message": "Player tag is required."}, status=400)
         try:
             data = await request.json()
             enabled = bool(data.get('enabled', False))
             if not db_cog:
-                return web.json_response({"error": "Internal server error (DB Cog missing)."}, status=500)
+                return web.json_response({"status": "error", "message": "Internal server error (DB Cog missing)."}, status=500)
             await db_cog.update_player_admin_border(player_tag, enabled)
             bot_instance.web_api_cache.pop('members', None)
-            return web.json_response({"success": True, "message": f"Admin border for {player_tag} set to {enabled}."})
+            return web.json_response({"status": "success", "message": f"Admin border for {player_tag} set to {enabled}."})
         except Exception:
-            return web.json_response({"error": "Internal server error while updating admin border."}, status=500)
+            return web.json_response({"status": "error", "message": "Internal server error while updating admin border."}, status=500)
 
     async def api_historic_war_handler(request):
         if bot_instance.db is None:
-            return web.json_response({"error": "Banco de dados não configurado."}, status=503)
+            return web.json_response({"status": "error", "message": "Banco de dados não configurado."}, status=503)
         war_id = request.match_info['war_id']
         try:
             war_doc = await bot_instance.db.war_history.find_one({"_id": war_id})
@@ -151,20 +159,24 @@ def register_public_routes(app, bot_instance):
                     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
                 return web.json_response(war_doc, dumps=lambda v: json.dumps(v, default=default_serializer))
             else:
-                return web.json_response({"error": "Guerra não encontrada."}, status=404)
+                return web.json_response({"status": "error", "message": "Guerra não encontrada."}, status=404)
         except Exception:
-            return web.json_response({"error": "Erro interno ao buscar guerra histórica."}, status=500)
+            return web.json_response({"status": "error", "message": "Erro interno ao buscar guerra histórica."}, status=500)
 
     async def api_member_profile_handler(request):
         if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client:
-            return web.json_response({"error": "API CoC temporariamente indisponível."}, status=503)
+            return web.json_response({"status": "error", "message": "API CoC temporariamente indisponível."}, status=503)
+        if not profile_cog:
+            return web.json_response({"status": "error", "message": "Profile cog não carregado."}, status=500)
         player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         profile_data = await profile_cog.fetch_player_profile_data(player_tag)
         return web.json_response(profile_data, status=404 if "error" in profile_data else 200, dumps=lambda v: json.dumps(v, default=str))
 
     async def api_cwl_generate_plan_handler(request):
         if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client:
-            return web.json_response({"error": "API CoC temporariamente indisponível."}, status=503)
+            return web.json_response({"status": "error", "message": "API CoC temporariamente indisponível."}, status=503)
+        if not cwl_cog:
+            return web.json_response({"status": "error", "message": "CWL cog não carregado."}, status=500)
         bot_instance.web_api_cache.pop('cwl_plan', None)
         try:
             data = await request.json()
@@ -176,21 +188,21 @@ def register_public_routes(app, bot_instance):
 
     async def api_war_advisor_plan_handler(request):
         if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client:
-            return web.json_response({"success": False, "error": "API CoC temporariamente indisponível."}, status=503)
+            return web.json_response({"status": "error", "message": "API CoC temporariamente indisponível."}, status=503)
         war_advisor_cog = bot_instance.get_cog("Conselheiro de Guerra IA")
         try:
             war = await bot_instance.api_client.get_current_war(bot_instance.clan_tag, ignore_cache=True)
             if not bot_instance.war_prediction_system or not bot_instance.war_prediction_system.is_initialized:
-                return web.json_response({"success": False, "error": "Sistema de predição ainda inicializando."}, status=503)
+                return web.json_response({"status": "error", "message": "Sistema de predição ainda inicializando."}, status=503)
             prediction_data = await bot_instance.war_prediction_system.predict_war_outcome(war, bot_instance.clan_tag)
             plan = war_advisor_cog.war_advisor.create_war_plan(war, bot_instance.clan_tag, prediction_data)
             return web.json_response(plan)
         except (coc.NotFound, coc.PrivateWarLog):
-            return web.json_response({"success": False, "error": "Nenhuma guerra ativa ou log privado."}, status=404)
+            return web.json_response({"status": "error", "message": "Nenhuma guerra ativa ou log privado."}, status=404)
         except coc.LoginError:
-            return web.json_response({"success": False, "error": "Erro de login com API CoC."}, status=503)
+            return web.json_response({"status": "error", "message": "Erro de login com API CoC."}, status=503)
         except Exception:
-            return web.json_response({"success": False, "error": "Erro interno ao gerar plano."}, status=500)
+            return web.json_response({"status": "error", "message": "Erro interno ao gerar plano."}, status=500)
 
     async def api_coc_status_handler(r):
         if not admin_cog:
@@ -214,17 +226,22 @@ def register_public_routes(app, bot_instance):
     async def api_legend_data_handler(request):
         player_tag = request.query.get('tag', '')
         if not player_tag:
-            return web.json_response({"error": "Parâmetro 'tag' é obrigatório."}, status=400)
+            return web.json_response({"status": "error", "message": "Parâmetro 'tag' é obrigatório."}, status=400)
         return await handle_web_response(request, f'legend_{player_tag}', web_api_cog.fetch_legend_data_for_web, player_tag)
 
     async def api_legend_history_handler(request):
         player_tag = request.query.get('tag', '')
         if not player_tag:
-            return web.json_response({"error": "Parâmetro 'tag' é obrigatório."}, status=400)
+            return web.json_response({"status": "error", "message": "Parâmetro 'tag' é obrigatório."}, status=400)
         return await handle_web_response(request, f'legend_history_{player_tag}', web_api_cog.fetch_legend_history_for_web, player_tag)
 
     async def api_legend_clan_summary_handler(request):
-        dias = int(request.query.get('dias', 1))
+        try:
+            dias = int(request.query.get('dias', 1))
+            if dias < 1 or dias > 90:
+                dias = 1
+        except (ValueError, TypeError):
+            dias = 1
         return await handle_web_response(request, f'legend_clan_{dias}', web_api_cog.fetch_legend_clan_summary_for_web, dias)
 
     # Upgrades, export, compare
@@ -244,7 +261,7 @@ def register_public_routes(app, bot_instance):
         tag1 = request.query.get('tag1', '')
         tag2 = request.query.get('tag2', '')
         if not tag1 or not tag2:
-            return web.json_response({"error": "Parâmetros tag1 e tag2 são obrigatórios."}, status=400)
+            return web.json_response({"status": "error", "message": "Parâmetros tag1 e tag2 são obrigatórios."}, status=400)
         result = await web_api_cog.compare_players_for_web(tag1, tag2)
         return web.json_response(result, dumps=lambda v: json.dumps(v, default=str))
 
@@ -252,7 +269,7 @@ def register_public_routes(app, bot_instance):
         tag1 = request.query.get('tag1', '')
         tag2 = request.query.get('tag2', '')
         if not tag1 or not tag2:
-            return web.json_response({"error": "Parâmetros tag1 e tag2 são obrigatórios."}, status=400)
+            return web.json_response({"status": "error", "message": "Parâmetros tag1 e tag2 são obrigatórios."}, status=400)
         result = await web_api_cog.compare_clans_for_web(tag1, tag2)
         return web.json_response(result, dumps=lambda v: json.dumps(v, default=str))
 

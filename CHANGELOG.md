@@ -3,6 +3,52 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [33.3.3] — 2026-07-28
+
+### Corrigido
+- web/auth.py - `get_db()` retornava `None` quando MongoDB indisponível, mas callers verificavam `isinstance(db, web.Response)` — causava crash `AttributeError` em TODOS os handlers; agora retorna tupla `(db, err)` com resposta 503 adequada
+- web/auth.py - `check_password()` usava `==` para comparar hashes — vulnerável a timing attacks; migrado para `secrets.compare_digest()`
+- web/auth.py - PBKDF2 iterações aumentadas de 100.000 para 600.000 (OWASP 2023)
+- web/middleware.py - CSRF token comparado com `!=` (não timing-safe); migrado para `secrets.compare_digest()`
+- web/admin_routes.py - Login admin usava `==` para comparar senha; migrado para `secrets.compare_digest()`
+- web/routes.py - POST `/api/notes/{player_tag}` não requeria autenticação — qualquer usuário anônimo podia sobrescrever notas
+- web/routes.py - POST `/api/cwl/player_status/{player_tag}` não requeria autenticação — qualquer usuário anônimo podia mudar status CWL
+- web/routes.py - POST `/api/admin_border/{player_tag}` tinha auth check quebrado — usuários sem role passavam direto; agora retorna 401
+- web/server.py - `FERNET_KEY` gerava chave nova silenciosamente quando não configurada, invalidando todas as sessões; agora é erro fatal
+- web/auth_routes.py - Login retornava mensagens diferentes para "user not found" vs "wrong password" — permitia enumeração de usuários; agora retorna "Credenciais inválidas" em ambos
+- web/routes.py - Parâmetro `dias` em `/api/legend/clan` não validado — causava ValueError 500 com input não-numérico
+- web/server.py - Variável `PORT` não validada — causava ValueError com valor não-numérico
+- web/admin_routes.py - `guild_id` era refletido sem encoding no redirect URL — potencial header injection
+- web/routes.py - `asyncio.create_task()` sem armazenar referência — task podia ser garbage collected antes de completar
+- clash.py - `loop.create_task()` para `coc_login_task` e `setup_web_server` sem armazenar referência
+- static/images/site.webmanifest - Icon paths estavam errados (`/android-chrome-*.png` em vez de `/static/images/android-chrome-*.png`)
+- web/routes.py - Todos os cogs tinham null-check ausente (profile_cog, cwl_cog, admin_cog, web_api_cog, maintenance_cog)
+- web/middleware.py - `security_headers_middleware` não aplicava headers em responses de erro (exceptions não tratadas)
+- web/auth_routes.py - Route regex `{username:.*}` aceitava qualquer string; restrito para `{username:[a-z0-9_]+}`
+
+### Adicionado
+- web/middleware.py - Rate limiting global: 10 req/min para login/registro, 120/min para APIs, 200/min para estáticos
+- web/server.py - Endpoint `/health` para monitoramento
+- web/server.py - `SameSite=Lax` nos cookies de sessão
+- web/middleware.py - CSP atualizado para whitelistar domínio do tracker (akuma-labs.duckdns.org)
+- clash.py - Graceful shutdown com signal handlers (SIGINT/SIGTERM)
+
+### Removido
+- web/auth.py - Função `require_admin()` (dead code — definida mas nunca chamada)
+- temp_check_emoji.ps1 - Script temporário de diagnóstico
+- temp_fix_changelog.ps1 - Script temporário de reparo
+- temp_fix_encoding.ps1 - Script temporário de encoding
+- temp_update_changelog.ps1 - Script temporário de changelog
+- requirements.txt - Dependências não utilizadas removidas: xgboost, scipy, pandas, Pillow, psutil
+- static/admin_login.html - JavaScript de bloqueio de devtools (F12,右键) — falsa sensação de segurança
+- static/admin_panel.html - JavaScript de bloqueio de devtools (F12,右键) — falsa sensação de segurança
+
+### Padronizado
+- web/routes.py - Formato de erro padronizado para `{"status": "error", "message": "..."}` em todos os endpoints
+- web/admin_routes.py - Null checks adicionados para todos os cogs (admin, maintenance, web_api)
+
+---
+
 ## [33.3.2] — 2026-07-27
 
 ### Corrigido
