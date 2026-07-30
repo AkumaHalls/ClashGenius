@@ -416,11 +416,11 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         dh.rounded_rectangle([40, hero_y, W - 40, hero_y + hero_h], radius=18,
                              outline=(accent_color[0], accent_color[1], accent_color[2], 80), width=2)
 
-        glow_grad = Image.new('RGBA', (W, hero_h), (0, 0, 0, 0))
+        glow_grad = Image.new('RGBA', (W, H), (0, 0, 0, 0))
         dg = ImageDraw.Draw(glow_grad)
         for x in range(0, W, 2):
             a = max(0, int(40 - 40 * abs(x - W // 2) / (W // 2)))
-            dg.line([(x, 0), (x, hero_h)], fill=(accent_color[0], accent_color[1], accent_color[2], a))
+            dg.line([(x, hero_y), (x, hero_y + hero_h)], fill=(accent_color[0], accent_color[1], accent_color[2], a))
         hero = Image.alpha_composite(hero, glow_grad)
         base = Image.alpha_composite(base, hero)
         draw = ImageDraw.Draw(base)
@@ -656,11 +656,11 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         dh.rounded_rectangle([40, hero_y, W - 40, hero_y + hero_h], radius=18,
                              outline=(cwl_accent[0], cwl_accent[1], cwl_accent[2], 80), width=2)
 
-        glow_grad = Image.new('RGBA', (W, hero_h), (0, 0, 0, 0))
+        glow_grad = Image.new('RGBA', (W, H), (0, 0, 0, 0))
         dg = ImageDraw.Draw(glow_grad)
         for x in range(0, W, 2):
             a = max(0, int(40 - 40 * abs(x - W // 2) / (W // 2)))
-            dg.line([(x, 0), (x, hero_h)], fill=(cwl_accent[0], cwl_accent[1], cwl_accent[2], a))
+            dg.line([(x, hero_y), (x, hero_y + hero_h)], fill=(cwl_accent[0], cwl_accent[1], cwl_accent[2], a))
         hero = Image.alpha_composite(hero, glow_grad)
         base = Image.alpha_composite(base, hero)
         draw = ImageDraw.Draw(base)
