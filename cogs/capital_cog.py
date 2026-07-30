@@ -357,304 +357,401 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
     # >>> GERADOR DE IMAGEM DA CAPITAL (MODERNO DARK) <<<
     # ========================================================
     def generate_game_style_image(self, data: Dict, images: Dict[str, Image.Image]) -> BytesIO:
-        W, H = 1000, 680
+        W, H = 1100, 800
         base = Image.new('RGBA', (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(base)
 
-        f_huge = self._get_font(52)
-        f_big = self._get_font(40)
-        f_title = self._get_font(34)
+        f_huge = self._get_font(58)
+        f_big = self._get_font(38)
+        f_title = self._get_font(32)
         f_sub = self._get_font(24)
-        f_small = self._get_font(20)
-        f_tiny = self._get_font(16)
+        f_small = self._get_font(18)
+        f_tiny = self._get_font(14)
 
-        # Gradiente escuro
-        self._draw_gradient_bg(draw, W, H, (10, 12, 20), (22, 26, 38))
+        league_color = self._get_league_color(data.get('league_name', ''))
 
-        # Linha decorativa neon no topo
-        for i in range(3):
-            glow_r = int(120 + (255 - 120) * (1 - i / 3))
-            draw.line([(0, i), (W, i)], fill=(glow_r, 180, 255, 120 - i * 30), width=3 - i)
+        self._draw_gradient_bg(draw, W, H, (8, 8, 18), (16, 18, 32))
 
-        # --- CABEÇALHO ---
-        clan_name = data.get('clan_name', 'Clã')
-        level = data.get('clan_level', 0)
-        date_range = data.get('date_range', '')
+        self._draw_diagonal_accents(draw, W, H, league_color)
+
+        # --- HEADER ---
+        header_h = 110
+        header = Image.new('RGBA', (W, header_h), (0, 0, 0, 0))
+        dh = ImageDraw.Draw(header)
+        dh.rounded_rectangle([0, 0, W, header_h], radius=0, fill=(10, 10, 24, 200))
+        base.paste(header, (0, 0), header)
+        draw = ImageDraw.Draw(base)
 
         badge = images.get('badge')
         if badge:
-            badge = badge.resize((80, 80), Image.LANCZOS)
-            base.paste(badge, (30, 35), badge)
-            # Brilho sutil no badge
-            for r in range(12, 18):
-                glow = Image.new('RGBA', (80, 80), (0, 0, 0, 0))
-                dg = ImageDraw.Draw(glow)
-                dg.ellipse([-r, -r, 80 + r, 80 + r], fill=(255, 215, 0, 12))
-                base.paste(glow, (30 - r, 35 - r), glow)
+            badge = badge.resize((70, 70), Image.LANCZOS)
+            base.paste(badge, (32, 20), badge)
 
-        self._draw_text_outlined(draw, (125, 35), f"{clan_name}", f_title, (255, 255, 255), stroke_width=3)
-        self._draw_text_outlined(draw, (125, 75), f"Nível {level}", f_small, (200, 200, 200), stroke_width=2)
+        clan_name = data.get('clan_name', 'Clã')
+        level = data.get('clan_level', 0)
+        self._draw_text_outlined(draw, (118, 22), clan_name, f_title, (255, 255, 255), stroke_width=3)
+        self._draw_text_outlined(draw, (118, 62), f"Nível {level}", f_small, (180, 180, 195), stroke_width=2)
 
-        # Liga no canto superior direito
         league_icon = images.get('league')
         if league_icon:
-            li = league_icon.resize((70, 70), Image.LANCZOS)
-            base.paste(li, (W - 100, 30), li)
-        l_name = data.get('league_name', '')
-        lw = draw.textlength("Resultados da Capital", font=f_sub)
-        self._draw_text_outlined(draw, (W - lw - 100, 35), "Resultados da Capital", f_sub, (255, 215, 0), stroke_width=3)
-        dw = draw.textlength(date_range, font=f_small)
-        self._draw_text_outlined(draw, (W - dw - 100, 68), date_range, f_small, (180, 180, 180), stroke_width=2)
+            li = league_icon.resize((56, 56), Image.LANCZOS)
+            base.paste(li, (W - 88, 27), li)
 
-        # --- BANNER DE MEDALHAS ---
-        pill_y = 150
-        pill_h = 85
-        overlay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-        d_overlay = ImageDraw.Draw(overlay)
-        d_overlay.rounded_rectangle([80, pill_y, W - 80, pill_y + pill_h], radius=42, fill=(20, 24, 38, 220))
-        d_overlay.rounded_rectangle([80, pill_y, W - 80, pill_y + pill_h], radius=42, outline=(255, 215, 0, 60), width=2)
-        base = Image.alpha_composite(base, overlay)
+        date_range = data.get('date_range', '')
+        drw = draw.textlength(date_range, font=f_small)
+        draw.text((W - drw - 28, 78), date_range, font=f_small, fill=(140, 140, 160))
+
+        section_label = "RESULTADOS DO FIM DE SEMANA"
+        slw = draw.textlength(section_label, font=f_sub)
+        draw.text((W - slw - 28, 34), section_label, font=f_sub, fill=(255, 215, 0))
+
+        # --- HERO MEDAL BANNER ---
+        hero_y = 140
+        hero_h = 110
+        hero = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        dh = ImageDraw.Draw(hero)
+
+        accent_color = league_color if league_color != (255, 215, 0) else (255, 215, 0)
+        dh.rounded_rectangle([40, hero_y, W - 40, hero_y + hero_h], radius=18, fill=(18, 18, 36, 230))
+        dh.rounded_rectangle([40, hero_y, W - 40, hero_y + hero_h], radius=18,
+                             outline=(accent_color[0], accent_color[1], accent_color[2], 80), width=2)
+
+        glow_grad = Image.new('RGBA', (W, hero_h), (0, 0, 0, 0))
+        dg = ImageDraw.Draw(glow_grad)
+        for x in range(0, W, 2):
+            a = max(0, int(40 - 40 * abs(x - W // 2) / (W // 2)))
+            dg.line([(x, 0), (x, hero_h)], fill=(accent_color[0], accent_color[1], accent_color[2], a))
+        hero = Image.alpha_composite(hero, glow_grad)
+        base = Image.alpha_composite(base, hero)
         draw = ImageDraw.Draw(base)
 
         medal = images.get('medal') or images.get('trophy')
         if medal:
-            mi = medal.resize((70, 70), Image.LANCZOS)
-            base.paste(mi, (100, pill_y + 7), mi)
+            mi = medal.resize((80, 80), Image.LANCZOS)
+            base.paste(mi, (58, hero_y + 15), mi)
 
-        self._draw_text_outlined(draw, (180, pill_y + 10), "RECOMPENSA DA RAIDE", f_sub, (255, 215, 0), stroke_width=2)
-        val_txt = f"+{data['total_medals']}" if data['total_medals'] > 0 else "0"
-        vw = draw.textlength(val_txt, font=f_huge)
-        self._draw_text_outlined(draw, (180, pill_y + 35), val_txt, f_huge, (255, 255, 255), stroke_width=4)
+        total_medals = data.get('total_medals', 0)
+        val_txt = f"+{total_medals:,}" if total_medals > 0 else "0"
+        self._draw_text_outlined(draw, (155, hero_y + 12), "MEDALHAS DE RAIDE", f_sub, accent_color, stroke_width=2)
+        self._draw_text_outlined(draw, (155, hero_y + 42), val_txt, f_huge, (255, 255, 255), stroke_width=5)
 
-        # --- STATS GRID ---
+        # efficiency badge on right side of hero
+        an = data.get('analytics', {})
+        eff = an.get('offensive_efficiency', 0)
+        eff_label = f"{eff:.1f}% eficiência"
+        elw = draw.textlength(eff_label, font=f_small)
+        self._draw_text_outlined(draw, (W - elw - 60, hero_y + 18), eff_label, f_small, (100, 255, 180), stroke_width=2)
+
+        members_raided = an.get('member_count', 0)
+        atk_count = data.get('total_attacks', 0)
+        detail_line = f"{members_raided} participantes  •  {atk_count} ataques"
+        dlw = draw.textlength(detail_line, font=f_small)
+        self._draw_text_outlined(draw, (W - dlw - 60, hero_y + 50), detail_line, f_small, (180, 180, 195), stroke_width=2)
+
+        # --- STATS CARDS ---
         stats = [
-            ("TROFÉUS", f"{data['total_trophies']:,}", images.get('trophy'), (255, 215, 0)),
-            ("ATAQUES", str(data.get('total_attacks', 0)), images.get('medal'), (100, 200, 255)),
-            ("DISTRITOS", str(data.get('destroyed_districts', 0)), images.get('star'), (255, 100, 100)),
-            ("SAQUETOTAL", f"{data.get('total_loot', 0):,}", images.get('medal'), (100, 255, 150)),
+            ("TROFÉUS DA CAPITAL", f"{data.get('total_trophies', 0):,}", images.get('trophy'), (255, 215, 0)),
+            ("OURO SAQUEADO", f"{data.get('total_loot', 0):,}", images.get('medal'), (255, 180, 50)),
+            ("DISTRITOS", str(data.get('destroyed_districts', 0)), images.get('star'), (255, 80, 80)),
+            ("ATAQUES", str(atk_count), images.get('medal'), (80, 180, 255)),
         ]
 
-        card_w = 200
-        card_h = 120
-        gap = 15
+        card_w = 235
+        card_h = 105
+        gap = 20
         total_w = 4 * card_w + 3 * gap
         start_x = (W - total_w) // 2
-        card_y = pill_y + pill_h + 25
+        card_y = hero_y + hero_h + 28
 
         for i, (label, value, icon, accent) in enumerate(stats):
             cx = start_x + i * (card_w + gap)
             cy = card_y
-            # Card BG
-            card_overlay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-            cd = ImageDraw.Draw(card_overlay)
-            cd.rounded_rectangle([cx, cy, cx + card_w, cy + card_h], radius=12, fill=(30, 34, 50, 200))
-            cd.rounded_rectangle([cx, cy, cx + card_w, cy + card_h], radius=12, outline=(accent[0], accent[1], accent[2], 60), width=1)
-            base = Image.alpha_composite(base, card_overlay)
+            card = Image.new('RGBA', (card_w, card_h), (0, 0, 0, 0))
+            cd = ImageDraw.Draw(card)
+            cd.rounded_rectangle([0, 0, card_w, card_h], radius=14, fill=(14, 14, 30, 230))
+            cd.rounded_rectangle([0, 0, card_w, card_h], radius=14,
+                                 outline=(accent[0], accent[1], accent[2], 50), width=1)
+            # accent top bar
+            cd.rounded_rectangle([0, 0, card_w, 4], radius=2, fill=accent)
+            base.paste(card, (cx, cy), card)
             draw = ImageDraw.Draw(base)
 
-            # Icon
             if icon:
-                ic = icon.resize((32, 32), Image.LANCZOS)
-                base.paste(ic, (cx + (card_w - 32) // 2, cy + 10), ic)
+                ic = icon.resize((28, 28), Image.LANCZOS)
+                base.paste(ic, (cx + 16, cy + 14), ic)
 
-            # Value
             vw = draw.textlength(value, font=f_big)
-            self._draw_text_outlined(draw, (cx + (card_w - vw) // 2, cy + 42), value, f_big, (255, 255, 255), stroke_width=3)
-            # Label
+            self._draw_text_outlined(draw, (cx + card_w - vw - 16, cy + 14), value, f_big, (255, 255, 255), stroke_width=3)
             lw = draw.textlength(label, font=f_tiny)
-            draw.text((cx + (card_w - lw) // 2, cy + card_h - 25), label, font=f_tiny, fill=accent)
+            draw.text((cx + 16, cy + card_h - 26), label, font=f_tiny, fill=accent)
 
-        # --- TOP ATACANTES ---
-        attackers = data.get('top_attackers', [])
-        atk_y = card_y + card_h + 25
-        atk_h = 150
+        # --- ANALYTICS SECTION ---
+        an_y = card_y + card_h + 28
+        an = data.get('analytics', {})
 
-        overlay2 = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-        d2 = ImageDraw.Draw(overlay2)
-        d2.rounded_rectangle([60, atk_y, W - 60, atk_y + atk_h], radius=16, fill=(20, 24, 40, 200))
-        d2.rounded_rectangle([60, atk_y, W - 60, atk_y + atk_h], radius=16, outline=(255, 215, 0, 40), width=1)
-        base = Image.alpha_composite(base, overlay2)
+        panel = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        dp = ImageDraw.Draw(panel)
+        dp.rounded_rectangle([40, an_y, 530, an_y + 130], radius=14, fill=(14, 14, 30, 230))
+        dp.rounded_rectangle([40, an_y, 530, an_y + 130], radius=14, outline=(255, 255, 255, 20), width=1)
+        base = Image.alpha_composite(base, panel)
         draw = ImageDraw.Draw(base)
 
-        self._draw_text_outlined(draw, (80, atk_y + 12), "TOP ATACANTES", f_sub, (255, 215, 0), stroke_width=2)
+        self._draw_text_outlined(draw, (58, an_y + 14), "ANÁLISE DE DESEMPENHO", f_sub, (255, 215, 0), stroke_width=2)
+
+        ana_items = [
+            (f"⚔️  {an.get('districts_destroyed', 0)}/{an.get('total_districts', 0)} distritos destruídos", (255, 180, 80)),
+            (f"🛡️  {an.get('defensive_attacks', 0)} ataques recebidos  •  {an.get('defensive_loot_lost', 0):,} ouro perdido", (255, 120, 120)),
+            (f"💀  {an.get('missed_attacks', 0)} ataques perdidos  •  {len(an.get('inactive_members', []))} inativos", (255, 100, 100)),
+            (f"♻️  {an.get('wasted_attacks', 0)} desperdiçados  •  {an.get('cleanup_attacks', 0)} cleanups", (180, 180, 255)),
+        ]
+        for j, (txt, color) in enumerate(ana_items):
+            ty = an_y + 46 + j * 20
+            draw.text((58, ty), txt, font=f_tiny, fill=color)
+
+        # --- TOP ATTACKERS ---
+        atk_panel_x = 560
+        attackers = data.get('top_attackers', [])
+        dp.rounded_rectangle([atk_panel_x, an_y, W - 40, an_y + 130], radius=14, fill=(14, 14, 30, 230))
+        dp.rounded_rectangle([atk_panel_x, an_y, W - 40, an_y + 130], radius=14, outline=(255, 215, 0, 30), width=1)
+
+        self._draw_text_outlined(draw, (atk_panel_x + 18, an_y + 14), "TOP ATACANTES", f_sub, (255, 215, 0), stroke_width=2)
 
         medals_emoji = ["🥇", "🥈", "🥉"]
         if attackers:
             for rank, a in enumerate(attackers[:3]):
-                ay = atk_y + 42 + rank * 34
-                self._draw_text_outlined(draw, (85, ay), f"{medals_emoji[rank]}  {a['name']}", f_small, (255, 255, 255), stroke_width=2)
-                atk_txt = f"{a['attacks']} ataques"
-                atkw = draw.textlength(atk_txt, font=f_small)
-                self._draw_text_outlined(draw, (W - 300, ay), atk_txt, f_small, (150, 200, 255), stroke_width=2)
-                loot_txt = f"{a['looted']:,} de ouro"
-                lootw = draw.textlength(loot_txt, font=f_small)
-                self._draw_text_outlined(draw, (W - 120, ay), loot_txt, f_small, (255, 215, 0), stroke_width=2)
+                ay = an_y + 46 + rank * 28
+                self._draw_text_outlined(draw, (atk_panel_x + 18, ay), f"{medals_emoji[rank]}  {a['name']}", f_small, (255, 255, 255), stroke_width=2)
+                loot_txt = f"{a['looted']:,} ouro  •  {a['attacks']} atqs"
+                ltw = draw.textlength(loot_txt, font=f_tiny)
+                draw.text((W - ltw - 58, ay + 2), loot_txt, font=f_tiny, fill=(255, 215, 0))
         else:
-            self._draw_text_outlined(draw, (W // 2 - 100, atk_y + 70), "Nenhum atacante disponível", f_small, (150, 150, 150), stroke_width=2)
+            draw.text((atk_panel_x + 40, an_y + 70), "Nenhum atacante", font=f_small, fill=(150, 150, 160))
+
+        # --- ATTACK LOG ---
+        attack_log = data.get('attack_log', [])
+        log_y = an_y + 145
+        log = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        dl = ImageDraw.Draw(log)
+        dl.rounded_rectangle([40, log_y, W - 40, log_y + 80], radius=14, fill=(14, 14, 30, 230))
+        dl.rounded_rectangle([40, log_y, W - 40, log_y + 80], radius=14, outline=(255, 255, 255, 20), width=1)
+        base = Image.alpha_composite(base, log)
+        draw = ImageDraw.Draw(base)
+
+        self._draw_text_outlined(draw, (58, log_y + 12), "CLÃS ATACADOS", f_sub, (80, 180, 255), stroke_width=2)
+
+        if attack_log:
+            clans_txt = "  ⚔️  ".join([f"{c['name']} ({c['destroyed_districts']}/{c['total_districts']} distritos)" for c in attack_log[:4]])
+            draw.text((58, log_y + 46), clans_txt, font=f_tiny, fill=(180, 180, 200))
+        else:
+            draw.text((58, log_y + 46), "Nenhum ataque registrado", font=f_tiny, fill=(150, 150, 160))
+
+        # --- DEFENSE LOG ---
+        defense_log = data.get('defense_log', [])
+        def_y = log_y + 95
+        defe = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        ddef = ImageDraw.Draw(defe)
+        ddef.rounded_rectangle([40, def_y, W - 40, def_y + 80], radius=14, fill=(14, 14, 30, 230))
+        ddef.rounded_rectangle([40, def_y, W - 40, def_y + 80], radius=14, outline=(255, 255, 255, 20), width=1)
+        base = Image.alpha_composite(base, defe)
+        draw = ImageDraw.Draw(base)
+
+        self._draw_text_outlined(draw, (58, def_y + 12), "DEFESAS", f_sub, (255, 120, 120), stroke_width=2)
+
+        if defense_log:
+            def_txt = "  🛡️  ".join([f"{d['attacker']} ({d['destroyed_districts']} distritos, {d['total_loot']:,} ouro)" for d in defense_log[:3]])
+            draw.text((58, def_y + 46), def_txt, font=f_tiny, fill=(180, 180, 200))
+        else:
+            draw.text((58, def_y + 46), "Nenhuma defesa registrada", font=f_tiny, fill=(150, 150, 160))
 
         # --- FOOTER ---
-        footer_y = H - 45
-        draw.line([(40, footer_y - 5), (W - 40, footer_y - 5)], fill=(255, 255, 255, 30), width=1)
+        footer_y = H - 38
+        draw.line([(40, footer_y - 6), (W - 40, footer_y - 6)], fill=(255, 255, 255, 16), width=1)
 
         xp_val = data.get('clan_xp', 0)
         xp_icon = images.get('xp')
         if xp_icon:
-            xi = xp_icon.resize((28, 28), Image.LANCZOS)
+            xi = xp_icon.resize((22, 22), Image.LANCZOS)
             base.paste(xi, (50, footer_y - 10), xi)
-        self._draw_text_outlined(draw, (85, footer_y - 7), f"XP do Clã: +{xp_val}", f_small, (200, 200, 200), stroke_width=2)
+        draw.text((80, footer_y - 8), f"XP do Clã: +{xp_val}", font=f_tiny, fill=(180, 180, 195))
 
-        self._draw_text_outlined(draw, (W // 2 - 80, footer_y - 7), "Raide Semanal", f_small, (150, 150, 150), stroke_width=2)
+        week_year = data.get('date_range', '')
+        draw.text((W // 2 - 80, footer_y - 8), "Raide Semanal", font=f_tiny, fill=(140, 140, 160))
 
         league_txt = data.get('league_name', '')
-        self._draw_text_outlined(draw, (W - 250, footer_y - 7), league_txt, f_small, (255, 215, 0), stroke_width=2)
+        ltw = draw.textlength(league_txt, font=f_tiny)
+        draw.text((W - ltw - 50, footer_y - 8), league_txt, font=f_tiny, fill=accent_color)
 
         buffer = BytesIO()
         base.convert("RGB").save(buffer, format="PNG", quality=95)
         buffer.seek(0)
         return buffer
 
+    def _get_league_color(self, league_name: str):
+        for key, color in LEAGUE_COLORS.items():
+            if key.lower() in league_name.lower():
+                return color
+        return (255, 215, 0)
+
+    def _draw_diagonal_accents(self, draw, w, h, accent_color):
+        for i in range(0, w + h, 60):
+            a = max(0, 30 - 30 * abs(i - (w + h) // 2) / ((w + h) // 2))
+            draw.line([(i, 0), (i - h, h)], fill=(accent_color[0], accent_color[1], accent_color[2], int(a)), width=1)
+
     # ========================================================
     # >>> GERADOR DE IMAGEM CWL (MODERNO DARK) <<<
     # ========================================================
     def generate_cwl_report_image(self, data: Dict, images: Dict[str, Image.Image]) -> BytesIO:
-        W, H = 1000, 680
+        W, H = 1100, 800
         base = Image.new('RGBA', (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(base)
 
-        f_huge = self._get_font(52)
-        f_big = self._get_font(40)
-        f_title = self._get_font(34)
+        f_huge = self._get_font(58)
+        f_big = self._get_font(38)
+        f_title = self._get_font(32)
         f_sub = self._get_font(24)
-        f_small = self._get_font(20)
-        f_tiny = self._get_font(16)
+        f_small = self._get_font(18)
+        f_tiny = self._get_font(14)
 
-        # Gradiente escuro com tom azulado
-        self._draw_gradient_bg(draw, W, H, (8, 10, 30), (20, 24, 45))
+        cwl_accent = (80, 200, 255)
+        self._draw_gradient_bg(draw, W, H, (6, 8, 28), (14, 16, 40))
+        self._draw_diagonal_accents(draw, W, H, cwl_accent)
 
-        # Linha decorativa neon azul
-        for i in range(3):
-            glow_r = int(80 + (180 - 80) * (1 - i / 3))
-            draw.line([(0, i), (W, i)], fill=(glow_r, 160, 255, 120 - i * 30), width=3 - i)
-
-        # --- CABEÇALHO ---
-        clan_name = data.get('clan_name', 'Clã')
-        level = data.get('clan_level', 0)
-        league_name = data.get('league_name', '')
-        season = data.get('season', '')
+        # --- HEADER ---
+        header_h = 110
+        header = Image.new('RGBA', (W, header_h), (0, 0, 0, 0))
+        dh = ImageDraw.Draw(header)
+        dh.rounded_rectangle([0, 0, W, header_h], radius=0, fill=(8, 8, 26, 200))
+        base.paste(header, (0, 0), header)
+        draw = ImageDraw.Draw(base)
 
         badge = images.get('badge')
         if badge:
-            badge = badge.resize((80, 80), Image.LANCZOS)
-            base.paste(badge, (30, 35), badge)
-            for r in range(12, 18):
-                glow = Image.new('RGBA', (80, 80), (0, 0, 0, 0))
-                dg = ImageDraw.Draw(glow)
-                dg.ellipse([-r, -r, 80 + r, 80 + r], fill=(100, 180, 255, 12))
-                base.paste(glow, (30 - r, 35 - r), glow)
+            badge = badge.resize((70, 70), Image.LANCZOS)
+            base.paste(badge, (32, 20), badge)
 
-        self._draw_text_outlined(draw, (125, 35), f"{clan_name}", f_title, (255, 255, 255), stroke_width=3)
-        self._draw_text_outlined(draw, (125, 75), f"Nível {level}", f_small, (200, 200, 200), stroke_width=2)
+        clan_name = data.get('clan_name', 'Clã')
+        level = data.get('clan_level', 0)
+        self._draw_text_outlined(draw, (118, 22), clan_name, f_title, (255, 255, 255), stroke_width=3)
+        self._draw_text_outlined(draw, (118, 62), f"Nível {level}", f_small, (180, 180, 195), stroke_width=2)
 
-        # Liga no canto
         league_icon = images.get('league')
         if league_icon:
-            li = league_icon.resize((70, 70), Image.LANCZOS)
-            base.paste(li, (W - 100, 30), li)
+            li = league_icon.resize((56, 56), Image.LANCZOS)
+            base.paste(li, (W - 88, 27), li)
 
-        lw = draw.textlength("Guerras de Clãs", font=f_sub)
-        self._draw_text_outlined(draw, (W - lw - 100, 35), "Guerras de Clãs", f_sub, (100, 200, 255), stroke_width=3)
+        season = data.get('season', '')
         sw = draw.textlength(season, font=f_small)
-        self._draw_text_outlined(draw, (W - sw - 100, 68), season, f_small, (180, 180, 180), stroke_width=2)
+        draw.text((W - sw - 28, 78), season, font=f_small, fill=(140, 140, 160))
 
-        # --- BANNER PRINCIPAL ---
-        pill_y = 150
-        pill_h = 85
-        overlay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-        d_overlay = ImageDraw.Draw(overlay)
-        d_overlay.rounded_rectangle([80, pill_y, W - 80, pill_y + pill_h], radius=42, fill=(20, 24, 45, 220))
-        d_overlay.rounded_rectangle([80, pill_y, W - 80, pill_y + pill_h], radius=42, outline=(100, 180, 255, 60), width=2)
-        base = Image.alpha_composite(base, overlay)
+        section_label = "GUERRAS DE CLÃS"
+        slw = draw.textlength(section_label, font=f_sub)
+        draw.text((W - slw - 28, 34), section_label, font=f_sub, fill=cwl_accent)
+
+        # --- HERO BANNER ---
+        hero_y = 140
+        hero_h = 110
+        hero = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        dh = ImageDraw.Draw(hero)
+        dh.rounded_rectangle([40, hero_y, W - 40, hero_y + hero_h], radius=18, fill=(16, 16, 38, 230))
+        dh.rounded_rectangle([40, hero_y, W - 40, hero_y + hero_h], radius=18,
+                             outline=(cwl_accent[0], cwl_accent[1], cwl_accent[2], 80), width=2)
+
+        glow_grad = Image.new('RGBA', (W, hero_h), (0, 0, 0, 0))
+        dg = ImageDraw.Draw(glow_grad)
+        for x in range(0, W, 2):
+            a = max(0, int(40 - 40 * abs(x - W // 2) / (W // 2)))
+            dg.line([(x, 0), (x, hero_h)], fill=(cwl_accent[0], cwl_accent[1], cwl_accent[2], a))
+        hero = Image.alpha_composite(hero, glow_grad)
+        base = Image.alpha_composite(base, hero)
         draw = ImageDraw.Draw(base)
 
         star_img = images.get('star')
         if star_img:
-            si = star_img.resize((65, 65), Image.LANCZOS)
-            base.paste(si, (100, pill_y + 10), si)
+            si = star_img.resize((75, 75), Image.LANCZOS)
+            base.paste(si, (55, hero_y + 17), si)
 
-        self._draw_text_outlined(draw, (180, pill_y + 10), "RESULTADO DA TEMPORADA", f_sub, (100, 200, 255), stroke_width=2)
-        val_txt = f"{data['total_stars']} ⭐"
-        vw = draw.textlength(val_txt, font=f_huge)
-        self._draw_text_outlined(draw, (180, pill_y + 32), val_txt, f_huge, (255, 255, 255), stroke_width=4)
+        total_stars = data.get('total_stars', 0)
+        self._draw_text_outlined(draw, (148, hero_y + 12), "RESULTADO DA TEMPORADA", f_sub, cwl_accent, stroke_width=2)
+        val_txt = f"{total_stars} ⭐"
+        self._draw_text_outlined(draw, (148, hero_y + 42), val_txt, f_huge, (255, 255, 255), stroke_width=5)
 
-        wars_txt = f"{data.get('wars_fought', 0)} guerras"
-        tw = draw.textlength(wars_txt, font=f_small)
-        self._draw_text_outlined(draw, (180 + vw + 20, pill_y + 42), wars_txt, f_small, (150, 150, 150), stroke_width=2)
+        wars_fought = data.get('wars_fought', 0)
+        team_size = data.get('team_size', 15)
+        detail_line = f"{wars_fought} guerras  •  {team_size}v{team_size}"
+        dlw = draw.textlength(detail_line, font=f_small)
+        self._draw_text_outlined(draw, (W - dlw - 60, hero_y + 22), detail_line, f_small, (180, 180, 195), stroke_width=2)
+        avg_dest = data.get('total_destruction', 0)
+        dest_line = f"{avg_dest}% destruição média"
+        d2w = draw.textlength(dest_line, font=f_small)
+        self._draw_text_outlined(draw, (W - d2w - 60, hero_y + 54), dest_line, f_small, (100, 255, 180), stroke_width=2)
 
-        # --- STATS GRID ---
+        # --- STATS CARDS ---
         stats = [
-            ("ESTRELAS", f"{data['total_stars']}", star_img or images.get('trophy'), (255, 215, 0)),
-            ("ATAQUES", str(data.get('total_attacks', 0)), images.get('medal'), (100, 200, 255)),
+            ("ESTRELAS", f"{total_stars}", star_img or images.get('trophy'), (255, 215, 0)),
+            ("ATAQUES", str(data.get('total_attacks', 0)), images.get('medal'), (80, 200, 255)),
             ("MEMBROS", str(data.get('member_count', 0)), images.get('badge'), (255, 100, 100)),
-            ("DESTRUIÇÃO", f"{data.get('total_destruction', 0)}%", images.get('trophy'), (100, 255, 150)),
+            ("DESTRUIÇÃO", f"{avg_dest}%", images.get('trophy'), (100, 255, 150)),
         ]
 
-        card_w = 200
-        card_h = 120
-        gap = 15
+        card_w = 235
+        card_h = 105
+        gap = 20
         total_w = 4 * card_w + 3 * gap
         start_x = (W - total_w) // 2
-        card_y = pill_y + pill_h + 25
+        card_y = hero_y + hero_h + 28
 
         for i, (label, value, icon, accent) in enumerate(stats):
             cx = start_x + i * (card_w + gap)
             cy = card_y
-            card_overlay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-            cd = ImageDraw.Draw(card_overlay)
-            cd.rounded_rectangle([cx, cy, cx + card_w, cy + card_h], radius=12, fill=(25, 28, 50, 200))
-            cd.rounded_rectangle([cx, cy, cx + card_w, cy + card_h], radius=12, outline=(accent[0], accent[1], accent[2], 60), width=1)
-            base = Image.alpha_composite(base, card_overlay)
+            card = Image.new('RGBA', (card_w, card_h), (0, 0, 0, 0))
+            cd = ImageDraw.Draw(card)
+            cd.rounded_rectangle([0, 0, card_w, card_h], radius=14, fill=(14, 14, 32, 230))
+            cd.rounded_rectangle([0, 0, card_w, card_h], radius=14,
+                                 outline=(accent[0], accent[1], accent[2], 50), width=1)
+            cd.rounded_rectangle([0, 0, card_w, 4], radius=2, fill=accent)
+            base.paste(card, (cx, cy), card)
             draw = ImageDraw.Draw(base)
 
             if icon:
-                ic = icon.resize((32, 32), Image.LANCZOS)
-                base.paste(ic, (cx + (card_w - 32) // 2, cy + 10), ic)
+                ic = icon.resize((28, 28), Image.LANCZOS)
+                base.paste(ic, (cx + 16, cy + 14), ic)
 
             vw = draw.textlength(value, font=f_big)
-            self._draw_text_outlined(draw, (cx + (card_w - vw) // 2, cy + 42), value, f_big, (255, 255, 255), stroke_width=3)
+            self._draw_text_outlined(draw, (cx + card_w - vw - 16, cy + 14), value, f_big, (255, 255, 255), stroke_width=3)
             lw = draw.textlength(label, font=f_tiny)
-            draw.text((cx + (card_w - lw) // 2, cy + card_h - 25), label, font=f_tiny, fill=accent)
+            draw.text((cx + 16, cy + card_h - 26), label, font=f_tiny, fill=accent)
 
         # --- TOP ATACANTES ---
         attackers = data.get('top_attackers', [])
-        atk_y = card_y + card_h + 25
-        atk_h = 150
+        atk_y = card_y + card_h + 28
 
-        overlay2 = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-        d2 = ImageDraw.Draw(overlay2)
-        d2.rounded_rectangle([60, atk_y, W - 60, atk_y + atk_h], radius=16, fill=(20, 24, 45, 200))
-        d2.rounded_rectangle([60, atk_y, W - 60, atk_y + atk_h], radius=16, outline=(100, 180, 255, 40), width=1)
-        base = Image.alpha_composite(base, overlay2)
+        panel = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        dp = ImageDraw.Draw(panel)
+        dp.rounded_rectangle([40, atk_y, W - 40, atk_y + 130], radius=14, fill=(14, 14, 32, 230))
+        dp.rounded_rectangle([40, atk_y, W - 40, atk_y + 130], radius=14, outline=(cwl_accent[0], cwl_accent[1], cwl_accent[2], 30), width=1)
+        base = Image.alpha_composite(base, panel)
         draw = ImageDraw.Draw(base)
 
-        self._draw_text_outlined(draw, (80, atk_y + 12), "TOP ATACANTES", f_sub, (100, 200, 255), stroke_width=2)
+        self._draw_text_outlined(draw, (58, atk_y + 14), "TOP ATACANTES", f_sub, cwl_accent, stroke_width=2)
 
         medals_emoji = ["🥇", "🥈", "🥉"]
         if attackers:
             for rank, a in enumerate(attackers[:3]):
-                ay = atk_y + 42 + rank * 34
-                self._draw_text_outlined(draw, (85, ay), f"{medals_emoji[rank]}  {a['name']}", f_small, (255, 255, 255), stroke_width=2)
-                atk_txt = f"{a['attacks']} ataques"
-                self._draw_text_outlined(draw, (W - 300, ay), atk_txt, f_small, (150, 200, 255), stroke_width=2)
-                star_txt = f"{a['stars']} ⭐"
-                self._draw_text_outlined(draw, (W - 120, ay), star_txt, f_small, (255, 215, 0), stroke_width=2)
+                ay = atk_y + 50 + rank * 28
+                self._draw_text_outlined(draw, (58, ay), f"{medals_emoji[rank]}  {a['name']}", f_small, (255, 255, 255), stroke_width=2)
+                star_txt = f"{a['stars']} ⭐  •  {a['attacks']} atqs"
+                stw = draw.textlength(star_txt, font=f_tiny)
+                draw.text((W - stw - 58, ay + 2), star_txt, font=f_tiny, fill=(255, 215, 0))
         else:
-            self._draw_text_outlined(draw, (W // 2 - 100, atk_y + 70), "Nenhum atacante disponível", f_small, (150, 150, 150), stroke_width=2)
+            draw.text((W // 2 - 80, atk_y + 70), "Nenhum atacante disponível", font=f_small, fill=(150, 150, 160))
 
         # --- FOOTER ---
-        footer_y = H - 45
-        draw.line([(40, footer_y - 5), (W - 40, footer_y - 5)], fill=(255, 255, 255, 30), width=1)
-        self._draw_text_outlined(draw, (W // 2 - 100, footer_y - 7), "Temporada Finalizada", f_small, (150, 150, 150), stroke_width=2)
-        self._draw_text_outlined(draw, (W - 250, footer_y - 7), league_name, f_small, (100, 200, 255), stroke_width=2)
+        footer_y = H - 38
+        draw.line([(40, footer_y - 6), (W - 40, footer_y - 6)], fill=(255, 255, 255, 16), width=1)
+        draw.text((W // 2 - 80, footer_y - 8), "Temporada Finalizada", font=f_tiny, fill=(140, 140, 160))
+        league_name = data.get('league_name', '')
+        ltw = draw.textlength(league_name, font=f_tiny)
+        draw.text((W - ltw - 50, footer_y - 8), league_name, font=f_tiny, fill=cwl_accent)
 
         buffer = BytesIO()
         base.convert("RGB").save(buffer, format="PNG", quality=95)

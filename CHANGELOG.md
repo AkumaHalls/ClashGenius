@@ -3,6 +3,14 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [33.4.0] — 2026-07-30
+
+### Alterado
+- **cogs/capital_cog.py** — Redesign completo da imagem de Resultados do Fim de Semana da Capital (generate_game_style_image): layout 1100x800, gradiente escuro com acentos diagonais, cards com barra de cor superior, painéis de análise de desempenho e top atacantes lado a lado, log de clãs atacados e defesas, tipografia refinada
+- **cogs/capital_cog.py** — Redesign completo da imagem de resumo CWL (generate_cwl_report_image) no mesmo estilo moderno do raid
+- **cogs/capital_cog.py** — Adicionados métodos auxiliares _get_league_color() e _draw_diagonal_accents() para suporte visual
+- **config.py** — Versão bumpada de 33.3.3 para 33.4.0
+
 ## [33.3.3] — 2026-07-28
 
 ### Corrigido
