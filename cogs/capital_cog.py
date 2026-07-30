@@ -43,11 +43,12 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         self.font_path = "supercell_magic.ttf"
 
         self.assets = {
-            "bg": "https://static.wikia.nocookie.net/clashofclans/images/2/23/Capital_Peak_Scenery.png",
+            "bg": "https://static.wikia.nocookie.net/clashofclans/images/e/ea/DMap_Capital_Peak.jpg/revision/latest?cb=20220505204357",
             "medal": "https://static.wikia.nocookie.net/clashofclans/images/5/52/Raid_Medal.png",
             "trophy": "https://static.wikia.nocookie.net/clashofclans/images/0/05/Capital_Trophy.png",
             "xp": "https://static.wikia.nocookie.net/clashofclans/images/c/c9/XP.png",
             "star": "https://static.wikia.nocookie.net/clashofclans/images/8/8f/Star.png",
+            "cwl_bg": "https://static.wikia.nocookie.net/clashofclans/images/1/19/Scenery_War_Arena.png/revision/latest?cb=20230612110722",
         }
         self.auto_raid_summary.start()
 
@@ -370,8 +371,22 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
 
         league_color = self._get_league_color(data.get('league_name', ''))
 
-        self._draw_gradient_bg(draw, W, H, (8, 8, 18), (16, 18, 32))
+        # --- BACKGROUND: Capital Peak Scenery com vinheta escura ---
+        bg_img = images.get('bg')
+        if bg_img:
+            bg_img = bg_img.resize((W, H), Image.LANCZOS)
+            if bg_img.mode != 'RGBA':
+                bg_img = bg_img.convert('RGBA')
+            base.paste(bg_img, (0, 0), bg_img)
+            overlay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+            dov = ImageDraw.Draw(overlay)
+            dov.rectangle([0, 0, W, H], fill=(0, 0, 0, 210))
+            dov.ellipse([-W//4, -H//6, W+W//4, H+H//6], fill=(0, 0, 0, 60))
+            base = Image.alpha_composite(base, overlay)
+        else:
+            self._draw_gradient_bg(draw, W, H, (8, 8, 18), (16, 18, 32))
 
+        draw = ImageDraw.Draw(base)
         self._draw_diagonal_accents(draw, W, H, league_color)
 
         # --- HEADER ---
@@ -613,7 +628,23 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
         f_tiny = self._get_font(14)
 
         cwl_accent = (80, 200, 255)
-        self._draw_gradient_bg(draw, W, H, (6, 8, 28), (14, 16, 40))
+
+        # --- BACKGROUND: War Arena Scenery com vinheta escura ---
+        cwl_bg = images.get('cwl_bg')
+        if cwl_bg:
+            cwl_bg = cwl_bg.resize((W, H), Image.LANCZOS)
+            if cwl_bg.mode != 'RGBA':
+                cwl_bg = cwl_bg.convert('RGBA')
+            base.paste(cwl_bg, (0, 0), cwl_bg)
+            overlay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+            dov = ImageDraw.Draw(overlay)
+            dov.rectangle([0, 0, W, H], fill=(0, 0, 0, 210))
+            dov.ellipse([-W//4, -H//6, W+W//4, H+H//6], fill=(0, 0, 0, 60))
+            base = Image.alpha_composite(base, overlay)
+        else:
+            self._draw_gradient_bg(draw, W, H, (6, 8, 28), (14, 16, 40))
+
+        draw = ImageDraw.Draw(base)
         self._draw_diagonal_accents(draw, W, H, cwl_accent)
 
         # --- HEADER ---
@@ -828,6 +859,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
 
         async with aiohttp.ClientSession() as session:
             tasks_list = [
+                self._fetch_image(session, self.assets['cwl_bg']),
                 self._fetch_image(session, self.assets['medal']),
                 self._fetch_image(session, self.assets['trophy']),
                 self._fetch_image(session, self.assets['xp']),
@@ -846,8 +878,8 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
 
             res = await asyncio.gather(*tasks_list)
             image_assets = {
-                'medal': res[0], 'trophy': res[1],
-                'xp': res[2], 'star': res[3], 'badge': res[4], 'league': res[5],
+                'cwl_bg': res[0], 'medal': res[1], 'trophy': res[2],
+                'xp': res[3], 'star': res[4], 'badge': res[5], 'league': res[6],
             }
 
         image_buffer = await asyncio.to_thread(self.generate_cwl_report_image, data, image_assets)

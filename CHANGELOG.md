@@ -3,6 +3,15 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [33.5.0] — 2026-07-30
+
+### Alterado
+- **cogs/capital_cog.py** — Raid results image: agora usa o mapa real Capital Peak (DMap_Capital_Peak.jpg) como fundo com vinheta escura (vignette), substituindo o gradiente sólido anterior — assets do próprio jogo como background, conforme solicitado
+- **cogs/capital_cog.py** — CWL results image: agora usa a War Arena Scenery como fundo com vinheta escura
+- **cogs/capital_cog.py** — URL do asset bg corrigida (Capital_Peak_Scenery.png estava 404, migrado para DMap_Capital_Peak.jpg)
+- **cogs/capital_cog.py** — Adicionado asset cwl_bg (War Arena Scenery) e respectivo fetch em _process_and_send_cwl
+- **config.py** — Versão bumpada de 33.4.0 para 33.5.0
+
 ## [33.4.0] — 2026-07-30
 
 ### Alterado
