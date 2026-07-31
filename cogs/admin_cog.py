@@ -212,7 +212,15 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             return {"status": "error", "message": "Arquivo CHANGELOG.md não encontrado."}
 
         sections = re.split(r'\n---\n', content)
-        entry = sections[1] if len(sections) > 1 else sections[0]
+        version_blocks = re.split(r'\n(?=## \[)', sections[1] if len(sections) > 1 else sections[0])
+        entry = ""
+        for block in version_blocks:
+            stripped = block.strip()
+            if re.match(r'^## \[', stripped):
+                entry = stripped
+                break
+        if not entry:
+            return {"status": "error", "message": "Não foi possível extrair versão do CHANGELOG.md."}
 
         version_match = re.search(r'\[([^\]]+)\]\s*—\s*(\d{4}-\d{2}-\d{2})', entry)
         if not version_match:

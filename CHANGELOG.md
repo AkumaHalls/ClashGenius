@@ -3,6 +3,14 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.0.1] — 2026-07-31
+
+### Corrigido
+- **cogs/admin_cog.py** — `send_changelog` enviava mais do que a última versão: o parse pegava o texto inteiro após o primeiro `---`, incluindo os blocos `### ` de TODAS as versões antigas. Agora extrai apenas o primeiro bloco `## [versão]` do CHANGELOG.md
+
+### Alterado
+- **config.py** — Versão bumpada de 34.0.0 para 34.0.1
+
 ## [34.0.0] — 2026-07-31
 
 ### Adicionado
