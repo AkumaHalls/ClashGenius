@@ -1802,6 +1802,8 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
     display: flex;
     justify-content: space-between;
     align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 .advisor-member-info h4 {
     margin: 0;
@@ -2698,6 +2700,7 @@ th {
 /* War Ended Banner */
 .war-ended-banner {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     gap: 20px;
@@ -4167,9 +4170,14 @@ html, body { overflow-x: hidden; }
     /* alvos de toque mínimos em controles densos */
     .priority-btn { width: 30px; height: 30px; font-size: 14px; }
 
-    /* tabs de guerra embrulham entre 768-992 */
-    .war-tabs { flex-wrap: wrap; }
+    /* tabs de guerra: linha com quebra (em vez de pilha vertical antiga) */
+    .war-tabs { flex-direction: row; flex-wrap: wrap; }
     .war-tab-button { padding: 10px 14px; }
+
+    /* grids com colunas mínimas largas viram 1 coluna (ocupam a tela toda) */
+    .advisor-grid { grid-template-columns: 1fr; }
+    .player-card-grid { grid-template-columns: 1fr; }
+    .advisor-card { padding: 12px; }
 
     /* tabelas do admin rolam horizontalmente */
     .table-container-admin { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -4184,6 +4192,7 @@ html, body { overflow-x: hidden; }
 
 @media (max-width: 600px) {
     .clan-pulse-grid { grid-template-columns: 1fr; }
+    .chart-container { height: 280px; }
 }
 
 @media (max-width: 480px) {
@@ -4198,5 +4207,22 @@ html, body { overflow-x: hidden; }
         border-right: none;
         border-bottom: none;
     }
+
+    /* cards de membros: estatísticas em 1 coluna */
+    .member-card-stats { grid-template-columns: 1fr; }
+
+    /* banner de guerra encerrada: coluna */
+    .war-ended-banner { flex-direction: column; gap: 12px; text-align: center; }
+
+    /* barras de resumo de guerras mais compactas */
+    .war-summary-bars { padding: 10px 12px; gap: 4px; }
+    .war-summary-bar { min-width: 18px; height: 48px; }
+
+    /* linhas ranked: nome em linha própria */
+    .ranked-member-item { flex-wrap: wrap; }
+    .ranked-member-name { min-width: 0; width: 100%; }
+
+    /* seletor de status CWL embrulha */
+    .cwl-status-selector { flex-wrap: wrap; }
 }
 

@@ -3,6 +3,18 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.2.1] — 2026-07-31
+
+### Corrigido
+- **static/css/style.css** — Guerra: grid do Plano de Ataque IA (`.advisor-grid`, coluna mínima de 320px) estourada no celular tinha o lado direito cortado pelo `overflow-x:hidden`; agora vira 1 coluna ocupando a tela toda em ≤768px
+- **static/css/style.css** — Ataques Pendentes: `.player-card-grid` (mínimo 280px) tinha folga zero no celular; vira 1 coluna em ≤768px
+- **static/css/style.css** — Tabs da Guerra voltavam a empilhar em coluna vertical gigante (regra antiga ≤768px); agora ficam em linha com quebra
+- **static/css/style.css** — Membros: `.member-card-stats` (2 colunas fixas) vira 1 coluna em ≤480px; `.cwl-status-selector` embrulha
+- **static/css/style.css** — CWL/Jogos/Capital: overlay "fechado" (.locked-content) com `padding: 40px 50px` + 85% deixava uma coluna de ~99px de texto no celular; agora compacto em ≤480px (com fix correspondente em `painel.html`)
+- **static/css/style.css** — Ranked: nome do jogador (`.ranked-member-name`, min 120px) em linha própria no celular; banner de guerra encerrada vira coluna; barras do resumo de guerras e gráfico de atividade mais compactos
+- **static/sw.js** — Cache versionado para v34.2.1 (força atualização do CSS novo nos dispositivos com o app instalado)
+- **config.py** — Versão bumpada de 34.2.0 para 34.2.1
+
 ## [34.2.0] — 2026-07-31
 
 ### Adicionado
