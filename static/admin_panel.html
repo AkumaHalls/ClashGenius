@@ -2,8 +2,14 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Painel Admin - Clash Genius</title>
+    <meta name="theme-color" content="#0a0a0f">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ClashGenius">
+    <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="/static/css/style.css">
     <script>document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('keydown',e=>{if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&['I','J','C'].includes(e.key.toUpperCase()))||(e.ctrlKey&&e.key==='u'))e.preventDefault()});</script>
     <style>
@@ -683,6 +689,58 @@
         .dh-modal-actions button:hover { background: rgba(255,255,255,0.1); }
         .dh-modal-actions button.primary { background: #5865f2; border-color: #5865f2; }
         .dh-modal-actions button.primary:hover { background: #4752c4; }
+
+        /* ===== RESPONSIVO MOBILE (admin) ===== */
+        @media (max-width: 768px) {
+            .admin-header { flex-wrap: wrap; gap: 12px; }
+            .admin-header > div { flex-wrap: wrap; }
+
+            .admin-nav-toggle { display: flex; }
+
+            .admin-nav ul {
+                display: none;
+                flex-direction: column;
+                width: 100%;
+                max-height: 55dvh;
+                overflow-y: auto;
+            }
+            .admin-nav ul.open { display: flex; }
+            .admin-nav li { margin: 3px 0; }
+            .admin-nav a { padding: 11px 14px; white-space: normal; }
+
+            .settings-form .form-grid { grid-template-columns: 1fr; }
+            .watchlist-form { grid-template-columns: 1fr !important; }
+            .dh-field-grid { grid-template-columns: 1fr !important; }
+            .dh-field-row { flex-direction: column !important; align-items: stretch !important; }
+            .dh-field-item { width: 100% !important; flex: 1 1 100% !important; }
+            .dh-action-bar { flex-wrap: wrap; }
+
+            #auto_add_watchlist_enabled { width: 100%; }
+
+            .table-container-admin { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            #analytics-table { min-width: 640px; }
+
+            #admin-users { overflow: hidden; }
+            #active-users-list, #pending-users-list { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            #active-users-list table { min-width: 560px; }
+            #pending-users-list > div { flex-wrap: wrap; }
+            #pending-users-list > div > div { margin-bottom: 6px; }
+            #pending-users-list > div > div:last-child { margin-bottom: 0; }
+
+            .user-list-item { flex-wrap: wrap; gap: 8px; }
+
+            .status-line { flex-wrap: wrap; }
+            .dossier-card { padding: 14px; }
+
+            #radar-drawer { width: min(100%, 380px); }
+
+            .control-section { overflow-x: auto; }
+        }
+        @media (max-width: 480px) {
+            .admin-header { justify-content: center; text-align: center; }
+            .admin-header > div { justify-content: center; }
+            .admin-nav a { font-size: 1em; }
+        }
     </style>
 </head>
 <body class="admin-page" id="admin-body">
@@ -704,6 +762,10 @@
                     <a href="/admin/logout" class="logout-btn">Sair</a>
                 </div>
             </div>
+
+            <button id="nav-toggle" class="nav-toggle admin-nav-toggle" aria-label="Abrir menu de navegação" aria-expanded="false">
+                <span></span><span></span><span></span>
+            </button>
 
             <nav class="admin-nav">
                 <ul>
@@ -1043,5 +1105,6 @@
 
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/admin.js"></script>
+    <script src="/static/js/pwa-install.js"></script>
 </body>
 </html>

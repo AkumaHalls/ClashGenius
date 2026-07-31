@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Offline - Clash Genius</title>
+    <meta name="theme-color" content="#0a0a0f">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --neon-cyan: #00fff9;
+            --neon-pink: #ff00aa;
+            --bg: #0a0a0f;
+            --card: #12121c;
+            --border: #2a2a4a;
+            --text: #d4d4e8;
+            --text-dim: #8080a0;
+        }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: radial-gradient(circle at 50% -20%, #12121c, var(--bg));
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            min-height: 100dvh;
+        }
+        .offline-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px 28px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 255, 249, 0.1);
+        }
+        .offline-icon { font-size: 52px; line-height: 1; margin-bottom: 16px; }
+        h1 {
+            font-size: 1.6em;
+            color: #fff;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        p { color: var(--text-dim); margin-bottom: 8px; line-height: 1.5; }
+        .clan-info {
+            background: rgba(42, 42, 74, 0.35);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+            margin: 18px 0;
+            text-align: left;
+            font-size: 0.95em;
+        }
+        .clan-info div { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+        .clan-info div:last-child { margin-bottom: 0; }
+        .clan-info b { color: #fff; font-weight: 600; }
+        button {
+            width: 100%;
+            padding: 13px;
+            font-size: 1em;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            background: var(--neon-cyan);
+            color: #0a0a0f;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        button:hover { transform: translateY(-1px); box-shadow: 0 0 16px rgba(0, 255, 249, 0.4); }
+        .hint { font-size: 0.85em; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <div class="offline-card">
+        <div class="offline-icon">📡</div>
+        <h1>Sem conexão</h1>
+        <p>Você está offline. Conecte-se à internet para carregar os dados ao vivo.</p>
+        <div class="clan-info" id="clan-info" style="display:none;"></div>
+        <button id="retry-btn">Tentar novamente</button>
+        <p class="hint">Clash Genius • v<span id="version">?</span></p>
+    </div>
+    <script>
+        (function () {
+            var version = localStorage.getItem('clashgenius_version') || '?';
+            document.getElementById('version').textContent = version;
+            var data = null;
+            try { data = JSON.parse(localStorage.getItem('clashgenius_last_clan') || 'null'); } catch (e) { data = null; }
+            if (data) {
+                var box = document.getElementById('clan-info');
+                box.style.display = 'block';
+                var html = '';
+                if (data.name) html += '<div><span>Clã</span><b>' + data.name + '</b></div>';
+                if (data.level) html += '<div><span>Nível</span><b>' + data.level + '</b></div>';
+                if (data.members) html += '<div><span>Membros</span><b>' + data.members + '/50</b></div>';
+                if (data.score) html += '<div><span>Último placar</span><b>' + data.score + '</b></div>';
+                if (html) box.innerHTML = html;
+            }
+            document.getElementById('retry-btn').addEventListener('click', function () {
+                window.location.reload();
+            });
+        })();
+    </script>
+</body>
+</html>

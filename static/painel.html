@@ -2,13 +2,18 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Painel Avançado - Clash Genius</title>
+    <meta name="theme-color" content="#0a0a0f">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ClashGenius">
     
     <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon-16x16.png">
-    <link rel="manifest" href="/static/images/site.webmanifest">
+    <link rel="manifest" href="/site.webmanifest">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,6 +41,9 @@
                 <img id="clanBadgeHeader" src="/static/images/default_badge.png" alt="Emblema" class="header-badge">
                 <h1>Painel do Clã: <span id="clanNameHeader">-</span></h1>
             </div>
+            <button id="nav-toggle" class="nav-toggle" aria-label="Abrir menu de navegação" aria-expanded="false">
+                <span></span><span></span><span></span>
+            </button>
             <nav class="main-nav">
                 <ul>
                     <li><a href="#clan-info-nav" class="nav-link" data-section="clan-info-nav" data-tooltip="Visão geral do clã, estatísticas e desempenho">Clã</a></li>
@@ -635,5 +643,6 @@
     <a href="/admin" class="admin-link-btn" title="Painel do Administrador"><img src="/assets/icons/Icon_HV_Shield.png" class="icon-sm" alt="*"></a>
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/scripts.js"></script>
+    <script src="/static/js/pwa-install.js"></script>
 </body>
 </html>

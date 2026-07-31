@@ -436,6 +436,15 @@ document.addEventListener('DOMContentLoaded', () => {
         setText(clanCapitalLeagueEl, data.capital_league);
         setText(clanDescriptionEl, data.description, 'Sem descrição.');
         setText(botVersionEl, data.version, '?');
+        try {
+            localStorage.setItem('clashgenius_version', data.version || '?');
+            localStorage.setItem('clashgenius_last_clan', JSON.stringify({
+                name: data.name,
+                level: data.level,
+                members: data.member_count,
+                score: data.score
+            }));
+        } catch (e) { /* armazenamento indisponível */ }
     }
 
     function populateHighlights(data) {

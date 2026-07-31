@@ -544,7 +544,7 @@ main.container {
     text-align: center; margin-top:15px; color: var(--color-text-secondary);
 }
 
-.war-tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid var(--color-tab-border); }
+.war-tabs { display: flex; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 1px solid var(--color-tab-border); }
 .war-tab-button {
     padding: 10px 18px; cursor: pointer; background-color: var(--color-tab-inactive-bg);
     border: none; border-bottom: 2px solid transparent;
@@ -4047,3 +4047,156 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* ============================================================
+   MOBILE + PWA (v34.2.0)
+   ============================================================ */
+html, body { overflow-x: hidden; }
+
+/* --- Botão de instalar app (PWA) --- */
+.pwa-install-btn {
+    position: fixed;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    right: 20px;
+    z-index: 2000;
+    background: linear-gradient(135deg, var(--neon-cyan), #00b3ff);
+    color: #0a0a0f;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 22px;
+    font-size: 0.95em;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 255, 249, 0.4);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.pwa-install-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 26px rgba(0, 255, 249, 0.55); }
+
+.pwa-install-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2500;
+    padding: 20px;
+}
+.pwa-install-modal-content {
+    background: var(--color-card-background, #12121c);
+    border: 1px solid var(--color-border, #2a2a4a);
+    border-radius: 12px;
+    padding: 28px 24px;
+    max-width: 360px;
+    width: 100%;
+    position: relative;
+    text-align: left;
+    color: var(--color-text-main, #d4d4e8);
+    box-shadow: 0 0 40px rgba(0, 255, 249, 0.15);
+}
+.pwa-install-modal-content h3 { margin: 0 0 14px 0; color: #fff; }
+.pwa-install-modal-content ol { margin: 0 0 12px 0; padding-left: 20px; line-height: 1.9; }
+.pwa-install-modal-content li b { color: var(--neon-cyan, #00fff9); }
+.pwa-install-modal-content .pwa-install-modal-note { color: var(--color-text-secondary, #8080a0); font-size: 0.9em; margin: 0; }
+.pwa-install-modal-icon { font-size: 40px; margin-bottom: 10px; }
+.pwa-install-modal-close {
+    position: absolute;
+    top: 10px; right: 14px;
+    background: none;
+    border: none;
+    color: var(--color-text-secondary, #8080a0);
+    font-size: 26px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+/* --- Menu hambúrguer (público + admin) --- */
+.nav-toggle {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-base);
+    padding: 10px 12px;
+    cursor: pointer;
+    margin-left: auto;
+    z-index: 1002;
+}
+.nav-toggle span {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: var(--color-text-secondary);
+    border-radius: 2px;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.nav-toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+.nav-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+@media (max-width: 768px) {
+    .nav-toggle { display: flex; }
+
+    .header-content { flex-direction: row; flex-wrap: wrap; text-align: left; }
+    .logo-title { margin-bottom: 0; }
+    .main-nav { order: 3; width: 100%; margin-top: 10px; position: relative; }
+    .main-nav ul {
+        display: none;
+        flex-direction: column;
+        width: 100%;
+        max-height: 55dvh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .main-nav ul.open { display: flex; }
+
+    /* legend selector: wrap e input largo */
+    .legend-player-selector { flex-wrap: wrap; }
+    .legend-player-selector select,
+    .legend-player-selector input[type="text"] { width: 100% !important; max-width: none; box-sizing: border-box; }
+
+    /* notas: permitir quebra de linha em vez de ellipsis */
+    .note-text { white-space: normal; overflow: visible; text-overflow: clip; max-width: none; min-width: 90px; }
+
+    /* controle de status CWL */
+    .member-cwl-status { flex-wrap: wrap; gap: 10px; }
+    .cwl-status-btn { padding: 9px 14px; }
+
+    /* alvos de toque mínimos em controles densos */
+    .priority-btn { width: 30px; height: 30px; font-size: 14px; }
+
+    /* tabs de guerra embrulham entre 768-992 */
+    .war-tabs { flex-wrap: wrap; }
+    .war-tab-button { padding: 10px 14px; }
+
+    /* tabelas do admin rolam horizontalmente */
+    .table-container-admin { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* botões fixos respeitam a área segura (iPhone) */
+    .mute-btn,
+    .admin-link-btn {
+        bottom: calc(15px + env(safe-area-inset-bottom, 0px));
+    }
+    .site-footer { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (max-width: 600px) {
+    .clan-pulse-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+    .modal-content {
+        margin: 0;
+        width: 100%;
+        max-width: 100%;
+        max-height: 100dvh;
+        height: 100dvh;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+    }
+}
+

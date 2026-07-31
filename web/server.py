@@ -70,6 +70,31 @@ async def setup_web_server(bot_instance):
     app.router.add_static('/static/', path=static_dir, name='static')
     app.router.add_get("/", lambda r: web.HTTPFound('/painel'))
 
+    # PWA: manifest com MIME correto + service worker com escopo raiz
+    async def manifest_handler(r):
+        return web.FileResponse(
+            os.path.join(static_dir, "site.webmanifest"),
+            headers={"Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=3600"}
+        )
+
+    async def sw_handler(r):
+        return web.FileResponse(
+            os.path.join(static_dir, "sw.js"),
+            headers={
+                "Content-Type": "application/javascript; charset=utf-8",
+                "Service-Worker-Allowed": "/",
+                "Cache-Control": "no-cache"
+            }
+        )
+
+    async def offline_handler(r):
+        return web.FileResponse(os.path.join(static_dir, "offline.html"))
+
+    app.router.add_get("/site.webmanifest", manifest_handler)
+    app.router.add_get("/sw.js", sw_handler)
+    app.router.add_get("/offline", offline_handler)
+    app.router.add_get("/offline.html", offline_handler)
+
     async def painel_handler(r):
         from aiohttp_session import get_session
         api_cog = bot_instance.get_cog("Painel de Administração Avançado")

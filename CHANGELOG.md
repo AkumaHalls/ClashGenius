@@ -3,6 +3,26 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.2.0] — 2026-07-31
+
+### Adicionado
+- **PWA** — Site agora é instalável como aplicativo: novo `static/site.webmanifest` (tema dark `#0a0a0f`, `start_url /painel`, display standalone, ícones `any` + `maskable` 192/512) com rota dedicada `/site.webmanifest` no servidor com MIME correto
+- **PWA** — Novo Service Worker `static/sw.js` registrado em todas as páginas: precache versionado, network-first para navegação/API com fallback, cache-first para estáticos e limpeza automática de caches antigos; rota `/sw.js` serve com `Service-Worker-Allowed: /`
+- **PWA** — Nova página `static/offline.html` (rota `/offline`): visual dark consistente, últimos dados do clã vindos do `localStorage` e botão "Tentar novamente"
+- **PWA** — Novo `static/js/pwa-install.js` (carregado em painel e admin): botão flutuante "📲 Instalar App" no `beforeinstallprompt`, modal com instruções para iPhone/iPad e ocultação automática quando instalado
+- **PWA** — Metas PWA em todas as 4 páginas (theme-color, `mobile-web-app-capable`, apple equivalents) e ícones `maskable-192x192.png` / `maskable-512x512.png` gerados
+
+### Alterado
+- **static/css/style.css** — Menu hambúrguer com drawer responsivo para o painel público (`.nav-toggle` + `.main-nav` colapsado em ≤768px), botão compartilhado com o admin
+- **static/css/style.css** — Mobile: `.legend-player-selector` quebra linha e campos ocupam 100%, `.note-text` mostra o texto completo em vez de ellipsis, `.member-cwl-status` embrulha, `.clan-pulse-grid` vira 1 coluna em ≤600px, `.modal-content` vira tela cheia em ≤480px, `overflow-x` protegido no body, safe-area (iPhone) em botões fixos e footer
+- **static/js/utils.js** — Lógica do drawer hambúrguer (abrir/fechar, fechar ao clicar em link ou fora, reset em resize) + registro central do Service Worker
+- **static/admin_panel.html** — Layout admin responsivo em ≤768px (nav vira drawer, `.form-grid`, watchlist e campos dh em 1 coluna, `#analytics-table` minimizada com scroll horizontal, tabelas de usuários e pendentes roláveis, header com wrap)
+- **static/admin_login.html** — `overflow:hidden` corrigido em telas pequenas (formulário acessível com teclado), layout `100dvh`
+- **static/maintenance.html** — Página de manutenção agora rola e centraliza corretamente em telas pequenas
+- **static/painel.html** — Botão hambúrguer adicionado ao cabeçalho; manifest apontando para `/site.webmanifest`
+- **web/server.py** — Rotas PWA (`/site.webmanifest`, `/sw.js`, `/offline`, `/offline.html`) com headers MIME/cache corretos (contorna MIME incorreto do Windows para `.webmanifest`)
+- **config.py** — Versão bumpada de 34.1.0 para 34.2.0
+
 ## [34.1.0] — 2026-07-31
 
 ### Adicionado

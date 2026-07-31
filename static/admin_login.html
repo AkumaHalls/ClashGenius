@@ -2,8 +2,13 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ACESSO RESTRITO - Clash Genius</title>
+    <meta name="theme-color" content="#050508">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="/static/css/style.css">
     <script>document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('keydown',e=>{if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&['I','J','C'].includes(e.key.toUpperCase()))||(e.ctrlKey&&e.key==='u'))e.preventDefault()});</script>
     <style>
@@ -81,6 +86,12 @@
             100% { transform: translateY(-300px) scale(2); opacity: 0; }
         }
         .login-container { position: relative; z-index: 2; }
+
+        @media (max-width: 768px) {
+            body.admin-page { overflow: auto; height: auto; min-height: 100dvh; }
+            .login-container { min-height: 100dvh; }
+            .login-card { max-width: 100%; }
+        }
         .login-card {
             background: rgba(10, 10, 20, 0.95) !important;
             border: 2px solid rgba(255, 0, 64, 0.3) !important;
@@ -319,6 +330,12 @@
             document.getElementById('master-password-section').style.display = 'block';
             document.getElementById('mp-guild-id').value = document.getElementById('login-guild-id').value;
             setTimeout(() => document.querySelector('#master-password-section input[type="password"]').focus(), 100);
+        }
+    </script>
+    <script src="/static/js/pwa-install.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
         }
     </script>
 </body>

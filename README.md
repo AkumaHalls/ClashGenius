@@ -1,6 +1,6 @@
 ﻿# ClashGenius — O Gênio das Guerras
 
-![Versao](https://img.shields.io/badge/versao-33.1.0--GeniusLib--v5.3.0-182c61?style=flat-square&logo=python)
+![Versao](https://img.shields.io/badge/versao-34.2.0--GeniusLib--v5.3.0-182c61?style=flat-square&logo=python)
 ![Status](https://img.shields.io/badge/Status-Operacional-16a34a?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.10%2B-2563eb?logo=python&style=flat-square)
 ![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-0ea5e9?style=flat-square&logo=render)
@@ -14,7 +14,7 @@
 
 | Módulo | Descrição |
 |--------|-----------|
-| **Painel Web** | Dashboard com sidebar, 10 abas (Clã, Destaques, Guerra, Pendências, CWL, Jogos, Capital, Legend, Histórico, Membros), dark/light theme |
+| **Painel Web** | Dashboard com sidebar, 10 abas (Clã, Destaques, Guerra, Pendências, CWL, Jogos, Capital, Legend, Histórico, Membros), dark/light theme, **100% responsivo (celular) e instalável como PWA** |
 | **Legend League** | Análise completa de battle logs: ataques, defesas, saques, exércitos com cópia para o Clash, histórico de progressão |
 | **Inteligência Artificial** | War Prediction (ensemble ML), War Advisor (algoritmo húngaro), Player Analytics (K-Means), Smurf Detection (IsolationForest + XGBoost), CWL Planner (K-Means + fairness) |
 | **Painel Admin** | 9 abas: Geral, Diagnóstico, Configurações, Watchlist, Radar Pericial, Analytics IA, Ações, Base de Dados, DiscoHook |
@@ -50,6 +50,17 @@ Acesse em: `https://SEU_DOMINIO.onrender.com/painel`
 | **Saques** | Resumo de saques (total, ouro, elixir, elixir negro, média por ataque) |
 | **Exércitos** | Cards estruturados por composição com desempenho, badges de tropas, heroes com pets/equipamento, botão copiar para importar no Clash |
 | **Histórico** | Progressão de ligas ao longo das temporadas |
+
+### PWA — Instalável como App
+
+O painel é um **aplicativo web instalável (PWA)**: funciona no celular como um app nativo, com ícone na tela inicial e suporte a modo offline.
+
+| Recurso | Como usar |
+|---------|-----------|
+| **Instalar (Android/Chrome)** | Toque no botão flutuante **"📲 Instalar App"** (ou use o menu do navegador → *Adicionar à tela inicial*) |
+| **Instalar (iPhone/iPad)** | Safari → **Compartilhar** → **Adicionar à Tela de Início** (o botão flutuante mostra o passo a passo) |
+| **Modo offline** | Com o app instalado, o site abre mesmo sem internet: dados são servidos do cache e a página `/offline` mostra os últimos dados do clã |
+| **Responsividade** | Layout adaptado para telas de 320px a desktops: menu hambúrguer com drawer, tabelas com scroll horizontal e alvos de toque em todo o painel público e admin |
 
 ---
 
@@ -433,8 +444,12 @@ ClashGenius/
 
 Consulte [CHANGELOG.md](CHANGELOG.md) para o histórico completo de versões.
 
-### Versão Atual: 33.0.0-GeniusLib-v5.3.0
+### Versão Atual: 34.2.0-GeniusLib-v5.3.0
 
+- **v34.2.0** — PWA (site instalável como app, service worker, offline page), painel 100% responsivo para celular (hambúrguer/drawer, tabelas com scroll, admin mobile)
+- **v34.1.0** — Análise tática de ataques de guerra em tempo real (DIP falho, limpeza, desvio de padrão, selos de severidade)
+- **v34.0.1** — Fix: send_changelog enviava mais do que a última versão
+- **v34.0.0** — Post-war analysis com nomes e múltiplos embeds
 - **v33.0.0** — Decomposição do web server (clash.py 930→295 linhas), config.py centralizado, MAX_WAR_HISTORY removido, CSP header, fix time.sleep bloqueante
 - **v32.3.1** — Fix: Admin Border visual mais chamativo (borda rainbow visível + glow neon)
 - **v32.3.0** — Admin Border rainbow cyberpunk + fix: ícone missed attack pós-perdão + histórico no perfil
