@@ -3,6 +3,19 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.1.0] — 2026-07-31
+
+### Adicionado
+- **cogs/war_attack_analysis.py** — Novo motor de análise tática em tempo real para o evento de ataque de guerra: explica por que um ataque foi ruim (DIP falho, destruição baixa, duração acima da média do clã, limpeza que não melhorou estrelas, alvo fora do posto, desvio do padrão pessoal via histórico do Mongo) e gera sugestões de melhoria
+- **cogs/war_attack_analysis.py** — Selo de severidade nos ataques: 🔴 Crítico (0⭐ ou DIP falho), 🟠 Ruim (1⭐), 🔥 Excelente (3⭐), 🟢 Boa Defesa (defesa que segura), 📉 Defesa Caída
+- **cogs/war_attack_analysis.py** — Análise de defesa recebida: destaca defesas sólidas (inclusive sobrevivência a múltiplos ataques) e aponta vulnerabilidades quando a base cai (inclusive para CV inferior)
+- **cogs/war_attack_analysis.py** — Histórico do jogador consultado em `war_history` com cache em memória (média de estrelas, taxa de 3⭐, ataques perdidos nas últimas guerras)
+- **cogs/war_attack_analysis.py** — Contexto ampliado: duração, fresco/limpeza, média do clã e placar atual da guerra em tempo real
+
+### Alterado
+- **cogs/events_cog.py** — `on_war_attack` usa o analisador nos 3 fluxos: alerta de ataque ruim ganha campos "⚡ Por que foi ruim" e "🎯 Sugestões de Melhoria"; ataques bons ganham "💪 Destaques"; defesa recebida ganha "🛡️ Análise". Fallback para o formato antigo se o analisador falhar
+- **config.py** — Versão bumpada de 34.0.1 para 34.1.0
+
 ## [34.0.1] — 2026-07-31
 
 ### Corrigido

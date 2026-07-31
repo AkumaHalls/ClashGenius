@@ -8,6 +8,11 @@ import asyncio
 import datetime
 from typing import Optional
 
+try:
+    from cogs.war_attack_analysis import analyze_war_attack
+except Exception:
+    analyze_war_attack = None
+
 logger = logging.getLogger("events_cog")
 
 # ========================================================
@@ -312,47 +317,83 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
             attacker_str = f"`{attacker_map_pos}` **{attacker.name}** ({format_th(attacker.town_hall)})"
             defender_str = f"`{defender_map_pos}` **{defender.name}** ({format_th(defender.town_hall)})"
 
-            extra_info = []
-            if attack.duration:
-                mins, secs = divmod(int(attack.duration), 60)
-                extra_info.append(f"⏱ Duração: `{mins}:{secs:02d}`")
-            fresh = getattr(attack, 'is_fresh_attack', None)
-            if fresh is not None:
-                extra_info.append("🆕 Ataque Fresco" if fresh else "🔁 Limpeza")
-            durations = [a.duration for a in war.clan.attacks if getattr(a, 'duration', None)]
-            if durations:
-                avg_dur = sum(durations) / len(durations)
-                am, as_ = divmod(int(avg_dur), 60)
-                extra_info.append(f"📊 Média do Clã: `{am}:{as_:02d}`")
+            analysis = None
+            if analyze_war_attack is not None:
+                try:
+                    analysis = await analyze_war_attack(
+                        attack=attack, war=war, attacker=attacker,
+                        defender=defender, is_our_attack=is_our_attack,
+                        bot=self.bot
+                    )
+                except Exception as e:
+                    logger.error(f"war_attack_analysis falhou: {e}", exc_info=True)
+                    analysis = None
 
-            extra_str = "\n".join(extra_info) if extra_info else ""
+            context_field_name = "📊 Contexto" if (analysis and analysis.get("context")) else "Info Extra"
+            if analysis and analysis.get("context"):
+                context_str = "\n".join(analysis["context"])
+            else:
+                extra_info = []
+                if attack.duration:
+                    mins, secs = divmod(int(attack.duration), 60)
+                    extra_info.append(f"⏱ Duração: `{mins}:{secs:02d}`")
+                fresh = getattr(attack, 'is_fresh_attack', None)
+                if fresh is not None:
+                    extra_info.append("🆕 Ataque Fresco" if fresh else "🔁 Limpeza")
+                durations = [a.duration for a in war.clan.attacks if getattr(a, 'duration', None)]
+                if durations:
+                    avg_dur = sum(durations) / len(durations)
+                    am, as_ = divmod(int(avg_dur), 60)
+                    extra_info.append(f"📊 Média do Clã: `{am}:{as_:02d}`")
+                context_str = "\n".join(extra_info) if extra_info else ""
 
             if is_our_attack:
                 if attack.stars <= 1:
-                    alert_embed = discord.Embed(title=f"⚠️ Ataque fora do padrão!", description=f"**{attacker.clan.name}**\n⚔️ **Ataque Realizado ({war_type})**", color=discord.Color.red())
+                    title = "⚠️ Ataque fora do padrão!"
+                    if analysis and analysis.get("severity_label"):
+                        title += f" — {analysis['severity_label']}"
+                    alert_embed = discord.Embed(title=title, description=f"**{attacker.clan.name}**\n⚔️ **Ataque Realizado ({war_type})**", color=discord.Color.red())
                     alert_embed.add_field(name="Detalhes", value=f"{attacker_str} atacou {defender_str}", inline=False)
                     alert_embed.add_field(name="Resultado", value=f"{'⚫⚫⚫' if attack.stars == 0 else '⭐⚫⚫'} ({attack.destruction}%)", inline=False)
-                    if extra_str:
-                        alert_embed.add_field(name="Info Extra", value=extra_str, inline=False)
+                    if analysis and analysis.get("reasons"):
+                        alert_embed.add_field(name="⚡ Por que foi ruim", value="\n".join(analysis["reasons"]), inline=False)
+                    if analysis and analysis.get("suggestions"):
+                        alert_embed.add_field(name="🎯 Sugestões de Melhoria", value="\n".join(analysis["suggestions"]), inline=False)
+                    if context_str:
+                        alert_embed.add_field(name=context_field_name, value=context_str, inline=False)
                     if war.opponent.badge: alert_embed.set_thumbnail(url=war.opponent.badge.url)
                     role_mention = f"<@&{self.bot.role_id_1star_alert}>" if self.bot.role_id_1star_alert else ""
                     
                     await self._send_log_embed(alert_embed, content=f"{role_mention} Atenção ao ataque fora do padrão!", target_channel_id=self.bot.post_war_analysis_channel_id)
                 else:
-                    embed = discord.Embed(title=f"⚔️ Ataque Realizado ({war_type})", description=f"{attacker.clan.name}", color=discord.Color.blue())
+                    title = f"⚔️ Ataque Realizado ({war_type})"
+                    if attack.stars == 3 and analysis and analysis.get("severity_label"):
+                        title += f" — {analysis['severity_label']}"
+                    embed = discord.Embed(title=title, description=f"{attacker.clan.name}", color=discord.Color.blue())
                     embed.add_field(name="Detalhes", value=f"{attacker_str} atacou {defender_str}", inline=False)
                     embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
-                    if extra_str:
-                        embed.add_field(name="Info Extra", value=extra_str, inline=False)
+                    if analysis and analysis.get("highlights"):
+                        embed.add_field(name="💪 Destaques", value="\n".join(analysis["highlights"]), inline=False)
+                    if context_str:
+                        embed.add_field(name=context_field_name, value=context_str, inline=False)
                     if war.opponent.badge: embed.set_thumbnail(url=war.opponent.badge.url)
                     
                     await self._send_log_embed(embed, target_channel_id=self.bot.post_war_analysis_channel_id)
             else:
-                embed = discord.Embed(title=f"🛡️ Defesa Recebida ({war_type})", description=f"{defender.clan.name}", color=discord.Color.orange())
+                title = f"🛡️ Defesa Recebida ({war_type})"
+                if analysis and analysis.get("severity_label"):
+                    title += f" — {analysis['severity_label']}"
+                embed = discord.Embed(title=title, description=f"{defender.clan.name}", color=discord.Color.orange())
                 embed.add_field(name="Detalhes", value=f"{defender_str} foi atacado por {attacker_str}", inline=False)
                 embed.add_field(name="Resultado", value=f"{stars_str} ({attack.destruction}%)", inline=False)
-                if extra_str:
-                    embed.add_field(name="Info Extra", value=extra_str, inline=False)
+                if analysis and analysis.get("highlights"):
+                    embed.add_field(name="🛡️ Análise", value="\n".join(analysis["highlights"]), inline=False)
+                elif analysis and analysis.get("reasons"):
+                    embed.add_field(name="📉 Análise", value="\n".join(analysis["reasons"]), inline=False)
+                if analysis and analysis.get("suggestions"):
+                    embed.add_field(name="🎯 Sugestões", value="\n".join(analysis["suggestions"]), inline=False)
+                if context_str:
+                    embed.add_field(name=context_field_name, value=context_str, inline=False)
                 if hasattr(war, 'clan') and war.clan and hasattr(war.clan, 'badge') and war.clan.badge:
                      embed.set_thumbnail(url=war.clan.badge.url)
                 
