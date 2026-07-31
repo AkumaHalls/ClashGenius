@@ -115,6 +115,27 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         except Exception as e:
             logger.error(f"Erro inesperado ao enviar embed para o canal {channel_id_to_use}: {e}", exc_info=True)
 
+    async def _send_log_embeds(self, embeds_to_log: list, content: str = None, target_channel_id: int = None):
+        """Envia múltiplos embeds em uma única mensagem (até 10 por mensagem)."""
+        if self.bot.maintenance_mode: return
+        if not embeds_to_log: return
+        channel_id_to_use = target_channel_id if target_channel_id else self.bot.channel_id
+        if not channel_id_to_use:
+            logger.warning("Tentativa de enviar embeds, mas channel_id não configurado.")
+            return
+        try:
+            channel = self.bot.get_channel(channel_id_to_use) or await self.bot.fetch_channel(channel_id_to_use)
+            now_in_timezone = datetime.datetime.now(self.bot.timezone)
+            for embed_to_log in embeds_to_log:
+                embed_to_log.set_footer(text=f"Bot: {self.bot.user.name} | v{self.bot.bot_version} • {now_in_timezone.strftime('%d/%m/%Y %H:%M')}")
+                embed_to_log.timestamp = now_in_timezone
+            for i in range(0, len(embeds_to_log), 10):
+                await channel.send(content=content, embeds=embeds_to_log[i:i + 10])
+        except (discord.NotFound, discord.Forbidden):
+             logger.error(f"Erro ao enviar embeds para o canal {channel_id_to_use}: Canal não encontrado ou sem permissão.")
+        except Exception as e:
+            logger.error(f"Erro inesperado ao enviar embeds para o canal {channel_id_to_use}: {e}", exc_info=True)
+
     def _get_war_id(self, war: coc.ClanWar) -> str:
         if hasattr(war, 'tag') and war.tag and war.tag != '#0': return war.tag
         if hasattr(war, 'preparation_start_time') and war.preparation_start_time and hasattr(war.preparation_start_time, 'time'): return war.preparation_start_time.time.isoformat()
@@ -204,8 +225,9 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                     if create_post_war_analysis_embed:
                         verdict_channel = self.bot.post_war_verdict_channel_id or self.bot.post_war_analysis_channel_id
                         if verdict_channel:
-                            analysis_embed = create_post_war_analysis_embed(war_details_for_db)
-                            if analysis_embed: await self._send_log_embed(analysis_embed, target_channel_id=verdict_channel)
+                            analysis_embeds = create_post_war_analysis_embed(war_details_for_db)
+                            if analysis_embeds:
+                                await self._send_log_embeds(analysis_embeds, target_channel_id=verdict_channel)
                     if not create_post_war_analysis_embed:
                          logger.error("Função create_post_war_analysis_embed não disponível.")
                 else: logger.error(f"Falha ao obter detalhes da guerra {war_id} para salvar no DB: {war_details_for_db['error']}.")

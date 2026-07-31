@@ -3,6 +3,20 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.0.0] — 2026-07-31
+
+### Adicionado
+- **cogs/post_war_analysis.py** — Análise pós-guerra agora dá nome aos bois: novas seções "🌟 Melhores Guerreiros (nomeados)", "🛡️ Muralha de Ferro — Defesas Sólidas", "📉 Alvos de Atenção (nomeados)", "🚩 Ataques Não Realizados" e "💀 Ataques de 0 Estrelas", todas citando os nomes dos jogadores
+- **cogs/post_war_analysis.py** — Insights táticos agora citam nomes em DIPs falhos, limpezas desperdiçadas e ataques zerados
+- **cogs/post_war_analysis.py** — Adicionado insight de distribuição de estrelas (⭐x3/⭐x2/⭐x1/zerados) e destaque de ponta de lança no parecer do motor
+- **cogs/post_war_analysis.py** — `create_post_war_analysis_embed` agora retorna `List[discord.Embed]`: mensagens longas são cortadas automaticamente em múltiplos embeds respeitando os limites do Discord (1024 chars por campo, 25 campos por embed, ~6000 chars por embed)
+- **cogs/tasks_cog.py** — Novo helper `_send_log_embeds` que envia até 10 embeds por mensagem; análise pós-guerra usa ele para exibir a mensagem completa
+
+### Alterado
+- **cogs/post_war_analysis.py** — Cabeçalho do veredito agora inclui destruição (em empates), tamanho da guerra e eficiência de estrelas
+- **cogs/post_war_analysis.py** — Footer do motor analítico atualizado para v6.0
+- **config.py** — Versão bumpada de 33.5.0 para 34.0.0
+
 ## [33.5.0] — 2026-07-30
 
 ### Alterado
