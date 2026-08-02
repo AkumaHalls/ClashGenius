@@ -1554,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<div class="members-section">
                 <div class="members-separator members-separator-featured">
                     <span class="members-separator-icon">${icon('star')}</span>
-                    Fixos &amp; Admins
+                    Destaques &amp; Admins
                     <span class="members-separator-count">${featured.length}</span>
                 </div>
                 <div class="members-grid">${featured.map(buildMemberCard).join('')}</div>

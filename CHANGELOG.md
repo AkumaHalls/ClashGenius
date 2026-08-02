@@ -3,6 +3,15 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.4.1] — 2026-08-02
+
+### Corrigido
+- **static/css/style.css** — Aba Membros: as seções ficavam **lado a lado** porque eram filhas do grid `#membersGrid`; `.members-section` agora ocupa a largura toda (`grid-column: 1 / -1`), devolvendo aos cards o tamanho original
+- **static/css/style.css** — Separadores agora **centralizados** (max-width 720px, `margin: 0 auto`, conteúdo centralizado com `justify-content: center`); contador deixou de ser jogado para a direita
+- **static/js/scripts.js** — Título do separador de destaque renomeado de "Fixos & Admins" para **"Destaques & Admins"**
+- **static/sw.js** — Cache versionado para v34.4.1
+- **config.py** — Versão bumpada de 34.4.0 para 34.4.1
+
 ## [34.4.0] — 2026-08-02
 
 ### Adicionado

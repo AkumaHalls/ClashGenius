@@ -5,7 +5,7 @@
    - Estáticos (css/js/imagens): cache-first com atualização em segundo plano
    - Cache versionado e limpo no activate
 */
-const CACHE = 'clashgenius-v34.4.0';
+const CACHE = 'clashgenius-v34.4.1';
 const PRECACHE = [
   '/painel',
   '/offline.html',
