@@ -3,6 +3,25 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.3.0] — 2026-08-02
+
+### Adicionado
+- **Perfil do membro (Web)** — Novo card **Entrada**: data de entrada do jogador no clã, rastreada automaticamente via eventos do `EventsClient` (coleção `clan_membership` no MongoDB). Para membros já presentes antes da feature, a data é **estimada pela 1ª guerra registrada** no `war_history` (marcada com `*` e tooltip). Caso não haja histórico, mostra "Indeterminado"
+- **Perfil do membro (Web)** — Novo card **Tempo de Casa**: quanto tempo o membro está na passagem atual pelo clã (reentrada zera a contagem), formatado em anos/meses/dias
+- **Perfil do membro (Web)** — Nova seção **Carteira de Combate**: últimas 15 guerras do membro com oponente, data, resultado (Vitória/Derrota/Empate), estrelas, destruição e ataques perdidos
+- **Perfil do membro (Web)** — **Percentil no clã**: posição do membro em troféus e doações (ex.: "Top 12% em troféus (5º)") calculada a partir do `/api/members`
+- **cogs/tasks_cog.py** — Nova task `reconcile_membership_task` (a cada 6h): cria registros `first_seen` para membros sem dado, faz backfill pela 1ª guerra e marca `left_at` para quem saiu (rede de segurança se o bot ficar offline e perder eventos)
+
+### Alterado
+- **cogs/database_cog.py** — Novos helpers `record_member_join`, `record_member_leave` e `load_membership_records` para a coleção `clan_membership`
+- **cogs/events_cog.py** — `handle_clan_member_join`/`handle_clan_member_leave` agora gravam entrada/saída no banco e invalidam o cache de `/api/members`
+- **cogs/profile_cog.py** — `fetch_player_profile_data` passa a retornar `war_history` (carteira de combate) além do hitrate
+- **cogs/web_api_cog.py** — `/api/members` agora inclui `joined_at`, `membership_source`, `rank_donations`, `rank_trophies`, `pct_donations` e `pct_trophies`
+- **static/js/scripts.js** — Helper `formatTenure` + renderização dos novos cards, seção Carteira de Combate e percentil no modal de perfil
+- **static/css/style.css** — Estilos de `.profile-percentil`, `.war-history-*` (lista de guerras com badges de resultado) e responsividade móvel
+- **static/sw.js** — Cache versionado para v34.3.0
+- **config.py** — Versão bumpada de 34.2.1 para 34.3.0
+
 ## [34.2.1] — 2026-07-31
 
 ### Corrigido

@@ -2118,6 +2118,115 @@ td strong, table .highlight { color: var(--color-text-main); font-weight: 500; }
 .p-val { font-size: 1.3em; font-weight: bold; color: var(--color-text-main); }
 .p-label { font-size: 0.8em; color: var(--color-text-secondary); text-transform: uppercase; margin-top: 5px;}
 
+.profile-percentil {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 25px;
+    justify-content: center;
+}
+
+.profile-percentil-item {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-base);
+    padding: 8px 14px;
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.profile-percentil-item strong {
+    color: var(--color-text-main);
+}
+
+.war-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 25px;
+}
+
+.war-history-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-base);
+    padding: 10px 12px;
+}
+
+.war-history-result {
+    font-size: 1.2em;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+}
+
+.war-history-result.wh-win { background: rgba(46, 204, 113, 0.18); }
+.war-history-result.wh-lose { background: rgba(231, 76, 60, 0.18); }
+.war-history-result.wh-tie { background: rgba(243, 156, 18, 0.18); }
+
+.war-history-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.war-history-info strong {
+    color: var(--color-text-main);
+    font-size: 0.95em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.war-history-info span {
+    color: var(--color-text-secondary);
+    font-size: 0.8em;
+}
+
+.war-history-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    font-size: 0.85em;
+    color: var(--color-text-secondary);
+}
+
+.war-history-stats .wh-stars {
+    color: var(--color-warning);
+    font-weight: 600;
+}
+
+.war-history-stats .wh-missed {
+    background: rgba(255, 0, 64, 0.2);
+    color: var(--neon-red);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.85em;
+}
+
+.war-history-stats .wh-ok {
+    color: var(--color-success);
+    font-size: 0.8em;
+}
+
+@media (max-width: 480px) {
+    .war-history-stats { flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    .war-history-row { flex-wrap: wrap; }
+}
+
 .profile-section-title {
     border-bottom: 1px solid var(--color-divider);
     padding-bottom: 8px;

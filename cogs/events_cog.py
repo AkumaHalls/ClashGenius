@@ -264,6 +264,15 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
         logger.info(f"Evento member_join DETECTADO para {member.name} ({member.tag}).")
 
+        db_cog = self.bot.get_cog("Banco de Dados")
+        if db_cog:
+            try:
+                await db_cog.record_member_join(member.tag)
+                if hasattr(self.bot, 'web_api_cache'):
+                    self.bot.web_api_cache.pop('members', None)
+            except Exception as e:
+                logger.error(f"Erro ao registrar entrada de {member.name}: {e}")
+
         watchlist_cog = self.bot.get_cog("Lista de Observação")
         if watchlist_cog:
             await watchlist_cog.check_and_alert_on_join(member)
@@ -278,7 +287,16 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     async def handle_clan_member_leave(self, member, clan):
         if self.bot.maintenance_mode or coc.utils.correct_tag(clan.tag) != coc.utils.correct_tag(self.bot.clan_tag): return
-        
+
+        db_cog = self.bot.get_cog("Banco de Dados")
+        if db_cog:
+            try:
+                await db_cog.record_member_leave(member.tag)
+                if hasattr(self.bot, 'web_api_cache'):
+                    self.bot.web_api_cache.pop('members', None)
+            except Exception as e:
+                logger.error(f"Erro ao registrar saída de {member.name}: {e}")
+
         embed = discord.Embed(title="⬅️ Membro Saiu do Clã", description=f"**{member.name}** (`{member.tag}`) deixou a equipe.", color=discord.Color.dark_grey())
         embed.add_field(name="CV", value=format_th(member.town_hall), inline=True)
         role_name = member.role.name.capitalize() if member.role and hasattr(member.role, 'name') else "N/A"

@@ -285,6 +285,7 @@ class WebApiCog(commands.Cog, name="Web API"):
         analytics_cog = self.bot.get_cog("Player Analytics")
 
         player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
+        membership_records = await db_cog.load_membership_records([m.tag for m in clan.members]) if db_cog else {}
         members_list = []
 
         last_war_dates = {}
@@ -320,6 +321,11 @@ class WebApiCog(commands.Cog, name="Web API"):
             last_war_date_iso = last_war_dates.get(member.tag)
             player_insight = insights_dict.get(member.tag, {})
 
+            membership = membership_records.get(member.tag, {})
+            joined_at = membership.get("joined_at")
+            joined_at_iso = joined_at.isoformat() if joined_at else None
+            membership_source = membership.get("source") if joined_at else None
+
             members_list.append({
                 "tag": member.tag, "name": member.name, "town_hall": member.town_hall,
                 "league": member.league.name if member.league else "Sem Liga",
@@ -333,6 +339,8 @@ class WebApiCog(commands.Cog, name="Web API"):
                 "watchlistReason": watchlist_entry.get('reason', None) if watchlist_entry else None,
                 "watchlistDetails": watchlist_entry.get('details', None) if watchlist_entry else None,
                 "last_war_date": last_war_date_iso,
+                "joined_at": joined_at_iso,
+                "membership_source": membership_source,
                 "attack_probability": player_insight.get("attack_probability"),
                 "tier": player_insight.get("tier", "Não Classificado"),
                 "wars_participated_ml": player_insight.get("wars_participated", 0)
@@ -340,6 +348,19 @@ class WebApiCog(commands.Cog, name="Web API"):
             
         role_order = {"Leader": 0, "Co-leader": 1, "Admin": 2, "Member": 3}
         sorted_members = sorted(members_list, key=lambda m: (role_order.get(m["role"], 4), -m["trophies"]))
+
+        # Percentil no clã (doações e troféus)
+        total = max(len(sorted_members), 1)
+        donations_ranked = sorted(sorted_members, key=lambda m: -m["donations"])
+        trophies_ranked = sorted(sorted_members, key=lambda m: -m["trophies"])
+        donation_positions = {m["tag"]: i + 1 for i, m in enumerate(donations_ranked)}
+        trophy_positions = {m["tag"]: i + 1 for i, m in enumerate(trophies_ranked)}
+        for m in sorted_members:
+            m["rank_donations"] = donation_positions.get(m["tag"], total)
+            m["rank_trophies"] = trophy_positions.get(m["tag"], total)
+            m["pct_donations"] = round(m["rank_donations"] / total * 100)
+            m["pct_trophies"] = round(m["rank_trophies"] / total * 100)
+
         result = {"clan_name": clan.name, "members": sorted_members, "version": self.bot.bot_version}
         if cache: cache.set("clan_members", result, ttl=30)
         return result

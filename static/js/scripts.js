@@ -1688,6 +1688,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function formatTenure(joinedAtIso) {
+        if (!joinedAtIso) return '—';
+        const joined = new Date(joinedAtIso);
+        if (isNaN(joined.getTime())) return '—';
+        const now = new Date();
+        let years = now.getFullYear() - joined.getFullYear();
+        let months = now.getMonth() - joined.getMonth();
+        let days = now.getDate() - joined.getDate();
+        if (days < 0) {
+            months -= 1;
+            const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+            days += prevMonth.getDate();
+        }
+        if (months < 0) {
+            years -= 1;
+            months += 12;
+        }
+        const parts = [];
+        if (years > 0) parts.push(`${years} ${years === 1 ? 'ano' : 'anos'}`);
+        if (months > 0) parts.push(`${months} ${months === 1 ? 'mês' : 'meses'}`);
+        if (days > 0 || parts.length === 0) parts.push(`${days} ${days === 1 ? 'dia' : 'dias'}`);
+        return parts.join(', ');
+    }
+
     async function openMemberProfileModal(playerTag) {
         if (!playerTag || !memberProfileModal || !memberProfileContent) return;
         
@@ -1717,6 +1741,18 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 lastWarDateFormatted = new Date(profileData.last_war_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
             } catch (e) { lastWarDateFormatted = 'Inválida'; }
+        }
+
+        const isJoinedEstimate = profileData.membership_source === 'war_estimate';
+        let joinedDateFormatted = 'Indeterminado';
+        let tenureText = '—';
+        if (profileData.joined_at) {
+            try {
+                const joinedDate = new Date(profileData.joined_at);
+                if (isNaN(joinedDate.getTime())) throw new Error('invalid');
+                joinedDateFormatted = joinedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                tenureText = formatTenure(profileData.joined_at);
+            } catch (e) { joinedDateFormatted = 'Inválida'; }
         }
 
         const heroImageMap = {
@@ -1839,6 +1875,42 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
+        const hasPercentil = typeof profileData.rank_trophies === 'number' && typeof profileData.rank_donations === 'number';
+        const percentilHtml = hasPercentil ? `
+            <div class="profile-percentil">
+                <span class="profile-percentil-item">${icon('trophy')} Top ${profileData.pct_trophies}% em troféus <strong>(${profileData.rank_trophies}º)</strong></span>
+                <span class="profile-percentil-item">${icon('goldPass')} Top ${profileData.pct_donations}% em doações <strong>(${profileData.rank_donations}º)</strong></span>
+            </div>` : '';
+
+        const warHistoryList = profileData.war_history || [];
+        const warHistoryHtml = warHistoryList.length > 0 ? `
+            <h3 class="profile-section-title">Carteira de Combate</h3>
+            <div class="war-history-list">
+                ${warHistoryList.map(w => {
+                    const resultClass = w.result === 'Vitória' ? 'wh-win' : w.result === 'Derrota' ? 'wh-lose' : 'wh-tie';
+                    const resultIcon = w.result === 'Vitória' ? icon('trophy') : w.result === 'Derrota' ? icon('noStar') : icon('shield');
+                    let whDateFormatted = '—';
+                    if (w.end_time_iso) {
+                        try {
+                            whDateFormatted = new Date(w.end_time_iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        } catch (e) { whDateFormatted = '—'; }
+                    }
+                    return `
+                    <div class="war-history-row">
+                        <span class="war-history-result ${resultClass}">${resultIcon}</span>
+                        <div class="war-history-info">
+                            <strong>${escapeHtml(w.opponent_name || 'Desconhecido')}</strong>
+                            <span>${escapeHtml(whDateFormatted)}${w.is_cwl ? ' • CWL' : ''}</span>
+                        </div>
+                        <div class="war-history-stats">
+                            <span class="wh-stars">${w.stars} ${icon('star')}</span>
+                            <span>${w.destruction || 0}%</span>
+                            ${w.attacks_missed > 0 ? `<span class="wh-missed">${w.attacks_missed} perdido(s)</span>` : `<span class="wh-ok">completo</span>`}
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>` : '';
+
         setHtml(memberProfileContent, `
             <div class="profile-header-new">
                 <div class="profile-league-badge">
@@ -1860,8 +1932,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="p-val" style="font-size:1em; margin-top:5px;">${escapeHtml(lastWarDateFormatted)}</span>
                     <span class="p-label">Últ. Guerra</span>
                 </div>
+                <div class="p-card" title="${isJoinedEstimate ? 'Data estimada pela 1ª guerra registrada no sistema' : 'Data de entrada no clã'}">
+                    <span class="p-icon">${icon('in')}</span>
+                    <span class="p-val" style="font-size:1em; margin-top:5px;">${escapeHtml(joinedDateFormatted)}${isJoinedEstimate ? '<span style="color:var(--color-text-secondary);font-size:0.8em;" title="Data estimada pela 1ª guerra registrada">*</span>' : ''}</span>
+                    <span class="p-label">Entrada</span>
+                </div>
+                <div class="p-card" title="Tempo de casa (período atual no clã)">
+                    <span class="p-icon">${icon('planet')}</span>
+                    <span class="p-val" style="font-size:1em; margin-top:5px;">${escapeHtml(tenureText)}</span>
+                    <span class="p-label">Tempo de Casa</span>
+                </div>
             </div>
             
+            ${percentilHtml}
             ${cwlStatusHtml}
             ${brainMapHtml}
 
@@ -1888,6 +1971,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
                 }).join('')}
             </div>` : ''}
+
+            ${warHistoryHtml}
 
             <h3 class="profile-section-title">Progresso de Heróis</h3>
             <div class="profile-heroes-grid">

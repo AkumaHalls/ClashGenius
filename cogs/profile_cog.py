@@ -82,6 +82,8 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 "avg_destruction": 0.0
             }
 
+            war_history_list = []
+
             if self.db is not None:
                 # Procura as últimas 50 guerras onde o jogador estava na escalação
                 pipeline = [
@@ -105,16 +107,44 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                     
                     hitrate_data["attacks_made"] += len(attacks)
                     hitrate_data["attacks_missed"] += (attacks_per_member - len(attacks))
-                    
+
+                    war_stars = 0
+                    war_destruction = 0.0
                     for atk in attacks:
                         stars = atk.get("stars", 0)
                         hitrate_data["total_stars"] += stars
+                        war_stars += stars
+                        war_destruction += atk.get("destruction", 0)
                         total_destruction += atk.get("destruction", 0)
                         if stars == 3:
                             hitrate_data["three_star_attacks"] += 1
+
+                    # Carteira de Combate: dados por guerra
+                    clan_stars = war_info.get("clan_stars", 0)
+                    opp_stars = war_info.get("opponent_stars", 0)
+                    clan_dest = float(str(war_info.get("clan_destruction", "0%")).replace('%', ''))
+                    opp_dest = float(str(war_info.get("opponent_destruction", "0%")).replace('%', ''))
+                    result = "Empate"
+                    if clan_stars > opp_stars or (clan_stars == opp_stars and clan_dest > opp_dest):
+                        result = "Vitória"
+                    elif opp_stars > clan_stars or (clan_stars == opp_stars and opp_dest > clan_dest):
+                        result = "Derrota"
+
+                    war_history_list.append({
+                        "opponent_name": war_info.get("opponent_name", "Desconhecido"),
+                        "end_time_iso": war_info.get("end_time_iso"),
+                        "result": result,
+                        "is_cwl": war_info.get("is_cwl", False),
+                        "stars": war_stars,
+                        "destruction": round(war_destruction, 1),
+                        "attacks_made": len(attacks),
+                        "attacks_missed": max(attacks_per_member - len(attacks), 0),
+                    })
                             
                 if hitrate_data["attacks_made"] > 0:
                     hitrate_data["avg_destruction"] = round(total_destruction / hitrate_data["attacks_made"], 1)
+
+            war_history_list = war_history_list[:15]
 
             return {
                 "name": player.name,
@@ -134,7 +164,8 @@ class ProfileCog(commands.Cog, name="Perfis de Membros"):
                 "capital_gold": capital_gold,
                 "role": player.role.name.capitalize() if hasattr(player, 'role') and hasattr(player.role, 'name') else "Membro",
                 "hitrate": hitrate_data,
-                "upgrade_data": upgrade_data
+                "upgrade_data": upgrade_data,
+                "war_history": war_history_list
             }
 
         except coc.NotFound:

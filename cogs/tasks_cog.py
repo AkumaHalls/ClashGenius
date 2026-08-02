@@ -44,6 +44,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 if not self.cleanup_old_snapshots_task.is_running(): self.cleanup_old_snapshots_task.start()
                 if not self.check_api_status_task.is_running(): self.check_api_status_task.start()
                 if not self.check_cwl_end_task.is_running(): self.check_cwl_end_task.start()
+                if not self.reconcile_membership_task.is_running(): self.reconcile_membership_task.start()
 
                 self.tasks_started = True
                 logger.info("TasksCog: Todas as tasks verificadas/iniciadas.")
@@ -60,6 +61,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
         if self.cleanup_old_snapshots_task.is_running(): self.cleanup_old_snapshots_task.cancel()
         if self.check_api_status_task.is_running(): self.check_api_status_task.cancel()
         if self.check_cwl_end_task.is_running(): self.check_cwl_end_task.cancel()
+        if self.reconcile_membership_task.is_running(): self.reconcile_membership_task.cancel()
         self.tasks_started = False
         logger.info("Tasks canceladas.")
 
@@ -80,6 +82,105 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
             logger.info(f"Snapshot de doações para {len(snapshot_members)} membros salvo com sucesso.")
         except Exception as e:
             logger.error(f"Erro na tarefa de snapshot de doações: {e}", exc_info=True)
+
+    # --- Reconciliação de Entrada/Saída de Membros (Tempo de Casa) ---
+    @tasks.loop(hours=6)
+    async def reconcile_membership_task(self):
+        """Reconcilia a coleção clan_membership com a lista atual do clã.
+
+        - Cria registros "first_seen" para membros sem registro/período inativo.
+        - Faz backfill da data de entrada pela 1ª guerra registrada no war_history.
+        - Marca left_at para membros que já não estão no clã.
+        """
+        if self.bot.maintenance_mode or self.db is None: return
+        try:
+            db_cog = self.bot.get_cog("Banco de Dados")
+            if not db_cog:
+                logger.warning("reconcile_membership_task: DatabaseCog não encontrado.")
+                return
+
+            clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
+            if not clan:
+                logger.warning("reconcile_membership_task: Não foi possível obter dados do clã.")
+                return
+
+            current_tags = [m.tag for m in clan.members]
+            records = await db_cog.load_membership_records(current_tags)
+
+            now = datetime.datetime.now(pytz.utc)
+            changed = False
+
+            for member in clan.members:
+                record = records.get(member.tag)
+                is_active = record is not None and record.get("joined_at") and not record.get("left_at")
+                if not is_active:
+                    # Sem registro/período ativo: marca como "first_seen" (backfill pode refinar depois)
+                    await self.db.clan_membership.update_one(
+                        {"_id": coc.utils.correct_tag(member.tag)},
+                        {"$set": {"joined_at": now, "left_at": None, "source": "first_seen", "updated_at": now}},
+                        upsert=True
+                    )
+                    changed = True
+
+            # Backfill: membros com source "first_seen" (ou sem joined_at) ganham a 1ª guerra como estimativa
+            backfill_tags = []
+            records = await db_cog.load_membership_records(current_tags)
+            for tag in current_tags:
+                record = records.get(tag) or {}
+                if record.get("joined_at") and record.get("source") in ("event", "war_estimate"):
+                    continue
+                backfill_tags.append(tag)
+
+            if backfill_tags and self.db is not None:
+                pipeline = [
+                    {"$unwind": "$our_clan_members_in_war"},
+                    {"$match": {"our_clan_members_in_war.tag": {"$in": backfill_tags}}},
+                    {"$sort": {"war_data.end_time_iso": 1}},
+                    {"$group": {
+                        "_id": "$our_clan_members_in_war.tag",
+                        "first_war": {"$first": "$war_data.end_time_iso"}
+                    }}
+                ]
+                try:
+                    results = await self.db.war_history.aggregate(pipeline).to_list(length=None)
+                except Exception as e:
+                    logger.error(f"reconcile_membership_task: Erro na agregação de backfill: {e}")
+                    results = []
+
+                for item in results:
+                    tag = item["_id"]
+                    first_war_str = item.get("first_war")
+                    if not first_war_str:
+                        continue
+                    try:
+                        first_war_dt = datetime.datetime.fromisoformat(first_war_str.replace("Z", "+00:00"))
+                        if not first_war_dt.tzinfo:
+                            first_war_dt = first_war_dt.replace(tzinfo=pytz.utc)
+                    except (ValueError, TypeError):
+                        continue
+                    await self.db.clan_membership.update_one(
+                        {"_id": tag},
+                        {"$set": {"joined_at": first_war_dt, "source": "war_estimate", "updated_at": now}}
+                    )
+                    changed = True
+
+            # Membros que saíram: registros ativos sem dono na lista atual
+            active_records = await self.db.clan_membership.find({"left_at": None, "joined_at": {"$ne": None}}).to_list(length=None)
+            current_set = set(current_tags)
+            for record in active_records:
+                if record["_id"] not in current_set:
+                    await self.db.clan_membership.update_one(
+                        {"_id": record["_id"], "left_at": None},
+                        {"$set": {"left_at": now, "updated_at": now}}
+                    )
+                    changed = True
+
+            if changed and hasattr(self.bot, 'web_api_cache'):
+                self.bot.web_api_cache.pop('members', None)
+
+            logger.info(f"reconcile_membership_task: concluída ({len(current_tags)} membros checados).")
+        except Exception as e:
+            logger.error(f"Erro na tarefa de reconciliação de membros: {e}", exc_info=True)
 
 
     @tasks.loop(hours=24)
@@ -435,6 +536,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @donation_snapshot_task.before_loop
     @cleanup_old_snapshots_task.before_loop
     @check_api_status_task.before_loop
+    @reconcile_membership_task.before_loop
     async def before_tasks_start(self):
         """Espera o bot, DB e CoC estarem prontos antes de iniciar as tasks."""
         logger.debug(f"before_tasks_start: Aguardando on_ready...")

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import logging
+import datetime
 from typing import Dict, Any
 import geniuslib as coc
 from discord.ext import commands
+import pytz
 
 logger = logging.getLogger("database_cog")
 
@@ -82,6 +84,57 @@ class DatabaseCog(commands.Cog, name="Banco de Dados"):
         except Exception as e:
             logger.error(f"Erro ao atualizar borda admin para {player_tag}: {e}", exc_info=True)
             raise
+
+    async def record_member_join(self, player_tag: str):
+        """Registra a entrada de um membro no clã (reinicia o tempo de casa a cada entrada)."""
+        if self.db is None:
+            logger.error("Banco de dados não disponível, não é possível registrar entrada.")
+            raise ConnectionError("Banco de dados não conectado.")
+        try:
+            player_tag_decoded = coc.utils.correct_tag(player_tag)
+            now = datetime.datetime.now(pytz.utc)
+            existing = await self.db.clan_membership.find_one({"_id": player_tag_decoded})
+            is_active = existing is not None and not existing.get("left_at") and existing.get("joined_at")
+            if is_active:
+                return
+            await self.db.clan_membership.update_one(
+                {"_id": player_tag_decoded},
+                {"$set": {"joined_at": now, "left_at": None, "source": "event", "updated_at": now}},
+                upsert=True
+            )
+            logger.info(f"Entrada registrada para {player_tag_decoded}.")
+        except Exception as e:
+            logger.error(f"Erro ao registrar entrada para {player_tag}: {e}", exc_info=True)
+
+    async def record_member_leave(self, player_tag: str):
+        """Registra a saída de um membro do clã."""
+        if self.db is None:
+            logger.error("Banco de dados não disponível, não é possível registrar saída.")
+            raise ConnectionError("Banco de dados não conectado.")
+        try:
+            player_tag_decoded = coc.utils.correct_tag(player_tag)
+            now = datetime.datetime.now(pytz.utc)
+            await self.db.clan_membership.update_one(
+                {"_id": player_tag_decoded, "left_at": None},
+                {"$set": {"left_at": now, "updated_at": now}}
+            )
+            logger.info(f"Saída registrada para {player_tag_decoded}.")
+        except Exception as e:
+            logger.error(f"Erro ao registrar saída para {player_tag}: {e}", exc_info=True)
+
+    async def load_membership_records(self, tags=None) -> Dict[str, Dict[str, Any]]:
+        """Carrega registros de entrada/saída. Se tags for informado, filtra por elas."""
+        if self.db is None:
+            logger.warning("Banco de dados não disponível, não é possível carregar registros de membros.")
+            return {}
+        try:
+            query = {"_id": {"$in": list(tags)}} if tags else {}
+            cursor = self.db.clan_membership.find(query)
+            records = {doc["_id"]: doc async for doc in cursor if "_id" in doc}
+            return records
+        except Exception as e:
+            logger.error(f"Erro ao carregar registros de membros: {e}", exc_info=True)
+            return {}
 
     def _sanitize_keys_for_mongo(self, obj: Any) -> Any:
         if isinstance(obj, dict):
