@@ -1,6 +1,6 @@
 ﻿# ClashGenius — O Gênio das Guerras
 
-![Versao](https://img.shields.io/badge/versao-34.3.0--GeniusLib--v5.3.0-182c61?style=flat-square&logo=python)
+![Versao](https://img.shields.io/badge/versao-34.4.0--GeniusLib--v5.3.0-182c61?style=flat-square&logo=python)
 ![Status](https://img.shields.io/badge/Status-Operacional-16a34a?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.10%2B-2563eb?logo=python&style=flat-square)
 ![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-0ea5e9?style=flat-square&logo=render)
@@ -445,8 +445,9 @@ ClashGenius/
 
 Consulte [CHANGELOG.md](CHANGELOG.md) para o histórico completo de versões.
 
-### Versão Atual: 34.3.0-GeniusLib-v5.3.0
+### Versão Atual: 34.4.0-GeniusLib-v5.3.0
 
+- **v34.4.0** — Aba Membros com área de destaque: fixos (CWL priority) e admins agrupados no topo sob uma faixa separadora em destaque (gradiente dourado→roxo), demais membros abaixo com faixa própria; filtros por seção
 - **v34.3.0** — Perfil do membro com tempo de casa (data de entrada rastreada via eventos + estimativa pela 1ª guerra), carteira de combate (histórico de guerras com V/D/E) e percentil no clã (troféus/doações)
 - **v34.2.1** — Fix mobile: grids da Guerra/IA e Ataques Pendentes estouradas no celular agora ocupam a tela toda, tabs da Guerra em linha, overlay "fechado" e cards de membros compactos
 - **v34.2.0** — PWA (site instalável como app, service worker, offline page), painel 100% responsivo para celular (hambúrguer/drawer, tabelas com scroll, admin mobile)

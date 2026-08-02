@@ -1467,7 +1467,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        setHtml(membersGridEl, data.members.map(m => {
+        const featured = [];
+        const regular = [];
+        data.members.forEach(m => {
+            if (m.cwl_status === 'priority' || m.admin_border === true) featured.push(m);
+            else regular.push(m);
+        });
+
+        const buildMemberCard = (m) => {
             const hasMissedAttack = memberTagsMissingAttacks.has(m.tag);
             const watchlistClass = m.isOnWatchlist ? 'on-watchlist' : '';
             const missedAttackClass = hasMissedAttack ? 'missed-attack-member' : '';
@@ -1541,7 +1548,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${userIsAdmin ? `<button class="admin-border-btn ${isAdminBorder ? 'active' : ''}" data-player-tag="${escapeHtml(m.tag || '')}" title="Borda Animada de Admin">${icon('shield')} Admin</button>` : ''}
                 </div>
             </div>`;
-        }).join(''));
+        };
+
+        const featuredSection = featured.length
+            ? `<div class="members-section">
+                <div class="members-separator members-separator-featured">
+                    <span class="members-separator-icon">${icon('star')}</span>
+                    Fixos &amp; Admins
+                    <span class="members-separator-count">${featured.length}</span>
+                </div>
+                <div class="members-grid">${featured.map(buildMemberCard).join('')}</div>
+            </div>`
+            : '';
+
+        const regularSection = regular.length
+            ? `<div class="members-section">
+                <div class="members-separator">
+                    <span class="members-separator-icon">${icon('shield')}</span>
+                    Demais Membros
+                    <span class="members-separator-count">${regular.length}</span>
+                </div>
+                <div class="members-grid">${regular.map(buildMemberCard).join('')}</div>
+            </div>`
+            : '';
+
+        setHtml(membersGridEl, featuredSection + regularSection);
 
         attachMemberEventListeners();
         applyMemberFilters(); 
@@ -1556,6 +1587,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const nameMatch = name.includes(nameFilter);
             const thMatch = !thFilter || th === thFilter;
             card.style.display = (nameMatch && thMatch) ? 'flex' : 'none';
+        });
+        document.querySelectorAll('.members-section').forEach(section => {
+            const cards = [...section.querySelectorAll('.member-card')];
+            const visible = cards.filter(c => c.style.display !== 'none').length;
+            section.style.display = visible > 0 ? 'block' : 'none';
+            const countEl = section.querySelector('.members-separator-count');
+            if (countEl) countEl.textContent = visible;
         });
     }
 

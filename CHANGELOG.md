@@ -3,6 +3,17 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.4.0] — 2026-08-02
+
+### Adicionado
+- **Aba Membros (Web)** — Nova área de **destaque no topo**: membros fixos (CWL `priority`) e marcados como ADMIN (borda) são agrupados sob uma **faixa separadora** em destaque (gradiente dourado→roxo com brilho e shimmer), separados dos demais membros por uma segunda faixa "Demais Membros"
+
+### Alterado
+- **static/js/scripts.js** — `populateMembersList` divide a lista em `featured`/`regular`, extrai o card para o helper `buildMemberCard` e renderiza duas seções com faixas separadoras (`.members-separator`, `.members-separator-featured`) e contadores; `applyMemberFilters` agora filtra por seção, esconde a seção vazia e atualiza o contador visível
+- **static/css/style.css** — Novos estilos `.members-section`, `.members-separator` (+ variante `-featured` com shimmer/brilho) e `.members-separator-count` (pill), com media query ≤480px
+- **static/sw.js** — Cache versionado para v34.4.0
+- **config.py** — Versão bumpada de 34.3.0 para 34.4.0
+
 ## [34.3.0] — 2026-08-02
 
 ### Adicionado
