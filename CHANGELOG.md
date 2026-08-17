@@ -1,6 +1,20 @@
-﻿# Changelog ΓÇö ClashGenius
+﻿# Changelog — ClashGenius
 
-Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
+Todas as mudanças notáveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
+---
+
+## [34.6.0] — 2026-08-17
+
+### Adicionado
+- **cogs/smurf_detection_cog.py** — Novo método `get_training_status()` que retorna progresso do treino XGBoost (labels reais, amostras, status do modelo)
+- **cogs/admin_cog.py** — Método delegador `get_smurf_training_status()` para expor status ao web server
+- **web/admin_routes.py** — Nova rota GET `/smurf_training_status` no painel admin
+- **static/admin_panel.html** — Container `<div id="radar-training-status">` na seção Radar Pericial
+- **static/js/admin.js** — Função `loadTrainingStatus()` que renderiza barras de progresso do XGBoost (labels reais X/5, amostras X/20, status cold_start/ready/trained); chamada automaticamente ao abrir Radar Pericial e após Absolver/Condenar
+
+### Alterado
+- **config.py** — Versão bumpada de 34.5.6 para 34.6.0
+
 ---
 
 ## [34.5.6] — 2026-08-17

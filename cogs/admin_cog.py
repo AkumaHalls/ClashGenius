@@ -330,6 +330,11 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         if not smurf_cog: return {"error": "Smurf Cog não carregado."}
         return await smurf_cog.get_web_dossier()
 
+    async def get_smurf_training_status(self):
+        smurf_cog = self.bot.get_cog("Detetor de Smurfs IA")
+        if not smurf_cog: return {"error": "Smurf Cog não carregado."}
+        return await smurf_cog.get_training_status()
+
     async def absolve_smurf(self, pair_id):
         smurf_cog = self.bot.get_cog("Detetor de Smurfs IA")
         if not smurf_cog: return {"status": "error", "message": "Módulo offline."}

@@ -1239,6 +1239,33 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
     # ==================== APIs PARA O PAINEL WEB (XAI EXPORT) ====================
 
+    async def get_training_status(self) -> Dict[str, Any]:
+        """Retorna o progresso de treino do XGBoost para o painel admin."""
+        if self.db is None:
+            return {"real_labels": 0, "real_labels_needed": self.XGB_MIN_REAL_LABELS,
+                    "total_samples": 0, "total_samples_needed": self.XGB_MIN_TOTAL_SAMPLES,
+                    "model_status": "unavailable"}
+        try:
+            total_samples = await self.db.smurf_training.count_documents({})
+            real_labels = await self.db.smurf_training.count_documents({"real_label": {"$exists": True}})
+            if self._xgb_is_trained:
+                status = "trained"
+            elif real_labels >= self.XGB_MIN_REAL_LABELS and total_samples >= self.XGB_MIN_TOTAL_SAMPLES:
+                status = "ready"
+            else:
+                status = "cold_start"
+            return {
+                "real_labels": real_labels,
+                "real_labels_needed": self.XGB_MIN_REAL_LABELS,
+                "total_samples": total_samples,
+                "total_samples_needed": self.XGB_MIN_TOTAL_SAMPLES,
+                "model_status": status,
+            }
+        except Exception:
+            return {"real_labels": 0, "real_labels_needed": self.XGB_MIN_REAL_LABELS,
+                    "total_samples": 0, "total_samples_needed": self.XGB_MIN_TOTAL_SAMPLES,
+                    "model_status": "error"}
+
     async def get_web_dossier(self) -> List[Dict[str, Any]]:
         """API Web Segura: Escaneia o banco e a Supercell sem travar."""
         if self.db is None or not self.bot.api_client: return []

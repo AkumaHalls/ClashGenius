@@ -537,6 +537,80 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================
     // RENDERIZADOR XAI (EXPLAINABLE AI) - TERMINAL FORENSE
     // =========================================================
+
+    async function loadTrainingStatus() {
+        const el = document.getElementById('radar-training-status');
+        if (!el) return;
+        try {
+            const data = await fetchAdminAPI('smurf_training_status');
+            if (data.error) { el.innerHTML = ''; return; }
+            const pctLabels = Math.min(100, (data.real_labels / data.real_labels_needed) * 100);
+            const pctSamples = Math.min(100, (data.total_samples / data.total_samples_needed) * 100);
+            const statusMap = {
+                cold_start: 'Cold Start',
+                ready: 'Pronto para Treinar',
+                trained: 'Modelo Treinado',
+                unavailable: 'Indisponivel',
+                error: 'Erro'
+            };
+            const statusColors = {
+                cold_start: '#3498db',
+                ready: '#f39c12',
+                trained: '#2ecc71',
+                unavailable: '#e74c3c',
+                error: '#e74c3c'
+            };
+            const statusIcons = {
+                cold_start: '&#10052;',
+                ready: '&#9889;',
+                trained: '&#10004;',
+                unavailable: '&#9888;',
+                error: '&#9888;'
+            };
+            const st = data.model_status;
+            const stColor = statusColors[st] || '#a0aec0';
+            const stLabel = statusMap[st] || st;
+            const stIcon = statusIcons[st] || '';
+            const bar1Color = pctLabels >= 100 ? '#2ecc71' : '#f39c12';
+            const bar2Color = pctSamples >= 100 ? '#2ecc71' : '#3498db';
+            const hint = st === 'cold_start'
+                ? 'Use os botoes Absolver/Condenar abaixo para treinar o modelo.'
+                : st === 'ready'
+                ? 'Requisitos atingidos! O modelo sera treinado no proximo ciclo.'
+                : st === 'trained'
+                ? 'Modelo ativo e previsoes usando XGBoost.'
+                : '';
+            el.innerHTML = `
+            <div style="background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:15px 20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <span style="font-size:0.8em; text-transform:uppercase; letter-spacing:1px; color:#a0aec0; font-weight:bold;">Status do Modelo XGBoost</span>
+                    <span style="font-size:0.8em; color:${stColor}; font-weight:bold;">${stIcon} ${stLabel}</span>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.78em; color:#cbd5e0; margin-bottom:4px;">
+                        <span>Labels Reais (Absolver / Condenar)</span>
+                        <span style="font-weight:bold; color:${bar1Color};">${data.real_labels} / ${data.real_labels_needed}</span>
+                    </div>
+                    <div style="height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; width:${pctLabels}%; background:${bar1Color}; border-radius:3px; transition: width 0.5s ease;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.78em; color:#cbd5e0; margin-bottom:4px;">
+                        <span>Amostras de Treino</span>
+                        <span style="font-weight:bold; color:${bar2Color};">${data.total_samples} / ${data.total_samples_needed}</span>
+                    </div>
+                    <div style="height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; width:${pctSamples}%; background:${bar2Color}; border-radius:3px; transition: width 0.5s ease;"></div>
+                    </div>
+                </div>
+                ${hint ? `<div style="margin-top:10px; font-size:0.75em; color:#718096; font-style:italic;">${hint}</div>` : ''}
+            </div>`;
+        } catch(e) {
+            el.innerHTML = '';
+        }
+    }
+
 async function loadRadarDossier() {
         const container = document.getElementById('radar-dossier-container');
         if (!container) return;
@@ -646,7 +720,8 @@ async function loadRadarDossier() {
                 body: JSON.stringify({action: action, payload: {pair_id: pairId}})
             });
             displayFeedback(feedback, response.message || 'Sentença aplicada!');
-            loadRadarDossier(); 
+            loadRadarDossier();
+            loadTrainingStatus();
         } catch (e) {
              displayFeedback(feedback, 'Erro ao comunicar com o Kernel Central.', true);
         }
@@ -787,6 +862,7 @@ async function loadRadarDossier() {
                      await loadWatchlist();
                     break;
                 case 'admin-radar':
+                     await loadTrainingStatus();
                      await loadRadarDossier();
                     break;
                 case 'admin-analytics':

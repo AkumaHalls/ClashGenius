@@ -146,6 +146,11 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
             return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
         return web.json_response(await admin_cog.get_smurf_dossier(), dumps=lambda v: json.dumps(v, default=str))
 
+    async def api_admin_smurf_training_status(r):
+        if not admin_cog:
+            return web.json_response({"status": "error", "message": "Admin cog não carregado."}, status=500)
+        return web.json_response(await admin_cog.get_smurf_training_status(), dumps=lambda v: json.dumps(v, default=str))
+
     async def api_get_csrf_token(r):
         session = await get_session(r)
         token = session.get('csrf_token')
@@ -235,6 +240,7 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
     admin_api_app.router.add_post("/watchlist/remove", api_admin_remove_watchlist)
     admin_api_app.router.add_get("/discord_data", api_admin_discord_data)
     admin_api_app.router.add_get("/smurf_dossier", api_admin_smurf_dossier)
+    admin_api_app.router.add_get("/smurf_training_status", api_admin_smurf_training_status)
 
     # Export (usa web_api_cog diretamente)
     web_api_cog = bot_instance.get_cog("Web API")
