@@ -3,6 +3,16 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.5.4] — 2026-08-17
+
+### Corrigido
+- **requirements.txt** — GeniusLib agora inclui `translations.json` e `assets/` no package-data (v5.5.2), corrigindo `FileNotFoundError` no `_load_static()` durante login CoC no Render
+
+### Alterado
+- **config.py** — Versão bumpada de 34.5.3 para 34.5.4 (GeniusLib 5.5.2)
+
+---
+
 ## [34.5.3] — 2026-08-17
 
 ### Corrigido
