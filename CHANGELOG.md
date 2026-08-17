@@ -3,6 +3,14 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.5.5] — 2026-08-17
+
+### Alterado
+- **requirements.txt** — geniuslib agora é instalado via PyPI (`>=5.5.4`) em vez de git+https, com GitHub Action de publish automático
+- **config.py** — Versão bumpada de 34.5.4 para 34.5.5
+
+---
+
 ## [34.5.4] — 2026-08-17
 
 ### Corrigido
