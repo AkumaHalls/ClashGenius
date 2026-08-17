@@ -3,6 +3,17 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.5.6] — 2026-08-17
+
+### Adicionado
+- **scripts/download_assets.py** — Script que baixa assets da GeniusLib (385MB) do GitHub Releases quando não encontrados no disco
+- **web/server.py** — Auto-healing: se assets não existem, baixa automaticamente do GitHub antes de servir
+
+### Alterado
+- **config.py** — Versão bumpada de 34.5.5 para 34.5.6
+
+---
+
 ## [34.5.5] — 2026-08-17
 
 ### Alterado

@@ -88,7 +88,15 @@ async def setup_web_server(bot_instance):
     try:
         from geniuslib.utils import get_assets_dir as _get_assets_dir
         geniuslib_assets_dir = _get_assets_dir()
-        if os.path.isdir(geniuslib_assets_dir):
+        if not os.path.isdir(geniuslib_assets_dir) or not os.listdir(geniuslib_assets_dir):
+            logger.info("Assets da GeniusLib não encontrados. Baixando do GitHub Releases...")
+            try:
+                import subprocess, sys
+                script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "download_assets.py")
+                subprocess.run([sys.executable, script], check=True, timeout=120)
+            except Exception as dl_err:
+                logger.warning(f"Falha ao baixar assets: {dl_err}")
+        if os.path.isdir(geniuslib_assets_dir) and os.listdir(geniuslib_assets_dir):
             app.router.add_static('/assets/', path=geniuslib_assets_dir, name='assets')
             logger.info(f"Assets da GeniusLib servidos de: {geniuslib_assets_dir}")
         else:
