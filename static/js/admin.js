@@ -614,6 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadRadarDossier() {
         const container = document.getElementById('radar-dossier-container');
         if (!container) return;
+        container.innerHTML = '<div style="text-align:center; padding:20px;"><div class="loading-spinner" style="margin:0 auto 10px;"></div><span style="color:#a0aec0; font-size:0.85em;">Analisando patrões comportamentais...</span></div>';
         try {
             const data = await fetchAdminAPI('smurf_dossier');
             
@@ -648,6 +649,9 @@ async function loadRadarDossier() {
                 const color = doc.risk_color;
                 
                 let terminalHtml = '';
+                if(doc.model_status === 'cold_start' && doc.strong_axes < 3) {
+                    terminalHtml += `<div style="margin-bottom: 10px; padding: 8px 12px; background: rgba(243,156,18,0.15); border: 1px solid rgba(243,156,18,0.3); border-radius: 6px; font-size: 0.85em; color: #f39c12;">⚠️ Confiança Insuficiente: Modelo em cold start com apenas ${doc.strong_axes} eixo(s) forte(s). Use Absolver/Condenar para treinar o modelo ML.</div>`;
+                }
                 if(doc.thoughts && doc.thoughts.length > 0) {
                     doc.thoughts.forEach(t => {
                         let weightBadge = '';
@@ -665,6 +669,7 @@ async function loadRadarDossier() {
                     <div style="padding: 15px 20px; background: linear-gradient(90deg, ${color}22 0%, transparent 100%); border-bottom: 1px solid ${color}44; display:flex; justify-content: space-between; align-items: center;">
                         <div>
                             <span style="font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; color: ${color}; font-weight: bold;">Identificação XAI</span>
+                            <span style="font-size: 0.65em; padding: 2px 6px; border-radius: 4px; margin-left: 8px; background: ${doc.model_status === 'trained' ? 'rgba(46,204,113,0.2)' : 'rgba(243,156,18,0.2)'}; color: ${doc.model_status === 'trained' ? '#2ecc71' : '#f39c12'};">${doc.model_status === 'trained' ? 'ML' : 'HEURÍSTICA'}</span>
                             <h4 style="margin: 5px 0 0 0; font-size: 1.2em; display:flex; align-items:center; gap: 10px;">
                                 <img src="/assets/icons/Icon_HV_Podium.png" class="icon-sm" alt="main"> ${escapeHtml(doc.main_name)} <span style="font-size:0.7em; color:var(--color-text-secondary);">${escapeHtml(doc.main_tag)}</span>
                                 <span style="color:${color};"><img src="/assets/icons/Icon_HV_Raid_Attack.png" class="icon-sm" alt="link"></span>
@@ -673,7 +678,8 @@ async function loadRadarDossier() {
                         </div>
                         <div style="text-align: right;">
                             <div style="font-size: 1.8em; font-weight: 900; color: ${color}; line-height: 1;">${doc.confidence}%</div>
-                            <div style="font-size: 0.8em; color: var(--color-text-secondary); text-transform:uppercase;">${escapeHtml(doc.risk_label)}</div>
+                            <div style="font-size: 0.8em; color: ${color}; text-transform:uppercase; font-weight:bold;">${escapeHtml(doc.risk_label)}</div>
+                            <div style="font-size: 0.7em; color: var(--color-text-secondary); margin-top:2px;">${doc.model_status === 'trained' ? 'ML Treinado' : 'Cold Start'} · ${doc.strong_axes} eixo(s)</div>
                         </div>
                     </div>
                     

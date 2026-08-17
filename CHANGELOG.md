@@ -3,7 +3,21 @@
 Todas as mudanças notáveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
-## [34.6.0] — 2026-08-17
+## [34.7.0] — 2026-08-17
+
+### Corrigido
+- **cogs/smurf_detection_cog.py** — Removido auto-treino com pseudo-labels (linhas 1111-1115) — training samples agora só são criados por Absolver/Condenar com julgamento humano real
+- **MongoDB smurf_training** — Limpados 10 docs com `real_label=None` (lixo automático), restado apenas 1 doc com label real
+
+### Alterado
+- **cogs/smurf_detection_cog.py** — Adicionado min-evidence: pares precisam de pelo menos 1 eixo forte (ou behavior_score >= 15) pra aparecer no radar
+- **cogs/smurf_detection_cog.py** — Risk labels agora são granulares: "Risco Extremo" (ML >= 85%), "Alta Suspeita" (ML >= 60%), "Em Observação" (ML >= 30%), "Suspeita Moderada (Cold Start)" (>= 50% com 3+ eixos), "Em Observação (Cold Start)" (>= 40% com 2+ eixos), "Baixa Confiança" (resto)
+- **cogs/smurf_detection_cog.py** — Retornado `strong_axes` e `model_status` no resultado do dossier
+- **static/js/admin.js** — Loading spinner "Analisando patrões comportamentais..." enquanto carrega radar
+- **static/js/admin.js** — Badge ML/HEURÍSTICA no header de cada dossiê
+- **static/js/admin.js** — Info de eixos fortes e modelo abaixo do score
+- **static/js/admin.js** — Warning "Confiança Insuficiente" quando cold start com < 3 eixos
+- **config.py** — Versão bumpada de 34.6.0 para 34.7.0
 
 ### Adicionado
 - **cogs/smurf_detection_cog.py** — Novo método `get_training_status()` que retorna progresso do treino XGBoost (labels reais, amostras, status do modelo)

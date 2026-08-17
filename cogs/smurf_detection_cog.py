@@ -1108,14 +1108,29 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             thoughts.append({"axis": "IA XGBoost", "weight": "Info",
                 "text": f"Modo cold start ({ml_status}). Use Absolver/Condenar para treinar o modelo."})
 
-        # ---- FIRE-AND-FORGET: armazenar exemplo de treinamento ----
-        pseudo_label = bayesian_conf / 100.0
-        asyncio.ensure_future(self._store_training_example_async(
-            pair_id, main_p.tag, smurf_p.tag, feature_dict, pseudo_label
-        ))
+        # ---- MIN-EVIDENCE: exige pelo menos 1 eixo forte pra reportar ----
+        if strong_axes < 1 and behavior_score < 15:
+            return None
 
-        risk_label = "Risco Extremo" if confidence >= 85 else ("Alta Suspeita" if confidence >= 60 else "Em Observação")
-        risk_color = "var(--color-danger)" if confidence >= 85 else ("var(--color-warning)" if confidence >= 60 else "var(--color-info)")
+        # ---- RISK LABELS: só acusar quando tem evidência real ----
+        if self._xgb_is_trained and confidence >= 85:
+            risk_label = "Risco Extremo"
+            risk_color = "var(--color-danger)"
+        elif self._xgb_is_trained and confidence >= 60:
+            risk_label = "Alta Suspeita"
+            risk_color = "var(--color-warning)"
+        elif self._xgb_is_trained and confidence >= 30:
+            risk_label = "Em Observação"
+            risk_color = "var(--color-info)"
+        elif not self._xgb_is_trained and strong_axes >= 3 and confidence >= 50:
+            risk_label = "Suspeita Moderada (Cold Start)"
+            risk_color = "var(--color-warning)"
+        elif not self._xgb_is_trained and strong_axes >= 2 and confidence >= 40:
+            risk_label = "Em Observação (Cold Start)"
+            risk_color = "var(--color-info)"
+        else:
+            risk_label = "Baixa Confiança"
+            risk_color = "var(--color-muted)"
 
         return {
             "pair_id": pair_id,
@@ -1126,6 +1141,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             "risk_color": risk_color,
             "thoughts": thoughts,
             "evidence_count": evidence_count,
+            "strong_axes": strong_axes,
+            "model_status": "trained" if self._xgb_is_trained else "cold_start",
         }
 
     # ==================== COMANDO DISCORD ====================
