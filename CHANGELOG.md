@@ -3,6 +3,23 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.5.3] — 2026-08-17
+
+### Corrigido
+- **smurf_detection_cog.py** — Removido `NameError: 'player_info' is not defined` na linha 582 de `_prepare_clan_baselines` (referência duplicada obsoleta)
+
+### Alterado
+- **smurf_detection_cog.py** — Removido gate de similaridade de nomes (`MIN_FUZZY_RATIO >= 78`) no loop principal do `/smurfs` — todos os pares agora passam pelo ML, permitindo detecção baseada nos 9 eixos analíticos mesmo com nomes diferentes
+- **smurf_detection_cog.py** — Threshold de telemetry no DB baixado de `score > 10` para `score > 3`, permitindo incluir pares com evidência mínima no scan
+- **smurf_detection_cog.py** — Gates de evidência relaxados: removido bloqueio `evidence_count == 1 AND bayesian_conf < 60 AND behavior_score < 40`, e gate principal baixado de `evidence_count < 2 AND behavior_score < 15` para `evidence_count < 1 AND behavior_score < 10`
+- **smurf_detection_cog.py** — Cap bayesiano para eixos fracos subiu de 79% para 84%
+- **smurf_detection_cog.py** — `hit_count` no radar de doações baixado de 2 para 1, permitindo logging desde a primeira observação
+- **smurf_detection_cog.py** — Cooldown de telemetry reduzido de 24h para 4h, acelerando acumulação de score
+- **smurf_detection_cog.py** — Prior bayesiano aumentado de 2% para 5%, reduzindo viância para "clean" no cold start
+- **config.py** — Versão bumpada de 34.5.2 para 34.5.3
+
+---
+
 ## [34.5.2] — 2026-08-17
 
 ### Corrigido

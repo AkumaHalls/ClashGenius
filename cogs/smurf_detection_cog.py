@@ -40,7 +40,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         self.WAR_SYNC_SECONDS = 90
         self.TELEMETRY_DONATION_POINTS = 3
         self.TELEMETRY_WAR_POINTS = 8
-        self.TELEMETRY_COOLDOWN_HOURS = 24
+        self.TELEMETRY_COOLDOWN_HOURS = 4
         self.ISOLATION_FOREST_CONTAMINATION = 0.15
         self._if_score_cache: Dict[str, float] = {}
         self._pair_if_score_cache: Dict[str, float] = {}
@@ -52,8 +52,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         self._if_score_ts: Dict[str, float] = {}
         self._pair_if_score_ts: Dict[str, float] = {}
 
-        # Bayesian prior: P(smurf) = 2% for any random pair
-        self.BAYESIAN_PRIOR = 0.02
+        # Bayesian prior: P(smurf) = 5% for any random pair
+        self.BAYESIAN_PRIOR = 0.05
 
         # XGBoost training config
         self.XGB_PSEUDO_WEIGHT = 0.3
@@ -579,9 +579,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             self._if_threshold = 0.0
             self._pair_if_threshold = 0.0
 
-        self._last_clan_players = player_info
-        if len(self._last_clan_players) > 100:
-            self._last_clan_players = self._last_clan_players[:100]
+
 
     def _get_isolation_forest_score(self, player: coc.Player) -> float:
         """Retorna score de anomalia do IsolationForest (0=normal, 1=anômalo)."""
@@ -746,7 +744,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                                     self._donation_pair_history[pair_id] = self._donation_pair_history.get(pair_id, 0) + 1
                                     self._donation_pair_history_ttl[pair_id] = now_ts
                                     hit_count = self._donation_pair_history.get(pair_id, 0)
-                                    if hit_count >= 2:
+                                    if hit_count >= 1:
                                         await self._log_telemetry(
                                             d_member, r_member, self.TELEMETRY_DONATION_POINTS,
                                             f"Transferência (reincidência #{hit_count}): {d_member.name} doou {d_amount} e {r_member.name} recebeu {r_amount} simultaneamente.",
@@ -1080,12 +1078,10 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         bayesian_conf = self._calculate_bayesian_confidence(likelihood_ratios)
         evidence_count = axis_count
 
-        if evidence_count < 2 and behavior_score < 15:
-            return None
-        if evidence_count == 1 and bayesian_conf < 60 and behavior_score < 40:
+        if evidence_count < 1 and behavior_score < 10:
             return None
         if bayesian_conf >= 85 and strong_axes < 3:
-            bayesian_conf = min(bayesian_conf, 79)
+            bayesian_conf = min(bayesian_conf, 84)
 
         # ---- EXTRAIR 26 FEATURES para o XGBoost ----
         pair_features_df = self._extract_pair_features(p1, p2, telemetry, baseline)
@@ -1148,7 +1144,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             telemetry_matrix = {}
             
             if self.db is not None:
-                cursor = self.db.smurf_evidence.find({"score": {"$gt": 10}})
+                cursor = self.db.smurf_evidence.find({"score": {"$gt": 3}})
                 async for doc in cursor: 
                     telemetry_matrix[doc["_id"]] = doc
                     if doc.get("tag1"): member_tags.add(doc.get("tag1"))
@@ -1178,11 +1174,10 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
                     telemetry = telemetry_matrix.get(pair_id)
                     
-                    if telemetry or self._phonetic_lexical_analysis(p1.name, p2.name) >= self.MIN_FUZZY_RATIO:
-                        dossier = self._run_ml_inference(p1, p2, telemetry or {})
-                        if dossier:
-                            results.append(dossier)
-                            processed.add(dossier["smurf_tag"])
+                    dossier = self._run_ml_inference(p1, p2, telemetry or {})
+                    if dossier:
+                        results.append(dossier)
+                        processed.add(dossier["smurf_tag"])
 
             if not results:
                 return await interaction.followup.send("✅ **Clã Limpo:** A Inteligência Artificial cruzou os dados e não detectou smurfs atuando.")
