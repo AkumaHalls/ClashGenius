@@ -21,6 +21,49 @@ from web.auth_routes import register_auth_routes
 logger = logging.getLogger("web.server")
 
 
+async def start_early_health_check(bot_instance):
+    """Inicia um servidor mínimo de health check imediatamente no setup_hook,
+    antes do carregamento dos cogs. Render precisa ver a porta aberta rápido."""
+    early_app = web.Application()
+
+    async def health(r):
+        return web.json_response({"status": "starting", "version": bot_instance.bot_version})
+
+    async def root(r):
+        return web.json_response({"status": "starting", "version": bot_instance.bot_version})
+
+    early_app.router.add_get("/health", health)
+    early_app.router.add_get("/", root)
+    early_app.router.add_head("/", lambda r: web.Response(status=200))
+
+    runner = web.AppRunner(early_app)
+    await runner.setup()
+    try:
+        port = int(os.environ.get("PORT", 10000))
+    except (ValueError, TypeError):
+        port = 10000
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    try:
+        await site.start()
+        bot_instance._early_web_runner = runner
+        logger.info(f">>> Health check antecipado iniciado em :{port} <<<")
+    except Exception as e:
+        logger.warning(f"Health check antecipado não pôde iniciar (porta pode já estar em uso): {e}")
+        bot_instance._early_web_runner = None
+
+
+async def stop_early_health_check(bot_instance):
+    """Para o health check antecipado quando o servidor web completo inicia."""
+    runner = getattr(bot_instance, '_early_web_runner', None)
+    if runner:
+        try:
+            await runner.cleanup()
+            logger.info("Health check antecipado encerrado.")
+        except Exception:
+            pass
+        bot_instance._early_web_runner = None
+
+
 async def setup_web_server(bot_instance):
     """Configura e inicia o servidor web aiohttp."""
     logger.info("setup_web_server: Aguardando fim do setup_hook...")
@@ -68,7 +111,7 @@ async def setup_web_server(bot_instance):
 
     # Rotas de páginas
     app.router.add_static('/static/', path=static_dir, name='static')
-    app.router.add_get("/", lambda r: web.HTTPFound('/painel'))
+    app.router.add_get("/", lambda r: web.json_response({"status": "ok", "version": bot_instance.bot_version}))
 
     # PWA: manifest com MIME correto + service worker com escopo raiz
     async def manifest_handler(r):
@@ -142,6 +185,9 @@ async def setup_web_server(bot_instance):
         httponly=True,
         samesite='Lax'
     ))
+
+    # Parar health check antecipado antes de iniciar o servidor completo
+    await stop_early_health_check(bot_instance)
 
     # Iniciar
     runner = web.AppRunner(app)

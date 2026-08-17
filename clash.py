@@ -101,6 +101,9 @@ class ClashGeniusBot(commands.Bot):
     async def setup_hook(self) -> None:
         logger.info("### Iniciando setup_hook ###")
         try:
+            from web.server import start_early_health_check
+            await start_early_health_check(self)
+
             if MONGO_DB_URL:
                 try:
                     db_name = parse_uri(MONGO_DB_URL).get('database', 'genius_db')
@@ -218,14 +221,18 @@ class ClashGeniusBot(commands.Bot):
 
     async def close(self):
         logger.info("Iniciando desligamento...")
+        if hasattr(self, '_early_web_runner') and self._early_web_runner:
+             try: await self._early_web_runner.cleanup()
+             except Exception: pass
+             self._early_web_runner = None
         if hasattr(self, '_web_runner'):
              logger.info("Parando servidor web...")
              await self._web_runner.cleanup()
              logger.info("Servidor web parado.")
         if self.api_client: logger.info("Fechando coc.py client..."); await self.api_client.close(); logger.info("coc.py fechado.")
-        if self.mongo_client: logger.info("Fechando MongoDB client..."); self.mongo_client.close(); logger.info("MongoDB fechado.")
-        logger.info("Chamando super().close()...")
+        logger.info("Chamando super().close() (descarrega cogs ANTES de fechar MongoDB)...")
         await super().close()
+        if self.mongo_client: logger.info("Fechando MongoDB client..."); self.mongo_client.close(); logger.info("MongoDB fechado.")
         logger.info("Bot desligado.")
 
     async def _setup_middleware(self):

@@ -3,6 +3,19 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.5.1] — 2026-08-17
+
+### Corrigido
+- **web/server.py** — Health check antecipado inicia porta 10000 imediatamente no setup_hook (antes de carregar cogs), evitando que Render envie SIGTERM por timeout de startup
+- **web/server.py** — Rota `/` agora retorna 200 JSON em vez de 302 redirect, garantindo que health check do Render passe
+- **clash.py** `close()` — Ordem de shutdown corrigida: `super().close()` (descarrega cogs) executado ANTES de fechar MongoDB, eliminando erro `Cannot use MongoClient after close` no CWLPlanner
+- **clash.py** `close()` — Early web runner também é limpo durante shutdown
+
+### Alterado
+- **Versão:** `34.5.1`
+
+---
+
 ## [34.5.0] — 2026-08-17
 
 ### Corrigido
