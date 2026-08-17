@@ -291,9 +291,16 @@ async def main():
     intents = discord.Intents.default(); intents.message_content = True; intents.members = True; intents.guilds = True
     bot = ClashGeniusBot(command_prefix="!", intents=intents, allowed_mentions=discord.AllowedMentions(roles=True))
     loop = asyncio.get_running_loop()
+
+    def _request_shutdown():
+        if bot.is_ready():
+            asyncio.create_task(bot.close())
+        else:
+            logger.warning("SIGTERM/SIGINT recebido durante startup — ignorando até bot ficar pronto.")
+
     for sig_name in (signal.SIGINT, signal.SIGTERM) if hasattr(signal, 'SIGINT') else ():
         try:
-            loop.add_signal_handler(sig_name, lambda: asyncio.create_task(bot.close()))
+            loop.add_signal_handler(sig_name, _request_shutdown)
         except NotImplementedError:
             pass
     try:
