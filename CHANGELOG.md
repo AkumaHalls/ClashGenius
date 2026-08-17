@@ -3,6 +3,17 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.5.2] — 2026-08-17
+
+### Corrigido
+- **smurf_detection_cog.py** — `_last_clan_players` agora armazena objetos `Player` completos em vez de dicts `{'name', 'tag'}`, corrigindo `AttributeError: 'dict' object has no attribute 'town_hall'` no `/smurfs`
+- **smurf_detection_cog.py** — `_compute_name_similarity_baseline` aceita tanto objetos Player quanto dicts
+
+### Alterado
+- **Versão:** `34.5.2`
+
+---
+
 ## [34.5.1] — 2026-08-17
 
 ### Corrigido
