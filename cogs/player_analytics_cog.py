@@ -21,6 +21,14 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
         self.is_trained = False
         self.player_stats_cache = pd.DataFrame()
 
+    async def cog_unload(self):
+        self.player_stats_cache = pd.DataFrame()
+        self.scaler = None
+        self.kmeans = None
+        self.rf_model = None
+        self.is_trained = False
+        logger.info("PlayerAnalyticsCog descarregado. Modelos e cache liberados.")
+
     async def _extract_time_series_data(self) -> pd.DataFrame:
         """Extrai os dados do MongoDB e constrói uma matriz temporal (ordem cronológica)."""
         if self.bot.db is None:

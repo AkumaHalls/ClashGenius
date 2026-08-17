@@ -21,7 +21,7 @@ logger = logging.getLogger("events_cog")
 class ProfileDetailView(discord.ui.View):
     """View que fica anexada ao relatório efêmero, contendo as abas do perfil."""
     def __init__(self, bot: commands.Bot, player_tag: str):
-        super().__init__(timeout=None)
+        super().__init__(timeout=600)
         self.bot = bot
         self.player_tag = player_tag
 
@@ -43,7 +43,7 @@ class ProfileDetailView(discord.ui.View):
 class OpenProfileButtonView(discord.ui.View):
     """View que fica anexada aos alertas de Entrada/Saída do RH."""
     def __init__(self, bot: commands.Bot, player_tag: str):
-        super().__init__(timeout=None) 
+        super().__init__(timeout=600) 
         self.bot = bot
         self.player_tag = player_tag
 
@@ -208,7 +208,7 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
 
     async def cog_load(self):
         """Inicia o login do cliente de eventos e a task de ataques."""
-        self.bot.loop.create_task(self.start_events_client())
+        self._events_login_task = self.bot.loop.create_task(self.start_events_client())
         self.check_new_attack_task.start()
         self.check_war_preference_task.start()
         logger.info("Cog de Eventos carregado e task de login/ataques iniciada.")
@@ -227,7 +227,13 @@ class EventsCog(commands.Cog, name="Eventos do Clã"):
         """Para a task e fecha o cliente de eventos."""
         self.check_new_attack_task.cancel()
         self.check_war_preference_task.cancel()
+        if hasattr(self, '_events_login_task') and self._events_login_task:
+            self._events_login_task.cancel()
         if self.events_client:
+            if hasattr(self.events_client, '_updater_tasks'):
+                for task in self.events_client._updater_tasks.values():
+                    if not task.done():
+                        task.cancel()
             await self.events_client.close()
 
     async def _send_log_embed(self, embed_to_log: discord.Embed, content: str = None, target_channel_id: int = None, view: Optional[discord.ui.View] = None):

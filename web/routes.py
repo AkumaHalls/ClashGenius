@@ -37,6 +37,9 @@ def register_public_routes(app, bot_instance):
         try:
             data = await func(*args, **kwargs)
             if 'error' not in data and not force_call:
+                if len(bot_instance.web_api_cache) >= bot_instance._WEB_API_CACHE_MAXSIZE:
+                    oldest_key = min(bot_instance.web_api_cache, key=lambda k: bot_instance.web_api_cache[k]["timestamp"])
+                    del bot_instance.web_api_cache[oldest_key]
                 bot_instance.web_api_cache[key] = {"data": data, "timestamp": now}
             elif 'error' in data:
                 status_code = 503 if "API" in data.get('error', '') else (404 if "não encontrado" in data.get('error', '').lower() else 500)
@@ -46,6 +49,8 @@ def register_public_routes(app, bot_instance):
             bot_instance.coc_client_ready.clear()
             bot_instance.api_client = None
             import asyncio
+            if hasattr(bot_instance, '_reconnect_task') and bot_instance._reconnect_task and not bot_instance._reconnect_task.done():
+                bot_instance._reconnect_task.cancel()
             bot_instance._reconnect_task = asyncio.create_task(bot_instance.coc_login_task())
             return web.json_response({"status": "error", "message": "Erro de autenticação com a API CoC. Tentando reconectar..."}, status=503)
         except Exception as e:

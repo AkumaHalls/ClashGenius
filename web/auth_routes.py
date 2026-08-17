@@ -77,10 +77,11 @@ def register_auth_routes(admin_api_app, bot_instance):
         if err:
             return err
 
-        cursor = db.panel_users.find({"status": "pending"})
+        cursor = db.panel_users.find({"status": "pending"}).limit(100)
         users = []
         async for doc in cursor:
             users.append({"username": doc["_id"], "discord": doc.get("discord", ""), "created_at": doc.get("created_at").isoformat() if doc.get("created_at") else ""})
+        await cursor.close()
         return web.json_response(users)
 
     async def api_auth_approve(r):
@@ -137,7 +138,7 @@ def register_auth_routes(admin_api_app, bot_instance):
         if err:
             return err
 
-        cursor = db.panel_users.find({})
+        cursor = db.panel_users.find({}).limit(200)
         users = []
         async for doc in cursor:
             users.append({
@@ -147,6 +148,7 @@ def register_auth_routes(admin_api_app, bot_instance):
                 "discord": doc.get("discord", ""),
                 "created_at": doc.get("created_at").isoformat() if doc.get("created_at") else "",
             })
+        await cursor.close()
         return web.json_response(users)
 
     async def api_auth_me(r):

@@ -3,6 +3,26 @@
 Todas as mudan├ºas not├íveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.5.0] — 2026-08-17
+
+### Corrigido
+- **cogs/war_attack_analysis.py** — `_HISTORY_CACHE` global agora tem TTL de 1h e max de 500 entradas com evicção periódica, impedindo crescimento indefinido
+- **cogs/player_analytics_cog.py** — Adicionado `cog_unload()` que libera DataFrame, StandardScaler, KMeans e RandomForest da memória ao descarregar o cog
+- **cogs/smurf_detection_cog.py** — Três caches sem limite agora têm max de 1000/2000 entradas com timestamps e evicção. Scores do IsolationForest reutilizados do cache. `_last_clan_players` limitado a 100
+- **clash.py** — `clan_cache` limitado a 50 entradas, `web_api_cache` limitado a 200 com LRU, `processed_war_ids` limitado a 2000 com trim periódico
+- **cogs/events_cog.py** — Views com `timeout=600` em vez de `None`. `cog_unload()` cancela os 7 updater tasks do EventsClient. Task de login armazenada para cleanup
+- **web/middleware.py** — `RateLimiter` limpa chaves stale a cada 5min (chaves >10min sem uso removidas)
+- **web/auth_routes.py** — Queries MongoDB agora usam `.limit()` e `cursor.close()` para evitar carregamento ilimitado
+- **cogs/tasks_cog.py** — `.to_list(length=500)` em vez de `None` em agregações MongoDB. `processed_war_ids` limitado ao adicionar guerras
+- **web/routes.py** — `web_api_cache` respeita `_WEB_API_CACHE_MAXSIZE` com LRU. Task de reconexão cancela a anterior
+- **web/admin_routes.py** — HTML do painel admin cacheado em memória (lido do disco 1x)
+
+### Alterado
+- **config.py** — Versão bumpada de 34.4.1 para 34.5.0
+- **static/sw.js** — Cache versionado para v34.5.0
+
+---
+
 ## [34.4.1] — 2026-08-02
 
 ### Corrigido

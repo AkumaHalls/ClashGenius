@@ -16,10 +16,27 @@ logger = logging.getLogger("web.middleware")
 class RateLimiter:
     """Rate limiter simples baseado em janela deslizante."""
 
+    _CLEANUP_INTERVAL = 300
+    _KEY_MAX_AGE = 600
+
     def __init__(self):
         self._requests: dict[str, list[float]] = defaultdict(list)
+        self._last_cleanup: float = time.time()
+
+    def _cleanup_stale_keys(self):
+        now = time.time()
+        if now - self._last_cleanup < self._CLEANUP_INTERVAL:
+            return
+        self._last_cleanup = now
+        stale_keys = []
+        for key, timestamps in self._requests.items():
+            if not timestamps or (now - timestamps[-1]) > self._KEY_MAX_AGE:
+                stale_keys.append(key)
+        for key in stale_keys:
+            del self._requests[key]
 
     def is_rate_limited(self, key: str, max_requests: int = 60, window: int = 60) -> bool:
+        self._cleanup_stale_keys()
         now = time.time()
         cutoff = now - window
         self._requests[key] = [t for t in self._requests[key] if t > cutoff]

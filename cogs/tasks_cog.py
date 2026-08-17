@@ -142,7 +142,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                     }}
                 ]
                 try:
-                    results = await self.db.war_history.aggregate(pipeline).to_list(length=None)
+                    results = await self.db.war_history.aggregate(pipeline).to_list(length=500)
                 except Exception as e:
                     logger.error(f"reconcile_membership_task: Erro na agregação de backfill: {e}")
                     results = []
@@ -165,7 +165,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                     changed = True
 
             # Membros que saíram: registros ativos sem dono na lista atual
-            active_records = await self.db.clan_membership.find({"left_at": None, "joined_at": {"$ne": None}}).to_list(length=None)
+            active_records = await self.db.clan_membership.find({"left_at": None, "joined_at": {"$ne": None}}).to_list(length=500)
             current_set = set(current_tags)
             for record in active_records:
                 if record["_id"] not in current_set:
@@ -300,6 +300,8 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 role_mention = f"<@&{self.bot.role_id_missed_attack}>" if self.bot.role_id_missed_attack else ""
                 await self._send_log_embed(embed, content=f"{role_mention} Alerta!", target_channel_id=self.bot.post_war_analysis_channel_id)
                 self.bot.processed_war_ids.add(war_id)
+                if len(self.bot.processed_war_ids) > self.bot._PROCESSED_WAR_IDS_MAXSIZE:
+                    self.bot.processed_war_ids = set(list(self.bot.processed_war_ids)[-self.bot._PROCESSED_WAR_IDS_MAXSIZE:])
         except Exception as e:
             logger.warning(f"_scan_war_log_for_missed: {e}", exc_info=True)
 
@@ -425,6 +427,8 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                 logger.info(f"check_war_end_task: Nova guerra terminada ({process_reason}) encontrada (ID: {unique_war_id}). Estado API: {war.state}")
                 if await self.process_ended_war(war, unique_war_id):
                     self.bot.processed_war_ids.add(unique_war_id)
+                    if len(self.bot.processed_war_ids) > self.bot._PROCESSED_WAR_IDS_MAXSIZE:
+                        self.bot.processed_war_ids = set(list(self.bot.processed_war_ids)[-self.bot._PROCESSED_WAR_IDS_MAXSIZE:])
                     processed_in_this_run += 1
                     logger.info(f"check_war_end_task: Guerra {unique_war_id} adicionada às processadas.")
                 else: logger.error(f"check_war_end_task: Falha ao processar a guerra {unique_war_id}.")

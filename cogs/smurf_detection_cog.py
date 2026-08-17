@@ -10,6 +10,7 @@ import re
 import pytz
 import asyncio
 import traceback
+import time
 
 # Motores de Data Science e Machine Learning
 import numpy as np
@@ -44,6 +45,12 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         self._if_score_cache: Dict[str, float] = {}
         self._pair_if_score_cache: Dict[str, float] = {}
         self._donation_pair_history_ttl: Dict[str, float] = {}
+        self._if_score_cache_maxsize = 1000
+        self._pair_if_score_cache_maxsize = 1000
+        self._if_score_cache_ttl = 86400
+        self._pair_if_score_cache_ttl = 86400
+        self._if_score_ts: Dict[str, float] = {}
+        self._pair_if_score_ts: Dict[str, float] = {}
 
         # Bayesian prior: P(smurf) = 2% for any random pair
         self.BAYESIAN_PRIOR = 0.02
@@ -74,6 +81,34 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     async def cog_unload(self):
         self.behavior_monitor_task.cancel()
         self.regenerative_ai_task.cancel()
+
+    def _evict_if_score_cache(self):
+        if len(self._if_score_cache) > self._if_score_cache_maxsize:
+            now = time.monotonic()
+            expired = [k for k, t in self._if_score_cache.items()
+                       if now - t > self._if_score_cache_ttl] if hasattr(self, '_if_score_ts') else []
+            for k in expired:
+                self._if_score_cache.pop(k, None)
+                if hasattr(self, '_if_score_ts'):
+                    self._if_score_ts.pop(k, None)
+            while len(self._if_score_cache) > self._if_score_cache_maxsize:
+                if hasattr(self, '_if_score_ts') and self._if_score_ts:
+                    oldest = min(self._if_score_ts, key=self._if_score_ts.get)
+                    self._if_score_cache.pop(oldest, None)
+                    self._if_score_ts.pop(oldest, None)
+                else:
+                    self._if_score_cache.pop(next(iter(self._if_score_cache)), None)
+
+    def _evict_pair_if_score_cache(self):
+        if len(self._pair_if_score_cache) > self._pair_if_score_cache_maxsize:
+            if hasattr(self, '_pair_if_score_ts') and self._pair_if_score_ts:
+                while len(self._pair_if_score_cache) > self._pair_if_score_cache_maxsize:
+                    oldest = min(self._pair_if_score_ts, key=self._pair_if_score_ts.get)
+                    self._pair_if_score_cache.pop(oldest, None)
+                    self._pair_if_score_ts.pop(oldest, None)
+            else:
+                while len(self._pair_if_score_cache) > self._pair_if_score_cache_maxsize:
+                    self._pair_if_score_cache.pop(next(iter(self._pair_if_score_cache)), None)
 
     # ==================== DATA MINING (EXTRAÇÃO DE FEATURES) ====================
 
@@ -546,19 +581,27 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             self._pair_if_threshold = 0.0
 
         self._last_clan_players = player_info
+        if len(self._last_clan_players) > 100:
+            self._last_clan_players = self._last_clan_players[:100]
 
     def _get_isolation_forest_score(self, player: coc.Player) -> float:
         """Retorna score de anomalia do IsolationForest (0=normal, 1=anômalo)."""
         if self._isolation_forest is None:
             return 0.0
+        cache_key = player.tag
+        cached = self._if_score_cache.get(cache_key)
+        if cached is not None:
+            return cached
         try:
             vec = self._extract_feature_vector(player).reshape(1, -1)
             score = self._isolation_forest.decision_function(vec)[0]
-            # Calibrated: score < threshold = anomaly
             if self._if_threshold != 0.0:
                 anomaly_score = max(0.0, min(1.0, (self._if_threshold - score) / (abs(self._if_threshold) + 0.1)))
             else:
                 anomaly_score = 0.0
+            self._if_score_cache[cache_key] = anomaly_score
+            self._if_score_ts[cache_key] = time.monotonic()
+            self._evict_if_score_cache()
             return anomaly_score
         except Exception:
             return 0.0
@@ -567,6 +610,10 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         """Score de anomalia do par (0=normal, 1=anômalo)."""
         if self._pair_isolation_forest is None:
             return 0.0
+        pair_key = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
+        cached = self._pair_if_score_cache.get(pair_key)
+        if cached is not None:
+            return cached
         try:
             v1, t1, a1 = (
                 self._extract_feature_vector(p1),
@@ -584,6 +631,9 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 anomaly_score = max(0.0, min(1.0, (self._pair_if_threshold - score) / (abs(self._pair_if_threshold) + 0.1)))
             else:
                 anomaly_score = 0.0
+            self._pair_if_score_cache[pair_key] = anomaly_score
+            self._pair_if_score_ts[pair_key] = time.monotonic()
+            self._evict_pair_if_score_cache()
             return anomaly_score
         except Exception:
             return 0.0
@@ -614,6 +664,10 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         if now_ts - last_log < self.TELEMETRY_COOLDOWN_HOURS * 3600:
             return
         self._telemetry_cooldown[cooldown_key] = now_ts
+        if len(self._telemetry_cooldown) > 2000:
+            stale = [k for k, v in self._telemetry_cooldown.items() if now_ts - v > self.TELEMETRY_COOLDOWN_HOURS * 3600]
+            for k in stale[:500]:
+                self._telemetry_cooldown.pop(k, None)
 
         await self.db.smurf_evidence.update_one(
             {"_id": pair_id},

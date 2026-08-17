@@ -8,6 +8,7 @@ e como o jogador/clã pode melhorar.
 """
 
 import logging
+import time
 
 logger = logging.getLogger("war_attack_analysis")
 
@@ -17,6 +18,9 @@ except Exception:
     new_stars = None
 
 _HISTORY_CACHE = {}
+_HISTORY_CACHE_MAXSIZE = 500
+_HISTORY_CACHE_TTL = 3600
+_HISTORY_CACHE_TIMESTAMPS = {}
 _HISTORY_LIMIT = 10
 _MAX_REASONS = 6
 _MAX_SUGGESTIONS = 5
@@ -35,9 +39,22 @@ def _fmt_duration(seconds):
     return f"{mins}:{secs:02d}"
 
 
+def _evict_history_cache():
+    now = time.monotonic()
+    expired = [k for k, t in _HISTORY_CACHE_TIMESTAMPS.items() if now - t > _HISTORY_CACHE_TTL]
+    for k in expired:
+        _HISTORY_CACHE.pop(k, None)
+        _HISTORY_CACHE_TIMESTAMPS.pop(k, None)
+    while len(_HISTORY_CACHE) > _HISTORY_CACHE_MAXSIZE:
+        oldest_key = min(_HISTORY_CACHE_TIMESTAMPS, key=_HISTORY_CACHE_TIMESTAMPS.get)
+        _HISTORY_CACHE.pop(oldest_key, None)
+        _HISTORY_CACHE_TIMESTAMPS.pop(oldest_key, None)
+
+
 async def _get_player_history(db, player_tag):
     if db is None:
         return None
+    _evict_history_cache()
     cached = _HISTORY_CACHE.get(player_tag)
     if cached is not None:
         return cached
@@ -79,6 +96,7 @@ async def _get_player_history(db, player_tag):
             "missed": missed,
         }
         _HISTORY_CACHE[player_tag] = result
+        _HISTORY_CACHE_TIMESTAMPS[player_tag] = time.monotonic()
         return result
     except Exception as e:
         logger.debug(f"_get_player_history({player_tag}) falhou: {e}")

@@ -21,6 +21,7 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
     admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
     maintenance_cog = bot_instance.get_cog("Manutenção do Sistema")
     watchlist_cog = bot_instance.get_cog("Lista de Observação")
+    _admin_panel_html_cache = None
 
     # --- Admin API handlers ---
     async def api_admin_diagnostics(r):
@@ -158,15 +159,17 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
         return web.FileResponse(os.path.join(static_dir, "admin_login.html"))
 
     async def admin_panel_page(r):
+        nonlocal _admin_panel_html_cache
         session = await get_session(r)
         role = session.get('role')
         if not role and not session.get('admin'):
             return web.HTTPFound('/admin')
         csrf_token = session.get('csrf_token') or secrets.token_hex(32)
         session['csrf_token'] = csrf_token
-        with open(os.path.join(static_dir, "admin_panel.html"), 'r', encoding='utf-8') as f:
-            html = f.read()
-        html = html.replace('</head>', f'<meta name="csrf-token" content="{csrf_token}"></head>')
+        if _admin_panel_html_cache is None:
+            with open(os.path.join(static_dir, "admin_panel.html"), 'r', encoding='utf-8') as f:
+                _admin_panel_html_cache = f.read()
+        html = _admin_panel_html_cache.replace('</head>', f'<meta name="csrf-token" content="{csrf_token}"></head>')
         return web.Response(text=html, content_type='text/html')
 
     async def admin_login_handler(r):

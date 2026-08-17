@@ -87,9 +87,12 @@ class ClashGeniusBot(commands.Bot):
         self.CACHE_DURATION_SECONDS = 300
         self.web_api_cache: Dict[str, Dict[str, Any]] = {}
         self.WEB_API_CACHE_DURATION_SECONDS = 45
+        self._CLAN_CACHE_MAXSIZE = 50
+        self._WEB_API_CACHE_MAXSIZE = 200
         self.db_ready = asyncio.Event()
         self.coc_client_ready = asyncio.Event()
         self.processed_war_ids = set()
+        self._PROCESSED_WAR_IDS_MAXSIZE = 2000
         self.last_api_status = "ok"
         self.log_handler = log_handler
         self._setup_hook_done = asyncio.Event()
@@ -174,6 +177,8 @@ class ClashGeniusBot(commands.Bot):
 
             processed_wars_cursor = self.db.war_history.find({}, {"_id": 1})
             self.processed_war_ids = {doc["_id"] async for doc in processed_wars_cursor}
+            if len(self.processed_war_ids) > self._PROCESSED_WAR_IDS_MAXSIZE:
+                self.processed_war_ids = set(list(self.processed_war_ids)[-self._PROCESSED_WAR_IDS_MAXSIZE:])
             logger.info(f"Carregados {len(self.processed_war_ids)} IDs de guerras processadas.")
         except Exception as e: logger.error(f"Erro durante load_initial_state_from_db: {e}", exc_info=True)
 
@@ -256,6 +261,9 @@ class ClashGeniusBot(commands.Bot):
         try:
             logger.debug(f"Buscando clã {tag} na API...")
             clan_data = await self.api_client.get_clan(normalized_tag)
+            if len(self.clan_cache) >= self._CLAN_CACHE_MAXSIZE:
+                oldest_key = min(self.clan_cache, key=lambda k: self.clan_cache[k]["timestamp"])
+                del self.clan_cache[oldest_key]
             self.clan_cache[normalized_tag] = {"data": clan_data, "timestamp": now}
             logger.debug(f"Clã {tag} obtido e cacheado.")
             return clan_data
