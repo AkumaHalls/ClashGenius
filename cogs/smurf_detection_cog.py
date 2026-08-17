@@ -65,7 +65,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         self._telemetry_cooldown: Dict[str, float] = {}
         self._donation_pair_history: Dict[str, int] = {}
         self._last_clan_baselines: Optional[Dict] = None
-        self._last_clan_players: List[Dict] = []
+        self._last_clan_players: list = []
         self._isolation_forest: Optional[IsolationForest] = None
         self._pair_isolation_forest: Optional[IsolationForest] = None
         self._xgb_model: Optional[xgb.XGBClassifier] = None
@@ -447,10 +447,10 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
     # ==================== BASELINE ESTATÍSTICO DO CLÃ ====================
 
-    def _compute_name_similarity_baseline(self, players: List[Dict]) -> Tuple[float, float]:
+    def _compute_name_similarity_baseline(self, players) -> Tuple[float, float]:
         """Calcula média e desvio padrão da similaridade de nomes entre todos os pares do clã."""
         sims = []
-        names = [p.get('name', '') for p in players]
+        names = [getattr(p, 'name', '') or p.get('name', '') for p in players]
         for i in range(len(names)):
             for j in range(i + 1, len(names)):
                 sims.append(fuzzy.ratio(names[i], names[j]))
@@ -512,9 +512,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         troop_profiles = [self._extract_troop_profile(p) for p in member_players]
         ach_profiles = [self._extract_achievement_profile(p) for p in member_players]
         hero_eq_profiles = [self._extract_hero_equipment_fingerprint(p) for p in member_players]
-        player_info = [{'name': p.name, 'tag': p.tag} for p in member_players]
-
-        name_mean, name_std = self._compute_name_similarity_baseline(player_info)
+        self._last_clan_players = list(member_players)
+        name_mean, name_std = self._compute_name_similarity_baseline(member_players)
         feat_mean, feat_std = self._compute_feature_similarity_baseline(vectors)
         troop_mean, troop_std = self._compute_troop_similarity_baseline(troop_profiles)
         ach_mean, ach_std = self._compute_ach_similarity_baseline(ach_profiles)
