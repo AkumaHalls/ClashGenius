@@ -34,7 +34,6 @@ async def start_early_health_check(bot_instance):
 
     early_app.router.add_get("/health", health)
     early_app.router.add_get("/", root)
-    early_app.router.add_head("/", lambda r: web.Response(status=200))
 
     runner = web.AppRunner(early_app)
     await runner.setup()
