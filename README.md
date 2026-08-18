@@ -1,6 +1,6 @@
 ﻿# ClashGenius — O Gênio das Guerras
 
-![Versao](https://img.shields.io/badge/versao-34.4.1--GeniusLib--v5.3.0-182c61?style=flat-square&logo=python)
+![Versao](https://img.shields.io/badge/versao-34.7.1--GeniusLib--v5.5.4-182c61?style=flat-square&logo=python)
 ![Status](https://img.shields.io/badge/Status-Operacional-16a34a?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.10%2B-2563eb?logo=python&style=flat-square)
 ![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-0ea5e9?style=flat-square&logo=render)
@@ -285,7 +285,7 @@ Na aba **Ações** do painel admin, o botão **📋 Enviar Changelog para Discor
 | Pacote | Versão | Finalidade |
 |--------|--------|------------|
 | `discord.py` | 2.5.2 | Framework do bot Discord |
-| `geniuslib` | v5.3.0 | Wrapper async da API CoC (models, analytics, formatters, upgrade tracker, exporter, comparer, battlelog, middleware) |
+| `geniuslib` | v5.5.4 | Wrapper async da API CoC (models, analytics, formatters, upgrade tracker, exporter, comparer, battlelog, middleware) |
 | `python-dotenv` | latest | Variáveis de ambiente |
 | `aiohttp` | latest | Servidor web + HTTP client |
 | `pytz` | latest | Timezone |
@@ -445,24 +445,30 @@ ClashGenius/
 
 Consulte [CHANGELOG.md](CHANGELOG.md) para o histórico completo de versões.
 
-### Versão Atual: 34.4.1-GeniusLib-v5.3.0
+### Versão Atual: 34.7.1-GeniusLib-v5.5.4
 
-- **v34.4.1** — Fix aba Membros: seções de destaque empilhavam lado a lado (grid) e encolhiam os cards; agora ocupam a largura toda (tamanho original), separadores centralizados e título renomeado para "Destaques & Admins"
-- **v34.4.0** — Aba Membros com área de destaque: fixos (CWL priority) e admins agrupados no topo sob uma faixa separadora em destaque (gradiente dourado→roxo), demais membros abaixo com faixa própria; filtros por seção
-- **v34.3.0** — Perfil do membro com tempo de casa (data de entrada rastreada via eventos + estimativa pela 1ª guerra), carteira de combate (histórico de guerras com V/D/E) e percentil no clã (troféus/doações)
-- **v34.2.1** — Fix mobile: grids da Guerra/IA e Ataques Pendentes estouradas no celular agora ocupam a tela toda, tabs da Guerra em linha, overlay "fechado" e cards de membros compactos
-- **v34.2.0** — PWA (site instalável como app, service worker, offline page), painel 100% responsivo para celular (hambúrguer/drawer, tabelas com scroll, admin mobile)
-- **v34.1.0** — Análise tática de ataques de guerra em tempo real (DIP falho, limpeza, desvio de padrão, selos de severidade)
+- **v34.7.1** — Fix: Absolver/Condenar agora persiste corretamente — pares julgados são filtrados na regeneração do dossier XAI
+- **v34.7.0** — Removido auto-treino com pseudo-labels, min-evidence obrigatório, risk labels granulares, loading spinner e badge ML/HEURÍSTICA no radar
+- **v34.6.0** — Progresso XGBoost no admin (labels reais, amostras, status), warning "Confiança Insuficiente" em cold start
+- **v34.5.6** — Auto-healing de assets via download do GitHub Releases
+- **v34.5.5** — GeniusLib v5.5.4, download de assets, fix admin panel cache
+- **v34.5.0** — Análise de accountability de doações (excesso/falta), ranking deKeyDown com emoji, histórico de snapshots
+- **v34.4.1** — Fix aba Membros: seções de destaque empilhavam lado a lado
+- **v34.4.0** — Aba Membros com área de destaque: fixos (CWL priority) e admins agrupados no topo
+- **v34.3.0** — Perfil do membro com tempo de casa, carteira de combate e percentil no clã
+- **v34.2.1** — Fix mobile: grids da Guerra/IA e Ataques Pendentes
+- **v34.2.0** — PWA (site instalável como app), painel 100% responsivo para celular
+- **v34.1.0** — Análise tática de ataques de guerra em tempo real
 - **v34.0.1** — Fix: send_changelog enviava mais do que a última versão
 - **v34.0.0** — Post-war analysis com nomes e múltiplos embeds
-- **v33.0.0** — Decomposição do web server (clash.py 930→295 linhas), config.py centralizado, MAX_WAR_HISTORY removido, CSP header, fix time.sleep bloqueante
-- **v32.3.1** — Fix: Admin Border visual mais chamativo (borda rainbow visível + glow neon)
-- **v32.3.0** — Admin Border rainbow cyberpunk + fix: ícone missed attack pós-perdão + histórico no perfil
-- **v32.2.3** — Botão de changelog no admin panel com embed formatado para Discord
-- **v32.2.2** — Assets servidos via GeniusLib, rota estática `/assets/`
+- **v33.0.0** — Decomposição do web server, config.py centralizado, CSP header
+- **v32.3.1** — Fix: Admin Border visual mais chamativo
+- **v32.3.0** — Admin Border rainbow cyberpunk
+- **v32.2.3** — Botão de changelog no admin panel
+- **v32.2.2** — Assets servidos via GeniusLib
 - **v32.2.1** — Fix: tropas e feitiços ausentes no perfil
 - **v32.2.0** — GeniusLib v5.3.0, bundle de assets local
-- **v32.1.0** — Legend army cards redesign: cards estruturados, cópia para Clash
+- **v32.1.0** — Legend army cards redesign
 - **v32.0.0** — Redesign profissional: sidebar layout, Inter font, dark/light theme
 - **v31.3.x** — Legend League completo: battlelog cog, web API, dashboard
 - **v31.2.x** — GeniusLib v4.3.0, Dragon Duke, TH17/TH18, bugfixes
@@ -480,5 +486,5 @@ Uso Privado — Todos os direitos reservados. Sem autorização expressa do auto
 
 <p align="center">
   <sub>Feito com dedicação por +Constantine+ e a comunidade</sub><br>
-  <sub>ClashGenius v33.0.0-GeniusLib-v5.3.0</sub>
+  <sub>ClashGenius v34.7.1-GeniusLib-v5.5.4</sub>
 </p>
