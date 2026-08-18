@@ -3,6 +3,19 @@
 Todas as mudanças notáveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.7.1] — 2026-08-18
+
+### Corrigido
+- **cogs/smurf_detection_cog.py** — Absolver/Condenar agora persiste corretamente: pares julgados são filtrados na regeneração do dossier XAI (antes reapareciam instantaneamente porque `get_web_dossier()` re-executava inferência fonética sem consultar `smurf_training`)
+
+### Adicionado
+- **cogs/smurf_detection_cog.py** — Atributo `_judged_pairs` (set em memória) carrega todos os `real_label` do `smurf_training` na inicialização do cog via `_load_judged_pairs()`
+- **cogs/smurf_detection_cog.py** — `get_web_dossier()` e `slash_analyze_smurfs()` agora pulam pares com `pair_id` em `_judged_pairs` antes de rodar inferência
+- **cogs/smurf_detection_cog.py** — `absolve_pair()` e `condemn_pair()` adicionam o par a `_judged_pairs` imediatamente após salvar no banco
+- **config.py** — Versão bumpada de 34.7.0 para 34.7.1
+
+---
+
 ## [34.7.0] — 2026-08-17
 
 ### Corrigido

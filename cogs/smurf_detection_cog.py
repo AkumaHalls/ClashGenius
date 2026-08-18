@@ -72,8 +72,24 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         self._xgb_retrain_counter = 0
         self._xgb_is_trained: bool = False
         self._xgb_real_labels: int = 0
+        self._judged_pairs: set = set()
+
+    async def _load_judged_pairs(self):
+        if self.db is None:
+            return
+        try:
+            cursor = self.db.smurf_training.find(
+                {"real_label": {"$exists": True}},
+                {"_id": 1}
+            )
+            async for doc in cursor:
+                self._judged_pairs.add(doc["_id"])
+            logger.info(f"XAI: {len(self._judged_pairs)} pares julgados carregados do banco.")
+        except Exception as e:
+            logger.error(f"Erro ao carregar pares julgados: {e}")
 
     async def cog_load(self):
+        await self._load_judged_pairs()
         self.behavior_monitor_task.start()
         self.regenerative_ai_task.start()
         logger.info("XAI v2.0: Motor Matemático e Radares Forenses ativados.")
@@ -1189,6 +1205,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     if p2.tag in processed: continue
 
                     pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
+                    if pair_id in self._judged_pairs:
+                        continue
                     telemetry = telemetry_matrix.get(pair_id)
                     
                     dossier = self._run_ml_inference(p1, p2, telemetry or {})
@@ -1237,6 +1255,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             self._telemetry_cooldown.clear()
             self.last_clan_state.clear()
             self.last_war_attacks.clear()
+            self._judged_pairs.clear()
             self._xgb_model = None
             self._xgb_is_trained = False
             self._xgb_real_labels = 0
@@ -1331,6 +1350,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                         continue
                     
                     pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
+                    if pair_id in self._judged_pairs:
+                        continue
                     telemetry = telemetry_matrix.get(pair_id)
                     
                     if telemetry or self._phonetic_lexical_analysis(p1.name, p2.name) >= self.MIN_FUZZY_RATIO:
@@ -1362,6 +1383,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     }},
                     upsert=True
                 )
+                self._judged_pairs.add(pair_id)
                 self._xgb_retrain_counter += 1
                 self._xgb_real_labels += 1
                 await self._train_xgb_from_db()
@@ -1407,6 +1429,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 upsert=True
             )
 
+            self._judged_pairs.add(pair_id)
             self._xgb_retrain_counter += 1
             self._xgb_real_labels += 1
             await self._train_xgb_from_db()
