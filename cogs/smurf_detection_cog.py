@@ -669,6 +669,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         if self.db is None or p1.tag == p2.tag: return
 
         pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
+        if pair_id in self._judged_pairs:
+            return
         now = datetime.datetime.now(pytz.utc)
         now_ts = now.timestamp()
 
@@ -1335,6 +1337,10 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             if clan:
                 self._prepare_clan_baselines(clan.members, players_full)
 
+            if self.db:
+                async for doc in self.db.smurf_training.find({"real_label": {"$exists": True}}, {"_id": 1}):
+                    self._judged_pairs.add(doc["_id"])
+
             xai_res = []
             processed = set()
             
@@ -1371,6 +1377,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     async def absolve_pair(self, pair_id: str) -> Dict[str, str]:
         if self.db is None: return {"status": "error", "message": "Banco offline."}
         try:
+            if pair_id in self._judged_pairs:
+                return {"status": "success", "message": "Par já foi julgado anteriormente."}
             doc = await self.db.smurf_evidence.find_one({"_id": pair_id})
             if doc:
                 await self.db.smurf_evidence.delete_one({"_id": pair_id})
@@ -1394,6 +1402,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
     async def condemn_pair(self, pair_id: str) -> Dict[str, str]:
         if self.db is None: return {"status": "error", "message": "Banco offline."}
+        if pair_id in self._judged_pairs:
+            return {"status": "success", "message": "Par já foi julgado anteriormente."}
         w_cog = self.bot.get_cog("Lista de Observação")
         if not w_cog: return {"status": "error", "message": "Módulo de Watchlist desativado."}
 

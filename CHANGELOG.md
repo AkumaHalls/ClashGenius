@@ -3,6 +3,15 @@
 Todas as mudanças notáveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.7.2] — 2026-08-18
+
+### Corrigido
+- **cogs/smurf_detection_cog.py** — Pares já julgados agora aparecem corretamente como "Par já foi julgado" ao invés de "Evidência não encontrada no banco" quando o botão Absolver/Condenar é clicado novamente
+- **cogs/smurf_detection_cog.py** — `get_web_dossier()` agora recarrega `_judged_pairs` diretamente do `smurf_training` antes de iterar pares, garantindo que pares julgados nunca reapareçam mesmo após restart do bot
+- **cogs/smurf_detection_cog.py** — `_log_telemetry()` agora verifica `_judged_pairs` antes de criar evidência, prevenindo recriação automática de evidências para pares já julgados
+
+---
+
 ## [34.7.1] — 2026-08-18
 
 ### Corrigido
