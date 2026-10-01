@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>DEFINIR NOVA SENHA - Clash Genius</title>
+    <meta name="theme-color" content="#050508">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script>document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('keydown',e=>{if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&['I','J','C'].includes(e.key.toUpperCase()))||(e.ctrlKey&&e.key==='u'))e.preventDefault()});</script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Fira+Code:wght@400;500&display=swap');
+        body.admin-page {
+            background: #050508;
+            overflow: hidden;
+        }
+        .lightning-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .lightning-bolt {
+            position: absolute;
+            width: 3px;
+            background: linear-gradient(180deg, rgba(0, 200, 255, 0.9), rgba(100, 0, 255, 0.3));
+            filter: blur(1px);
+            opacity: 0;
+            animation: lightning-flash 4s infinite;
+        }
+        .lightning-bolt:nth-child(1) { left: 15%; height: 40%; top: 0; animation-delay: 0.5s; }
+        .lightning-bolt:nth-child(2) { left: 45%; height: 60%; top: 0; animation-delay: 2.1s; width: 2px; }
+        .lightning-bolt:nth_child(3) { left: 75%; height: 35%; top: 10%; animation-delay: 3.5s; }
+        .lightning-bolt:nth-child(4) { left: 30%; height: 50%; top: 0; animation-delay: 1.2s; width: 2px; }
+        .lightning-bolt:nth-child(5) { left: 60%; height: 45%; top: 5%; animation-delay: 2.8s; }
+        @keyframes lightning-flash {
+            0%, 100% { opacity: 0; }
+            2% { opacity: 0.8; box-shadow: 0 0 20px rgba(0, 200, 255, 0.5), 0 0 40px rgba(0, 200, 255, 0.3); }
+            3% { opacity: 0.2; }
+            4% { opacity: 0.7; box-shadow: 0 0 30px rgba(0, 200, 255, 0.6), 0 0 60px rgba(0, 200, 255, 0.4); }
+            5% { opacity: 0; }
+            10% { opacity: 0; }
+        }
+        .fire-overlay {
+            position: fixed; bottom: 0; left: 0;
+            width: 100%; height: 40%;
+            background: radial-gradient(ellipse at 20% 100%, rgba(255, 100, 0, 0.15) 0%, transparent 50%),
+                        radial-gradient(ellipse at 50% 100%, rgba(255, 0, 0, 0.1) 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 100%, rgba(255, 100, 0, 0.15) 0%, transparent 50%);
+            pointer-events: none; z-index: 0;
+            animation: fire-flicker 3s ease-in-out infinite;
+        }
+        @keyframes fire-flicker {
+            0%, 100% { opacity: 0.6; }
+            25% { opacity: 0.8; }
+            50% { opacity: 0.5; }
+            75% { opacity: 0.9; }
+        }
+        .fire-particles {
+            position: fixed; bottom: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; z-index: 1;
+        }
+        .fire-particle {
+            position: absolute; bottom: 0; width: 4px; height: 4px;
+            background: var(--neon-orange); border-radius: 50%;
+            animation: fire-rise 3s infinite; opacity: 0;
+        }
+        .fire-particle:nth-child(1) { left: 10%; animation-delay: 0.2s; }
+        .fire-particle:nth-child(2) { left: 20%; animation-delay: 1.1s; height: 6px; width: 6px; }
+        .fire-particle:nth-child(3) { left: 35%; animation-delay: 0.7s; }
+        .fire-particle:nth-child(4) { left: 45%; animation-delay: 1.8s; height: 5px; width: 5px; background: var(--neon-yellow); }
+        .fire-particle:nth-child(5) { left: 55%; animation-delay: 0.4s; }
+        .fire-particle:nth-child(6) { left: 65%; animation-delay: 2.0s; height: 3px; width: 3px; }
+        .fire-particle:nth-child(7) { left: 75%; animation-delay: 1.4s; background: var(--neon-red); }
+        .fire-particle:nth-child(8) { left: 85%; animation-delay: 0.9s; }
+        .fire-particle:nth-child(9) { left: 50%; animation-delay: 2.5s; height: 7px; width: 7px; }
+        .fire-particle:nth-child(10) { left: 30%; animation-delay: 0.1s; background: var(--neon-yellow); }
+        @keyframes fire-rise {
+            0% { transform: translateY(0) scale(0); opacity: 0; }
+            20% { opacity: 0.9; }
+            100% { transform: translateY(-300px) scale(2); opacity: 0; }
+        }
+        .login-container { position: relative; z-index: 2; }
+
+        @media (max-width: 768px) {
+            body.admin-page { overflow: auto; height: auto; min-height: 100dvh; }
+            .login-container { min-height: 100dvh; }
+            .login-card { max-width: 100%; }
+        }
+        .login-card {
+            background: rgba(10, 10, 20, 0.95) !important;
+            border: 2px solid rgba(255, 0, 64, 0.3) !important;
+            box-shadow: 0 0 40px rgba(255, 0, 64, 0.15), 0 0 80px rgba(255, 0, 0, 0.05) !important;
+            position: relative; overflow: hidden;
+        }
+        .login-card::before {
+            content: ''; position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px;
+            background: linear-gradient(45deg, var(--neon-red), var(--neon-purple), var(--neon-cyan), var(--neon-red));
+            background-size: 400% 400%; z-index: -1;
+            animation: border-dance 6s linear infinite; border-radius: var(--border-radius-base);
+        }
+        @keyframes border-dance {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .login-card h2 {
+            color: var(--neon-red) !important;
+            text-shadow: 0 0 15px rgba(255, 0, 64, 0.5), 0 0 30px rgba(255, 0, 0, 0.3) !important;
+            font-family: 'Orbitron', sans-serif !important;
+            font-weight: 900 !important;
+            letter-spacing: 4px;
+            margin-top: 25px !important;
+        }
+        .login-card p { color: rgba(255, 200, 200, 0.6) !important; }
+        .login-card input[type="text"], .login-card input[type="password"] {
+            background: rgba(0, 0, 0, 0.8) !important;
+            border: 1px solid rgba(0, 255, 249, 0.3) !important;
+            color: #00ffcc !important;
+            font-family: 'Fira Code', monospace !important;
+            text-align: center;
+        }
+        .login-card input::placeholder { color: rgba(0, 255, 249, 0.5) !important; }
+        .login-card input:focus { outline: none; border-color: var(--neon-cyan) !important; box-shadow: 0 0 0 2px rgba(0, 255, 249, 0.2) !important; }
+        .btn-submit {
+            background: linear-gradient(135deg, #0033cc, var(--neon-cyan), #0040ff) !important;
+            border: none !important;
+            color: #fff !important;
+            padding: 12px 28px !important;
+            font-family: 'Orbitron', sans-serif !important;
+            font-weight: 700 !important;
+            font-size: 0.9em !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            width: 100% !important;
+            text-transform: uppercase !important;
+            letter-spacing: 2px !important;
+            box-shadow: 0 0 20px rgba(0, 255, 249, 0.3) !important;
+            transition: all 0.3s ease !important;
+        }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(0, 255, 249, 0.5) !important; }
+        .login-footer { margin-top: 20px; text-align: center; }
+        .login-footer a { color: var(--neon-cyan) !important; text-decoration: none; font-family: 'Fira Code', monospace; font-size: 0.8em; }
+        .login-footer a:hover { text-decoration: underline; }
+        .feedback-text { margin-top: 15px; text-align: center; font-family: 'Fira Code', monospace; font-size: 0.85em; min-height: 1.2em; }
+        .feedback-text.success { color: #2ecc71; }
+        .feedback-text.error { color: #e74c3c; }
+        .char-count { font-family: 'Fira Code', monospace; font-size: 0.75em; color: var(--color-text-secondary); }
+        .char-count.warning { color: #f1c40f; }
+        .char-count.error { color: #e74c3c; }
+        .admin-textarea {
+            width: 100%; min-height: 80px; padding: 10px; background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(0,255,249,0.3); color: #00ffcc;
+            font-family: 'Fira Code',monospace; font-size: 0.9em; border-radius: 4px; resize: vertical;
+        }
+        .admin-textarea:focus { outline: none; border-color: var(--neon-cyan); box-shadow: 0 0 0 2px rgba(0,255,249,0.2); }
+        .dh-embeds-list { margin-top: 10px; }
+        .dh-embed-item { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 10px; margin-bottom: 8px; display: flex; gap: 10px; align-items: flex-start; }
+        .dh-embed-item input[type="text"], .dh-embed-item input[type="url"] { flex: 1; }
+        .dh-embed-item .btn-remove { background: none; border: 1px solid #e74c3c; color: #e74c3c; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-family: 'Fira Code',monospace; font-size: 0.75em; }
+        .dh-embed-item .btn-remove:hover { background: #e74c3c; color: #fff; }
+        .btn-add-embed { background: rgba(255,255,255,0.05); border: 1px dashed rgba(0,255,249,0.3); color: var(--neon-cyan); padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: 'Fira Code',monospace; font-size: 0.8em; margin-top: 8px; width: 100%; }
+        .btn-add-embed:hover { background: rgba(0,255,249,0.1); }
+        .dh-actions-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .btn-cancel { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-family: 'Fira Code',monospace; font-weight: 700; }
+        .btn-cancel:hover { background: rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body class="admin-page">
+    <div class="lightning-container" id="lightning-container"></div>
+    <div class="fire-overlay"></div>
+    <div class="fire-particles" id="fire-particles"></div>
+
+    <main class="login-container">
+        <div class="login-card">
+            <h2>DEFINIR NOVA SENHA</h2>
+            <p>Digite sua nova senha abaixo.</p>
+            <p style="color:var(--neon-cyan);font-family:'Fira Code',monospace;font-size:0.9em;margin-bottom:15px;">Usu&#225;rio: <span id="cp-username-display">{{USERNAME}}</span></p>
+
+            <form id="change-password-form" autocomplete="off">
+                <input type="hidden" name="username" id="cp-username" value="{{USERNAME}}">
+                <input type="password" id="cp-new-password" name="new_password" placeholder="// NOVA SENHA (mín. 8 chars) //" required autocomplete="new-password" minlength="8" maxlength="128">
+                <input type="password" id="cp-confirm-password" name="confirm_password" placeholder="// CONFIRMAR NOVA SENHA //" required autocomplete="new-password" minlength="8" maxlength="128">
+                <button type="submit" class="btn-submit">DEFINIR SENHA</button>
+            </form>
+
+            <p id="change-password-feedback" class="feedback-text"></p>
+
+            <div class="login-footer">
+                <a href="/admin" onclick="window.location.href='/admin';return false;">Voltar ao login</a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // CSRF token is injected via meta tag
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+        const form = document.getElementById('change-password-form');
+        const fb = document.getElementById('change-password-feedback');
+
+        // Inject username from session
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const resp = await fetch('/api/admin/auth/me', { credentials: 'include' });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const usernameInput = document.getElementById('cp-username');
+                    if (usernameInput) usernameInput.value = data.username || '';
+                }
+            } catch (e) {}
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            fb.textContent = 'Definindo senha...';
+            fb.style.color = '';
+
+            const newPass = document.getElementById('cp-new-password').value;
+            const confirmPass = document.getElementById('cp-confirm-password').value;
+            const username = document.getElementById('cp-username').value;
+
+            if (!newPass || !confirmPass) {
+                fb.textContent = 'Preencha ambos os campos.';
+                fb.style.color = '#e74c3c';
+                return;
+            }
+            if (newPass !== confirmPass) {
+                fb.textContent = 'As senhas não conferem.';
+                fb.style.color = '#e74c3c';
+                return;
+            }
+            if (newPass.length < 8) {
+                fb.textContent = 'A senha deve ter no mínimo 8 caracteres.';
+                fb.style.color = '#e74c3c';
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/admin/auth/change-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ new_password: newPass, confirm_password: confirmPass })
+                });
+                const data = await resp.json();
+                fb.textContent = data.message || (data.status === 'success' ? 'Senha alterada! Redirecionando...' : 'Erro ao alterar.');
+                fb.style.color = data.status === 'success' ? '#2ecc71' : '#e74c3c';
+                if (data.status === 'success') {
+                    setTimeout(() => window.location.href = '/admin/panel', 1500);
+                }
+            } catch (e) {
+                fb.textContent = 'Erro de conexão com o servidor.';
+                fb.style.color = '#e74c3c';
+            }
+        });
+    </script>
+
+    <script src="/static/js/lightning.js"></script>
+    <script src="/static/js/fire.js"></script>
+</body>
+</html>

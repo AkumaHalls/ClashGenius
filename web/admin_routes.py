@@ -6,6 +6,7 @@ import os
 import json
 import secrets
 import logging
+import html as html_module
 
 from aiohttp import web
 from aiohttp_session import get_session
@@ -13,6 +14,32 @@ from aiohttp_session import get_session
 from web.auth import get_db
 
 logger = logging.getLogger("web.admin_routes")
+
+
+def make_troca_senha_page(static_dir):
+    """Factory that creates the handler with static_dir captured."""
+    async def troca_senha_page(r):
+        """Página para definir nova senha (sessão limitada com password_change_required)."""
+        session = await get_session(r)
+        if not session.get('password_change_required') or not session.get('username'):
+            return web.HTTPFound('/admin?error=1')
+
+        username = session.get('username', '')
+        csrf_token = session.get('csrf_token') or secrets.token_hex(32)
+        session['csrf_token'] = csrf_token
+
+        html_path = os.path.join(static_dir, 'trocar_senha.html')
+        try:
+            with open(html_path, 'r', encoding='utf-8') as f:
+                html = f.read()
+        except FileNotFoundError:
+            return web.Response(text='Página não encontrada', status=404)
+
+        # Inject username and CSRF token into the HTML
+        html_content = html.replace('{{USERNAME}}', html_module.escape(username))
+        html_content = html_content.replace('</head>', f'<meta name="csrf-token" content="{csrf_token}"></head>')
+        return web.Response(text=html_content, content_type='text/html')
+    return troca_senha_page
 
 
 def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
@@ -264,5 +291,6 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
     app.router.add_post("/admin/login", admin_login_handler)
     app.router.add_get("/admin/logout", admin_logout_handler)
     app.router.add_get("/admin/panel", admin_panel_page)
+    app.router.add_get("/trocar-senha", make_troca_senha_page(static_dir))
     app.router.add_post("/admin/toggle_maintenance", admin_toggle_maintenance_handler)
     app.router.add_post("/admin/send_test_embed", admin_send_test_embed_handler)

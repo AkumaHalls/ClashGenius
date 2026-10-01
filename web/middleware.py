@@ -100,11 +100,14 @@ async def rate_limit_middleware(request, handler):
 @web.middleware
 async def admin_auth_middleware(request, handler):
     """Verifica autenticação para rotas admin."""
-    if request.path in ('/api/admin/auth/login', '/api/admin/auth/register') or request.path.startswith('/api/admin/auth/login/'):
+    if request.path in ('/api/admin/auth/login', '/api/admin/auth/register', '/api/admin/auth/change-password') or request.path.startswith('/api/admin/auth/login/'):
         return await handler(request)
     session = await get_session(request)
     role = session.get('role')
     if not role and not session.get('admin'):
+        # Allow password change flow with limited session
+        if request.path == '/api/admin/auth/change-password' and session.get('password_change_required'):
+            return await handler(request)
         return web.json_response({"status": "unauthorized", "message": "Acesso negado."}, status=403)
     if role == 'viewer' and request.method == 'POST':
         return web.json_response({"status": "forbidden", "message": "Membro Sênior não pode modificar."}, status=403)
