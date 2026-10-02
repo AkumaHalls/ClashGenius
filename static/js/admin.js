@@ -1469,6 +1469,12 @@ function confirmDeleteUser(username, role) {
     // própria senha: protege contra clique acidental e contra alguém usando uma
     // sessão esquecida em máquina compartilhada. O backend repete as duas
     // checagens — isto aqui é só a primeira barreira.
+    //
+    // Logado pela senha mestra não existe conta no painel: a sessão é 'root' e
+    // a credencial a repetir é a própria senha mestra, não uma senha de usuário.
+    const isMaster = currentUsername === 'root';
+    const passLabel = isMaster ? 'Senha mestra' : 'Sua senha de admin';
+
     return new Promise(resolve => {
         const prev = $('um-modal');
         if (prev) prev.remove();
@@ -1490,8 +1496,11 @@ function confirmDeleteUser(username, role) {
                 '</ul>' +
                 '<label class="um-modal-label" for="um-del-name">Digite <code>' + escapeHtml(username) + '</code> para confirmar</label>' +
                 '<input type="text" id="um-del-name" class="um-modal-input" autocomplete="off" spellcheck="false">' +
-                '<label class="um-modal-label" for="um-del-pass">Sua senha de admin</label>' +
+                '<label class="um-modal-label" for="um-del-pass">' + escapeHtml(passLabel) + '</label>' +
                 '<input type="password" id="um-del-pass" class="um-modal-input" autocomplete="current-password">' +
+                (isMaster
+                    ? '<p class="um-modal-hint">Você entrou pela senha mestra, então informe a senha mestra novamente.</p>'
+                    : '') +
                 '<p class="um-modal-hint" id="um-del-err" role="alert"></p>' +
                 '<div class="um-modal-actions">' +
                     '<button type="button" class="um-btn" data-res="0">Cancelar</button>' +

@@ -450,15 +450,29 @@ def register_auth_routes(admin_api_app, bot_instance):
         if not user:
             return web.json_response({"status": "error", "message": "Usuário não encontrado."}, status=404)
 
-        # Confere a senha do admin contra o hash guardado no proprio banco:
-        # quem entrou pela senha mestra (sessao 'root') nao tem hash para
-        # validar e por isso nao consegue excluir contas.
+        # Confere a senha de quem esta excluindo. Existem dois tipos de sessao
+        # admin e cada uma tem uma credencial diferente:
+        #   - conta real em panel_users -> confere o hash guardado dela;
+        #   - login pela senha mestra ('root', sem documento no banco) ->
+        #     confere a ADMIN_PASSWORD, que e a mesma credencial do login.
+        # Sem esse desvio, quem entra pela senha mestra nunca conseguiria
+        # excluir nada: nao ha hash de onde tirar.
         admin_username = session.get('username', '')
         admin_doc = await db.panel_users.find_one({"_id": admin_username}) if admin_username else None
         admin_hash = (admin_doc or {}).get('password_hash', '')
+
         confirm_name = (data.get('username') or '').strip()
         confirm_pass = data.get('password') or ''
-        if confirm_name != username or not admin_hash or not check_password(confirm_pass, admin_hash):
+
+        if admin_hash:
+            password_ok = check_password(confirm_pass, admin_hash)
+        else:
+            # Import local, como em web/admin_routes.py, para nao acoplar a
+            # importacao deste modulo ao config na hora do carregamento.
+            from config import ADMIN_PASSWORD
+            password_ok = bool(ADMIN_PASSWORD) and secrets.compare_digest(confirm_pass, ADMIN_PASSWORD)
+
+        if confirm_name != username or not password_ok:
             return web.json_response({
                 "status": "error",
                 "message": "Confirmação inválida: digite exatamente o usuário e a sua senha atual.",
