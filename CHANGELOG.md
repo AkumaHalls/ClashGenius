@@ -3,6 +3,22 @@
 Todas as mudanças notáveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.7.3] — 2026-10-02
+
+### Adicionado
+- **web/auth_routes.py** — `POST /auth/delete/{username}` exclui uma conta definitivamente a partir da aba Usuários, exigindo confirmação por nome de usuário e senha
+- **web/auth_routes.py** — Autoexclusão é bloqueada, o último administrador do painel não pode ser removido e toda exclusão gera registro de auditoria
+- **static/js/admin.js** — Botão "Excluir conta" com modal de confirmação destrutivo em cada linha da tabela de usuários ativos
+
+### Corrigido
+- **web/auth_routes.py** — Sessões do `root`, que não possuem documento em `panel_users`, recebiam 403 ao tentar excluir conta; agora a confirmação é comparada com `ADMIN_PASSWORD` usando `secrets.compare_digest`
+- **static/js/admin.js** — O modal de exclusão pedia "sua senha atual" para o `root`; passou a exibir "Senha mestra" com a explicação correspondente
+- **static/js/admin.js** — Os botões Aprovar e Rejeitar das solicitações pendentes não executavam nada: o listener delegado estava registrado apenas em `#active-users-list`, mas os cartões de pendência são renderizados em `#pending-users-list`, que é um elemento irmão e não filho, então o clique nunca alcançava `approvePendingUser` e `rejectPendingUser`
+- **static/js/admin.js** — Aprovação e rejeição escondem o cartão imediatamente, restauram o cartão e a mensagem de erro quando a API falha, e recarregam as listas ao concluir
+- **static/admin_panel.html** — Adicionado `#pending-users-feedback`, porque o retorno das ações de pendência era escrito em `#users-feedback`, que fica abaixo da tabela de usuários ativos e fora da aba visível
+
+---
+
 ## [34.7.2] — 2026-08-18
 
 ### Corrigido
