@@ -421,6 +421,72 @@ def register_auth_routes(admin_api_app, bot_instance):
             return web.json_response({"status": "success", "message": message})
         return web.json_response({"status": "error", "message": "Usuário não encontrado ou ainda aguardando aprovação."}, status=404)
 
+    async def api_auth_delete(r):
+        """Exclui definitivamente uma conta do painel.
+
+        Destrutivo e sem volta: por isso exige o nome de usuario E a senha
+        do proprio admin no corpo da requisicao. Um admin nao pode excluir a
+        si mesmo, e o ultimo admin nunca pode ser removido (o acesso ainda
+        seria possivel pela senha mestra, mas o painel ficaria sem gestao).
+
+        Complementa 'desativado'/'banido', que sao reversiveis e preferiveis
+        sempre que o objetivo for apenas Tirar o acesso da conta.
+        """
+        username = r.match_info.get('username', '').strip().lower()
+        data = await r.json()
+        session = await get_session(r)
+
+        if session.get('username', '').lower() == username:
+            return web.json_response({
+                "status": "error",
+                "message": "Você não pode excluir a própria conta.",
+            }, status=400)
+
+        db, err = get_db(bot_instance)
+        if err:
+            return err
+
+        user = await db.panel_users.find_one({"_id": username})
+        if not user:
+            return web.json_response({"status": "error", "message": "Usuário não encontrado."}, status=404)
+
+        # Confere a senha do admin contra o hash guardado no proprio banco:
+        # quem entrou pela senha mestra (sessao 'root') nao tem hash para
+        # validar e por isso nao consegue excluir contas.
+        admin_username = session.get('username', '')
+        admin_doc = await db.panel_users.find_one({"_id": admin_username}) if admin_username else None
+        admin_hash = (admin_doc or {}).get('password_hash', '')
+        confirm_name = (data.get('username') or '').strip()
+        confirm_pass = data.get('password') or ''
+        if confirm_name != username or not admin_hash or not check_password(confirm_pass, admin_hash):
+            return web.json_response({
+                "status": "error",
+                "message": "Confirmação inválida: digite exatamente o usuário e a sua senha atual.",
+            }, status=403)
+
+        # Guarda: a conta alvo precisa ser admin para a contagem abaixo importar.
+        if user.get('role') == 'admin':
+            remaining = await db.panel_users.count_documents({
+                "role": "admin",
+                "_id": {"$nin": [username, 'root']},
+            })
+            if remaining == 0:
+                return web.json_response({
+                    "status": "error",
+                    "message": "Não é possível excluir o último administrador do painel.",
+                }, status=400)
+
+        result = await db.panel_users.delete_one({"_id": username})
+        if result.deleted_count:
+            logger.warning(
+                "Conta '%s' EXCLUIDA por '%s'.", username, admin_username or 'desconhecido'
+            )
+            return web.json_response({
+                "status": "success",
+                "message": f"Conta {username} excluída definitivamente.",
+            })
+        return web.json_response({"status": "error", "message": "Usuário não encontrado."}, status=404)
+
     async def api_auth_forgot_password(r):
         """Pedido de recuperacao de senha. Aprovado por um admin, nao automatico.
 
@@ -514,6 +580,7 @@ def register_auth_routes(admin_api_app, bot_instance):
     admin_api_app.router.add_get("/auth/pending", api_auth_pending)
     admin_api_app.router.add_post("/auth/approve/{username:[a-z0-9_]+}", api_auth_approve)
     admin_api_app.router.add_post("/auth/reject/{username:[a-z0-9_]+}", api_auth_reject)
+    admin_api_app.router.add_post("/auth/delete/{username:[a-z0-9_]+}", api_auth_delete)
     admin_api_app.router.add_get("/auth/users", api_auth_users)
     admin_api_app.router.add_get("/auth/me", api_auth_me)
     admin_api_app.router.add_post("/auth/role", api_auth_role)

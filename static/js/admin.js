@@ -1415,7 +1415,7 @@ const UM_ACTIONS = {
     },
     aprovar_reset_senha: {
         title: 'Aprovar reset de senha',
-        body: 'O usuário pediu recuperação por ter esquecido a senha atual. Ao aprovar, será gerado um código de uso único. Copie e envie ao usuário (ex.: Discord) — ele usará em "Redefinir com código" na tela de login, sem precisar da senha antiga.',
+        body: 'O usuário pediu recuperação por ter esquecido a senha atual. Ao aprovar, ele entra normalmente no próximo login e o sistema exige que defina uma nova senha. Cargo e status não mudam.',
         danger: false
     },
     negar_reset_senha: {
@@ -1462,6 +1462,107 @@ function confirmAction(spec) {
         const cancel = wrap.querySelector('[data-res="0"]');
         if (cancel) cancel.focus();
     });
+}
+
+function confirmDeleteUser(username, role) {
+    // Exclusão é definitiva. Além do aviso, exige digitar o nome da conta e a
+    // própria senha: protege contra clique acidental e contra alguém usando uma
+    // sessão esquecida em máquina compartilhada. O backend repete as duas
+    // checagens — isto aqui é só a primeira barreira.
+    return new Promise(resolve => {
+        const prev = $('um-modal');
+        if (prev) prev.remove();
+
+        const wrap = document.createElement('div');
+        wrap.id = 'um-modal';
+        wrap.className = 'um-modal-backdrop';
+        wrap.innerHTML =
+            '<div class="um-modal um-modal-danger" role="dialog" aria-modal="true" aria-label="Excluir conta">' +
+                '<h4 class="um-modal-title um-modal-title-danger">Excluir conta: ' + escapeHtml(username) + '</h4>' +
+                '<p class="um-modal-body">' +
+                    'O documento da conta será <strong>removido do banco</strong>. Não há como desfazer: ' +
+                    'o usuário perde o acesso ao painel e precisará solicitar uma nova conta. ' +
+                '</p>' +
+                '<ul class="um-modal-list">' +
+                    '<li>Cargo <strong>' + escapeHtml(role === 'admin' ? 'Admin' : 'Membro Sênior') + '</strong> e histórico de aprovações são perdidos.</li>' +
+                    '<li>Pedidos de reset de senha pendentes são eliminados.</li>' +
+                    '<li>Se você só quer tirar o acesso, use <strong>Desativar</strong> ou <strong>Banir</strong> — são reversíveis.</li>' +
+                '</ul>' +
+                '<label class="um-modal-label" for="um-del-name">Digite <code>' + escapeHtml(username) + '</code> para confirmar</label>' +
+                '<input type="text" id="um-del-name" class="um-modal-input" autocomplete="off" spellcheck="false">' +
+                '<label class="um-modal-label" for="um-del-pass">Sua senha de admin</label>' +
+                '<input type="password" id="um-del-pass" class="um-modal-input" autocomplete="current-password">' +
+                '<p class="um-modal-hint" id="um-del-err" role="alert"></p>' +
+                '<div class="um-modal-actions">' +
+                    '<button type="button" class="um-btn" data-res="0">Cancelar</button>' +
+                    '<button type="button" class="um-btn um-btn-danger" data-res="1" disabled>Excluir definitivamente</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(wrap);
+
+        const nameInput = wrap.querySelector('#um-del-name');
+        const passInput = wrap.querySelector('#um-del-pass');
+        const confirmBtn = wrap.querySelector('[data-res="1"]');
+        const err = wrap.querySelector('#um-del-err');
+
+        function done(v) {
+            wrap.remove();
+            document.removeEventListener('keydown', onKey);
+            resolve(v);
+        }
+        function onKey(e) {
+            if (e.key === 'Escape') done(null);
+            if (e.key === 'Enter' && !confirmBtn.disabled) done({ username: nameInput.value, password: passInput.value });
+        }
+        function sync() {
+            confirmBtn.disabled = nameInput.value.trim() !== username || !passInput.value;
+            err.textContent = '';
+        }
+
+        document.addEventListener('keydown', onKey);
+        nameInput.addEventListener('input', sync);
+        passInput.addEventListener('input', sync);
+        wrap.addEventListener('click', function (e) {
+            const b = e.target.closest('[data-res]');
+            if (b) {
+                if (b.dataset.res === '1') done({ username: nameInput.value, password: passInput.value });
+                else done(null);
+                return;
+            }
+            if (e.target === wrap) done(null);
+        });
+
+        nameInput.focus();
+    });
+}
+
+async function deleteUserAccount(username) {
+    const fb = $('users-feedback');
+
+    // O papel vem do cache já carregado: evita um GET extra só para montar o aviso.
+    const cached = umUsersCache.find(u => u.username === username);
+    const creds = await confirmDeleteUser(username, cached ? cached.role : 'viewer');
+    if (!creds) return;
+
+    if (fb) { fb.textContent = 'Excluindo...'; fb.className = 'feedback-text'; }
+
+    try {
+        const data = await api('auth/delete/' + encodeURIComponent(username), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username, password: creds.password })
+        });
+        if (fb) {
+            fb.textContent = (data && data.message) || (username + ' excluída.');
+            fb.className = 'feedback-text success';
+        }
+    } catch (e) {
+        if (fb) { fb.textContent = 'Erro: ' + e.message; fb.className = 'feedback-text error'; }
+        return;
+    }
+
+    await loadActiveUsers();
+    await loadPendingUsers();
 }
 
 function umBadge(kind, label) {
@@ -1532,7 +1633,12 @@ function renderUsersList() {
                         ? btn('aprovar_reset_senha', 'Aprovar reset', false, 'primary') +
                           btn('negar_reset_senha', 'Negar reset', false, 'danger')
                         : '') +
-                    btn('trocar_senha', u.must_change_password ? 'Troca já liberada' : 'Forçar troca', false, 'primary', u.must_change_password))
+                    btn('trocar_senha', u.must_change_password ? 'Troca já liberada' : 'Forçar troca', false, 'primary', u.must_change_password)),
+                // Fora do fluxo de cargos/status: exclusão é definitiva e por
+                // isso pede confirmação digitada no modal. Nunca na própria conta.
+                seg('Conta',
+                    btn('excluir', 'Excluir conta', false, 'danger') +
+                    (u.role === 'admin' ? '<span class="um-note">admin</span>' : ''))
               ].join('');
 
         const statusCell =
@@ -1624,6 +1730,8 @@ async function loadActiveUsers() {
                 '<strong>Senha</strong> é independente: "Forçar troca" ou "Aprovar reset" liberam o usuário para definir uma nova senha no próximo login. ' +
                 '<strong>Reset solicitado</strong> aparece quando o titular usa "Esqueci minha senha" na tela de login; ' +
                 'ao aprovar, ele entra normalmente com a senha antiga e o sistema exige uma nova. ' +
+                '<strong>Excluir conta</strong> apaga o registro de forma definitiva e exige a sua senha; ' +
+                'prefira desativar ou banir quando o objetivo for apenas tirar o acesso. ' +
                 'Não existe redefinição automática por e-mail.' +
             '</p>' +
         '</div>';
@@ -1705,6 +1813,10 @@ async function loadPendingUsers() {
 async function changeUserAction(username, newAction) {
     const fb = $('users-feedback');
     if (!fb) return;
+
+    // Exclusão não passa por 'auth/role' (que só altera cargo/status) e tem
+    // confirmação própria, com senha do admin.
+    if (newAction === 'excluir') { await deleteUserAccount(username); return; }
 
     const spec = UM_ACTIONS[newAction];
     if (!spec) { await loadActiveUsers(); return; }
