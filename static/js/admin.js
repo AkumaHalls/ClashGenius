@@ -23,6 +23,7 @@ let umUsersCache = [];
 let umQuery = '';
 let umFilter = 'all';
 let umBound = false;
+let umPendingBound = false;
 
 const DH_COLOR_PRESETS = [
     '#5865f2', '#57f287', '#faa61a', '#ed4245', '#eb459e',
@@ -1769,16 +1770,6 @@ async function loadActiveUsers() {
                 if (row) changeUserAction(row.dataset.username, actBtn.dataset.umAct);
                 return;
             }
-
-            const pendingBtn = e.target.closest('[data-um-pending]');
-            if (pendingBtn) {
-                const card = pendingBtn.closest('[data-um-username]');
-                if (card) {
-                    const username = card.dataset.umUsername;
-                    if (pendingBtn.dataset.umPending === 'approve') approvePendingUser(username);
-                    else rejectPendingUser(username);
-                }
-            }
         });
     }
 
@@ -1788,6 +1779,24 @@ async function loadActiveUsers() {
 async function loadPendingUsers() {
     const container = $('pending-users-list');
     if (!container) return;
+
+    // Os cartoes de solicitacao ficam em OUTRO container que a tabela de
+    // usuarios (#pending-users-list vs #active-users-list), e sao irmaos no
+    // HTML, nao filhos. O listener da tabela por isso nunca via os botoes
+    // Aprovar/Rejeitar: approvePendingUser e rejectPendingUser ficavam
+    // inalcancaveis e o clique nao fazia absolutamente nada.
+    if (!umPendingBound) {
+        umPendingBound = true;
+        container.addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-um-pending]');
+            if (!btn || btn.disabled) return;
+            const card = btn.closest('[data-um-username]');
+            if (!card) return;
+            const username = card.dataset.umUsername;
+            if (btn.dataset.umPending === 'approve') approvePendingUser(username);
+            else rejectPendingUser(username);
+        });
+    }
 
     let data;
     try {
@@ -1859,11 +1868,17 @@ async function changeUserAction(username, newAction) {
 }
 
 async function approvePendingUser(username) {
-    const fb = $('users-feedback');
+    const fb = $('pending-users-feedback') || $('users-feedback');
+    // Some com o cartao antes de chamar a API: o clique precisa dar retorno
+    // visivel na hora, mesmo que a resposta demore ou falhe.
+    const card = document.querySelector('[data-um-username="' + CSS.escape(username) + '"]');
+    if (card) card.style.display = 'none';
+    if (fb) { fb.textContent = 'Aprovando ' + username + '...'; fb.className = 'feedback-text'; }
     try {
         await api('auth/approve/' + encodeURIComponent(username), { method: 'POST' });
         if (fb) { fb.textContent = username + ' aprovado.'; fb.className = 'feedback-text success'; }
     } catch (e) {
+        if (card) card.style.display = '';
         if (fb) { fb.textContent = 'Erro: ' + e.message; fb.className = 'feedback-text error'; }
         return;
     }
@@ -1873,11 +1888,15 @@ async function approvePendingUser(username) {
 
 async function rejectPendingUser(username) {
     if (!confirm('Rejeitar a solicitação de ' + username + '?')) return;
-    const fb = $('users-feedback');
+    const fb = $('pending-users-feedback') || $('users-feedback');
+    const card = document.querySelector('[data-um-username="' + CSS.escape(username) + '"]');
+    if (card) card.style.display = 'none';
+    if (fb) { fb.textContent = 'Rejeitando ' + username + '...'; fb.className = 'feedback-text'; }
     try {
         await api('auth/reject/' + encodeURIComponent(username), { method: 'POST' });
         if (fb) { fb.textContent = username + ' rejeitado.'; fb.className = 'feedback-text success'; }
     } catch (e) {
+        if (card) card.style.display = '';
         if (fb) { fb.textContent = 'Erro: ' + e.message; fb.className = 'feedback-text error'; }
         return;
     }
