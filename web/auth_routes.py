@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Handlers de autentica├º├úo do painel web.
-Login, registro, aprova├º├úo, gerenciamento de roles e status (banido/desativado).
+Handlers de autenticação do painel web.
+Login, registro, aprovação, gerenciamento de roles e status (banido/desativado).
 """
 import datetime
 import re
@@ -16,35 +16,35 @@ from web.auth import get_db, hash_password, check_password
 
 logger = logging.getLogger("web.auth_routes")
 
-# Valores aceitos pelo seletor "A├º├úo" do painel admin.
+# Valores aceitos pelo seletor "Ação" do painel admin.
 # 'admin'/'viewer' alteram o CARGO (papel). 'desativado'/'banido' alteram o STATUS.
 VALID_ROLES = ('admin', 'viewer')
 BLOCKING_STATUSES = ('banned', 'disabled')
 
-# A├º├╡es de bloqueio aceitas pelo seletor "A├º├úo" do painel admin.
-# Chave = r├│tulo enviado pelo front; valor = status gravado no MongoDB.
+# Ações de bloqueio aceitas pelo seletor "Ação" do painel admin.
+# Chave = rótulo enviado pelo front; valor = status gravado no MongoDB.
 STATUS_ACTIONS = {
     'desativado': 'disabled',
     'banido': 'banned',
 }
 
-# A├º├úo de senha: N├âO altera o status nem o cargo. Marca a conta para troca
-# de senha no pr├│ximo login (campo must_change_password).
+# Ação de senha: NÃO altera o status nem o cargo. Marca a conta para troca
+# de senha no próximo login (campo must_change_password).
 PASSWORD_ACTION = 'trocar_senha'
 PASSWORD_PAGE = '/trocar-senha'
 MIN_PASSWORD_LENGTH = 4
 
-# Prote├º├úo contra for├ºa bruta.
-# O bloqueio ├⌐ POR CONTA (persistido no Mongo) e n├úo s├│ por IP: um atacante
-# trocando de origem n├úo contorna. As tentativas ficam na pr├│pria conta, ent├úo
+# Proteção contra força bruta.
+# O bloqueio é POR CONTA (persistido no Mongo) e não só por IP: um atacante
+# trocando de origem não contorna. As tentativas ficam na própria conta, então
 # o limite tambem e valido em caso de reinicio do bot.
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
 MAX_PASSWORD_ATTEMPTS = 5
 
-# Recupera├º├úo de senha esquecida: o usu├írio pede, o ADMIN aprova.
-# N├âO existe reset autom├ítico por e-mail (o bot n├úo tem servidor de e-mail),
-# ent├úo o pedido s├│ vira uma troca de senha depois que um admin aprova.
+# Recuperação de senha esquecida: o usuário pede, o ADMIN aprova.
+# NÃO existe reset automático por e-mail (o bot não tem servidor de e-mail),
+# então o pedido só vira uma troca de senha depois que um admin aprova.
 PASSWORD_RESET_ACTION = 'aprovar_reset_senha'
 PASSWORD_RESET_DENY_ACTION = 'negar_reset_senha'
 # Janela em que um pedido continua valendo para o admin ver.
@@ -52,9 +52,9 @@ PASSWORD_RESET_TTL_MINUTES = 60
 
 
 def get_blocking_page(user_status: str) -> str:
-    """Mapeia o status do usu├írio para a p├ígina informativa que ele deve ver.
+    """Mapeia o status do usuário para a página informativa que ele deve ver.
 
-    Retorna 'banido', 'desativado' ou None se o usu├írio pode acessar normalmente.
+    Retorna 'banido', 'desativado' ou None se o usuário pode acessar normalmente.
     """
     if user_status == 'banned':
         return 'banido'
@@ -103,7 +103,7 @@ def register_auth_routes(admin_api_app, bot_instance):
             {"_id": username}, {"failed_login_attempts": 1}
         )
         if not doc:
-            # Conta inexistente: nada a persistir (o 401 j├í ├⌐ gen├⌐rico).
+            # Conta inexistente: nada a persistir (o 401 já é genérico).
             return
         attempts = int(doc.get("failed_login_attempts") or 0) + 1
         update = {"failed_login_attempts": attempts}
@@ -128,7 +128,7 @@ def register_auth_routes(admin_api_app, bot_instance):
         password = data.get('password', '')
         guild_id = data.get('guild_id', '')
         if not username or not password:
-            return web.json_response({"status": "error", "message": "Usu├írio e senha obrigat├│rios."}, status=400)
+            return web.json_response({"status": "error", "message": "Usuário e senha obrigatórios."}, status=400)
         db, err = get_db(bot_instance)
         if err:
             return err
@@ -144,16 +144,16 @@ def register_auth_routes(admin_api_app, bot_instance):
 
         user = await db.panel_users.find_one({"_id": username})
         if not user:
-            return web.json_response({"status": "error", "message": "Credenciais inv├ílidas."}, status=401)
+            return web.json_response({"status": "error", "message": "Credenciais inválidas."}, status=401)
 
-        # Usu├írio banido ou desativado: confere a senha para n├úo vazar a
-        # exist├¬ncia da conta, e ent├úo devolve o redirecionamento para a
-        # p├ígina informativa correspondente.
+        # Usuário banido ou desativado: confere a senha para não vazar a
+        # existência da conta, e então devolve o redirecionamento para a
+        # página informativa correspondente.
         user_status = user.get('status', 'active')
         if user_status in BLOCKING_STATUSES:
             if not check_password(password, user['password_hash']):
                 await _register_failure(db, username)
-                return web.json_response({"status": "error", "message": "Credenciais inv├ílidas."}, status=401)
+                return web.json_response({"status": "error", "message": "Credenciais inválidas."}, status=401)
             page = get_blocking_page(user_status)
             return web.json_response({
                 "status": user_status,
@@ -161,21 +161,21 @@ def register_auth_routes(admin_api_app, bot_instance):
                 "message": (
                     "Sua conta foi BANIDA. Acesso ao painel permanentemente bloqueado."
                     if user_status == 'banned'
-                    else "O acesso da sua conta foi DESATIVADO pela administra├º├úo."
+                    else "O acesso da sua conta foi DESATIVADO pela administração."
                 ),
             }, status=403)
 
         if user_status != 'active':
-            return web.json_response({"status": "error", "message": "Credenciais inv├ílidas."}, status=401)
+            return web.json_response({"status": "error", "message": "Credenciais inválidas."}, status=401)
         if not check_password(password, user['password_hash']):
             await _register_failure(db, username)
-            return web.json_response({"status": "error", "message": "Credenciais inv├ílidas."}, status=401)
+            return web.json_response({"status": "error", "message": "Credenciais inválidas."}, status=401)
         await _clear_failures(db, username)
         session = await get_session(r)
         session['csrf_token'] = secrets.token_hex(32)
 
-        # Admin liberou a troca de senha: abre uma sess├úo LIMITADA (sem 'role'),
-        # que d├í acesso apenas ├á p├ígina e ao endpoint de troca de senha.
+        # Admin liberou a troca de senha: abre uma sessão LIMITADA (sem 'role'),
+        # que dá acesso apenas à página e ao endpoint de troca de senha.
         if user.get('must_change_password'):
             session['authenticated'] = True
             session['username'] = username
@@ -197,19 +197,19 @@ def register_auth_routes(admin_api_app, bot_instance):
         return web.json_response({"status": "success", "role": user['role'], "username": username})
 
     async def api_auth_change_password(r):
-        """Troca de senha pela sess├úo limitada criada no login.
+        """Troca de senha pela sessão limitada criada no login.
 
-        Exige que a sess├úo tenha 'password_change_required' + 'username'.
-        O CSRF continua v├ílido: o middleware de CSRF n├úo isenta esta rota,
-        apenas o de autentica├º├úo (a sess├úo n├úo tem 'role' de prop├│sito).
+        Exige que a sessão tenha 'password_change_required' + 'username'.
+        O CSRF continua válido: o middleware de CSRF não isenta esta rota,
+        apenas o de autenticação (a sessão não tem 'role' de propósito).
         """
         session = await get_session(r)
         username = session.get('username', '')
         if not username or not session.get('password_change_required'):
             return web.json_response({"status": "error", "message": "Acesso negado."}, status=403)
 
-        # Limite de tentativas por sess├úo: algu├⌐m que conseguiu o login n├úo
-        # fica testando combina├º├╡es indefinidamente.
+        # Limite de tentativas por sessão: alguém que conseguiu o login não
+        # fica testando combinações indefinidamente.
         attempts = int(session.get('password_attempts') or 0)
         if attempts >= MAX_PASSWORD_ATTEMPTS:
             for k in ['authenticated', 'username', 'role', 'admin', 'guild_id',
@@ -232,7 +232,7 @@ def register_auth_routes(admin_api_app, bot_instance):
         if not new_password or not confirm_password:
             return _invalid("Preencha todos os campos.")
         if new_password != confirm_password:
-            return _invalid("As senhas n├úo conferem.")
+            return _invalid("As senhas não conferem.")
         if len(new_password) < MIN_PASSWORD_LENGTH:
             return _invalid(f"A senha deve ter ao menos {MIN_PASSWORD_LENGTH} caracteres.")
 
@@ -242,19 +242,19 @@ def register_auth_routes(admin_api_app, bot_instance):
 
         user = await db.panel_users.find_one({"_id": username})
         if not user:
-            return web.json_response({"status": "error", "message": "Usu├írio n├úo encontrado."}, status=404)
+            return web.json_response({"status": "error", "message": "Usuário não encontrado."}, status=404)
 
-        # Conta bloqueada n├úo troca senha por esta via.
+        # Conta bloqueada não troca senha por esta via.
         user_status = user.get('status', 'active')
         if user_status in BLOCKING_STATUSES:
             page = get_blocking_page(user_status)
             return web.json_response({
                 "status": user_status,
                 "page": f"/{page}",
-                "message": "Esta conta est├í bloqueada e n├úo pode alterar a senha.",
+                "message": "Esta conta está bloqueada e não pode alterar a senha.",
             }, status=403)
 
-        # Impede que o usu├írio "troque" a senha para a mesma que j├í est├í em uso.
+        # Impede que o usuário "troque" a senha para a mesma que já está em uso.
         if check_password(new_password, user.get('password_hash', '')):
             return _invalid("A nova senha deve ser diferente da atual.")
 
@@ -268,7 +268,7 @@ def register_auth_routes(admin_api_app, bot_instance):
         )
         logger.info("Senha alterada pelo usuario '%s'", username)
 
-        # Encerra a sess├úo limitada: o usu├írio entra novamente com a nova senha.
+        # Encerra a sessão limitada: o usuário entra novamente com a nova senha.
         for k in ['authenticated', 'username', 'role', 'admin', 'guild_id',
                   'password_change_required', 'password_attempts', 'csrf_token']:
             session.pop(k, None)
@@ -284,16 +284,16 @@ def register_auth_routes(admin_api_app, bot_instance):
         password = data.get('password', '')
         discord_user = data.get('discord', '')
         if not username or not password or len(username) < 3 or len(password) < 4:
-            return web.json_response({"status": "error", "message": "Usu├írio (3+ chars) e senha (4+ chars) obrigat├│rios."}, status=400)
+            return web.json_response({"status": "error", "message": "Usuário (3+ chars) e senha (4+ chars) obrigatórios."}, status=400)
         if not re.match(r'^[a-z0-9_]+$', username):
-            return web.json_response({"status": "error", "message": "Usu├írio apenas letras min├║sculas, n├║meros e underscore."}, status=400)
+            return web.json_response({"status": "error", "message": "Usuário apenas letras minúsculas, números e underscore."}, status=400)
         db, err = get_db(bot_instance)
         if err:
             return err
 
         existing = await db.panel_users.find_one({"_id": username})
         if existing:
-            return web.json_response({"status": "error", "message": "Usu├írio j├í existe."}, status=409)
+            return web.json_response({"status": "error", "message": "Usuário já existe."}, status=409)
         await db.panel_users.insert_one({
             "_id": username,
             "password_hash": hash_password(password),
@@ -304,7 +304,7 @@ def register_auth_routes(admin_api_app, bot_instance):
             "approved_by": None,
             "approved_at": None,
         })
-        return web.json_response({"status": "success", "message": "Solicita├º├úo enviada! Aguarde aprova├º├úo do administrador."})
+        return web.json_response({"status": "success", "message": "Solicitação enviada! Aguarde aprovação do administrador."})
 
     async def api_auth_pending(r):
         db, err = get_db(bot_instance)
@@ -330,7 +330,7 @@ def register_auth_routes(admin_api_app, bot_instance):
         )
         if result.modified_count:
             return web.json_response({"status": "success", "message": f"{username} aprovado!"})
-        return web.json_response({"status": "error", "message": "Usu├írio n├úo encontrado ou j├í processado."}, status=404)
+        return web.json_response({"status": "error", "message": "Usuário não encontrado ou já processado."}, status=404)
 
     async def api_auth_reject(r):
         username = r.match_info.get('username', '').strip().lower()
@@ -341,7 +341,7 @@ def register_auth_routes(admin_api_app, bot_instance):
         result = await db.panel_users.delete_one({"_id": username, "status": "pending"})
         if result.deleted_count:
             return web.json_response({"status": "success", "message": f"{username} rejeitado e removido."})
-        return web.json_response({"status": "error", "message": "Usu├írio n├úo encontrado."}, status=404)
+        return web.json_response({"status": "error", "message": "Usuário não encontrado."}, status=404)
 
     async def api_auth_role(r):
         data = await r.json()
@@ -350,44 +350,44 @@ def register_auth_routes(admin_api_app, bot_instance):
         valid_actions = (VALID_ROLES + tuple(STATUS_ACTIONS)
                          + (PASSWORD_ACTION, PASSWORD_RESET_ACTION, PASSWORD_RESET_DENY_ACTION))
         if not target or new_action not in valid_actions:
-            return web.json_response({"status": "error", "message": "Par├ómetros inv├ílidos."}, status=400)
+            return web.json_response({"status": "error", "message": "Parâmetros inválidos."}, status=400)
         session = await get_session(r)
         actor_role = session.get('role', '')
         if actor_role == 'viewer':
-            return web.json_response({"status": "error", "message": "Membro S├¬nior n├úo pode alterar usu├írios."}, status=403)
+            return web.json_response({"status": "error", "message": "Membro Sênior não pode alterar usuários."}, status=403)
         if session.get('username', '').lower() == target:
-            return web.json_response({"status": "error", "message": "N├úo pode alterar sua pr├│pria conta."}, status=400)
+            return web.json_response({"status": "error", "message": "Não pode alterar sua própria conta."}, status=400)
         db, err = get_db(bot_instance)
         if err:
             return err
 
-        # Registro de auditoria: quem aplicou a a├º├úo e quando.
+        # Registro de auditoria: quem aplicou a ação e quando.
         update = {
             "last_action_by": session.get('username', ''),
             "last_action_at": datetime.datetime.now(pytz.utc),
         }
 
         if new_action in VALID_ROLES:
-            # Trocar o cargo (Admin / Membro S├¬nior) tamb├⌐m reativa a conta,
-            # permitindo reverter um banimento ou desativa├º├úo anterior.
+            # Trocar o cargo (Admin / Membro Sênior) também reativa a conta,
+            # permitindo reverter um banimento ou desativação anterior.
             update["role"] = new_action
             update["status"] = 'active'
-            message = f"{target} agora ├⌐ {'Admin' if new_action == 'admin' else 'Membro S├¬nior'}."
+            message = f"{target} agora é {'Admin' if new_action == 'admin' else 'Membro Sênior'}."
         elif new_action == PASSWORD_ACTION:
-            # Libera a troca de senha no pr├│ximo login. N├úo altera cargo nem status.
-            # Tamb├⌐m limpa o bloqueio por tentativas: sem isso uma conta travada
-            # por for├ºa bruta nunca conseguiria entrar para trocar a senha.
+            # Libera a troca de senha no próximo login. Não altera cargo nem status.
+            # Também limpa o bloqueio por tentativas: sem isso uma conta travada
+            # por força bruta nunca conseguiria entrar para trocar a senha.
             update["must_change_password"] = True
             update["password_reset_by"] = session.get('username', '')
             update["failed_login_attempts"] = 0
             update["locked_until"] = None
             message = (
                 f"Troca de senha liberada para {target}. "
-                "No pr├│ximo login ele dever├í definir uma nova senha."
+                "No próximo login ele deverá definir uma nova senha."
             )
         elif new_action == PASSWORD_RESET_ACTION:
-            # Admin APROVA um pedido de "esqueci minha senha". O efeito ├⌐ o mesmo
-            # da troca for├ºada, mas registra que houve solicitacao do titular.
+            # Admin APROVA um pedido de "esqueci minha senha". O efeito é o mesmo
+            # da troca forçada, mas registra que houve solicitacao do titular.
             update["must_change_password"] = True
             update["password_reset_by"] = session.get('username', '')
             update["password_reset_approved_at"] = datetime.datetime.now(pytz.utc)
@@ -396,7 +396,7 @@ def register_auth_routes(admin_api_app, bot_instance):
             update["locked_until"] = None
             message = (
                 f"Reset de senha APROVADO para {target}. "
-                "No pr├│ximo login ele poder├í definir uma nova senha."
+                "No próximo login ele poderá definir uma nova senha."
             )
         elif new_action == PASSWORD_RESET_DENY_ACTION:
             # Admin NEGA o pedido: o titular continua com a senha antiga.
@@ -404,11 +404,11 @@ def register_auth_routes(admin_api_app, bot_instance):
             update["password_reset_denied_by"] = session.get('username', '')
             message = f"Reset de senha NEGADO para {target}."
         else:
-            # Bloqueio de acesso: preserva o cargo atual do usu├írio.
+            # Bloqueio de acesso: preserva o cargo atual do usuário.
             new_status = STATUS_ACTIONS[new_action]
             update["status"] = new_status
             message = (
-                f"{target} foi BANIDO. O acesso ao painel est├í bloqueado."
+                f"{target} foi BANIDO. O acesso ao painel está bloqueado."
                 if new_status == 'banned'
                 else f"O acesso de {target} foi DESATIVADO."
             )
@@ -419,7 +419,7 @@ def register_auth_routes(admin_api_app, bot_instance):
         )
         if result.matched_count:
             return web.json_response({"status": "success", "message": message})
-        return web.json_response({"status": "error", "message": "Usu├írio n├úo encontrado ou ainda aguardando aprova├º├úo."}, status=404)
+        return web.json_response({"status": "error", "message": "Usuário não encontrado ou ainda aguardando aprovação."}, status=404)
 
     async def api_auth_forgot_password(r):
         """Pedido de recuperacao de senha. Aprovado por um admin, nao automatico.
@@ -466,7 +466,7 @@ def register_auth_routes(admin_api_app, bot_instance):
         if err:
             return err
 
-        # Pendentes ficam no fim; dentro de cada grupo, em ordem alfab├⌐tica.
+        # Pendentes ficam no fim; dentro de cada grupo, em ordem alfabética.
         cursor = db.panel_users.find({}).sort([("status", 1), ("_id", 1)]).limit(200)
         users = []
         async for doc in cursor:

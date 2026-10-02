@@ -38,7 +38,7 @@ def make_troca_senha_page(static_dir):
         # Inject username and CSRF token into the HTML
         html_content = html.replace('{{USERNAME}}', html_module.escape(username))
         html_content = html_content.replace('</head>', f'<meta name="csrf-token" content="{csrf_token}"></head>')
-        return web.Response(text=html_content, content_type='text/html')
+        return web.Response(text=html_content, content_type='text/html', charset='utf-8')
     return troca_senha_page
 
 
@@ -202,7 +202,7 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
             with open(os.path.join(static_dir, "admin_panel.html"), 'r', encoding='utf-8') as f:
                 _admin_panel_html_cache = f.read()
         html = _admin_panel_html_cache.replace('</head>', f'<meta name="csrf-token" content="{csrf_token}"></head>')
-        return web.Response(text=html, content_type='text/html')
+        return web.Response(text=html, content_type='text/html', charset='utf-8')
 
     async def admin_login_handler(r):
         from config import ADMIN_PASSWORD

@@ -362,3 +362,88 @@ window.changeUserAction = async function(username, newAction) {
 };
 
 window.changeUserRole = window.changeUserAction;
+
+let currentUsername = '';
+let currentUserRole = '';
+
+async function loadPendingUsers() {
+    const container = document.getElementById('pending-users-list');
+    if (!container) return;
+    try {
+        const data = await fetchAdminAPI('auth/users');
+        const pending = (data || []).filter(u => u.status === 'pending');
+        if (pending.length === 0) {
+            container.innerHTML = '<p style="color:var(--color-text-secondary);font-style:italic;">Nenhuma solicitação pendente.</p>';
+            return;
+        }
+        container.innerHTML = pending.map(u => `
+            <div style="background:rgba(0,0,0,0.3);border:1px solid var(--neon-cyan);border-radius:6px;padding:12px;margin-bottom:6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                    <div>
+                        <strong>${escapeHtml(u.username)}</strong>
+                        ${u.discord ? `<span style="color:var(--color-text-secondary);"> · ${escapeHtml(u.discord)}</span>` : ''}
+                        <div style="font-size:0.8em;color:var(--color-text-secondary);">Criado: ${u.created_at ? new Date(u.created_at).toLocaleString('pt-BR') : '—'}</div>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <button type="button" class="um-btn um-btn-primary" onclick="approvePendingUser('${escapeHtml(u.username)}')">Aprovar</button>
+                        <button type="button" class="um-btn um-btn-danger" onclick="rejectPendingUser('${escapeHtml(u.username)}')">Rejeitar</button>
+                    </div>
+                </div>
+            </div>`).join('');
+    } catch (e) {
+        container.innerHTML = `<p class="error-text">Erro: ${escapeHtml(e.message)}</p>`;
+    }
+}
+
+window.approvePendingUser = async function(username) {
+    try {
+        await fetchAdminAPI('auth/approve/' + encodeURIComponent(username), { method: 'POST' });
+        await loadPendingUsers();
+        await loadActiveUsers();
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
+};
+
+window.rejectPendingUser = async function(username) {
+    if (!confirm('Rejeitar solicitação de ' + username + '?')) return;
+    try {
+        await fetchAdminAPI('auth/reject/' + encodeURIComponent(username), { method: 'POST' });
+        await loadPendingUsers();
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
+};
+
+function setActiveSection(sectionId) {
+    document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active-section'));
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active-nav-link'));
+    const target = document.getElementById(sectionId);
+    if (target) target.classList.add('active-section');
+    const link = document.querySelector(`.nav-link[data-section="${sectionId}"]`);
+    if (link) link.classList.add('active-nav-link');
+    localStorage.setItem('activeSection', sectionId);
+    if (sectionId === 'admin-users') {
+        loadPendingUsers();
+        loadActiveUsers();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const me = await fetchAdminAPI('auth/me');
+        currentUsername = me.username || '';
+        currentUserRole = me.role || '';
+    } catch (e) { /* ignore */ }
+
+    const saved = localStorage.getItem('activeSection');
+    const first = document.querySelector('.nav-link[data-section]');
+    setActiveSection(saved && document.getElementById(saved) ? saved : (first ? first.dataset.section : 'admin-geral'));
+
+    document.querySelectorAll('.nav-link[data-section]').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            setActiveSection(link.dataset.section);
+        });
+    });
+});

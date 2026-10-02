@@ -5,6 +5,24 @@ function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c => map[c]);
 }
 
+// Fetch para a API admin com CSRF automático em mutations
+async function fetchAdminAPI(path, options = {}) {
+    const url = '/api/admin/' + path;
+    const opts = { credentials: 'include', ...options };
+    const method = (opts.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
+        opts.headers = { ...opts.headers };
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta && meta.content) opts.headers['X-CSRF-Token'] = meta.content;
+    }
+    const resp = await fetch(url, opts);
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok) {
+        throw new Error((data && data.message) || ('HTTP ' + resp.status));
+    }
+    return data;
+}
+
 // Menu hambúrguer responsivo (público + admin)
 document.addEventListener('DOMContentLoaded', function () {
     const toggle = document.getElementById('nav-toggle');
