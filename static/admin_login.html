@@ -211,6 +211,7 @@
                 <input type="hidden" id="login-guild-id" value="">
                 <button onclick="doLogin()">▶ ACESSAR</button>
                 <p id="login-feedback" style="color:#ff6b6b;"></p>
+                <p class="register-link" onclick="showForgot()" style="color:rgba(255,200,100,0.55);font-family:'Fira Code',monospace;font-size:0.8em;cursor:pointer;">Esqueci minha senha</p>
                 <p class="register-link" onclick="showRegister()">Não tem acesso? Solicite sua conta</p>
             </div>
 
@@ -222,6 +223,19 @@
                 <input type="text" id="reg-discord" placeholder="// SEU DISCORD (ex: usuario#1234) //" style="width:80%;padding:10px;margin-bottom:10px;background:rgba(0,0,0,0.8);border:1px solid rgba(0,255,249,0.3);color:#00ffcc;font-family:'Fira Code',monospace;text-align:center;">
                 <button onclick="doRegister()" style="background:linear-gradient(135deg,#0033cc,var(--neon-cyan),#0040ff)!important;">▶ SOLICITAR</button>
                 <p id="register-feedback" style="color:#00ffcc;"></p>
+                <p class="register-link" onclick="showLogin()">Voltar ao login</p>
+            </div>
+
+            <!-- Forgot Password Form -->
+            <div id="forgot-form-section" class="register-form">
+                <h3 style="color:var(--neon-orange);font-size:1em;margin:15px 0;">RECUPERAR SENHA</h3>
+                <p style="font-family:'Fira Code',monospace;font-size:0.75em;color:rgba(255,255,255,0.45);margin:0 0 12px 0;line-height:1.6;">
+                    Informe seu usuário. A solicitação é analisada por um administrador;
+                    quando aprovada, você poderá definir uma nova senha no próximo login.
+                </p>
+                <input type="text" id="forgot-username" placeholder="// USUÁRIO //" style="width:80%;padding:10px;margin-bottom:10px;background:rgba(0,0,0,0.8);border:1px solid rgba(255,165,0,0.3);color:#ffa500;font-family:'Fira Code',monospace;text-align:center;" required>
+                <button onclick="doForgotPassword()" style="background:linear-gradient(135deg,#663300,var(--neon-orange),#996633)!important;">▶ SOLICITAR RESET</button>
+                <p id="forgot-feedback" style="color:#ffa500;"></p>
                 <p class="register-link" onclick="showLogin()">Voltar ao login</p>
             </div>
 
@@ -264,12 +278,21 @@
 
         function showRegister() {
             document.getElementById('login-form-section').style.display = 'none';
+            document.getElementById('forgot-form-section').style.display = 'none';
             document.getElementById('register-form-section').classList.add('active');
             document.getElementById('register-form-section').style.display = 'block';
         }
         function showLogin() {
             document.getElementById('register-form-section').style.display = 'none';
+            document.getElementById('forgot-form-section').style.display = 'none';
             document.getElementById('login-form-section').style.display = 'block';
+        }
+        function showForgot() {
+            document.getElementById('login-form-section').style.display = 'none';
+            document.getElementById('register-form-section').style.display = 'none';
+            document.getElementById('forgot-form-section').classList.add('active');
+            document.getElementById('forgot-form-section').style.display = 'block';
+            setTimeout(() => document.getElementById('forgot-username').focus(), 100);
         }
 
         async function doLogin() {
@@ -323,9 +346,31 @@
             }
         }
 
+        async function doForgotPassword() {
+            const username = document.getElementById('forgot-username').value.trim().toLowerCase();
+            const fb = document.getElementById('forgot-feedback');
+            if (!username) { fb.textContent = 'Informe o usuário.'; return; }
+            fb.textContent = 'Enviando solicitação...';
+            try {
+                const resp = await fetch('/api/admin/auth/forgot-password', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username})
+                });
+                const data = await resp.json();
+                fb.textContent = data.message || 'Solicitação registrada.';
+                if (data.status === 'success') {
+                    document.getElementById('forgot-username').value = '';
+                }
+            } catch(e) {
+                fb.textContent = 'Erro de conexao com o servidor.';
+            }
+        }
+
         function useMasterPassword() {
             document.getElementById('login-form-section').style.display = 'none';
             document.getElementById('register-form-section').style.display = 'none';
+            document.getElementById('forgot-form-section').style.display = 'none';
             document.querySelector('.login-card').style.display = 'none';
             document.getElementById('master-password-section').style.display = 'block';
             document.getElementById('mp-guild-id').value = document.getElementById('login-guild-id').value;
