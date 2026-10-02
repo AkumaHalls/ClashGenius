@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lastUpdatedEl = document.getElementById('lastUpdated');
 
     const navLinks = document.querySelectorAll('.nav-link');
-    const contentSections = document.querySelectorAll('.content-section');
+    const contentSections = document.querySelectorAll('.content-section, .admin-section');
     let isFirstLoad = true;
     let userIsAdmin = false; 
 
