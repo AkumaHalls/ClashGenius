@@ -1,27 +1,23 @@
 # -*- coding: utf-8 -*-
+import asyncio
+import datetime
 import logging
+
 import discord
+import geniuslib as coc
+import pytz
 from discord import app_commands
 from discord.ext import commands, tasks
-import geniuslib as coc
 from geniuslib.battlelog_analytics import (
     battle_attack_stats,
+    battle_consistency_score,
     battle_defense_stats,
     battle_loot_summary,
-    battle_win_rate,
-    battle_consistency_score,
-    battle_streak,
     battle_period_summary,
+    battle_streak,
+    battle_win_rate,
     league_history_progression,
-    tier_group_mvp,
-    tier_group_attack_analysis,
-    tier_group_defense_analysis,
-    tier_group_member_stats,
 )
-import datetime
-import pytz
-import asyncio
-from typing import Optional
 
 logger = logging.getLogger("battlelog_cog")
 
@@ -44,6 +40,10 @@ class BattleLogCog(commands.Cog, name="Legend League"):
             try:
                 await asyncio.wait_for(self.bot.db_ready.wait(), timeout=30.0)
                 await asyncio.wait_for(self.bot.coc_client_ready.wait(), timeout=60.0)
+
+                if self.bot.db is None:
+                    logger.critical("BattleLogCog: Banco de dados indisponível. Tasks não iniciadas.")
+                    return
 
                 if not self.snapshot_battle_logs_task.is_running():
                     self.snapshot_battle_logs_task.start()
@@ -78,22 +78,22 @@ class BattleLogCog(commands.Cog, name="Legend League"):
             return []
 
     async def _fetch_battlelog(self, player_tag: str):
-        """Busca battle log de um jogador com tratamento de erros."""
+        """Busca battle log de um jogador. Retorna None em erro e [] quando não há batalhas."""
         try:
             entries = await self.bot.api_client.get_player_battlelog(player_tag)
             return entries
         except Exception as e:
             logger.warning(f"Erro ao buscar battlelog para {player_tag}: {e}")
-            return []
+            return None
 
     async def _fetch_league_history(self, player_tag: str):
-        """Busca histórico de ligas de um jogador."""
+        """Busca histórico de ligas de um jogador. Retorna None em erro e [] quando vazio."""
         try:
             history = await self.bot.api_client.get_player_league_history(player_tag)
             return history
         except Exception as e:
             logger.warning(f"Erro ao buscar league history para {player_tag}: {e}")
-            return []
+            return None
 
     # --- Background Tasks ---
 
@@ -238,11 +238,17 @@ class BattleLogCog(commands.Cog, name="Legend League"):
 
         try:
             player = await self.bot.api_client.get_player(jogador)
-        except Exception:
+        except coc.NotFound:
             await interaction.followup.send("❌ Jogador não encontrado.", ephemeral=True)
+            return
+        except Exception:
+            await interaction.followup.send("❌ Erro ao consultar o jogador. Tente novamente mais tarde.", ephemeral=True)
             return
 
         entries = await self._fetch_battlelog(player.tag)
+        if entries is None:
+            await interaction.followup.send("❌ Erro ao consultar o battlelog. Tente novamente mais tarde.", ephemeral=True)
+            return
         if not entries:
             await interaction.followup.send(
                 f"⚠️ Nenhum battle log encontrado para **{player.name}**. "
@@ -333,11 +339,17 @@ class BattleLogCog(commands.Cog, name="Legend League"):
 
         try:
             player = await self.bot.api_client.get_player(jogador)
-        except Exception:
+        except coc.NotFound:
             await interaction.followup.send("❌ Jogador não encontrado.", ephemeral=True)
+            return
+        except Exception:
+            await interaction.followup.send("❌ Erro ao consultar o jogador. Tente novamente mais tarde.", ephemeral=True)
             return
 
         history = await self._fetch_league_history(player.tag)
+        if history is None:
+            await interaction.followup.send("❌ Erro ao consultar o histórico de ligas. Tente novamente mais tarde.", ephemeral=True)
+            return
         if not history:
             await interaction.followup.send(
                 f"⚠️ Nenhum histórico de ligas encontrado para **{player.name}**.",
@@ -402,18 +414,25 @@ class BattleLogCog(commands.Cog, name="Legend League"):
 
         all_entries = []
         member_names = {}
+        fetch_failed = False
         for member in members:
             entries = await self._fetch_battlelog(member.tag)
+            if entries is None:
+                fetch_failed = True
+                continue
             if entries:
                 all_entries.extend(entries)
                 member_names[member.tag] = member.name
             await asyncio.sleep(1)
 
         if not all_entries:
-            await interaction.followup.send("⚠️ Nenhum battle log encontrado.", ephemeral=True)
+            if fetch_failed:
+                await interaction.followup.send("❌ Erro ao consultar o battlelog. Tente novamente mais tarde.", ephemeral=True)
+            else:
+                await interaction.followup.send("⚠️ Nenhum battle log encontrado.", ephemeral=True)
             return
 
-        today = datetime.date.today()
+        today = datetime.datetime.now(self.bot.timezone).date()
         start = today - datetime.timedelta(days=dias)
         period = battle_period_summary(all_entries, start, today)
 
@@ -468,11 +487,17 @@ class BattleLogCog(commands.Cog, name="Legend League"):
 
         try:
             player = await self.bot.api_client.get_player(jogador)
-        except Exception:
+        except coc.NotFound:
             await interaction.followup.send("❌ Jogador não encontrado.", ephemeral=True)
+            return
+        except Exception:
+            await interaction.followup.send("❌ Erro ao consultar o jogador. Tente novamente mais tarde.", ephemeral=True)
             return
 
         entries = await self._fetch_battlelog(player.tag)
+        if entries is None:
+            await interaction.followup.send("❌ Erro ao consultar o battlelog. Tente novamente mais tarde.", ephemeral=True)
+            return
         if not entries:
             await interaction.followup.send(
                 f"⚠️ Nenhum battle log encontrado para **{player.name}**.",

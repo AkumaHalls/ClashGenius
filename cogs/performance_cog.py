@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
+import asyncio
+import datetime
 import logging
+
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-import geniuslib as coc
-from geniuslib.formatters import format_th, format_trophies
-import asyncio
+from geniuslib.formatters import format_th
 from pymongo import DESCENDING
 
 logger = logging.getLogger("performance_cog")
+
+WEEKLY_REPORT_MARKER = "weekly_performance_report"
 
 class PerformanceCog(commands.Cog, name="Análise de Desempenho"):
     """Cog que audita o clã e dedura jogadores com métricas ruins (Sanguessugas e Desertores)."""
@@ -116,13 +119,39 @@ class PerformanceCog(commands.Cog, name="Análise de Desempenho"):
         embed.set_footer(text="IA de Auditoria do ClashGenius | Avaliação baseada nas últimas 10 guerras.")
         await interaction.followup.send(embed=embed)
 
+    async def weekly_report_already_sent(self) -> bool:
+        if self.db is None:
+            return False
+        doc = await self.db.system_config.find_one({"_id": WEEKLY_REPORT_MARKER})
+        if not doc:
+            return False
+        last_run = doc.get("last_run")
+        if not isinstance(last_run, datetime.datetime):
+            return False
+        if last_run.tzinfo is None:
+            last_run = last_run.replace(tzinfo=datetime.timezone.utc)
+        elapsed = datetime.datetime.now(datetime.timezone.utc) - last_run
+        return elapsed < datetime.timedelta(hours=168)
+
+    async def register_weekly_report(self):
+        if self.db is None:
+            return
+        await self.db.system_config.update_one(
+            {"_id": WEEKLY_REPORT_MARKER},
+            {"$set": {"last_run": datetime.datetime.now(datetime.timezone.utc)}},
+            upsert=True,
+        )
+
     @tasks.loop(hours=168) # Roda automaticamente a cada 7 dias
     async def weekly_report_task(self):
-        if self.bot.maintenance_mode or not self.bot.low_performance_channel_id:
-            return
-        
-        logger.info("Executando Relatório Semanal de Faxina...")
         try:
+            if self.bot.maintenance_mode or not self.bot.low_performance_channel_id:
+                return
+
+            if await self.weekly_report_already_sent():
+                return
+
+            logger.info("Executando Relatório Semanal de Faxina...")
             bad_performers = await self.generate_performance_report()
             if not bad_performers: return 
 
@@ -144,8 +173,9 @@ class PerformanceCog(commands.Cog, name="Análise de Desempenho"):
                     inline=False
                 )
 
-            embed.set_footer(text=f"Para ver este relatório a qualquer momento, digite /faxina")
+            embed.set_footer(text="Para ver este relatório a qualquer momento, digite /faxina")
             await channel.send(embed=embed)
+            await self.register_weekly_report()
 
         except Exception as e:
             logger.error(f"Erro no Relatório Semanal: {e}", exc_info=True)

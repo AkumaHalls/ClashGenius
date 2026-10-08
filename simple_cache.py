@@ -1,19 +1,27 @@
-import time
 import logging
-from typing import Dict, Any, Optional
+import time
+from collections import OrderedDict
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger("simple_cache")
 
 
 class SimpleCache:
-    """Cache em memória com TTL, limite de tamanho, evicção e estatísticas."""
+    """Cache em memória com TTL, limite de tamanho, evicção LRU e estatísticas."""
 
     def __init__(self, default_ttl: int = 30, maxsize: int = 500):
-        self._store: Dict[str, dict] = {}
+        if maxsize <= 0:
+            raise ValueError(f"maxsize deve ser > 0, recebido {maxsize!r}")
+        if default_ttl <= 0:
+            raise ValueError(f"default_ttl deve ser > 0, recebido {default_ttl!r}")
+        # OrderedDict: a ordem é a recência de acesso (LRU = início da fila).
+        self._store: "OrderedDict[str, dict]" = OrderedDict()
         self.default_ttl = default_ttl
         self.maxsize = maxsize
         self._hits = 0
         self._misses = 0
+        # Relógio injetável (monotonic) para testes controlarem a expiração.
+        self._clock: Callable[[], float] = time.monotonic
 
     # ------------------------------------------------------------------
     # API pública (idêntica à versão anterior)
@@ -24,20 +32,24 @@ class SimpleCache:
         if entry is None:
             self._misses += 1
             return None
-        if time.time() > entry["expires"]:
+        if self._clock() >= entry["expires"]:
             del self._store[key]
             self._misses += 1
             return None
+        self._store.move_to_end(key)
         self._hits += 1
         return entry["data"]
 
     def set(self, key: str, data: Any, ttl: Optional[int] = None) -> None:
-        if len(self._store) >= self.maxsize:
+        if ttl is not None and ttl <= 0:
+            raise ValueError(f"ttl deve ser > 0, recebido {ttl!r}")
+        if key not in self._store and len(self._store) >= self.maxsize:
             self._evict()
         self._store[key] = {
             "data": data,
-            "expires": time.time() + (ttl if ttl is not None else self.default_ttl),
+            "expires": self._clock() + (ttl if ttl is not None else self.default_ttl),
         }
+        self._store.move_to_end(key)
 
     def delete(self, key: str) -> None:
         self._store.pop(key, None)
@@ -56,7 +68,7 @@ class SimpleCache:
             logger.info("clear: removidas %d chaves", count)
 
     def size(self) -> int:
-        now = time.time()
+        now = self._clock()
         return sum(1 for e in self._store.values() if e["expires"] > now)
 
     # ------------------------------------------------------------------
@@ -76,24 +88,20 @@ class SimpleCache:
         }
 
     def _evict(self) -> None:
-        """Remove itens expirados e, se ainda cheio, os 25% mais velhos."""
-        now = time.time()
+        """Purga expirados e, se ainda cheio, remove o menos recentemente usado."""
+        now = self._clock()
         expired = [k for k, v in self._store.items() if v["expires"] <= now]
         for k in expired:
             del self._store[k]
 
-        if len(self._store) >= self.maxsize:
-            sorted_keys = sorted(self._store, key=lambda k: self._store[k]["expires"])
-            qtd = max(1, len(self._store) // 4)
+        while len(self._store) >= self.maxsize:
+            lru_key, _ = self._store.popitem(last=False)
             logger.warning(
-                "_evict: cache cheio (%d/%d), removendo %d itens expirados + %d mais velhos",
-                len(self._store),
+                "_evict: cache cheio (%d/%d), removendo LRU %r",
+                len(self._store) + 1,
                 self.maxsize,
-                len(expired),
-                qtd,
+                lru_key,
             )
-            for k in sorted_keys[:qtd]:
-                del self._store[k]
 
 
 cache = SimpleCache(default_ttl=30)

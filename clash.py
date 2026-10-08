@@ -1,31 +1,56 @@
 # -*- coding: utf-8 -*-
 # Versão 33.0.0 - Decomposição do Web Server
 
-import os
-import signal
-import logging
 import asyncio
 import datetime
-from typing import Dict, Any, Optional, List
+import logging
+import signal
+import sys
+from typing import Any, Dict, Optional
 
 import discord
-from discord.ext import commands
 import geniuslib as coc
-from geniuslib.middleware import middleware, request_logger as mw_request_logger, response_logger as mw_response_logger
-import pytz
 import motor.motor_asyncio
+from discord.ext import commands
+from geniuslib.middleware import middleware
+from geniuslib.middleware import request_logger as mw_request_logger
+from geniuslib.middleware import response_logger as mw_response_logger
 from pymongo.uri_parser import parse_uri
 
 from config import (
-    DISCORD_TOKEN, COC_EMAIL, COC_PASSWORD, CLAN_TAG, MONGO_DB_URL, BASE_URL,
-    CHANNEL_ID, AI_LOG_CHANNEL_ID, POST_WAR_ANALYSIS_CHANNEL_ID, POST_WAR_VERDICT_CHANNEL_ID,
-    CLAN_GAMES_CHANNEL_ID, CWL_PLANNER_CHANNEL_ID, DONATIONS_CHANNEL_ID, SMURF_LOG_CHANNEL_ID,
-    WATCHLIST_ALERT_CHANNEL_ID, LOW_PERFORMANCE_CHANNEL_ID, CAPITAL_REPORT_CHANNEL_ID,
-    MAINTENANCE_ALERT_CHANNEL_ID, WAR_PREFERENCE_CHANNEL_ID, CHANGELOG_CHANNEL_ID,
-    ACTIVITY_REPORT_CHANNEL_ID, TOURNAMENT_SUMMARY_CHANNEL_ID,
-    ROLE_ID_1STAR_ALERT, ROLE_ID_MISSED_ATTACK, LEADER_ROLE_ID, COLEADER_ROLE_ID, MAINTENANCE_ROLE_ID,
-    AUTO_ADD_WATCHLIST_ENABLED, BOT_VERSION, TIMEZONE,
+    ACTIVITY_REPORT_CHANNEL_ID,
+    AI_LOG_CHANNEL_ID,
+    AUTO_ADD_WATCHLIST_ENABLED,
+    BASE_URL,
+    BOT_VERSION,
+    CAPITAL_REPORT_CHANNEL_ID,
+    CHANGELOG_CHANNEL_ID,
+    CHANNEL_ID,
+    CLAN_GAMES_CHANNEL_ID,
+    CLAN_TAG,
+    COC_EMAIL,
+    COC_PASSWORD,
+    COLEADER_ROLE_ID,
+    CWL_PLANNER_CHANNEL_ID,
+    DISCORD_TOKEN,
+    DONATIONS_CHANNEL_ID,
+    LEADER_ROLE_ID,
+    LOW_PERFORMANCE_CHANNEL_ID,
+    MAINTENANCE_ALERT_CHANNEL_ID,
+    MAINTENANCE_ROLE_ID,
+    MONGO_DB_URL,
+    POST_WAR_ANALYSIS_CHANNEL_ID,
+    POST_WAR_VERDICT_CHANNEL_ID,
+    ROLE_ID_1STAR_ALERT,
+    ROLE_ID_MISSED_ATTACK,
+    SMURF_LOG_CHANNEL_ID,
+    TIMEZONE,
+    TOURNAMENT_SUMMARY_CHANNEL_ID,
+    WAR_PREFERENCE_CHANNEL_ID,
+    WATCHLIST_ALERT_CHANNEL_ID,
+    redact_mongo_uri,
 )
+
 
 # --- Configuração de Logging ---
 class MemoryLogHandler(logging.Handler):
@@ -44,6 +69,10 @@ log_handler.setFormatter(formatter)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logging.getLogger().addHandler(log_handler)
 logger = logging.getLogger("clash_genius_bot")
+
+MONGO_CONNECT_ATTEMPTS = 5
+MONGO_RETRY_BASE_DELAY = 2.0
+MONGO_RECONNECT_INTERVAL = 30.0
 
 
 class ClashGeniusBot(commands.Bot):
@@ -105,18 +134,10 @@ class ClashGeniusBot(commands.Bot):
             await start_early_health_check(self)
 
             if MONGO_DB_URL:
-                try:
-                    db_name = parse_uri(MONGO_DB_URL).get('database', 'genius_db')
-                    self.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DB_URL, serverSelectionTimeoutMS=10000)
-                    await self.mongo_client.admin.command('ping')
-                    self.db = self.mongo_client[db_name]
-                    logger.info(f"Conectado ao MongoDB: {db_name}")
-                    await self.load_initial_state_from_db() 
-                    self.db_ready.set()
-                    logger.info("Estado inicial carregado do DB e db_ready definido.")
-                except Exception as e:
-                    logger.error(f"Falha ao conectar/configurar MongoDB: {e}", exc_info=True)
-                    self.db_ready.set() 
+                conectado = await self._connect_mongo_with_retry()
+                if not conectado:
+                    self._mongo_reconnect_task = self.loop.create_task(self._mongo_reconnect_loop())
+                    logger.warning("Agendada tarefa de reconexão periódica ao MongoDB.")
             else:
                 logger.warning("URL MongoDB não fornecida. Persistência desativada.")
                 self.db_ready.set()
@@ -144,6 +165,54 @@ class ClashGeniusBot(commands.Bot):
         finally:
             self._setup_hook_done.set()
             logger.info("### Finalizando setup_hook (evento _setup_hook_done definido) ###")
+
+    async def _connect_mongo_with_retry(self) -> bool:
+        """Tenta conectar ao Mongo com retry/backoff; db_ready só é definido no sucesso."""
+        if not MONGO_DB_URL:
+            logger.warning("URL MongoDB não fornecida. Persistência desativada.")
+            self.db_ready.set()
+            return False
+        for tentativa in range(1, MONGO_CONNECT_ATTEMPTS + 1):
+            try:
+                db_name = parse_uri(MONGO_DB_URL).get('database', 'genius_db')
+                self.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(
+                    MONGO_DB_URL, serverSelectionTimeoutMS=10000
+                )
+                await self.mongo_client.admin.command('ping')
+                self.db = self.mongo_client[db_name]
+                logger.info(f"Conectado ao MongoDB: {db_name} (tentativa {tentativa}/{MONGO_CONNECT_ATTEMPTS})")
+                await self.load_initial_state_from_db()
+                # Propaga o db (re)conectado aos cogs que o capturaram como None no __init__.
+                for cog in self.cogs.values():
+                    if hasattr(cog, "db"):
+                        cog.db = self.db
+                self.db_ready.set()
+                logger.info("Estado inicial carregado do DB e db_ready definido.")
+                return True
+            except Exception as e:
+                logger.error(
+                    f"Falha ao conectar/configurar MongoDB "
+                    f"(tentativa {tentativa}/{MONGO_CONNECT_ATTEMPTS}): {redact_mongo_uri(e)}"
+                )
+                self.mongo_client = None
+                self.db = None
+                if tentativa < MONGO_CONNECT_ATTEMPTS:
+                    await asyncio.sleep(MONGO_RETRY_BASE_DELAY * (2 ** (tentativa - 1)))
+        logger.critical(
+            f"MongoDB inacessível após {MONGO_CONNECT_ATTEMPTS} tentativas; db_ready NÃO será definido."
+        )
+        return False
+
+    async def _mongo_reconnect_loop(self):
+        """Reconecta periodicamente ao Mongo enquanto db estiver indisponível."""
+        while not self.is_closed() and self.db is None:
+            await asyncio.sleep(MONGO_RECONNECT_INTERVAL)
+            if self.db is not None or self.is_closed():
+                return
+            logger.info("Tentando reconectar ao MongoDB...")
+            if await self._connect_mongo_with_retry():
+                logger.info("MongoDB reconectado com sucesso.")
+                return
 
     async def load_initial_state_from_db(self):
         if self.db is None: logger.warning("load_initial_state_from_db sem conexão DB."); return
@@ -221,6 +290,16 @@ class ClashGeniusBot(commands.Bot):
 
     async def close(self):
         logger.info("Iniciando desligamento...")
+        for nome_tarefa in ("_coc_login_task", "_web_server_task", "_mongo_reconnect_task"):
+            tarefa = getattr(self, nome_tarefa, None)
+            if tarefa is not None and not tarefa.done():
+                tarefa.cancel()
+                try:
+                    await tarefa
+                except asyncio.CancelledError:
+                    logger.info(f"Tarefa {nome_tarefa} cancelada.")
+                except Exception as e:
+                    logger.warning(f"Erro ao finalizar tarefa {nome_tarefa}: {e}")
         if hasattr(self, '_early_web_runner') and self._early_web_runner:
              try: await self._early_web_runner.cleanup()
              except Exception: pass
@@ -280,51 +359,71 @@ class ClashGeniusBot(commands.Bot):
 
 # --- Utilitários de Autenticação ---
 # Movidos para web/auth.py — mantidos aqui para compatibilidade com imports existentes
-from web.auth import hash_password, check_password
 
 # --- Servidor Web ---
 # Decomposto para web/server.py
 from web.server import setup_web_server
 
 
-async def main():
+async def _shutdown_gracioso(bot):
+    """Fecha o bot garantindo conclusão, mesmo durante o startup."""
+    try:
+        if not bot.is_closed():
+            await bot.close()
+    except Exception as e:
+        logger.error(f"Erro ao fechar bot no desligamento gracioso: {e}", exc_info=True)
+
+
+async def main() -> int:
     intents = discord.Intents.default(); intents.message_content = True; intents.members = True; intents.guilds = True
     bot = ClashGeniusBot(command_prefix="!", intents=intents, allowed_mentions=discord.AllowedMentions(roles=True))
     loop = asyncio.get_running_loop()
 
     def _request_shutdown():
-        if bot.is_ready():
-            asyncio.create_task(bot.close())
-        else:
-            logger.warning("SIGTERM/SIGINT recebido durante startup — ignorando até bot ficar pronto.")
+        logger.warning("SIGTERM/SIGINT recebido — iniciando desligamento gracioso...")
+        asyncio.create_task(_shutdown_gracioso(bot))
 
     for sig_name in (signal.SIGINT, signal.SIGTERM) if hasattr(signal, 'SIGINT') else ():
         try:
             loop.add_signal_handler(sig_name, _request_shutdown)
         except NotImplementedError:
             pass
+    exit_code = 0
     try:
         logger.info("Iniciando bot (bot.start)...")
         await bot.start(DISCORD_TOKEN)
-    except discord.errors.LoginFailure: logger.critical("### FALHA LOGIN DISCORD: Token inválido. ###")
+    except discord.errors.LoginFailure:
+        logger.critical("### FALHA LOGIN DISCORD: Token inválido. ###")
+        exit_code = 1
     except discord.errors.HTTPException as e:
         if e.status == 429:
             logger.critical("### ERRO 429 (RATE LIMIT) DETECTADO ###")
             logger.critical("O Discord bloqueou temporariamente este IP/Token devido a muitas tentativas.")
             logger.critical("Entrando em modo de espera (SLEEP) por 1 HORA para evitar reinício automático do Render.")
             logger.critical("NÃO REINICIE MANUALMENTE AGORA. ESPERE.")
-            await asyncio.sleep(3600) 
+            await asyncio.sleep(3600)
+            exit_code = 1
         else:
             logger.critical(f"### ERRO HTTP NÃO TRATADO ###: {e}", exc_info=True)
-    except KeyboardInterrupt: logger.info("Bot desligado manualmente.")
-    except Exception as e: logger.critical(f"### ERRO FATAL NÃO TRATADO NO LOOP PRINCIPAL ###: {e}", exc_info=True)
+            exit_code = 1
+    except KeyboardInterrupt:
+        logger.info("Bot desligado manualmente.")
+    except Exception as e:
+        logger.critical(f"### ERRO FATAL NÃO TRATADO NO LOOP PRINCIPAL ###: {e}", exc_info=True)
+        exit_code = 1
     finally:
         if not bot.is_closed():
             await bot.close()
         logger.info("Processo finalizado.")
+    return exit_code
 
 if __name__ == "__main__":
     logger.info("="*10 + f" INICIANDO ClashGeniusBot v{BOT_VERSION} " + "="*10)
-    try: asyncio.run(main())
-    except KeyboardInterrupt: logger.info("Programa interrompido pelo usuário.")
-    except Exception as e: logger.critical(f"### ERRO FATAL (asyncio) ###: {e}", exc_info=True)
+    try:
+        sys.exit(asyncio.run(main()))
+    except KeyboardInterrupt:
+        logger.info("Programa interrompido pelo usuário.")
+        sys.exit(0)
+    except Exception as e:
+        logger.critical(f"### ERRO FATAL (asyncio) ###: {e}", exc_info=True)
+        sys.exit(1)

@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
+import asyncio
+import datetime
 import logging
 import os
 import re
+from typing import Any, Dict, List, Optional
+
 import discord
-from discord.ext import commands
-from discord import app_commands
-from pymongo import DESCENDING
 import geniuslib as coc
-from typing import Dict, Any, Optional, List
-import datetime
-import json
-import asyncio
+from discord.ext import commands
+from pymongo import DESCENDING
+
+from config import redact_mongo_uri
 
 logger = logging.getLogger("admin_cog")
 
@@ -70,13 +71,14 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
              return {"status": "error", "message": "Erro de autenticação com a API CoC. Verifique as credenciais."}
         except coc.errors.NotFound:
              return {"status": "error", "message": f"Erro de configuração: Clã {self.bot.clan_tag} não encontrado."}
-        except Exception as e:
-            return {"status": "error", "message": f"Erro de conexão com a API: Acesso temporariamente indisponível."}
+        except Exception:
+            return {"status": "error", "message": "Erro de conexão com a API: Acesso temporariamente indisponível."}
 
     async def get_diagnostics(self) -> Dict[str, Any]:
         api_status = await self.get_api_status()
         recent_logs = getattr(self.bot, 'log_handler', None)
         log_buffer = recent_logs.buffer if recent_logs else ["Log handler não encontrado."]
+        log_buffer = [redact_mongo_uri(linha) for linha in log_buffer]
         health = {}
         if self.bot.api_client and hasattr(self.bot.api_client, 'http'):
             try:
@@ -164,7 +166,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                 else: pass
                 update_data[key] = processed_value
 
-            except (ValueError, TypeError) as e:
+            except (ValueError, TypeError):
                  if hasattr(self.bot, key): setattr(self.bot, key, value)
                  update_data[key] = value
 
@@ -172,7 +174,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
             await self.db.system_config.update_one( {"_id": "bot_settings"}, {"$set": update_data}, upsert=True)
             logger.info(f"Configurações do bot atualizadas via painel admin: {successful_updates}")
             return {"status": "success", "message": "Configurações salvas."}
-        except Exception as e:
+        except Exception:
             return {"status": "error", "message": "Erro ao salvar configurações no banco de dados."}
 
     async def get_db_viewer_data(self) -> Dict[str, Any]:
@@ -183,7 +185,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
              notes_cursor = self.db.player_notes.find({}).sort([("$natural", -1)]).limit(5)
              last_notes = [ {"player_tag": n.get("_id"), "note": n.get("text", ""), "priority": n.get("priority", "none")} async for n in notes_cursor if n.get("_id") ]
              return {"last_wars": last_wars, "last_notes": last_notes}
-        except Exception as e: return {"error": "Erro ao buscar dados do banco."}
+        except Exception: return {"error": "Erro ao buscar dados do banco."}
 
     async def send_announcement(self, channel_id_str: str, message: str) -> Dict[str, Any]:
         if not channel_id_str or not message: return {"status": "error", "message": "ID do canal e mensagem são obrigatórios."}
@@ -308,7 +310,7 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
                     player['date_added'] = player['date_added'].isoformat()
                 processed_data.append(player)
             return processed_data
-        except Exception as e: return {"error": "Erro interno ao buscar watchlist."}
+        except Exception: return {"error": "Erro interno ao buscar watchlist."}
 
     async def add_to_watchlist_admin(self, player_tag: str, player_name: str, reason: str, details: Optional[str] = None) -> bool:
         watchlist_cog = self.bot.get_cog("Lista de Observação")

@@ -1,0 +1,9 @@
+line-length = 120
+
+[lint]
+# Regra ECC: gate de CI restrito a higiene mecânica segura.
+# Débito de estilo restante (UP/BLE/G/S/etc.) é dívida documentada no CHANGELOG.
+select = ["E9", "F", "I"]
+
+[lint.per-file-ignores]
+"tests/*" = ["I001"]

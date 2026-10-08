@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-import logging
-import discord
-from discord.ext import commands, tasks
-import geniuslib as coc
-from geniuslib.formatters import format_th
 import asyncio
 import datetime
 import itertools
+import logging
+
+import discord
+import geniuslib as coc
 import pytz
-from typing import Dict, Any, Optional
+from discord.ext import commands, tasks
+from geniuslib.formatters import format_th
 
 try:
     from cogs.post_war_analysis import create_post_war_analysis_embed
@@ -287,7 +287,7 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
                     continue
 
                 embed = discord.Embed(
-                    title=f"🚩 Ataques Perdidos (Recuperado do Histórico)",
+                    title="🚩 Ataques Perdidos (Recuperado do Histórico)",
                     color=discord.Color.dark_gold()
                 )
                 embed.add_field(name="Placar Final", value=f"**{our_clan.name}:** {our_clan.stars}⭐\n**{opp.name}:** {opp.stars}⭐", inline=False)
@@ -543,13 +543,21 @@ class TasksCog(commands.Cog, name="Tarefas em Segundo Plano"):
     @reconcile_membership_task.before_loop
     async def before_tasks_start(self):
         """Espera o bot, DB e CoC estarem prontos antes de iniciar as tasks."""
-        logger.debug(f"before_tasks_start: Aguardando on_ready...")
+        logger.debug("before_tasks_start: Aguardando on_ready...")
         await self.bot.wait_until_ready()
-        logger.debug(f"before_tasks_start: Aguardando db_ready...")
+        logger.debug("before_tasks_start: Aguardando db_ready...")
         await self.bot.db_ready.wait()
-        logger.debug(f"before_tasks_start: Aguardando coc_client_ready...")
+        if self.bot.db is None:
+            logger.critical("before_tasks_start: db_ready sinalizado mas bot.db está None; cancelando tasks dependentes de banco de dados.")
+            for task_ in (self.check_war_end_task, self.donation_snapshot_task,
+                          self.cleanup_old_snapshots_task, self.check_api_status_task,
+                          self.reconcile_membership_task):
+                if task_.is_running():
+                    task_.cancel()
+            return
+        logger.debug("before_tasks_start: Aguardando coc_client_ready...")
         await self.bot.coc_client_ready.wait()
-        logger.debug(f"before_tasks_start: Todas as dependências prontas. Task pode iniciar.")
+        logger.debug("before_tasks_start: Todas as dependências prontas. Task pode iniciar.")
 
 
 async def setup(bot: commands.Bot):

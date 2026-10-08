@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main, Main-Estavel-ML, "fix/**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt -r dev-requirements.txt
+
+      - name: Compile check
+        run: python -m compileall -q clash.py config.py formatting.py simple_cache.py war_predictor.py cogs web scripts
+
+      - name: Lint (gate de higiene)
+        run: ruff check .
+
+      - name: Testes
+        run: pytest

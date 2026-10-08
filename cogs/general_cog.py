@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-import discord
-from discord.ext import commands
 import logging
+
+from discord.ext import commands
 
 # Configura o logger para este cog
 logger = logging.getLogger("general_cog")

@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
-import logging
-import discord
-from discord import app_commands
-from discord.ext import commands, tasks
-import geniuslib as coc
-from geniuslib.formatters import format_th, format_trophies
 import asyncio
 import datetime
+import logging
+
+import discord
 import pytz
-from pymongo import DESCENDING
+from discord import app_commands
+from discord.ext import commands, tasks
 
 logger = logging.getLogger("tournament_cog")
+
+def _tournament_id(moment: datetime.datetime) -> str:
+    return moment.strftime("%G-W%V")
 
 class TournamentCog(commands.Cog, name="Torneio"):
     """Cog para rastrear torneios semanais e gerar resumos de promoção/rebaixamento."""
@@ -36,7 +37,7 @@ class TournamentCog(commands.Cog, name="Torneio"):
             return False
         
         now = datetime.datetime.now(pytz.utc)
-        tournament_id = now.strftime("%Y-W%V")
+        tournament_id = _tournament_id(now)
         
         existing = await self.tournament_snapshots.find_one({"_id": tournament_id})
         if existing:
@@ -68,7 +69,7 @@ class TournamentCog(commands.Cog, name="Torneio"):
             return None
         
         now = datetime.datetime.now(pytz.utc)
-        tournament_id = now.strftime("%Y-W%V")
+        tournament_id = _tournament_id(now)
         
         snapshot = await self.tournament_snapshots.find_one({"_id": tournament_id})
         if not snapshot:
@@ -168,7 +169,7 @@ class TournamentCog(commands.Cog, name="Torneio"):
             return None
         
         now = datetime.datetime.now(pytz.utc)
-        tournament_id = now.strftime("%Y-W%V")
+        tournament_id = _tournament_id(now)
         
         snapshot = await self.tournament_snapshots.find_one({"_id": tournament_id})
         if not snapshot:
@@ -248,16 +249,19 @@ class TournamentCog(commands.Cog, name="Torneio"):
 
     @tasks.loop(hours=1)
     async def snapshot_task(self):
-        if self.bot.maintenance_mode or self.tournament_snapshots is None:
-            return
-        
-        now = datetime.datetime.now(pytz.utc)
-        tournament_id = now.strftime("%Y-W%V")
-        
-        existing = await self.tournament_snapshots.find_one({"_id": tournament_id})
-        if not existing:
-            logger.info(f"Novo torneio detectado ({tournament_id}), tirando snapshot...")
-            await self.take_snapshot()
+        try:
+            if self.bot.maintenance_mode or self.tournament_snapshots is None:
+                return
+
+            now = datetime.datetime.now(pytz.utc)
+            tournament_id = _tournament_id(now)
+
+            existing = await self.tournament_snapshots.find_one({"_id": tournament_id})
+            if not existing:
+                logger.info(f"Novo torneio detectado ({tournament_id}), tirando snapshot...")
+                await self.take_snapshot()
+        except Exception as e:
+            logger.error(f"Erro ao verificar snapshot do torneio: {e}", exc_info=True)
 
     @snapshot_task.before_loop
     async def before_snapshot(self):
@@ -266,20 +270,20 @@ class TournamentCog(commands.Cog, name="Torneio"):
 
     @tasks.loop(hours=1)
     async def end_check_task(self):
-        if self.bot.maintenance_mode or not getattr(self.bot, 'tournament_summary_channel_id', None):
-            return
-        
-        now_br = datetime.datetime.now(pytz.timezone("America/Sao_Paulo"))
-        if now_br.weekday() == 0 and now_br.hour == 8:
-            logger.info("Fim de torneio detectado, gerando resumo...")
-            try:
+        try:
+            if self.bot.maintenance_mode or not getattr(self.bot, 'tournament_summary_channel_id', None):
+                return
+
+            now_br = datetime.datetime.now(pytz.timezone("America/Sao_Paulo"))
+            if now_br.weekday() == 0 and now_br.hour == 8:
+                logger.info("Fim de torneio detectado, gerando resumo...")
                 embed = await self.generate_tournament_summary()
                 if embed:
                     channel = self.bot.get_channel(self.bot.tournament_summary_channel_id) or await self.bot.fetch_channel(self.bot.tournament_summary_channel_id)
                     if channel:
                         await channel.send(embed=embed)
-            except Exception as e:
-                logger.error(f"Erro ao gerar resumo do torneio: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Erro ao gerar resumo do torneio: {e}", exc_info=True)
 
     @end_check_task.before_loop
     async def before_end_check(self):

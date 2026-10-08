@@ -1,32 +1,38 @@
 # -*- coding: utf-8 -*-
-import logging
+import asyncio
 import datetime
+import logging
 import re
-import pytz
-from typing import Dict, Any
+import time
+from typing import Any, Dict
+
+ANALYTICS_TRAIN_TTL_SECONDS = 600
 
 import geniuslib as coc
-from geniuslib.formatters import format_th, format_trophies, format_player_brief, format_clan_brief, format_number
-from geniuslib.upgrade_tracker import get_th_upgrade_summary
+import pytz
 from geniuslib.battlelog_analytics import (
     battle_attack_stats,
+    battle_consistency_score,
     battle_defense_stats,
     battle_loot_summary,
-    battle_win_rate,
-    battle_consistency_score,
     battle_period_summary,
-    league_history_progression,
+    battle_win_rate,
     decode_army_code,
+    league_history_progression,
 )
+from geniuslib.formatters import format_th
+from geniuslib.upgrade_tracker import get_th_upgrade_summary
+
 from cogs.post_war_analysis import analyze_war
+
 try:
     from geniuslib.upgrade_tracker import _TH_MAX_LEVELS
     _HAS_TH_TABLE = bool(_TH_MAX_LEVELS.get("building"))
 except ImportError:
     _HAS_TH_TABLE = False
-from geniuslib.exporter import to_json, to_csv, to_dict
-from geniuslib.comparer import compare_players, compare_clans
 from discord.ext import commands
+from geniuslib.comparer import compare_clans, compare_players
+from geniuslib.exporter import to_csv, to_json
 from pymongo import DESCENDING
 
 try:
@@ -49,6 +55,7 @@ class WebApiCog(commands.Cog, name="Web API"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
+        self._last_analytics_train = None
 
     async def format_war_details_for_web(self, war: coc.ClanWar) -> Dict[str, Any]:
         try:
@@ -277,7 +284,11 @@ class WebApiCog(commands.Cog, name="Web API"):
         if cache:
             cached = cache.get("clan_members")
             if cached: return cached
-        clan = await self.bot.get_clan_data_with_cache(self.bot.clan_tag)
+        res = self.bot.get_clan_data_with_cache(self.bot.clan_tag)
+        if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
+            clan = await res
+        else:
+            clan = res
         if not clan: return {"error": "Não foi possível carregar os dados do clã."}
 
         db_cog = self.bot.get_cog("Banco de Dados")
@@ -285,7 +296,7 @@ class WebApiCog(commands.Cog, name="Web API"):
         analytics_cog = self.bot.get_cog("Player Analytics")
 
         player_notes = await db_cog.load_player_notes_from_db() if db_cog else {}
-        membership_records = await db_cog.load_membership_records([m.tag for m in clan.members]) if db_cog else {}
+        membership_records = await db_cog.load_membership_records([m.tag for m in getattr(clan, "members", [])]) if db_cog else {}
         members_list = []
 
         last_war_dates = {}
@@ -301,13 +312,18 @@ class WebApiCog(commands.Cog, name="Web API"):
                 ]
                 results = await self.db.war_history.aggregate(pipeline).to_list(length=None)
                 last_war_dates = {item["_id"]: item["last_war_date"] for item in results}
-            except Exception as e: pass
+            except Exception: pass
 
         insights_dict = {}
         if analytics_cog:
             try:
-                await analytics_cog.process_and_train(self.bot.clan_tag)
-                current_tags = [m.tag for m in clan.members]
+                now = time.monotonic()
+                ttl = ANALYTICS_TRAIN_TTL_SECONDS
+                last = getattr(self, "_last_analytics_train", None)
+                if last is None or now - last > ttl:
+                    await analytics_cog.process_and_train(self.bot.clan_tag)
+                    self._last_analytics_train = now
+                current_tags = [m.tag for m in getattr(clan, "members", [])]
                 insights_data = await analytics_cog.get_player_insights(current_tags)
                 if "insights" in insights_data:
                     for insight in insights_data["insights"]:
@@ -315,13 +331,13 @@ class WebApiCog(commands.Cog, name="Web API"):
             except Exception as e:
                 logger.error(f"Erro ao processar ML Analytics em members_for_web: {e}")
 
-        for member in clan.members:
+        for member in getattr(clan, "members", []):
             note_data = player_notes.get(member.tag, {})
             watchlist_entry = await watchlist_cog.is_on_watchlist(member.tag) if watchlist_cog else None
             last_war_date_iso = last_war_dates.get(member.tag)
             player_insight = insights_dict.get(member.tag, {})
 
-            membership = membership_records.get(member.tag, {})
+            membership = membership_records.get(member.tag, {}) if membership_records else {}
             joined_at = membership.get("joined_at")
             joined_at_iso = joined_at.isoformat() if joined_at else None
             membership_source = membership.get("source") if joined_at else None
@@ -361,7 +377,7 @@ class WebApiCog(commands.Cog, name="Web API"):
             m["pct_donations"] = round(m["rank_donations"] / total * 100)
             m["pct_trophies"] = round(m["rank_trophies"] / total * 100)
 
-        result = {"clan_name": clan.name, "members": sorted_members, "version": self.bot.bot_version}
+        result = {"clan_name": getattr(clan, "name", getattr(clan, "tag", "")), "members": sorted_members, "version": getattr(self.bot, "bot_version", "test")}
         if cache: cache.set("clan_members", result, ttl=30)
         return result
 
@@ -471,7 +487,7 @@ class WebApiCog(commands.Cog, name="Web API"):
                 rounds_info.append(round_data)
             return {"status": "InCwl", "season": cwl_group.season, "state": str(cwl_group.state).capitalize(), "clans_in_group": clans_in_group, "rounds": rounds_info}
         except coc.NotFound: return {"status": "NotInCwl", "message": "O clã não está inscrito na CWL."}
-        except Exception as e: return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
+        except Exception: return {"status": "Error", "error": "Erro ao buscar dados da CWL."}
 
     async def fetch_highlights_for_web(self):
         if cache:

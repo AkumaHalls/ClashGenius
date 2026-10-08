@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-import logging
-import discord
-from discord.ext import commands
-import geniuslib as coc
-from geniuslib.formatters import format_th
 import datetime
-from typing import Dict, Any, Optional, List
+import logging
+from typing import Any, Dict, List, Optional
+
+import discord
+import geniuslib as coc
+from discord.ext import commands
+from geniuslib.formatters import format_th
 
 logger = logging.getLogger("watchlist_cog")
 

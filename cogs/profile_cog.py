@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
+
 import discord
 import geniuslib as coc
-from geniuslib.formatters import format_th, format_trophies, format_number
-from geniuslib.upgrade_tracker import get_th_upgrade_summary
 from discord.ext import commands
+from geniuslib.formatters import format_number, format_th, format_trophies
+from geniuslib.upgrade_tracker import get_th_upgrade_summary
 from pymongo import DESCENDING
 
 logger = logging.getLogger("profile_cog")

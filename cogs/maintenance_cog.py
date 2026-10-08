@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-import logging
 import asyncio
+import logging
+
 import discord
+from aiohttp import web
 from discord.ext import commands
 from pymongo.errors import PyMongoError
-from aiohttp import web
 
 logger = logging.getLogger("maintenance_cog")
 
@@ -87,8 +88,16 @@ class MaintenanceCog(commands.Cog, name="Manutenção do Sistema"):
         
         pipeline = [
             {
+                "$match": {
+                    "war_data.end_time_iso": {"$ne": None}
+                }
+            },
+            {
                 "$group": {
-                    "_id": "$_id",
+                    "_id": {
+                        "end_time": "$war_data.end_time_iso",
+                        "opponent": "$war_data.opponent_name"
+                    },
                     "unique_doc_ids": {"$addToSet": "$_id"},
                     "count": {"$sum": 1}
                 }

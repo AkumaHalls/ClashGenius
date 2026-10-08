@@ -3,11 +3,10 @@
 Helpers de autenticação e acesso ao banco de dados.
 """
 import hashlib
-import secrets
 import logging
+import secrets
 
 from aiohttp import web
-from aiohttp_session import get_session
 
 logger = logging.getLogger("web.auth")
 

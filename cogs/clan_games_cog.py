@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
+import asyncio
+import datetime
 import logging
+from typing import Any, Dict, List, Optional
+
 import discord
+import pytz
 from discord import app_commands
 from discord.ext import commands, tasks
-import geniuslib as coc
-import pytz
-import datetime
-from typing import Optional, List, Dict, Any
-import asyncio
 
 logger = logging.getLogger("clan_games_cog")
 
@@ -101,7 +101,14 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             # Checa os novatos que entraram depois do snapshot
             for member in clan.members:
                 if member.tag not in processed_tags:
-                    score = getattr(member, "clan_games_points", 0)
+                    initial_pts = initial_data.get(member.tag, {}).get("initial_points", 0)
+                    try:
+                        player = await self.bot.api_client.get_player(member.tag)
+                        ach = player.get_achievement("Games Champion")
+                        current_pts = ach.value if ach else 0
+                    except Exception:
+                        current_pts = 0
+                    score = max(0, current_pts - initial_pts)
                     if score > 0:
                         player_scores.append({
                             "name": member.name + " (Novo)", "tag": member.tag, 
@@ -123,19 +130,15 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             logger.error(f"Erro ao processar dados Web dos Jogos: {e}", exc_info=True)
             return {"error": "Erro interno ao processar pontos."}
 
-    async def take_snapshot(self, automated: bool = False):
-        """Salva a pontuação base de todos os membros."""
-        if self.snapshot_collection is None: return
-
-        if await self._is_snapshot_active():
-            await self.clear_snapshot(automated=False, silent=True) 
+    async def take_snapshot(self, automated: bool = False) -> bool:
+        """Salva a pontuação base de todos os membros. Retorna False se nada foi gravado."""
+        if self.snapshot_collection is None: return False
 
         try:
             clan = await self.bot.api_client.get_clan(self.bot.clan_tag)
-            if not clan: return
+            if not clan: return False
 
             snapshot_data = []
-            self.already_congratulated = set()
 
             for member in clan.members:
                 try:
@@ -150,15 +153,22 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
                     })
                 except Exception: pass
 
-            if snapshot_data:
-                await self.snapshot_collection.insert_many(snapshot_data)
-                logger.info("Snapshot inicial dos Jogos criado na DB.")
-                if not automated:
-                     embed = discord.Embed(title="🎉 O Rastreador dos Jogos Foi Iniciado!", description=f"Pontuação inicial de **{len(snapshot_data)}** jogadores salva na DB.\nO Painel Web agora está medindo o progresso do clã em tempo real.", color=discord.Color.blue())
-                     await self._send_to_channel(embed=embed)
+            if not snapshot_data:
+                logger.warning("Snapshot dos Jogos não gravado: nenhum jogador coletado.")
+                return False
+
+            await self.snapshot_collection.delete_many({})
+            self.already_congratulated = set()
+            await self.snapshot_collection.insert_many(snapshot_data)
+            logger.info("Snapshot inicial dos Jogos criado na DB.")
+            if not automated:
+                 embed = discord.Embed(title="🎉 O Rastreador dos Jogos Foi Iniciado!", description=f"Pontuação inicial de **{len(snapshot_data)}** jogadores salva na DB.\nO Painel Web agora está medindo o progresso do clã em tempo real.", color=discord.Color.blue())
+                 await self._send_to_channel(embed=embed)
+            return True
 
         except Exception as e:
              logger.error(f"Erro ao gerar snapshot: {e}", exc_info=True)
+             return False
 
     async def clear_snapshot(self, automated: bool = False, silent: bool = False):
         """Apaga a tabela base, indicando que os jogos acabaram."""
@@ -176,8 +186,11 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
     async def periodic_status_update(self):
         """A cada 8h avisa no Discord como o Clã está indo na tabela."""
         if self.bot.maintenance_mode: return 
-        if await self._is_snapshot_active():
-            await self.post_status_update()
+        try:
+            if await self._is_snapshot_active():
+                await self.post_status_update()
+        except Exception as e:
+             logger.error(f"Erro no periodic_status_update: {e}", exc_info=True)
 
     @tasks.loop(minutes=15)
     async def auto_manage_clan_games(self):
@@ -230,8 +243,10 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         if await self._is_snapshot_active():
             await interaction.followup.send("⚠️ O Rastreador já está ativado e lendo pontos! Se iniciar agora, o progresso anterior de todos será reiniciado para zero.")
             return
-        await self.take_snapshot(automated=False)
-        await interaction.followup.send("✅ Rastreador ativado manualmente!")
+        if await self.take_snapshot(automated=False):
+            await interaction.followup.send("✅ Rastreador ativado manualmente!")
+        else:
+            await interaction.followup.send("❌ Erro ao iniciar o rastreador. Tente novamente mais tarde.")
 
     @app_commands.command(name="cgs_parar", description="Desliga o rastreio, zera o BD dos Jogos e cospe o placar final.")
     @app_commands.default_permissions(administrator=True)
