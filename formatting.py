@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import datetime
-import pytz
+from typing import Any, Dict
+
 import geniuslib as coc
-from typing import Dict, Any
+import pytz
+
 
 def format_war_time_details(war: Any, now: datetime.datetime) -> Dict[str, str]:
     """Formata os detalhes de tempo de uma guerra para exibição no painel."""

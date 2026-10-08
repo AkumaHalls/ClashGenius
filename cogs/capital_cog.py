@@ -1,24 +1,29 @@
 # -*- coding: utf-8 -*-
+import asyncio
 import logging
+import os
+from io import BytesIO
+from typing import Any, Dict, Optional
+
+import aiohttp
 import discord
+import geniuslib as coc
 from discord import app_commands
 from discord.ext import commands, tasks
-import geniuslib as coc
 from geniuslib.raid_analytics import (
-    raid_summary, count_missed_raid_attacks, get_inactive_raid_members,
-    member_raid_contribution, clan_offensive_stats, clan_defensive_stats,
-    get_wasted_attacks, get_raid_cleanup_attacks, best_raid_attack,
-    average_attack_destruction, total_member_destruction
+    average_attack_destruction,
+    best_raid_attack,
+    clan_defensive_stats,
+    clan_offensive_stats,
+    count_missed_raid_attacks,
+    get_inactive_raid_members,
+    get_raid_cleanup_attacks,
+    get_wasted_attacks,
+    member_raid_contribution,
+    raid_summary,
+    total_member_destruction,
 )
-import asyncio
-from typing import Dict, Any, Optional, List, Tuple
-from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
-import aiohttp
-import os
-import datetime
-import pytz
-from math import ceil
 
 logger = logging.getLogger("capital_cog")
 
@@ -101,7 +106,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
                 "members": members_data
             }
         except coc.errors.Maintenance: return {"error": "A API da Supercell está em manutenção."}
-        except Exception as e: return {"error": "Erro interno ao processar dados da Capital."}
+        except Exception: return {"error": "Erro interno ao processar dados da Capital."}
 
     # ========================================================
     # >>> DADOS DA IMAGEM E UTILITÁRIOS <<<
@@ -255,7 +260,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
                 league_name = getattr(clan.war_league, 'name', 'Desconhecida')
 
             season = getattr(group, 'season', 'Desconhecida')
-            group_state = getattr(group, 'state', 'ended')
+            getattr(group, 'state', 'ended')
 
             my_tag = coc.utils.correct_tag(self.bot.clan_tag)
 
@@ -497,7 +502,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
 
             vw = draw.textlength(value, font=f_big)
             self._draw_text_outlined(draw, (cx + card_w - vw - 16, cy + 14), value, f_big, (255, 255, 255), stroke_width=3)
-            lw = draw.textlength(label, font=f_tiny)
+            draw.textlength(label, font=f_tiny)
             draw.text((cx + 16, cy + card_h - 26), label, font=f_tiny, fill=accent)
 
         # --- ANALYTICS SECTION ---
@@ -589,7 +594,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             base.paste(xi, (50, footer_y - 10), xi)
         draw.text((80, footer_y - 8), f"XP do Clã: +{xp_val}", font=f_tiny, fill=(180, 180, 195))
 
-        week_year = data.get('date_range', '')
+        data.get('date_range', '')
         draw.text((W // 2 - 80, footer_y - 8), "Raide Semanal", font=f_tiny, fill=(140, 140, 160))
 
         league_txt = data.get('league_name', '')
@@ -749,7 +754,7 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
 
             vw = draw.textlength(value, font=f_big)
             self._draw_text_outlined(draw, (cx + card_w - vw - 16, cy + 14), value, f_big, (255, 255, 255), stroke_width=3)
-            lw = draw.textlength(label, font=f_tiny)
+            draw.textlength(label, font=f_tiny)
             draw.text((cx + 16, cy + card_h - 26), label, font=f_tiny, fill=accent)
 
         # --- TOP ATACANTES ---
@@ -841,21 +846,22 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
                 file=file, embed=embed
             )
 
-    async def _process_and_send_cwl(self, automated: bool = False):
+    async def _process_and_send_cwl(self, automated: bool = False) -> Optional[str]:
+        """Gera e envia o resumo da CWL. Retorna None em sucesso ou o motivo da falha."""
         if automated and (self.bot.maintenance_mode or not getattr(self.bot, 'capital_report_channel_id', None)):
-            return
+            return None
 
         channel_id = self.bot.capital_report_channel_id
         channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
         if not channel:
-            return
+            return "Canal de relatórios não configurado."
 
         await self._ensure_font_exists()
 
         data = await self.fetch_cwl_data()
         if "error" in data:
             logger.warning(f"CWL report not sent: {data['error']}")
-            return
+            return data["error"]
 
         async with aiohttp.ClientSession() as session:
             tasks_list = [
@@ -892,6 +898,16 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
             content="\U0001f3c6 **Resultado da Temporada de Guerras de Clãs!**",
             file=file, embed=embed
         )
+        return None
+
+    async def _safe_followup(self, interaction: discord.Interaction, content: str):
+        """Responde o comando sem estourar se o webhook do Discord expirou."""
+        try:
+            await interaction.followup.send(content)
+        except discord.NotFound:
+            logger.warning(f"Resposta do comando descartada (webhook expirado): {content}")
+        except Exception as e:
+            logger.error(f"Erro ao responder comando de CWL: {e}")
 
     # ========================================================
     # >>> TAREFAS AUTOMÁTICAS <<<
@@ -950,8 +966,15 @@ class CapitalCog(commands.Cog, name="Monitoramento da Capital"):
     @app_commands.default_permissions(administrator=True)
     async def cmd_gerar_cwl(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        await self._process_and_send_cwl(automated=False)
-        await interaction.followup.send("\u2705 Imagem da CWL gerada e enviada ao canal de relatórios!")
+        try:
+            erro = await self._process_and_send_cwl(automated=False)
+        except Exception as e:
+            logger.error(f"Erro ao gerar resumo da CWL: {e}", exc_info=True)
+            erro = "Erro interno ao gerar a imagem do resumo."
+        if erro:
+            await self._safe_followup(interaction, f"❌ {erro}")
+            return
+        await self._safe_followup(interaction, "\u2705 Imagem da CWL gerada e enviada ao canal de relatórios!")
 
 
 async def setup(bot: commands.Bot):

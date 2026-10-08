@@ -3,15 +3,23 @@
 Handlers de rotas públicas da API web.
 Endpoints /api/* que não requerem autenticação.
 """
-import json
 import datetime
+import json
 import logging
-
-from aiohttp import web
+import re
 
 import geniuslib as coc
+from aiohttp import web
 
 logger = logging.getLogger("web.routes")
+
+
+def _normalize_player_tag(raw):
+    """Normaliza a tag do jogador (prefixo #, maiúsculas) e valida o formato."""
+    tag = coc.utils.correct_tag(raw or '')
+    if not re.fullmatch(r'#[0-9A-Z]+', tag):
+        return None
+    return tag
 
 
 def register_public_routes(app, bot_instance):
@@ -53,7 +61,7 @@ def register_public_routes(app, bot_instance):
                 bot_instance._reconnect_task.cancel()
             bot_instance._reconnect_task = asyncio.create_task(bot_instance.coc_login_task())
             return web.json_response({"status": "error", "message": "Erro de autenticação com a API CoC. Tentando reconectar..."}, status=503)
-        except Exception as e:
+        except Exception:
             return web.json_response({"status": "error", "message": "Erro interno no servidor."}, status=500)
 
     # --- Handlers simples ---
@@ -89,12 +97,17 @@ def register_public_routes(app, bot_instance):
 
     async def api_save_player_note_handler(request):
         from aiohttp_session import get_session
-        from web.auth import get_db
+
         session = await get_session(request)
-        if not session.get('role') and not session.get('admin'):
+        role = session.get('role')
+        if role == 'viewer':
+            return web.json_response({"status": "error", "message": "Sem permissão para salvar nota."}, status=403)
+        if not role and not session.get('admin'):
             return web.json_response({"status": "error", "message": "Autenticação necessária."}, status=401)
         db_cog = bot_instance.get_cog("Banco de Dados")
-        player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
+        player_tag = _normalize_player_tag(request.match_info['player_tag'])
+        if player_tag is None:
+            return web.json_response({"status": "error", "message": "Tag de jogador inválida."}, status=400)
         data = await request.json()
         try:
             await db_cog.save_player_note_to_db(player_tag, data.get('text', ''), data.get('priority', 'none'))
@@ -108,12 +121,15 @@ def register_public_routes(app, bot_instance):
     async def api_update_cwl_status_handler(request):
         from aiohttp_session import get_session
         session = await get_session(request)
-        if not session.get('role') and not session.get('admin'):
+        role = session.get('role')
+        if role == 'viewer':
+            return web.json_response({"status": "error", "message": "Sem permissão para atualizar status CWL."}, status=403)
+        if not role and not session.get('admin'):
             return web.json_response({"status": "error", "message": "Autenticação necessária."}, status=401)
         db_cog = bot_instance.get_cog("Banco de Dados")
-        player_tag = request.match_info.get('player_tag')
-        if not player_tag:
-            return web.json_response({"status": "error", "message": "Player tag is required."}, status=400)
+        player_tag = _normalize_player_tag(request.match_info.get('player_tag'))
+        if player_tag is None:
+            return web.json_response({"status": "error", "message": "Tag de jogador inválida."}, status=400)
         try:
             data = await request.json()
             status = data.get('status')
@@ -137,9 +153,9 @@ def register_public_routes(app, bot_instance):
         if role == 'viewer':
             return web.json_response({"status": "error", "message": "Sem permissão para alterar borda admin."}, status=403)
         db_cog = bot_instance.get_cog("Banco de Dados")
-        player_tag = request.match_info.get('player_tag')
-        if not player_tag:
-            return web.json_response({"status": "error", "message": "Player tag is required."}, status=400)
+        player_tag = _normalize_player_tag(request.match_info.get('player_tag'))
+        if player_tag is None:
+            return web.json_response({"status": "error", "message": "Tag de jogador inválida."}, status=400)
         try:
             data = await request.json()
             enabled = bool(data.get('enabled', False))
@@ -169,11 +185,13 @@ def register_public_routes(app, bot_instance):
             return web.json_response({"status": "error", "message": "Erro interno ao buscar guerra histórica."}, status=500)
 
     async def api_member_profile_handler(request):
+        player_tag = _normalize_player_tag(request.match_info['player_tag'])
+        if player_tag is None:
+            return web.json_response({"status": "error", "message": "Tag de jogador inválida."}, status=400)
         if not bot_instance.coc_client_ready.is_set() or not bot_instance.api_client:
             return web.json_response({"status": "error", "message": "API CoC temporariamente indisponível."}, status=503)
         if not profile_cog:
             return web.json_response({"status": "error", "message": "Profile cog não carregado."}, status=500)
-        player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
         profile_data = await profile_cog.fetch_player_profile_data(player_tag)
         return web.json_response(profile_data, status=404 if "error" in profile_data else 200, dumps=lambda v: json.dumps(v, default=str))
 
@@ -251,7 +269,9 @@ def register_public_routes(app, bot_instance):
 
     # Upgrades, export, compare
     async def api_player_upgrades_handler(request):
-        player_tag = coc.utils.correct_tag(request.match_info['player_tag'])
+        player_tag = _normalize_player_tag(request.match_info['player_tag'])
+        if player_tag is None:
+            return web.json_response({"status": "error", "message": "Tag de jogador inválida."}, status=400)
         return await handle_web_response(request, f'upgrades_{player_tag}', web_api_cog.fetch_player_upgrades_for_web, player_tag)
 
     async def api_export_clan_handler(request):

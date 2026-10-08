@@ -1,9 +1,9 @@
 import discord
-from discord.ext import commands
-from discord.ui import View, Button
 import geniuslib as coc
-from geniuslib.formatters import format_th, format_trophies, format_number
-from geniuslib.upgrade_tracker import get_th_upgrade_summary, format_upgrade_summary
+from discord.ext import commands
+from discord.ui import Button, View
+from geniuslib.formatters import format_th, format_trophies
+from geniuslib.upgrade_tracker import format_upgrade_summary, get_th_upgrade_summary
 
 # --- LÓGICA DE CÁLCULO (HELPERS) ---
 

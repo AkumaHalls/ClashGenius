@@ -4,15 +4,15 @@ Handlers de autenticação do painel web.
 Login, registro, aprovação, gerenciamento de roles e status (banido/desativado).
 """
 import datetime
+import logging
 import re
 import secrets
-import logging
 
 import pytz
 from aiohttp import web
 from aiohttp_session import get_session
 
-from web.auth import get_db, hash_password, check_password
+from web.auth import check_password, get_db, hash_password
 
 logger = logging.getLogger("web.auth_routes")
 
@@ -172,13 +172,17 @@ def register_auth_routes(admin_api_app, bot_instance):
             return web.json_response({"status": "error", "message": "Credenciais inválidas."}, status=401)
         await _clear_failures(db, username)
         session = await get_session(r)
+        # Todo login bem-sucedido rotaciona a sessão (anti-fixação) e cria um
+        # 'sid' server-side — sem ele o logout não teria nada para revogar.
+        session.invalidate()
+        session['sid'] = secrets.token_urlsafe(16)
         session['csrf_token'] = secrets.token_hex(32)
+        session['authenticated'] = True
+        session['username'] = username
 
         # Admin liberou a troca de senha: abre uma sessão LIMITADA (sem 'role'),
         # que dá acesso apenas à página e ao endpoint de troca de senha.
         if user.get('must_change_password'):
-            session['authenticated'] = True
-            session['username'] = username
             session['password_change_required'] = True
             session['password_attempts'] = 0
             session.pop('role', None)
@@ -189,8 +193,6 @@ def register_auth_routes(admin_api_app, bot_instance):
                 "message": "Defina uma nova senha para continuar.",
             })
 
-        session['authenticated'] = True
-        session['username'] = username
         session['role'] = user['role']
         session['guild_id'] = guild_id if guild_id else None
         session['password_change_required'] = False

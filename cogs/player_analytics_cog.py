@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import logging
-import pandas as pd
+from typing import Any, Dict, List
+
 import numpy as np
-from typing import Dict, List, Any
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestRegressor
+import pandas as pd
 from discord.ext import commands
+from sklearn.cluster import KMeans
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import StandardScaler
 
 logger = logging.getLogger("player_analytics_cog")
 
@@ -41,7 +42,7 @@ class PlayerAnalyticsCog(commands.Cog, name="Player Analytics"):
         war_idx = 0
         
         async for war in cursor:
-            war_id = war.get("_id")
+            war.get("_id")
             members = war.get("our_clan_members_in_war", [])
             attacks_per_member = war.get("war_data", {}).get("attacks_per_member", 2)
             

@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
-import logging
-import discord
-from discord.ext import commands, tasks
-import geniuslib as coc
-from typing import Dict, List, Any, Optional, Set, Tuple
-from dataclasses import dataclass, field, asdict
-from collections import defaultdict
-from enum import Enum, auto
-import datetime
-import pytz
 import asyncio
-from abc import ABC, abstractmethod
+import datetime
+import logging
+from collections import defaultdict
+from dataclasses import asdict, dataclass, field
+from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+import geniuslib as coc
 
 # Motores de Ciência de Dados Injetados
 import numpy as np
+import pytz
+from discord.ext import commands, tasks
 from sklearn.cluster import KMeans
 
 logger = logging.getLogger("cwl_planner_cog")
@@ -239,7 +238,7 @@ class IntelligentRotationEngine:
         if fairness_deficit > 1.5:
             justification = f"⚖️ Equidade: Necessita farmar estrelas. Risco de falta: {risk_pct}%."
         elif strat_val == RotationStrategy.AGGRESSIVE.value and p.town_hall >= ctx["max_th"] - 1:
-            justification = f"⚔️ Tático: Convocado por Força Bruta contra oponente extremo."
+            justification = "⚔️ Tático: Convocado por Força Bruta contra oponente extremo."
         elif p.consecutive_days_played == 0:
             justification = f"🔋 Descansado: Entra em rotação com CV {p.town_hall} descansado."
         else:
@@ -283,7 +282,7 @@ class IntelligentRotationEngine:
         scored_players.sort(key=lambda x: x[1], reverse=True)
         
         new_roster = [x[0] for x in scored_players[:self.team_size]]
-        new_bench = [x[0] for x in scored_players[self.team_size:]]
+        [x[0] for x in scored_players[self.team_size:]]
         
         old_tags = {p.tag for p in roster}
         new_tags = {p.tag for p in new_roster}

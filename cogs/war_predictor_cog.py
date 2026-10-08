@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+
 from discord.ext import commands
 
 from war_predictor import WarPredictionSystemV3

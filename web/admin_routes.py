@@ -2,16 +2,17 @@
 """
 Handlers de rotas admin: painel de controle, ações, diagnósticos.
 """
-import os
-import json
-import secrets
-import logging
 import html as html_module
+import json
+import logging
+import os
+import secrets
 
 from aiohttp import web
 from aiohttp_session import get_session
 
 from web.auth import get_db
+from web.middleware import is_session_revoked, revoke_session
 
 logger = logging.getLogger("web.admin_routes")
 
@@ -47,7 +48,7 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
 
     admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
     maintenance_cog = bot_instance.get_cog("Manutenção do Sistema")
-    watchlist_cog = bot_instance.get_cog("Lista de Observação")
+    bot_instance.get_cog("Lista de Observação")
     _admin_panel_html_cache = None
 
     # --- Admin API handlers ---
@@ -78,7 +79,6 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
         return web.json_response(await admin_cog.get_watchlist_admin())
 
     async def api_admin_add_watchlist(r):
-        import asyncio
         import geniuslib as coc
         data = await r.json()
         tag = data.get('player_tag')
@@ -193,6 +193,8 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
     async def admin_panel_page(r):
         nonlocal _admin_panel_html_cache
         session = await get_session(r)
+        if is_session_revoked(session):
+            return web.HTTPFound('/admin')
         role = session.get('role')
         if not role and not session.get('admin'):
             return web.HTTPFound('/admin')
@@ -212,46 +214,57 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
         db, err = get_db(bot_instance)
         if err:
             return web.HTTPFound('/admin?error=1')
-        user_count = await db.panel_users.count_documents({})
         if secrets.compare_digest(password, ADMIN_PASSWORD):
             session = await get_session(r)
+            session.invalidate()
+            session['sid'] = secrets.token_urlsafe(16)
             session['csrf_token'] = secrets.token_hex(32)
-            if user_count == 0:
-                session['admin'] = True
-                session['role'] = 'admin'
-                session['username'] = 'root'
-                return web.HTTPFound('/admin/panel')
-            elif session.get('role'):
-                return web.HTTPFound('/admin/panel')
-            else:
-                session['admin'] = True
-                session['role'] = 'admin'
-                session['username'] = 'root'
-                session['guild_id'] = guild_id_from_form if guild_id_from_form else None
-                return web.HTTPFound('/admin/panel')
+            session['admin'] = True
+            session['role'] = 'admin'
+            session['username'] = 'root'
+            session['guild_id'] = guild_id_from_form if guild_id_from_form else None
+            return web.HTTPFound('/admin/panel')
         else:
             return web.HTTPFound("/admin?error=1")
 
     async def admin_logout_handler(r):
         session = await get_session(r)
-        for k in ['admin', 'authenticated', 'username', 'role', 'guild_id']:
-            session.pop(k, None)
+        revoke_session(session)
+        session.invalidate()
         return web.HTTPFound('/admin')
+
+    def _csrf_ok(r, session):
+        """Valida o token CSRF enviado no header X-CSRF-Token."""
+        provided = r.headers.get('X-CSRF-Token', '')
+        expected = session.get('csrf_token', '')
+        return bool(expected) and bool(provided) and secrets.compare_digest(provided, expected)
 
     async def admin_toggle_maintenance_handler(r):
         session = await get_session(r)
+        if is_session_revoked(session):
+            return web.json_response({"status": "unauthorized", "message": "Sessão encerrada. Entre novamente."}, status=401)
         role = session.get('role')
+        if role == 'viewer':
+            return web.json_response({"status": "forbidden", "message": "Membro Sênior não tem acesso."}, status=403)
         if not role and not session.get('admin'):
             return web.json_response({"status": "unauthorized"}, status=403)
+        if not _csrf_ok(r, session):
+            return web.json_response({"status": "error", "message": "CSRF token inválido."}, status=403)
         if not maintenance_cog:
             return web.json_response({"status": "error", "message": "Maintenance cog não carregado."}, status=500)
         return await maintenance_cog.toggle_maintenance_mode_web()
 
     async def admin_send_test_embed_handler(r):
         session = await get_session(r)
+        if is_session_revoked(session):
+            return web.json_response({"status": "unauthorized", "message": "Sessão encerrada. Entre novamente."}, status=401)
         role = session.get('role')
+        if role == 'viewer':
+            return web.json_response({"status": "forbidden", "message": "Membro Sênior não tem acesso."}, status=403)
         if not role and not session.get('admin'):
             return web.json_response({"status": "unauthorized"}, status=403)
+        if not _csrf_ok(r, session):
+            return web.json_response({"status": "error", "message": "CSRF token inválido."}, status=403)
         if not maintenance_cog:
             return web.json_response({"status": "error", "message": "Maintenance cog não carregado."}, status=500)
         return await maintenance_cog.send_test_embed_web()

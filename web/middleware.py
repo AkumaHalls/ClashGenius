@@ -2,9 +2,10 @@
 """
 Middleware do servidor web: segurança, auth admin, CSRF, rate limiting.
 """
-import time
-import secrets
 import logging
+import os
+import secrets
+import time
 from collections import defaultdict
 
 from aiohttp import web
@@ -49,6 +50,89 @@ class RateLimiter:
 _rate_limiter = RateLimiter()
 
 
+class RevokedSessionRegistry:
+    """Registro server-side de sessões revogadas (invalidação no logout)."""
+
+    _TTL_SECONDS = 86400
+
+    def __init__(self):
+        self._revoked: dict[str, float] = {}
+
+    def _cleanup(self):
+        now = time.time()
+        expired = [sid for sid, expiry in self._revoked.items() if expiry < now]
+        for sid in expired:
+            del self._revoked[sid]
+
+    def revoke(self, sid: str) -> None:
+        self._cleanup()
+        self._revoked[sid] = time.time() + self._TTL_SECONDS
+
+    def is_revoked(self, sid: str) -> bool:
+        self._cleanup()
+        return sid in self._revoked
+
+
+_revoked_sessions = RevokedSessionRegistry()
+
+
+def revoke_session(session) -> None:
+    """Marca a sessão atual (sid) como revogada server-side."""
+    sid = session.get('sid')
+    if sid:
+        _revoked_sessions.revoke(sid)
+
+
+def is_session_revoked(session) -> bool:
+    """Verifica se a sessão carregada do cookie está revogada."""
+    sid = session.get('sid')
+    return bool(sid) and _revoked_sessions.is_revoked(sid)
+
+
+def _trusts_proxy_headers() -> bool:
+    """Só honra X-Forwarded-For quando o hop direto é um proxy confiável."""
+    return (
+        os.environ.get("TRUST_PROXY_HEADERS", "").strip().lower() == "true"
+        or os.environ.get("RENDER", "").strip().lower() == "true"
+    )
+
+
+def _normalize_ip(value: str) -> str:
+    """Remove portas ([ipv6]:port, ipv4:port) e brackets de IPv6."""
+    value = (value or "").strip()
+    if not value:
+        return ""
+    if value.startswith("["):
+        end = value.find("]")
+        if end != -1:
+            return value[1:end]
+    if value.count(":") == 1:
+        host, _, port = value.rpartition(":")
+        if host and port.isdigit():
+            return host
+    return value
+
+
+def _client_ip(request) -> str:
+    """IP real do cliente atrás de proxy ou IP remoto.
+
+    X-Forwarded-For só é honrado quando o proxy direto é confiável
+    (TRUST_PROXY_HEADERS=true ou RENDER=true); nesses casos usa-se o ÚLTIMO
+    hop do header (o mais próximo do cliente final visto pelo proxy confiável),
+    jamais o primeiro — que um atacante pode forjar. Sem proxy confiável o
+    header é ignorado e o IP usado é o da conexão direta.
+    """
+    if _trusts_proxy_headers():
+        forwarded = request.headers.get('X-Forwarded-For', '')
+        if forwarded:
+            hops = [h.strip() for h in forwarded.split(',') if h.strip()]
+            if hops:
+                last_hop = _normalize_ip(hops[-1])
+                if last_hop:
+                    return last_hop
+    return _normalize_ip(request.remote or '') or 'unknown'
+
+
 @web.middleware
 async def security_headers_middleware(request, handler):
     """Headers de segurança em todas as respostas."""
@@ -77,7 +161,7 @@ async def security_headers_middleware(request, handler):
 @web.middleware
 async def rate_limit_middleware(request, handler):
     """Rate limiting global: 60 req/min por IP, 10 req/min para login/registro."""
-    client_ip = request.remote or 'unknown'
+    client_ip = _client_ip(request)
     path = request.path
 
     if path in ('/api/admin/auth/login', '/api/admin/auth/register'):
@@ -97,20 +181,29 @@ async def rate_limit_middleware(request, handler):
     return await handler(request)
 
 
+_VIEWER_ALLOWED_PATHS = (
+    '/api/admin/auth/me',
+    '/api/admin/auth/session-info',
+    '/api/admin/csrf_token',
+)
+
+
 @web.middleware
 async def admin_auth_middleware(request, handler):
     """Verifica autenticação para rotas admin."""
-    if request.path in ('/api/admin/auth/login', '/api/admin/auth/register', '/api/admin/auth/change-password') or request.path.startswith('/api/admin/auth/login/'):
+    if request.path in ('/api/admin/auth/login', '/api/admin/auth/register', '/api/admin/auth/change-password', '/api/admin/auth/forgot-password') or request.path.startswith('/api/admin/auth/login/'):
         return await handler(request)
     session = await get_session(request)
+    if is_session_revoked(session):
+        return web.json_response({"status": "unauthorized", "message": "Sessão encerrada. Entre novamente."}, status=401)
     role = session.get('role')
     if not role and not session.get('admin'):
         # Allow password change flow with limited session
         if request.path == '/api/admin/auth/change-password' and session.get('password_change_required'):
             return await handler(request)
         return web.json_response({"status": "unauthorized", "message": "Acesso negado."}, status=403)
-    if role == 'viewer' and request.method == 'POST':
-        return web.json_response({"status": "forbidden", "message": "Membro Sênior não pode modificar."}, status=403)
+    if role == 'viewer' and request.path not in _VIEWER_ALLOWED_PATHS:
+        return web.json_response({"status": "forbidden", "message": "Membro Sênior não tem acesso."}, status=403)
     return await handler(request)
 
 
@@ -119,7 +212,7 @@ async def admin_csrf_middleware(request, handler):
     """Valida CSRF token em mutations admin."""
     if request.method in ('GET', 'HEAD', 'OPTIONS', 'TRACE'):
         return await handler(request)
-    if request.path in ('/api/admin/auth/login', '/api/admin/auth/register'):
+    if request.path in ('/api/admin/auth/login', '/api/admin/auth/register', '/api/admin/auth/forgot-password'):
         return await handler(request)
     session = await get_session(request)
     csrf_token = session.get('csrf_token')

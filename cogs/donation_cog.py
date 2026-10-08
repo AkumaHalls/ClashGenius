@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-import logging
-import discord
-from discord import app_commands
-from discord.ext import commands, tasks
-import geniuslib as coc
-import pytz
 import datetime
+import logging
 from typing import Optional
+
+import discord
+import pytz
+from discord.ext import commands, tasks
 
 logger = logging.getLogger("donation_cog")
 
@@ -133,25 +132,29 @@ class DonationsCog(commands.Cog, name="Gerenciador de Doações"):
         except (discord.NotFound, discord.Forbidden) as e:
             logger.error(f"Não foi possível enviar o relatório de doações para o canal {self.bot.donations_channel_id}: {e}")
             if interaction:
-                 await interaction.followup.send(f"❌ Erro ao enviar para o canal. Verifique as permissões.", ephemeral=True)
+                 await interaction.followup.send("❌ Erro ao enviar para o canal. Verifique as permissões.", ephemeral=True)
             return False
         except Exception as e:
             logger.error(f"Erro inesperado ao enviar relatório de doações: {e}", exc_info=True)
             if interaction:
-                 await interaction.followup.send(f"❌ Ocorreu um erro inesperado.", ephemeral=True)
+                 await interaction.followup.send("❌ Ocorreu um erro inesperado.", ephemeral=True)
             return False
 
     @tasks.loop(time=datetime.time(hour=0, minute=1, tzinfo=pytz.timezone('America/Sao_Paulo'))) # 21:01 no Brasil (UTC-3)
     async def post_reports_task(self):
         """Tarefa que posta os relatórios diários e semanais."""
-        if self.bot.maintenance_mode: return
-        
-        await self.generate_and_send_report(days=1)
-        
-        # Se for domingo, envia o relatório semanal
-        today = datetime.datetime.now(self.bot.timezone).weekday()
-        if today == 6: # 0=Segunda, 6=Domingo
-            await self.generate_and_send_report(days=7)
+        try:
+            if self.bot.maintenance_mode:
+                return
+
+            await self.generate_and_send_report(days=1)
+
+            # Se for domingo, envia o relatório semanal
+            today = datetime.datetime.now(self.bot.timezone).weekday()
+            if today == 6: # 0=Segunda, 6=Domingo
+                await self.generate_and_send_report(days=7)
+        except Exception as e:
+            logger.error(f"Erro no relatório de doações agendado: {e}", exc_info=True)
 
     @post_reports_task.before_loop
     async def before_post_reports_task(self):

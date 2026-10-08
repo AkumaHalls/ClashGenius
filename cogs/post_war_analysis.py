@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
-import datetime
-import random
-import discord
-import pytz
 import logging
-from typing import Dict, Optional, List, Tuple
+import random
+from typing import Dict, List, Optional, Tuple
 
-import geniuslib as coc
+import discord
 
 logger = logging.getLogger("post_war_analysis")
 
@@ -69,7 +66,7 @@ def _build_analysis_embeds(title: str, description: str, color, footer: str, thu
 
 def _format_attack_line(atk: Dict, index: int = None) -> str:
     prefix = f"`{index}.` " if index else ""
-    stars_str = "⭐" * atk.get('stars', 0)
+    stars_str = "⭐" * (atk.get('stars') or 0)
     diff = atk.get('defender_townhall', 0) - atk.get('attacker_townhall', 0)
     if diff > 0:
         tipo = f"🔥 Desvantagem (+{diff} CV)"
@@ -84,10 +81,10 @@ def _format_attack_line(atk: Dict, index: int = None) -> str:
 
 def _format_bad_attack_line(atk: Dict, index: int = None) -> str:
     prefix = f"`{index}.` " if index else ""
-    stars_str = "⭐" * atk.get('stars', 0)
+    stars_str = "⭐" * (atk.get('stars') or 0)
     diff = atk.get('defender_townhall', 0) - atk.get('attacker_townhall', 0)
     context = ""
-    if atk.get('stars', 0) == 0:
+    if (atk.get('stars') or 0) == 0:
         context = "— 💀 nenhuma estrela"
     elif diff > 0:
         context = f"— ⚠️ tinha vantagem de {diff} CV(s)"
@@ -118,7 +115,10 @@ def _format_defense_hero(d: Dict) -> str:
 def _calculate_post_war_stats(war_doc: Dict) -> Dict:
     """Calcula estatísticas avançadas e gera premiações dinâmicas para o clã."""
     our_member_tags = {m['tag'] for m in war_doc.get('our_clan_members_in_war', []) if 'tag' in m}
-    all_attacks = war_doc.get('all_attacks', [])
+    all_attacks = [
+        {**attack, "stars": attack["stars"] or 0} if "stars" in attack else attack
+        for attack in war_doc.get('all_attacks', [])
+    ]
 
     our_attacks = sorted(
         [a for a in all_attacks if a.get("attacker_tag") in our_member_tags],
@@ -393,9 +393,9 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
         tactical_insights.append(random.choice(dip_templates))
 
         rec_dip_templates = [
-            f"📌 **Recomendação DIP:** Treinar ataques específicos para cenários de superioridade de CV. Composições como QC Hybrid ou Yeti Smash são boas opções.",
-            f"📌 **Para melhorar:** Quando atacamos de CV superior, precisamos garantir o 3⭐. Vale a pena ensaiar ataques DIP em wars de treino.",
-            f"📌 **Sugestão:** Mapear as bases mais fracas do oponente e designar atacantes com histórico de 3⭐ em DIP para esses alvos.",
+            "📌 **Recomendação DIP:** Treinar ataques específicos para cenários de superioridade de CV. Composições como QC Hybrid ou Yeti Smash são boas opções.",
+            "📌 **Para melhorar:** Quando atacamos de CV superior, precisamos garantir o 3⭐. Vale a pena ensaiar ataques DIP em wars de treino.",
+            "📌 **Sugestão:** Mapear as bases mais fracas do oponente e designar atacantes com histórico de 3⭐ em DIP para esses alvos.",
         ]
         recommendations.append(random.choice(rec_dip_templates))
     elif our_attacks:
@@ -495,14 +495,14 @@ def _calculate_post_war_stats(war_doc: Dict) -> Dict:
         if abs(star_diff) <= 3:
             char_templates = [
                 f"💬 **Caráter da Guerra:** Derrota apertada por {abs(star_diff)}⭐. Estivemos muito perto da vitória.",
-                f"💬 **Observação Geral:** Perdemos por pouco. Com ajustes finos, o resultado poderia ter sido diferente.",
+                "💬 **Observação Geral:** Perdemos por pouco. Com ajustes finos, o resultado poderia ter sido diferente.",
                 f"💬 **Panorama:** Batalha muito equilibrada. O placar de {abs(star_diff)}⭐ de diferença não reflete o esforço.",
             ]
         else:
             char_templates = [
                 f"💬 **Caráter da Guerra:** Derrota expressiva por {abs(star_diff)}⭐. Precisamos reavaliar nossa abordagem.",
-                f"💬 **Observação Geral:** O placar final mostra que fomos superados em vários aspectos. Hora de reestruturar.",
-                f"💬 **Panorama:** Guerra difícil onde o abismo de estrelas ficou claro. Precisamos evoluir coletivamente.",
+                "💬 **Observação Geral:** O placar final mostra que fomos superados em vários aspectos. Hora de reestruturar.",
+                "💬 **Panorama:** Guerra difícil onde o abismo de estrelas ficou claro. Precisamos evoluir coletivamente.",
             ]
         tactical_insights.append(random.choice(char_templates))
 

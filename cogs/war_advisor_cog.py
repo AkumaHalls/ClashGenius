@@ -4,16 +4,18 @@ Módulo do Conselheiro de Guerra IA - ClashGenius (v7.0 - Otimização Combinat�
 Sistema inteligente usando Algoritmo Húngaro (Linear Sum Assignment) e Matrizes.
 """
 
+import datetime
 import logging
-from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
-from discord.ext import commands
-import datetime
-import pytz
+from typing import Any, Dict, List, Tuple
+
 import discord
 import numpy as np
+import pytz
+from discord.ext import commands
 from scipy.optimize import linear_sum_assignment
+
 
 class AttackType(Enum):
     MIRROR = "mirror"
@@ -91,7 +93,15 @@ class WarAdvisorSystem:
         if war.state != 'inWar': return WarPhase.PHASE_1
         try:
             now = datetime.datetime.now(pytz.utc)
-            war_start_time = war.start_time.time.replace(tzinfo=pytz.utc)
+            start = war.start_time
+            # geniuslib.Timestamp expõe .time (datetime); datetime comum tem .time (método).
+            raw = start.time if isinstance(getattr(start, 'time', None), datetime.datetime) else start
+            if isinstance(raw, datetime.datetime):
+                war_start_time = raw if raw.tzinfo else raw.replace(tzinfo=pytz.utc)
+            elif isinstance(raw, datetime.date):
+                war_start_time = pytz.utc.localize(datetime.datetime.combine(raw, datetime.time.min))
+            else:
+                return WarPhase.PHASE_1
             hours_passed = (now - war_start_time).total_seconds() / 3600
             return WarPhase.PHASE_1 if hours_passed < self.WAR_PHASE_SPLIT_HOURS else WarPhase.PHASE_2
         except Exception:
@@ -169,6 +179,9 @@ class WarAdvisorSystem:
             target_slots.append({"member": opp, "stars_left": stars_left, "is_closed": is_closed})
 
         # Preenchimento de Matriz: Evita que atacantes fiquem de fora se houver poucos alvos vivos
+        if not target_slots:
+            self.logger.warning("Adversário sem membros na matriz de guerra; nenhuma recomendação gerada.")
+            return []
         original_targets = list(target_slots)
         while len(target_slots) < len(attack_slots):
             target_slots.extend(original_targets)
@@ -294,7 +307,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
             
             embed = discord.Embed(
                 title=f"🎯 {plan.get('phase_title')}", 
-                description=f"**Módulo Tático de Matrizes** - Otimização global de ataques em andamento.",
+                description="**Módulo Tático de Matrizes** - Otimização global de ataques em andamento.",
                 color=discord.Color.blue()
             )
             
@@ -331,7 +344,7 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
                 embed.add_field(name=f"👤 {current_player}", value="\n".join(player_attacks), inline=False)
             
             if len(recommendations) > 25:
-                embed.add_field(name="🌐 Terminal Web", value=f"Exibindo 25 primeiros ataques. Veja o painel Web para o briefing completo.", inline=False)
+                embed.add_field(name="🌐 Terminal Web", value="Exibindo 25 primeiros ataques. Veja o painel Web para o briefing completo.", inline=False)
             
             embed.set_footer(text=f"Processado por {plan.get('version', 'IA v6.0')}")
             await ctx.send(embed=embed)
@@ -401,8 +414,8 @@ class WarAdvisorCog(commands.Cog, name="Conselheiro de Guerra IA"):
             
             embed.add_field(name="📊 Somatória Geral", value=f"**Players Incompletos:** {len(attackers_info)}\n**Munição Total Restante:** {total_remaining}", inline=False)
             await ctx.send(embed=embed)
-        except Exception as e:
-            await ctx.send(f"❌ **Falha ao mapear cartuchos.**")
+        except Exception:
+            await ctx.send("❌ **Falha ao mapear cartuchos.**")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarAdvisorCog(bot))

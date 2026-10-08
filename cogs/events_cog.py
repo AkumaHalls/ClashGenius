@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-import logging
-import discord
-from discord.ext import commands, tasks
-import geniuslib as coc
-from geniuslib.formatters import format_th, format_attack as fmt_attack
 import asyncio
 import datetime
+import logging
 from typing import Optional
+
+import discord
+import geniuslib as coc
+from discord.ext import commands, tasks
+from geniuslib.formatters import format_th
 
 try:
     from cogs.war_attack_analysis import analyze_war_attack

@@ -1,24 +1,25 @@
-# -*- coding: utf-8 -*-
-import logging
-import discord
-from discord import app_commands
-from discord.ext import commands, tasks
-import geniuslib as coc
-import datetime
-from typing import List, Dict, Any, Tuple, Optional
-import re
-import pytz
+﻿# -*- coding: utf-8 -*-
 import asyncio
-import traceback
+import datetime
+import hashlib
+import logging
+import re
 import time
+import traceback
+from typing import Any, Dict, List, Optional, Tuple
+
+import discord
+import geniuslib as coc
 
 # Motores de Data Science e Machine Learning
 import numpy as np
 import pandas as pd
-from thefuzz import fuzz as fuzzy
-from sklearn.ensemble import IsolationForest
+import pytz
 import xgboost as xgb
-import pickle
+from discord import app_commands
+from discord.ext import commands, tasks
+from sklearn.ensemble import IsolationForest
+from thefuzz import fuzz as fuzzy
 
 logger = logging.getLogger("smurf_detection_cog")
 
@@ -59,6 +60,16 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         self.XGB_PSEUDO_WEIGHT = 0.3
         self.XGB_MIN_REAL_LABELS = 5
         self.XGB_MIN_TOTAL_SAMPLES = 20
+        self.XGB_MIN_LABELED_SAMPLES = 20
+        self.MIN_PAIR_VECTORS_FOR_IF = 20
+        self.XGB_FEATURE_NAMES = [
+            'name_sim', 'feat_cos', 'troop_cos', 'ach_cos', 'hero_cos',
+            'th_gap', 'exp_gap', 'war_stars_gap', 'attack_wins_gap',
+            'behavior_score', 'don_count', 'war_count', 'has_war_sync',
+            'pair_if', 'if_main', 'if_smurf',
+            'is_mula', 'mula_score', 'don_asymmetry', 'is_asymmetric',
+            'feat_z', 'troop_z', 'ach_z', 'dev_cos', 'dev_mag', 'hero_z',
+        ]
 
         self.last_clan_state: Dict[str, Dict[str, int]] = {}
         self.last_war_attacks: Dict[str, float] = {}
@@ -79,7 +90,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             return
         try:
             cursor = self.db.smurf_training.find(
-                {"real_label": {"$exists": True}},
+                {"real_label": {"$in": [0, 1]}},
                 {"_id": 1}
             )
             async for doc in cursor:
@@ -129,7 +140,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     # ==================== DATA MINING (EXTRAÇÃO DE FEATURES) ====================
 
     def _extract_troop_profile(self, player: coc.Player) -> np.ndarray:
-        """Perfil de升级 de tropas por categoria (6 dimensões)."""
+        """Perfil deæ‡çº§ de tropas por categoria (6 dimensões)."""
         categories = {
             'war_elite': ["Electro Dragon", "Balloon", "Yeti", "Dragon", "Lava Hound"],
             'farming': ["Barbarian", "Archer", "Goblin", "Giant", "Minion"],
@@ -139,12 +150,20 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             'air_support': ["Healer", "Baby Dragon", "Inferno Dragon", "Dragon Rider", "Minion Prince"],
         }
         profile = []
+        troops = getattr(player, "troops", []) or []
+        spells = getattr(player, "spells", []) or []
         for cat_name, troop_names in categories.items():
             levels = []
-            for t in player.troops + player.spells:
+            for t in list(troops) + list(spells):
                 try:
-                    if t.village == coc.VillageType.home and t.name in troop_names:
-                        levels.append(t.level / max(t.max_level, 1))
+                    if getattr(t, "village", None) == getattr(coc, "VillageType", None) and getattr(t, "name", None) in troop_names:
+                        maxl = getattr(t, "max_level", getattr(t, "level", 1)) or 1
+                        lvl = getattr(t, "level", 0) or 0
+                        levels.append(lvl / max(maxl, 1))
+                    elif getattr(t, "name", None) in troop_names:
+                        maxl = getattr(t, "max_level", getattr(t, "level", 1)) or 1
+                        lvl = getattr(t, "level", 0) or 0
+                        levels.append(lvl / max(maxl, 1))
                 except Exception:
                     continue
             profile.append(np.mean(levels) if levels else 0.0)
@@ -159,51 +178,70 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         ]
         vec = []
         for key in keys:
-            ach = player.get_achievement(name=key)
-            vec.append(min((ach.value if ach else 0) / 1e7, 1.0))
+            try:
+                if hasattr(player, "get_achievement"):
+                    ach = player.get_achievement(name=key)
+                elif hasattr(player, "achievements"):
+                    achs = player.achievements
+                    ach = next((a for a in achs if getattr(a, "name", None) == key), None)
+                else:
+                    ach = None
+            except Exception:
+                ach = None
+            val = getattr(ach, "value", 0) if ach else 0
+            vec.append(min((val if val else 0) / 1e7, 1.0))
         return np.array(vec)
 
     def _extract_feature_vector(self, player: coc.Player) -> np.ndarray:
         """Vetoriza o perfil evolutivo do jogador em 12 dimensões."""
         try:
             home_heroes = ["Barbarian King", "Archer Queen", "Grand Warden", "Royal Champion", "Minion Prince", "Dragon Duke"]
-            heroes_lvl = sum(h.level for h in player.heroes if h.name in home_heroes)
-            max_hero_lvl = sum(h.max_level for h in player.heroes if hasattr(h, 'max_level') and h.name in home_heroes) or 1
+            heroes = getattr(player, "heroes", []) or []
+            heroes_lvl = sum(getattr(h, "level", 0) for h in heroes if getattr(h, "name", None) in home_heroes)
+            max_hero_lvl = sum(getattr(h, "max_level", getattr(h, "level", 0)) for h in heroes if hasattr(h, "max_level") and getattr(h, "name", None) in home_heroes) or 1
 
-            ach_gold = player.get_achievement(name="Gold Grab")
-            ach_war = player.get_achievement(name="War Hero")
-            ach_attacker = player.get_achievement(name="Conqueror")
-            ach_games = player.get_achievement(name="Games Champion")
+            def get_ach(name):
+                try:
+                    if hasattr(player, "get_achievement"):
+                        return player.get_achievement(name=name)
+                    if hasattr(player, "achievements"):
+                        a = player.achievements
+                        return next((x for x in a if getattr(x, "name", None) == name), None)
+                except Exception:
+                    pass
+                return None
+            ach_gold = get_ach("Gold Grab")
+            ach_war = get_ach("War Hero")
+            ach_attacker = get_ach("Conqueror")
+            ach_games = get_ach("Games Champion")
 
             return np.array([
-                player.town_hall / 17.0,
-                heroes_lvl / max_hero_lvl,
-                min(player.attack_wins / 5000.0, 1.0),
-                min(player.defense_wins / 1000.0, 1.0),
-                min(player.war_stars / 5000.0, 1.0),
-                min(player.trophies / 6000.0, 1.0),
-                min((ach_gold.value if ach_gold else 0) / 2e9, 1.0),
-                min((ach_war.value if ach_war else 0) / 2000.0, 1.0),
-                min((ach_attacker.value if ach_attacker else 0) / 2000.0, 1.0),
-                min((ach_games.value if ach_games else 0) / 1000.0, 1.0),
-                player.exp_level / 500.0,
-                player.builder_hall_level / 10.0 if hasattr(player, 'builder_hall_level') else 0.0,
+                (getattr(player, "town_hall", 0) or 0) / 17.0,
+                heroes_lvl / max_hero_lvl if max_hero_lvl else 0.0,
+                min((getattr(player, "attack_wins", 0) or 0) / 5000.0, 1.0),
+                min((getattr(player, "defense_wins", 0) or 0) / 1000.0, 1.0),
+                min((getattr(player, "war_stars", 0) or 0) / 5000.0, 1.0),
+                min((getattr(player, "trophies", 0) or 0) / 6000.0, 1.0),
+                min((getattr(ach_gold, "value", 0) or 0) / 2e9, 1.0),
+                min((getattr(ach_war, "value", 0) or 0) / 2000.0, 1.0),
+                min((getattr(ach_attacker, "value", 0) or 0) / 2000.0, 1.0),
+                min((getattr(ach_games, "value", 0) or 0) / 1000.0, 1.0),
+                (getattr(player, "exp_level", 0) or 0) / 500.0,
+                (getattr(player, "builder_hall_level", 0) or 0) / 10.0 if hasattr(player, 'builder_hall_level') else 0.0,
             ])
         except Exception:
             return np.zeros(12)
 
     def _extract_hero_equipment_fingerprint(self, player: coc.Player) -> np.ndarray:
-        """Fingerprint de equipamentos dos heróis — sinal forte de individualidade.
-        Retorna vetor binário (tem/não tem) + nível normalizado apenas para equipamentos desbloqueados no TH."""
-        eqp = player.hero_equipment if hasattr(player, 'hero_equipment') else []
+        """Fingerprint de equipamentos dos heróis – sinal forte de individualidade."""
+        eqp = getattr(player, 'hero_equipment', []) or []
         names_ordered = [
             "Barbarian Puppet", "Rage Vial", "Archer Puppet", "Invisibility Vial",
             "Eternal Tome", "Life Gem", "Rage Gem", "Healing Tome",
             "Royal Gem", "Seeking Shield", "Hog Rider Puppet", "Skeleton Spell",
             "Lava Puppet", "Frozen Arrow", "Giant Arrow", "Electro Boots",
         ]
-        # TH level determina quais equipamentos estão desbloqueados
-        th = player.town_hall
+        th = getattr(player, "town_hall", 0) or 0
         unlocked_slots = 0
         if th >= 8: unlocked_slots = 1
         if th >= 9: unlocked_slots = 2
@@ -213,15 +251,16 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         if th >= 13: unlocked_slots = 6
         if th >= 14: unlocked_slots = 7
         if th >= 15: unlocked_slots = 8
-        # Apenas considera equipamentos até o slot desbloqueado
         vec = []
         for i, name in enumerate(names_ordered):
             if i >= unlocked_slots:
-                vec.append(0.0)  # Slot ainda não desbloqueado = 0
+                vec.append(0.0)
                 continue
-            found = next((e for e in eqp if e.name == name), None)
+            found = next((e for e in eqp if getattr(e, "name", None) == name), None)
             if found:
-                vec.append(found.level / max(found.max_level, 1))
+                maxl = getattr(found, "max_level", getattr(found, "level", 1)) or 1
+                lvl = getattr(found, "level", 0) or 0
+                vec.append(lvl / max(maxl, 1))
             else:
                 vec.append(0.0)
         return np.array(vec)
@@ -386,6 +425,38 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         except Exception:
             pass
 
+    def _is_valid_real_label(self, label: Any) -> bool:
+        """FIX-09 (c): Só aceita labels reais binários 0/1.
+
+        Rejeita None, pseudo-labels como 0.5, strings não numéricas, etc.
+        """
+        if label is None:
+            return False
+        if isinstance(label, bool):
+            return True
+        try:
+            f = float(label)
+        except (TypeError, ValueError):
+            return False
+        return f in (0.0, 1.0)
+
+    def _build_xgb_fit_data(self, docs: List[Dict], feature_names: List[str]) -> Tuple[List[List[float]], List[float], List[float]]:
+        """FIX-09 (b)(c): Constrói X/y/w apenas com amostras com features e label real 0/1."""
+        rows: List[List[float]] = []
+        labels: List[float] = []
+        weights: List[float] = []
+        for doc in docs:
+            feats = doc.get("features", {})
+            if not feats:
+                continue
+            rl = doc.get("real_label")
+            if not self._is_valid_real_label(rl):
+                continue
+            rows.append([feats.get(k, 0.0) for k in feature_names])
+            labels.append(1.0 if float(rl) >= 0.5 else 0.0)
+            weights.append(doc.get("real_weight", 1.0))
+        return rows, labels, weights
+
     async def _train_xgb_from_db(self):
         """Treina XGBoost com TODAS as features + pseudo-labels + feedback real."""
         if self.db is None:
@@ -396,52 +467,23 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             async for doc in cursor:
                 docs.append(doc)
 
-            if len(docs) < self.XGB_MIN_TOTAL_SAMPLES:
-                logger.info(f"XGBoost: aguardando mais dados ({len(docs)}/{self.XGB_MIN_TOTAL_SAMPLES})")
-                return
-
-            real_labels = sum(1 for d in docs if d.get("real_label") is not None)
-            if real_labels < self.XGB_MIN_REAL_LABELS:
-                logger.info(f"XGBoost: aguardando mais labels reais ({real_labels}/{self.XGB_MIN_REAL_LABELS})")
+            rows, labels, weights = self._build_xgb_fit_data(docs, self.XGB_FEATURE_NAMES)
+            if len(labels) < 20:
+                logger.info(f"XGBoost: aguardando mais labels reais ({len(labels)}/20)")
                 return
 
             self._ensure_xgb_model()
 
-            feature_names = [
-                'name_sim', 'feat_cos', 'troop_cos', 'ach_cos', 'hero_cos',
-                'th_gap', 'exp_gap', 'war_stars_gap', 'attack_wins_gap',
-                'behavior_score', 'don_count', 'war_count', 'has_war_sync',
-                'pair_if', 'if_main', 'if_smurf',
-                'is_mula', 'mula_score', 'don_asymmetry', 'is_asymmetric',
-                'feat_z', 'troop_z', 'ach_z', 'dev_cos', 'dev_mag', 'hero_z',
-            ]
-            rows = []
-            labels = []
-            weights = []
-            for doc in docs:
-                feats = doc.get("features", {})
-                if not feats:
-                    continue
-                row = [feats.get(k, 0.0) for k in feature_names]
-                rows.append(row)
-
-                if doc.get("real_label") is not None:
-                    labels.append(doc["real_label"])
-                    weights.append(doc.get("real_weight", 1.0))
-                else:
-                    labels.append(doc.get("pseudo_label", 0.5))
-                    weights.append(doc.get("pseudo_weight", self.XGB_PSEUDO_WEIGHT))
-
-            X = pd.DataFrame(rows, columns=feature_names)
-            y = np.array([min(max(l, 0.0), 1.0) for l in labels])
+            X = pd.DataFrame(rows, columns=self.XGB_FEATURE_NAMES)
+            y = np.array(labels, dtype=float)
             w = np.array(weights)
 
             self._xgb_model.fit(X, y, sample_weight=w)
             self._xgb_is_trained = True
-            self._xgb_real_labels = real_labels
-            logger.info(f"XGBoost treinado: {len(docs)} amostras, {real_labels} labels reais, {len(docs)-real_labels} pseudo-labels")
+            self._xgb_real_labels = len(labels)
+            logger.info(f"XGBoost treinado: {len(labels)} amostras rotuladas reais")
         except Exception as e:
-            logger.error(f"Erro treino XGBoost: {e}")
+            logger.error(f'Erro treino XGBoost: {e}')
 
     def _xgb_predict(self, pair_features: pd.DataFrame) -> float:
         """Retorna probabilidade prevista pelo XGBoost."""
@@ -513,6 +555,13 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             return 0.85, 0.10
         return float(np.mean(sims)), float(np.std(sims))
 
+    def _clear_isolation_forest_caches(self):
+        """FIX-12: Invalida caches de score do IsolationForest quando o modelo é re-treinado."""
+        self._if_score_cache.clear()
+        self._pair_if_score_cache.clear()
+        self._if_score_ts.clear()
+        self._pair_if_score_ts.clear()
+
     def _prepare_clan_baselines(self, clan_members: List[coc.ClanMember], players_full: List[coc.Player]):
         """Prepara baselines estatísticos e treina Isolation Forest (individual + par)."""
         player_map = {p.tag: p for p in players_full}
@@ -522,6 +571,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             self._last_clan_baselines = None
             self._isolation_forest = None
             self._pair_isolation_forest = None
+            self._clear_isolation_forest_caches()
             return
 
         vectors = [self._extract_feature_vector(p) for p in member_players]
@@ -579,7 +629,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     pair_vectors.append(stacked)
             
             # Fix: check AFTER building all pair vectors
-            if len(pair_vectors) >= 20:
+            if len(pair_vectors) >= self.MIN_PAIR_VECTORS_FOR_IF:
                 pair_model = IsolationForest(
                     contamination=0.1, random_state=42, n_estimators=100
                 )
@@ -595,7 +645,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             self._if_threshold = 0.0
             self._pair_if_threshold = 0.0
 
-
+        # FIX-12: modelos foram (re)treinados com dados novos -> invalida caches antigos
+        self._clear_isolation_forest_caches()
 
     def _get_isolation_forest_score(self, player: coc.Player) -> float:
         """Retorna score de anomalia do IsolationForest (0=normal, 1=anômalo)."""
@@ -732,6 +783,83 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
     async def before_regenerative(self):
         await self.bot.wait_until_ready()
 
+    # ==================== FIX-11: HELPERS PUROS (TESTÁVEIS SEM MONGO) ====================
+
+    @staticmethod
+    def _donation_pair_key(tag_a: str, tag_b: str) -> str:
+        return f"{min(tag_a, tag_b)}_{max(tag_a, tag_b)}"
+
+    @staticmethod
+    def _evidence_filter(min_score: int = 3) -> Dict[str, Any]:
+        """Filtro canônico de evidências para varredura (score acima do ruído)."""
+        return {"score": {"$gt": min_score}}
+
+    @staticmethod
+    def _real_label_filter() -> Dict[str, Any]:
+        """FIX-11 (b): conta apenas docs com label real binário 0/1, NUNCA None."""
+        return {"real_label": {"$in": [0, 1]}}
+
+    def _find_donation_transfers(self, current_state: Dict, last_state: Dict) -> List[Dict[str, Any]]:
+        """FIX-11 (c): doações coincidentes derivadas de CONTEÚDO (diffs), sem relógio de poll."""
+        transfers: List[Dict[str, Any]] = []
+        if not last_state:
+            return transfers
+        donors, receivers = [], []
+        for tag, state in current_state.items():
+            if tag in last_state:
+                d_diff = state["donations"] - last_state[tag]["donations"]
+                r_diff = state["received"] - last_state[tag]["received"]
+                if d_diff > 0:
+                    donors.append((state["member"], d_diff))
+                if r_diff > 0:
+                    receivers.append((state["member"], r_diff))
+        seen = set()
+        for d_member, d_amount in donors:
+            for r_member, r_amount in receivers:
+                if d_amount > 0 and r_amount > 0 and d_amount == r_amount:
+                    key = self._donation_pair_key(d_member.tag, r_member.tag)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    transfers.append({
+                        "pair_id": key,
+                        "tag1": d_member.tag, "tag2": r_member.tag,
+                        "member1": d_member, "member2": r_member,
+                        "amount": d_amount,
+                        "marker": f"don:{d_amount}",
+                    })
+        return transfers
+
+    @staticmethod
+    def _should_flag_donation_recurrence(hit_count: int) -> bool:
+        """FIX-11 (a): exige reincidência real (>= 2), não a primeira ocorrência."""
+        return hit_count >= 2
+
+    @staticmethod
+    def _attack_content_marker(attack: Any) -> int:
+        """FIX-11 (c): marcador derivado de CONTEÚDO do ataque (não do timestamp de poll)."""
+        order = getattr(attack, "order", None)
+        if order is not None:
+            try:
+                return int(order)
+            except (TypeError, ValueError):
+                pass
+        raw = "|".join(
+            str(getattr(attack, f, ""))
+            for f in ("stars", "destruction", "attacker_tag", "defender_tag")
+        )
+        return int(hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8], 16)
+
+    def _find_synchronized_attacks(self, markers: Dict[str, int], max_gap: int = 1) -> List[Tuple[str, str]]:
+        """Pares cujos marcadores de conteúdo são adjacentes (sincronia por conteúdo)."""
+        tags = list(markers)
+        pairs: List[Tuple[str, str]] = []
+        for i in range(len(tags)):
+            for j in range(i + 1, len(tags)):
+                if abs(markers[tags[i]] - markers[tags[j]]) <= max_gap:
+                    pairs.append((tags[i], tags[j]))
+        return pairs
+
     @tasks.loop(minutes=3)
     async def behavior_monitor_task(self):
         if not self.bot.is_ready() or not self.bot.api_client: return
@@ -743,65 +871,49 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             current_state = {m.tag: {"donations": m.donations, "received": m.received, "member": m} for m in clan.members}
             now_ts = datetime.datetime.now().timestamp()
 
-            # RADAR DE DOAÇÕES (mais conservador)
-            if self.last_clan_state:
-                donors, receivers = [], []
-                for tag, state in current_state.items():
-                    if tag in self.last_clan_state:
-                        d_diff = state["donations"] - self.last_clan_state[tag]["donations"]
-                        r_diff = state["received"] - self.last_clan_state[tag]["received"]
-                        if d_diff > 0: donors.append((state["member"], d_diff))
-                        if r_diff > 0: receivers.append((state["member"], r_diff))
-
-                if donors and receivers:
-                    for d_member, d_amount in donors:
-                        for r_member, r_amount in receivers:
-                            if d_member.tag in clan_tags and r_member.tag in clan_tags:
-                                if d_amount > 0 and r_amount > 0 and d_amount == r_amount:
-                                    pair_id = f"{min(d_member.tag, r_member.tag)}_{max(d_member.tag, r_member.tag)}"
-                                    self._donation_pair_history[pair_id] = self._donation_pair_history.get(pair_id, 0) + 1
-                                    self._donation_pair_history_ttl[pair_id] = now_ts
-                                    hit_count = self._donation_pair_history.get(pair_id, 0)
-                                    if hit_count >= 1:
-                                        await self._log_telemetry(
-                                            d_member, r_member, self.TELEMETRY_DONATION_POINTS,
-                                            f"Transferência (reincidência #{hit_count}): {d_member.name} doou {d_amount} e {r_member.name} recebeu {r_amount} simultaneamente.",
-                                            "Economia de Tropas"
-                                        )
+            # RADAR DE DOAÇÕES (FIX-11: conteúdo + reincidência real >= 2)
+            for transfer in self._find_donation_transfers(current_state, self.last_clan_state):
+                d_member = transfer["member1"]
+                r_member = transfer["member2"]
+                if d_member.tag not in clan_tags or r_member.tag not in clan_tags:
+                    continue
+                pair_id = transfer["pair_id"]
+                self._donation_pair_history[pair_id] = self._donation_pair_history.get(pair_id, 0) + 1
+                self._donation_pair_history_ttl[pair_id] = now_ts
+                hit_count = self._donation_pair_history.get(pair_id, 0)
+                if self._should_flag_donation_recurrence(hit_count):
+                    await self._log_telemetry(
+                        d_member, r_member, self.TELEMETRY_DONATION_POINTS,
+                        f"Transferência (reincidência #{hit_count}, marcador {transfer['marker']}): "
+                        f"{d_member.name} doou {transfer['amount']} e {r_member.name} recebeu {transfer['amount']}.",
+                        "Economia de Tropas"
+                    )
 
             self.last_clan_state = current_state
 
-            # RADAR DE GUERRA (janela mais curta: 30s entre ataques)
+            # RADAR DE GUERRA (FIX-11c: sincronia derivada de CONTEÚDO, não do relógio do poll)
             try:
                 war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
                 if war and war.state == "inWar":
                     my_clan = war.clan if coc.utils.correct_tag(war.clan.tag) == coc.utils.correct_tag(self.bot.clan_tag) else war.opponent
-                    current_attacks = {}
+                    markers = {}
                     for m in my_clan.members:
                         for atk in m.attacks:
-                            current_attacks[atk.attacker_tag] = now_ts
+                            markers[atk.attacker_tag] = self._attack_content_marker(atk)
 
-                    if self.last_war_attacks:
-                        new_attackers = []
-                        for tag, ts in current_attacks.items():
-                            if tag not in self.last_war_attacks:
-                                new_attackers.append((tag, ts))
+                    new_markers = {tag: mk for tag, mk in markers.items() if tag not in self.last_war_attacks}
+                    for t1, t2 in self._find_synchronized_attacks(new_markers, max_gap=1):
+                        m1 = current_state.get(t1, {}).get("member")
+                        m2 = current_state.get(t2, {}).get("member")
+                        if m1 and m2 and m1.tag in clan_tags and m2.tag in clan_tags:
+                            await self._log_telemetry(
+                                m1, m2, self.TELEMETRY_WAR_POINTS,
+                                f"Ataques sincronizados (marcadores de conteúdo {new_markers[t1]}/{new_markers[t2]}): "
+                                f"{m1.name} e {m2.name} atacaram em sequência.",
+                                "Sincronia Mutex"
+                            )
 
-                        for i in range(len(new_attackers)):
-                            for j in range(i + 1, len(new_attackers)):
-                                t1, ts1 = new_attackers[i]
-                                t2, ts2 = new_attackers[j]
-                                if abs(ts1 - ts2) <= self.WAR_SYNC_SECONDS:
-                                    m1 = current_state.get(t1, {}).get("member")
-                                    m2 = current_state.get(t2, {}).get("member")
-                                    if m1 and m2 and m1.tag in clan_tags and m2.tag in clan_tags:
-                                        await self._log_telemetry(
-                                            m1, m2, self.TELEMETRY_WAR_POINTS,
-                                            f"Ataques sincronizados em <{self.WAR_SYNC_SECONDS}s: {m1.name} e {m2.name} atacaram no mesmo intervalo.",
-                                            "Sincronia Mutex"
-                                        )
-
-                    self.last_war_attacks.update(current_attacks)
+                    self.last_war_attacks.update(markers)
             except Exception:
                 pass
 
@@ -875,6 +987,8 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
         else:
             main_p, smurf_p = p2, p1
 
+        if telemetry is None:
+            telemetry = {}
         baseline = self._last_clan_baselines
         behavior_score = int(telemetry.get('score', 0))
         thoughts = []
@@ -1103,14 +1217,12 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
         # ---- EXTRAIR 26 FEATURES para o XGBoost ----
         pair_features_df = self._extract_pair_features(p1, p2, telemetry, baseline)
-        feature_dict = pair_features_df.iloc[0].to_dict()
 
         # ---- VEREDITO FINAL: XGBoost (quando treinado) vs Bayes (cold start) ----
         if self._xgb_is_trained and self._xgb_model is not None:
             try:
                 ml_prob = self._xgb_predict(pair_features_df)
                 confidence = int(ml_prob * 100)
-                evidence_count_str = f"ML ativo: {self._xgb_real_labels} labels reais"
                 thoughts.append({"axis": "IA XGBoost", "weight": "Veredito Final",
                     "text": f"Probabilidade ML: {ml_prob:.0%}. Modelo treinado com {self._xgb_real_labels} casos reais."})
             except Exception:
@@ -1119,18 +1231,20 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     "text": "Erro na predição ML, usando fallback Bayesiano."})
         else:
             confidence = bayesian_conf
-            if self._xgb_real_labels > 0:
-                ml_status = f"({self._xgb_real_labels}/{self.XGB_MIN_REAL_LABELS} labels — aguardando mais dados)"
-            else:
-                ml_status = "sem dados de treinamento ainda"
-            thoughts.append({"axis": "IA XGBoost", "weight": "Info",
-                "text": f"Modo cold start ({ml_status}). Use Absolver/Condenar para treinar o modelo."})
+            ml_status = (
+                f"{self._xgb_real_labels}/{self.XGB_MIN_LABELED_SAMPLES} exemplos rotulados"
+                if self._xgb_real_labels > 0
+                else "sem exemplos rotulados"
+            )
+            thoughts.append({"axis": "Bayes (cold start)", "weight": "Info",
+                "text": f"Motor Bayesiano em cold start ({ml_status}). "
+                        f"XGBoost ainda não foi treinado. Use Absolver/Condenar para rotular e treinar o modelo."})
 
         # ---- MIN-EVIDENCE: exige pelo menos 1 eixo forte pra reportar ----
         if strong_axes < 1 and behavior_score < 15:
             return None
 
-        # ---- RISK LABELS: só acusar quando tem evidência real ----
+        # ---- RISK LABELS: SÓ acusar quando tem evidência real ----
         if self._xgb_is_trained and confidence >= 85:
             risk_label = "Risco Extremo"
             risk_color = "var(--color-danger)"
@@ -1161,7 +1275,46 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             "evidence_count": evidence_count,
             "strong_axes": strong_axes,
             "model_status": "trained" if self._xgb_is_trained else "cold_start",
+            "_features": pair_features_df.iloc[0].to_dict() if hasattr(pair_features_df, "iloc") else {},
+            "_pseudo_label": float(ml_prob) if 'ml_prob' in locals() and ml_prob is not None else float(confidence) / 100.0,
         }
+
+    # ==================== FIX-10: PARALELIZAÇÃO DA MATRIZ O(n²·m²) ====================
+
+    @staticmethod
+    def _normalize_name(name: str) -> str:
+        return re.sub(r"[^\w\s]", "", (name or "").lower())
+
+    def _build_player_signatures(self, players: List[coc.Player]) -> Dict[str, Dict[str, Any]]:
+        """FIX-10: pré-computa assinaturas leves por jogador (evita recomputo no loop)."""
+        sigs: Dict[str, Dict[str, Any]] = {}
+        for p in players:
+            sigs[p.tag] = {
+                "name_norm": self._normalize_name(getattr(p, "name", "")),
+                "th": getattr(p, "town_hall", 0),
+            }
+        return sigs
+
+    def _candidate_pairs(self, players: List[coc.Player], signatures: Dict[str, Dict[str, Any]],
+                         telemetry_ids: set, judged: set) -> List[Tuple[Any, Any, str]]:
+        """FIX-10: pré-filtro barato O(n²) usando assinaturas em cache (sem inferência pesada)."""
+        pairs: List[Tuple[Any, Any, str]] = []
+        for i in range(len(players)):
+            p1 = players[i]
+            sig1 = signatures.get(p1.tag, {})
+            for j in range(i + 1, len(players)):
+                p2 = players[j]
+                pair_id = self._donation_pair_key(p1.tag, p2.tag)
+                if pair_id in judged:
+                    continue
+                name_sim = fuzzy.ratio(sig1.get("name_norm", ""), signatures.get(p2.tag, {}).get("name_norm", ""))
+                if pair_id in telemetry_ids or name_sim >= self.MIN_FUZZY_RATIO:
+                    pairs.append((p1, p2, pair_id))
+        return pairs
+
+    async def _run_ml_inference_in_thread(self, p1: coc.Player, p2: coc.Player, telemetry: Dict) -> Optional[Dict]:
+        """FIX-10: executa o núcleo pesado (O(m²) por par) FORA do event loop."""
+        return await asyncio.to_thread(self._run_ml_inference, p1, p2, telemetry)
 
     # ==================== COMANDO DISCORD ====================
 
@@ -1179,7 +1332,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             telemetry_matrix = {}
             
             if self.db is not None:
-                cursor = self.db.smurf_evidence.find({"score": {"$gt": 3}})
+                cursor = self.db.smurf_evidence.find(self._evidence_filter(3))
                 async for doc in cursor: 
                     telemetry_matrix[doc["_id"]] = doc
                     if doc.get("tag1"): member_tags.add(doc.get("tag1"))
@@ -1195,26 +1348,30 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
 
             self._prepare_clan_baselines(clan.members, players_full)
 
+            # FIX-10: assinaturas pré-computadas + pré-filtro barato antes do ML pesado
+            signatures = self._build_player_signatures(players_full)
+            candidate_pairs = self._candidate_pairs(
+                players_full, signatures, set(telemetry_matrix.keys()), self._judged_pairs
+            )
+
             results = []
             processed = set()
 
-            for i in range(len(players_full)):
-                p1 = players_full[i]
-                if p1.tag in processed: continue
+            for p1, p2, pair_id in candidate_pairs:
+                if p1.tag in processed or p2.tag in processed:
+                    continue
 
-                for j in range(i + 1, len(players_full)):
-                    p2 = players_full[j]
-                    if p2.tag in processed: continue
+                telemetry = telemetry_matrix.get(pair_id)
 
-                    pair_id = f"{min(p1.tag, p2.tag)}_{max(p1.tag, p2.tag)}"
-                    if pair_id in self._judged_pairs:
-                        continue
-                    telemetry = telemetry_matrix.get(pair_id)
-                    
-                    dossier = self._run_ml_inference(p1, p2, telemetry or {})
-                    if dossier:
-                        results.append(dossier)
-                        processed.add(dossier["smurf_tag"])
+                # FIX-10: inferência pesada roda em thread (asyncio.to_thread), não no event loop
+                dossier = await self._run_ml_inference_in_thread(p1, p2, telemetry or {})
+                if dossier:
+                    await self._store_training_example_async(
+                        dossier["pair_id"], dossier["main_tag"], dossier["smurf_tag"],
+                        dossier.get("_features", {}), pseudo_label=dossier.get("_pseudo_label", 0.5),
+                    )
+                    results.append(dossier)
+                    processed.add(dossier["smurf_tag"])
 
             if not results:
                 return await interaction.followup.send("✅ **Clã Limpo:** A Inteligência Artificial cruzou os dados e não detectou smurfs atuando.")
@@ -1235,7 +1392,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 
             await interaction.followup.send(embed=embed)
 
-        except Exception as e:
+        except Exception:
             logger.error(f"Erro Crítico ML no Slash Command: {traceback.format_exc()}")
             await interaction.followup.send("❌ Erro fatal ao rodar a Matriz de Clusterização no Discord.")
 
@@ -1285,7 +1442,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     "model_status": "unavailable"}
         try:
             total_samples = await self.db.smurf_training.count_documents({})
-            real_labels = await self.db.smurf_training.count_documents({"real_label": {"$exists": True}})
+            real_labels = await self.db.smurf_training.count_documents({"real_label": {"$in": [0, 1]}})
             if self._xgb_is_trained:
                 status = "trained"
             elif real_labels >= self.XGB_MIN_REAL_LABELS and total_samples >= self.XGB_MIN_TOTAL_SAMPLES:
@@ -1338,7 +1495,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 self._prepare_clan_baselines(clan.members, players_full)
 
             if self.db:
-                async for doc in self.db.smurf_training.find({"real_label": {"$exists": True}}, {"_id": 1}):
+                async for doc in self.db.smurf_training.find({"real_label": {"$in": [0, 1]}}, {"_id": 1}):
                     self._judged_pairs.add(doc["_id"])
 
             xai_res = []
@@ -1361,7 +1518,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                     telemetry = telemetry_matrix.get(pair_id)
                     
                     if telemetry or self._phonetic_lexical_analysis(p1.name, p2.name) >= self.MIN_FUZZY_RATIO:
-                        dossier = self._run_ml_inference(p1, p2, telemetry or {})
+                        dossier = await self._run_ml_inference_in_thread(p1, p2, telemetry or {})
                         if dossier:
                             xai_res.append(dossier)
                             processed.add(dossier["smurf_tag"])
@@ -1369,7 +1526,7 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             xai_res.sort(key=lambda x: x['confidence'], reverse=True)
             return xai_res
             
-        except Exception as e:
+        except Exception:
             logger.error(f"Erro crítico na XAI Web: {traceback.format_exc()}")
             return []
 
@@ -1395,7 +1552,9 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
                 self._xgb_retrain_counter += 1
                 self._xgb_real_labels += 1
                 await self._train_xgb_from_db()
-                return {"status": "success", "message": "Absolvido! IA registrou como falso positivo e recalibrou o modelo ML."}
+                if self._xgb_is_trained:
+                    return {"status": "success", "message": f"Absolvido! IA registrou como falso positivo e retreinou o modelo ML ({self._xgb_real_labels} exemplos rotulados)."}
+                return {"status": "success", "message": f"Absolvido! IA registrou como falso positivo. Modelo Bayes em cold start ({self._xgb_real_labels}/{self.XGB_MIN_LABELED_SAMPLES} exemplos rotulados)."}
             return {"status": "error", "message": "Evidência não encontrada no banco."}
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -1443,9 +1602,14 @@ class SmurfDetectionCog(commands.Cog, name="Detetor de Smurfs IA"):
             self._xgb_retrain_counter += 1
             self._xgb_real_labels += 1
             await self._train_xgb_from_db()
-            return {"status": "success", "message": "Contas enviadas para a Watchlist com sucesso. IA recalibrada."}
+            if self._xgb_is_trained:
+                return {"status": "success", "message": f"Contas enviadas para a Watchlist com sucesso. Modelo ML retreinado ({self._xgb_real_labels} exemplos rotulados)."}
+            return {"status": "success", "message": f"Contas enviadas para a Watchlist com sucesso. Modelo Bayes em cold start ({self._xgb_real_labels}/{self.XGB_MIN_LABELED_SAMPLES} exemplos rotulados)."}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SmurfDetectionCog(bot))
+
+
+

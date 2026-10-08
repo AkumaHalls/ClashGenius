@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 import io
 import logging
+
 import discord
+import geniuslib as coc
 from discord import app_commands
 from discord.ext import commands
-import geniuslib as coc
-from geniuslib.formatters import format_th, format_trophies, format_number
-from geniuslib.upgrade_tracker import get_th_upgrade_summary, format_upgrade_summary
-from geniuslib.comparer import compare_players, compare_clans
+from geniuslib.comparer import compare_players
+from geniuslib.upgrade_tracker import format_upgrade_summary, get_th_upgrade_summary
 
 logger = logging.getLogger("slash_cog")
 
@@ -174,7 +174,6 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
                 return
             embed = discord.Embed(title=f"🔍 Clãs encontrados para '{nome}'", color=0x2b2d31)
             for clan in clans[:10]:
-                league_name = clan.war_league.name if clan.war_league else "Sem Liga"
                 members_str = f"{clan.member_count}/50"
                 th_str = f"TH{clan.required_townhall}" if clan.required_townhall else "Livre"
                 embed.add_field(
@@ -293,7 +292,7 @@ class SlashCog(commands.Cog, name="Comandos de Barra"):
             embed.set_footer(text="ClashGenius • Lenda Liga")
             await interaction.followup.send(embed=embed)
         except coc.NotFound:
-            await interaction.followup.send(f"❌ Jogador não encontrado.")
+            await interaction.followup.send("❌ Jogador não encontrado.")
         except Exception as e:
             logger.error(f"Erro em /legends: {e}", exc_info=True)
             await interaction.followup.send("❌ Erro ao buscar dados de Lenda Liga.")

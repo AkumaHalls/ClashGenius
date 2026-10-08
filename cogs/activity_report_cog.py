@@ -1,16 +1,59 @@
 # -*- coding: utf-8 -*-
-import logging
-import discord
-from discord import app_commands
-from discord.ext import commands, tasks
-import geniuslib as coc
-from geniuslib.formatters import format_th, format_trophies
 import asyncio
 import datetime
+import logging
+
+import discord
 import pytz
-from pymongo import DESCENDING
+from discord import app_commands
+from discord.ext import commands, tasks
 
 logger = logging.getLogger("activity_report_cog")
+
+def _period_filter(field, cutoff, operator="$gte"):
+    """Filtro de período no servidor para campos de data heterogêneos.
+
+    ``war_history.war_data.end_time_iso`` e ``donation_snapshots.timestamp``
+    convivem com formatos legados (ISO, epoch em ms e epoch em segundos). O
+    MongoDB só compara dentro do mesmo tipo BSON, então cada cláusula casa um
+    formato. A normalização em Python segue aplicada depois para garantir a
+    correção de docs legados com unidade inesperada.
+    """
+    cutoff_utc = cutoff.astimezone(datetime.timezone.utc)
+    return {
+        "$or": [
+            {field: {operator: cutoff_utc.isoformat()}},
+            {field: {operator: cutoff_utc.timestamp() * 1000}},
+            {field: {operator: cutoff_utc.timestamp()}},
+        ]
+    }
+
+
+def _to_utc_datetime(value):
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, datetime.datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=datetime.timezone.utc)
+        return value.astimezone(datetime.timezone.utc)
+    if isinstance(value, (int, float)):
+        try:
+            timestamp = value / 1000 if abs(value) > 1e11 else value
+            return datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    if isinstance(value, str):
+        try:
+            parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            try:
+                parsed = datetime.datetime.fromtimestamp(float(value), tz=datetime.timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=datetime.timezone.utc)
+        return parsed.astimezone(datetime.timezone.utc)
+    return None
 
 class ActivityReportCog(commands.Cog, name="Relatório de Atividade"):
     """Cog para gerar relatórios de atividade diários e semanais do clã."""
@@ -36,12 +79,21 @@ class ActivityReportCog(commands.Cog, name="Relatório de Atividade"):
 
         now = datetime.datetime.now(pytz.utc)
         cutoff = now - datetime.timedelta(days=days)
-        
-        cursor = self.war_history.find({
-            "war_data.end_time_iso": {"$gte": cutoff.isoformat()}
-        }).sort("war_data.end_time_iso", DESCENDING)
-        
-        wars = [doc async for doc in cursor]
+
+        query = _period_filter("war_data.end_time_iso", cutoff, "$gte")
+        projection = {
+            "war_data.end_time_iso": 1,
+            "war_data.attacks_per_member": 1,
+            "our_clan_members_in_war": 1,
+        }
+
+        wars = []
+        async for doc in self.war_history.find(query, projection):
+            end_time = _to_utc_datetime(doc.get("war_data", {}).get("end_time_iso"))
+            if end_time is not None and end_time >= cutoff:
+                wars.append((end_time, doc))
+        wars.sort(key=lambda item: item[0])
+        wars = [doc for _end_time, doc in wars]
         
         member_activity = {}
         for war in wars:
@@ -82,22 +134,28 @@ class ActivityReportCog(commands.Cog, name="Relatório de Atividade"):
 
         now = datetime.datetime.now(pytz.utc)
         cutoff = now - datetime.timedelta(days=days)
-        
-        latest_cursor = self.donation_snapshots.find({}).sort("timestamp", -1).limit(1)
-        latest = await latest_cursor.to_list(length=1)
-        
-        old_cursor = self.donation_snapshots.find({"timestamp": {"$lt": cutoff}}).sort("timestamp", -1).limit(1)
-        old = await old_cursor.to_list(length=1)
-        
-        if not latest:
+
+        projection = {"timestamp": 1, "members": 1}
+
+        latest_cursor = (
+            self.donation_snapshots.find({"timestamp": {"$ne": None}}, projection)
+            .sort("timestamp", -1)
+            .limit(1)
+        )
+        latest_docs = [doc async for doc in latest_cursor]
+        if not latest_docs:
             return {}
-        
-        latest_snapshot = latest[0]
-        
-        if not old:
-            old_snapshot = latest_snapshot
-        else:
-            old_snapshot = old[0]
+        latest_snapshot = latest_docs[0]
+
+        old_cursor = (
+            self.donation_snapshots.find(
+                _period_filter("timestamp", cutoff, "$lt"), projection
+            )
+            .sort("timestamp", -1)
+            .limit(1)
+        )
+        old_docs = [doc async for doc in old_cursor]
+        old_snapshot = old_docs[0] if old_docs else latest_snapshot
         
         donation_activity = {}
         for member in latest_snapshot.get("members", []):
@@ -122,9 +180,8 @@ class ActivityReportCog(commands.Cog, name="Relatório de Atividade"):
         if self.watchlist is None:
             return set()
         
-        cursor = self.watchlist.find({})
-        docs = [doc async for doc in cursor]
-        return {doc.get("_id") for doc in docs}
+        cursor = self.watchlist.find({}, {"_id": 1})
+        return {doc.get("_id") async for doc in cursor}
 
     async def generate_activity_report(self, days: int = 1, member_tag: str = None) -> discord.Embed:
         """Gera um relatório de atividade."""
@@ -153,7 +210,7 @@ class ActivityReportCog(commands.Cog, name="Relatório de Atividade"):
             missed_attacks = war_data.get("missed_attacks", 0)
             donated = donation_data.get("donated", 0)
             total_stars = war_data.get("total_stars", 0)
-            last_war = war_data.get("last_war_date")
+            war_data.get("last_war_date")
             
             status = "active"
             reasons = []
@@ -276,11 +333,11 @@ class ActivityReportCog(commands.Cog, name="Relatório de Atividade"):
 
     @tasks.loop(time=datetime.time(hour=8, minute=0, tzinfo=pytz.timezone("America/Sao_Paulo")))
     async def daily_report_task(self):
-        if self.bot.maintenance_mode or not getattr(self.bot, 'activity_report_channel_id', None):
-            return
-        
-        logger.info("Gerando relatório diário de atividade...")
         try:
+            if self.bot.maintenance_mode or not getattr(self.bot, 'activity_report_channel_id', None):
+                return
+            
+            logger.info("Gerando relatório diário de atividade...")
             embed = await self.generate_activity_report(days=1)
             if embed is None:
                 return
@@ -298,15 +355,15 @@ class ActivityReportCog(commands.Cog, name="Relatório de Atividade"):
 
     @tasks.loop(time=datetime.time(hour=20, minute=0, tzinfo=pytz.timezone("America/Sao_Paulo")))
     async def weekly_report_task(self):
-        now = datetime.datetime.now(pytz.timezone("America/Sao_Paulo"))
-        if now.weekday() != 6:
-            return
-        
-        if self.bot.maintenance_mode or not getattr(self.bot, 'activity_report_channel_id', None):
-            return
-        
-        logger.info("Gerando relatório semanal de atividade...")
         try:
+            now = datetime.datetime.now(pytz.timezone("America/Sao_Paulo"))
+            if now.weekday() != 6:
+                return
+            
+            if self.bot.maintenance_mode or not getattr(self.bot, 'activity_report_channel_id', None):
+                return
+            
+            logger.info("Gerando relatório semanal de atividade...")
             embed = await self.generate_activity_report(days=7)
             if embed is None:
                 return

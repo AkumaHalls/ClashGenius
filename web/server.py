@@ -3,22 +3,62 @@
 Configuração e inicialização do servidor web.
 Ponto central que monta o app aiohttp com todas as rotas e middleware.
 """
-import os
-import logging
+import asyncio
 import base64
-import json
+import logging
+import os
+import sys
 
 from aiohttp import web
 from aiohttp_session import setup as setup_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
-from cryptography.fernet import Fernet
 
-from web.middleware import security_headers_middleware, admin_auth_middleware, admin_csrf_middleware, rate_limit_middleware
-from web.routes import register_public_routes
 from web.admin_routes import register_admin_routes
 from web.auth_routes import register_auth_routes
+from web.middleware import (
+    admin_auth_middleware,
+    admin_csrf_middleware,
+    rate_limit_middleware,
+    security_headers_middleware,
+)
+from web.routes import register_public_routes
 
 logger = logging.getLogger("web.server")
+
+ASSET_DOWNLOAD_TIMEOUT = 120
+
+
+async def download_assets_if_needed(assets_dir, script_path):
+    """Roda o script de download de assets sem bloquear o event loop.
+
+    Retorna True quando o processo termina com sucesso, False em falha/timeout.
+    """
+    if os.path.isdir(assets_dir) and os.listdir(assets_dir):
+        return True
+    logger.info("Assets da GeniusLib não encontrados. Baixando do GitHub Releases...")
+    try:
+        processo = await asyncio.create_subprocess_exec(
+            sys.executable,
+            script_path,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await asyncio.wait_for(processo.communicate(), timeout=ASSET_DOWNLOAD_TIMEOUT)
+    except asyncio.TimeoutError:
+        processo.kill()
+        try:
+            await processo.wait()
+        except Exception:
+            pass
+        logger.warning(f"Download de assets excedeu o tempo limite de {ASSET_DOWNLOAD_TIMEOUT}s.")
+        return False
+    except Exception as dl_err:
+        logger.warning(f"Falha ao baixar assets: {dl_err}")
+        return False
+    if processo.returncode != 0:
+        logger.warning(f"Download de assets terminou com exit code {processo.returncode}.")
+        return False
+    return True
 
 
 async def start_early_health_check(bot_instance):
@@ -88,14 +128,8 @@ async def setup_web_server(bot_instance):
     try:
         from geniuslib.utils import get_assets_dir as _get_assets_dir
         geniuslib_assets_dir = _get_assets_dir()
-        if not os.path.isdir(geniuslib_assets_dir) or not os.listdir(geniuslib_assets_dir):
-            logger.info("Assets da GeniusLib não encontrados. Baixando do GitHub Releases...")
-            try:
-                import subprocess, sys
-                script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "download_assets.py")
-                subprocess.run([sys.executable, script], check=True, timeout=120)
-            except Exception as dl_err:
-                logger.warning(f"Falha ao baixar assets: {dl_err}")
+        script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "download_assets.py")
+        await download_assets_if_needed(geniuslib_assets_dir, script)
         if os.path.isdir(geniuslib_assets_dir) and os.listdir(geniuslib_assets_dir):
             app.router.add_static('/assets/', path=geniuslib_assets_dir, name='assets')
             logger.info(f"Assets da GeniusLib servidos de: {geniuslib_assets_dir}")
@@ -173,7 +207,7 @@ async def setup_web_server(bot_instance):
     app.add_subapp("/api/admin/", admin_api_app)
 
     # Sessions (Fernet encrypted cookies)
-    from config import FERNET_KEY, BASE_URL
+    from config import BASE_URL, FERNET_KEY
     if not FERNET_KEY:
         logger.critical("### ERRO FATAL: FERNET_KEY não definido nas variáveis de ambiente. "
                         "Sessões criptografadas não podem funcionar sem uma chave. ###")

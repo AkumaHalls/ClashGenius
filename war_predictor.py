@@ -6,11 +6,10 @@ Atualizado com Geração de Linguagem Natural Dinâmica (NLG) para relatórios o
 """
 
 import logging
-import math
 import random
-from typing import Dict, List, Any, Tuple, Optional
-from dataclasses import dataclass, asdict
-from collections import defaultdict, Counter
+from collections import defaultdict
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
@@ -110,14 +109,14 @@ class AdvancedFeatureEngineer:
 
     def _extract_temporal_features(self, war: Any, our_clan: Any, opponent: Any) -> Dict[str, float]:
         """Extrai features relacionadas ao 'momentum' da guerra."""
-        our_attacks = sorted([a for a in war.attacks if a.attacker.clan.tag == our_clan.tag], key=lambda a: a.order)
-        opp_attacks = sorted([a for a in war.attacks if a.attacker.clan.tag == opponent.tag], key=lambda a: a.order)
+        our_attacks = sorted([a for a in war.attacks if getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == our_clan.tag], key=lambda a: a.order)
+        opp_attacks = sorted([a for a in war.attacks if getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == opponent.tag], key=lambda a: a.order)
 
         return {'momentum_indicator': self._calculate_momentum_indicator(our_attacks, opp_attacks)}
 
     def _extract_coordination_features(self, war: Any, our_clan: Any) -> Dict[str, float]:
         """Extrai features sobre a sinergia e coordenação do clã."""
-        our_attacks = [a for a in war.attacks if a.attacker.clan.tag == our_clan.tag]
+        our_attacks = [a for a in war.attacks if getattr(a.attacker, 'clan', None) and a.attacker.clan.tag == our_clan.tag]
         return {'clan_synergy_score': self._calculate_clan_synergy(our_attacks)}
 
     def _extract_psychological_features(self, war: Any, our_clan: Any, opponent: Any) -> Dict[str, float]:
@@ -428,9 +427,6 @@ class WarPredictionSystemV3:
         prob = int(probability)
         star_diff = int(features.star_difference)
         dest_diff = features.destruction_difference
-        mom = features.momentum_indicator
-        synergy = features.clan_synergy_score
-        efficiency = features.efficiency_ratio
         
         parts = []
         
