@@ -1,5 +1,5 @@
 discord.py==2.5.2
-geniuslib>=5.5.4
+geniuslib==5.6.0  # FIX-19c: pinado (versao instalada/verificada no release); demais deps sem pin = debito documentado
 python-dotenv
 aiohttp
 pytz

@@ -3,6 +3,54 @@
 Todas as mudanças notáveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.8.0] — 2026-10-08
+
+### Adicionado
+- **tests/** — suíte de testes (146 testes) com pytest + pytest-asyncio, `conftest.py` com ambiente fake hermético (sem Discord/Mongo reais) e smoke de imports
+- **pytest.ini / dev-requirements.txt / ruff.toml** — configuração de testes e gate de lint restrito à higiene segura (E9, F, I)
+- **.github/workflows/ci.yml** — CI em Python 3.11: compile check, ruff e pytest
+- **runtime.txt** — fixa Python 3.11.9 no deploy Render (numpy 1.26.4 não instala em 3.14)
+- **config.py** — helpers `_str_env`/`_int_env`, fail-fast de todas as variáveis obrigatórias e `redact_mongo_uri`
+- **simple_cache.py** — LRU real com relógio injetável e validação de TTL/maxsize
+- **cogs/smurf_detection_cog.py** — persistência de exemplos de treino com as 26 features, labels reais (0/1) e guarda de treino (≥20 amostras rotuladas)
+- **web/middleware.py** — IP real via último hop do X-Forwarded-For apenas quando há proxy confiável (`TRUST_PROXY_HEADERS`/`RENDER`), bloqueio de viewer em todos os métodos e registro de sessões revogadas
+
+### Corrigido
+- **cogs/war_advisor_cog.py** — loop infinito com adversário sem membros e fase de guerra detectada por tipo
+- **web/server.py** — download de assets não bloqueia mais o event loop (subprocesso assíncrono com timeout)
+- **clash.py** — reconexão Mongo com backoff, `db_ready` somente no sucesso, shutdown gracioso (SIGTERM) e exit code 1 em falha fatal; URI Mongo redigida em logs
+- **web/admin_routes.py** — logout revoga a sessão no servidor e login com senha mestra rotaciona a sessão
+- **web/routes.py** — validação/normalização de player tag (400 em tag inválida)
+- **cogs/smurf_detection_cog.py** — honestidade do ML (cold start), heurísticas com threshold ≥2, filtros `$in:[0,1]` (não contam `None`), marcador de sincronia por conteúdo, caches IsolationForest limpos no retreino e inferência pesada em `asyncio.to_thread`
+- **cogs/web_api_cog.py** — retreino de analytics com debounce TTL (600s)
+- **cogs/donation_cog.py / tournament_cog.py / performance_cog.py / activity_report_cog.py / clan_games_cog.py / battlelog_cog.py** — tasks.loop resistentes a exceção, semana ISO `%G-W%V`, sem re-auditoria no restart, detecção de inatividade corrigida (unidades de timestamp)
+- **cogs/maintenance_cog.py** — `!dbcleanup` deduplica de verdade (não agrupa por `$_id`)
+- **cogs/clan_games_cog.py** — pontos via storage real, snapshot preservado em falha de coleta e status honesto
+- **cogs/capital_cog.py** — `/gerar_cwl` trata `discord.NotFound` e não mostra ✅ em erro
+- **cogs/battlelog_cog.py** — mensagens de erro honestas, timezone no relatório e guarda de banco
+- **war_predictor.py / cogs/post_war_analysis.py** — guards para `attacker`/`stars` nulos
+- **scripts/download_assets.py** — verificação SHA-256 quando o digest está disponível na API (fail-closed em divergência), filtro de path traversal e layout-aware; assets alinhados a 5.6.0
+- **requirements.txt** — `geniuslib==5.6.0` pinado
+- **clash.py** — ao (re)conectar o Mongo, propaga o `db` a todos os cogs que o capturaram como `None` no `__init__` (antes a persistência seguia falhando em silêncio após reconexão)
+- **cogs/smurf_detection_cog.py** — handler web do dossiê delega a inferência pesada a `asyncio.to_thread` (não bloqueia mais o aiohttp); constantes nomeadas no lugar de números mágicos
+- **cogs/tasks_cog.py** — sem banco disponível, os loops de background são cancelados de fato (antes o `return` só registrava log e os loops rodavam)
+- **cogs/activity_report_cog.py** — filtro por período e `projection` no servidor (evita varrer `war_history`/`donation_snapshots` inteiras)
+- **web/server.py** — aguarda o término do processo após `kill()` no timeout do download (evita processo zumbi)
+- **web/admin_routes.py / web/routes.py** — viewer bloqueado (403) em manutenção, test-embed, notas e status CWL, com CSRF; rotação/revogação de sessão agora vale para todo login
+- **config.py** — redação de URI Mongo robusta (senha com `@`/`/`, `mongodb+srv`)
+- **cogs/smurf_detection_cog.py** — corrigida corrupção de codificação (mojibake UTF-8) em strings de produção
+
+### Alterado
+- **config.py** — `BOT_VERSION` para `34.8.0-GeniusLib-v5.6.0`
+- **README.md** — versão, Python 3.11+, PBKDF2 600k, remoção de `psutil` fantasma, seção de testes/CI e lista de envs obrigatórias corrigida
+- **geniuslib (repo irmão) v5.6.1** — corrige duplicação de herói/resposta vazia no `battlelog_analytics`, backoff de 429/5xx fora do lock e vazamento de `_keys` (publicação pendente)
+- **Higiene ruff** — 145 correções automáticas e seguras (F401/F841/I001/F541)
+
+### Removido
+- **README.md** — dependência `psutil` (não utilizada no projeto)
+
+---
+
 ## [34.7.3] — 2026-10-02
 
 ### Adicionado

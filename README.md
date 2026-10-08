@@ -1,8 +1,8 @@
 ﻿# ClashGenius — O Gênio das Guerras
 
-![Versao](https://img.shields.io/badge/versao-34.7.1--GeniusLib--v5.5.4-182c61?style=flat-square&logo=python)
+![Versao](https://img.shields.io/badge/versao-34.8.0--GeniusLib--v5.6.0-182c61?style=flat-square&logo=python)
 ![Status](https://img.shields.io/badge/Status-Operacional-16a34a?style=flat-square)
-![Python](https://img.shields.io/badge/python-3.10%2B-2563eb?logo=python&style=flat-square)
+![Python](https://img.shields.io/badge/python-3.11%2B-2563eb?logo=python&style=flat-square)
 ![Hospedagem](https://img.shields.io/badge/hospedagem-render.com-0ea5e9?style=flat-square&logo=render)
 
 > **ClashGenius** é um bot Discord + painel web para análise completa de clãs no Clash of Clans.
@@ -137,7 +137,7 @@ Acesse em: `https://SEU_DOMINIO.onrender.com/admin`
 ### Sistema de Auth
 - Registro com aprovação pendente
 - Roles: admin (acesso total) e viewer (somente leitura)
-- Senhas com PBKDF2 (100k iterações + salt)
+- Senhas com PBKDF2 (600k iterações + salt)
 - Sessions com cookies criptografados (Fernet)
 - CSRF token em todos os endpoints POST
 
@@ -245,7 +245,7 @@ Na aba **Ações** do painel admin, o botão **📋 Enviar Changelog para Discor
 | **XSS Sanitization** | `escapeHtml()` em todo output dinâmico |
 | **CSRF Protection** | Token em todos os endpoints POST |
 | **Encrypted Sessions** | Cookies criptografados com Fernet |
-| **PBKDF2** | Hash de senhas com 100k iterações + salt |
+| **PBKDF2** | Hash de senhas com 600k iterações + salt |
 | **Security Headers** | X-Content-Type-Options, X-Frame-Options, Referrer-Policy |
 | **Anti-DevTools** | Bloqueio de right-click, F12, Ctrl+Shift+I/J/C |
 | **Role-Based Access** | admin vs viewer no painel admin |
@@ -273,7 +273,7 @@ Na aba **Ações** do painel admin, o botão **📋 Enviar Changelog para Discor
 
 ## Requisitos
 
-- Python 3.10+
+- Python 3.11+
 - Conta Supercell ID (API Developer)
 - Bot do Discord com token e intents
 - Canal de logs no Discord
@@ -285,7 +285,7 @@ Na aba **Ações** do painel admin, o botão **📋 Enviar Changelog para Discor
 | Pacote | Versão | Finalidade |
 |--------|--------|------------|
 | `discord.py` | 2.5.2 | Framework do bot Discord |
-| `geniuslib` | v5.5.4 | Wrapper async da API CoC (models, analytics, formatters, upgrade tracker, exporter, comparer, battlelog, middleware) |
+| `geniuslib` | v5.6.0 | Wrapper async da API CoC (models, analytics, formatters, upgrade tracker, exporter, comparer, battlelog, middleware) |
 | `python-dotenv` | latest | Variáveis de ambiente |
 | `aiohttp` | latest | Servidor web + HTTP client |
 | `pytz` | latest | Timezone |
@@ -300,7 +300,6 @@ Na aba **Ações** do painel admin, o botão **📋 Enviar Changelog para Discor
 | `python-Levenshtein` | 0.25.0 | Distância Levenshtein rápida |
 | `scipy` | latest | Algoritmo húngaro |
 | `Pillow` | >=10.0.0 | Geração de imagens de Capital |
-| `psutil` | latest | Diagnósticos do sistema |
 
 ---
 
@@ -311,7 +310,7 @@ Na aba **Ações** do painel admin, o botão **📋 Enviar Changelog para Discor
 git clone https://github.com/AkumaHalls/ClashGenius.git
 cd ClashGenius
 
-# Ambiente virtual
+# Ambiente virtual (requer Python 3.11)
 python -m venv venv
 source venv/bin/activate  # Linux/macOS
 . venv\Scripts\activate    # Windows
@@ -320,21 +319,30 @@ source venv/bin/activate  # Linux/macOS
 pip install -r requirements.txt
 ```
 
+### Testes e Qualidade
+
+```bash
+pip install -r dev-requirements.txt
+pytest          # suíte de testes (124 testes)
+ruff check .    # gate de higiene (E9, F, I)
+```
+
+O CI (`.github/workflows/ci.yml`) roda compile check, ruff e pytest em Python 3.11 a cada push/PR.
+
 ### Variáveis de Ambiente (.env)
 
 ```env
-# Obrigatório
+# Obrigatórias (o bot não inicia se estiverem ausentes/vazias)
 DISCORD_TOKEN=seu_token_discord
 COC_EMAIL=seu_email_supercell
 COC_PASSWORD=sua_senha_supercell
 CLAN_TAG=#TAG_DO_CLAN
-CHANNEL_ID=id_canal_logs
 MONGO_DB_URL=sua_url_mongodb
 ADMIN_PASSWORD=senha_admin
 FERNET_KEY=chave_criptografia
-BASE_URL=https://seu-site.onrender.com
 
-# Opcional (canais dedicados)
+# Opcional (canais dedicados; vazio ou 0 = desativado)
+CHANNEL_ID=
 AI_LOG_CHANNEL_ID=
 POST_WAR_ANALYSIS_CHANNEL_ID=
 POST_WAR_VERDICT_CHANNEL_ID=
@@ -347,15 +355,17 @@ LOW_PERFORMANCE_CHANNEL_ID=
 CAPITAL_REPORT_CHANNEL_ID=
 MAINTENANCE_ALERT_CHANNEL_ID=
 WAR_PREFERENCE_CHANNEL_ID=
-CHANGELOG_CHANNEL_ID=1526649554240536687
+CHANGELOG_CHANNEL_ID=
 
 # Opcional (roles)
 ROLE_ID_1STAR_ALERT=
 ROLE_ID_MISSED_ATTACK=
 LEADER_ROLE_ID=
 COLEADER_ROLE_ID=
+MAINTENANCE_ROLE_ID=
 
-# Opcional (config)
+# Opcional (config; IDs numéricos vazios caem em 0)
+BASE_URL=https://seu-site.onrender.com
 AUTO_ADD_WATCHLIST_ENABLED=true
 PORT=10000
 RENDER=false
@@ -385,6 +395,9 @@ ClashGenius/
 ├── simple_cache.py                 # Cache in-memory TTL com LRU
 ├── CHANGELOG.md                    # Histórico de versões
 ├── requirements.txt                # Dependências
+├── dev-requirements.txt            # Dependências de teste (pytest, ruff)
+├── pytest.ini / runtime.txt        # Config de testes / runtime Render
+├── tests/                          # Suíte de testes (pytest)
 ├── cogs/
 │   ├── admin_cog.py               # Backend do admin + changelog sender
 │   ├── web_api_cog.py             # API REST do painel web
@@ -445,8 +458,9 @@ ClashGenius/
 
 Consulte [CHANGELOG.md](CHANGELOG.md) para o histórico completo de versões.
 
-### Versão Atual: 34.7.1-GeniusLib-v5.5.4
+### Versão Atual: 34.8.0-GeniusLib-v5.6.0
 
+- **v34.8.0** — Auditoria de segurança/estabilidade: 7 bloqueadores e ~30 bugs corrigidos, suíte de 124 testes + CI e `geniuslib` 5.6.0
 - **v34.7.1** — Fix: Absolver/Condenar agora persiste corretamente — pares julgados são filtrados na regeneração do dossier XAI
 - **v34.7.0** — Removido auto-treino com pseudo-labels, min-evidence obrigatório, risk labels granulares, loading spinner e badge ML/HEURÍSTICA no radar
 - **v34.6.0** — Progresso XGBoost no admin (labels reais, amostras, status), warning "Confiança Insuficiente" em cold start
@@ -486,5 +500,5 @@ Uso Privado — Todos os direitos reservados. Sem autorização expressa do auto
 
 <p align="center">
   <sub>Feito com dedicação por +Constantine+ e a comunidade</sub><br>
-  <sub>ClashGenius v34.7.1-GeniusLib-v5.5.4</sub>
+  <sub>ClashGenius v34.8.0-GeniusLib-v5.6.0</sub>
 </p>
