@@ -3,6 +3,19 @@
 Todas as mudanças notáveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
+## [34.9.1] - 2026-11-27
+
+### Adicionado
+- **Abas de evento dinâmicas** - Guerra, CWL, Jogos do Clã e Capital do Clã agora ficam ocultas quando o evento correspondente não está acontecendo: guerra só aparece em preparação/andamento, CWL com temporada ativa (estado diferente de `ended`), Capital apenas durante o raid weekend (`ongoing`) e Jogos apenas com snapshot ativo. A aba ativa é movida automaticamente para a primeira visível e cliques/links para abas ocultas são bloqueados
+- **web/routes.py** - novo endpoint `/api/events_status` (cache de 120s) com as flags `war`, `cwl`, `capital` e `clan_games`; o painel reavalia as abas a cada 2 minutos
+- **cogs/web_api_cog.py** - `fetch_events_status_for_web` consulta cada evento de forma isolada; falha em um não derruba os demais
+
+### Corrigido
+- **cogs/clan_games_cog.py** - pontuação acima do permitido pelo jogo: o achievement "Games Champion" é vitalício e um snapshot antigo acumulava pontos de eventos anteriores. Agora cada jogador é limitado ao máximo por jogador (4000), o total do clã à meta (50000) e snapshots com mais de 14 dias são tratados como inativos. Novos snapshots gravam `started_at` e expiram sozinhos, sem depender de o bot estar online no dia 28
+- **tests/test_clan_games.py** - cobertura para limite por jogador, limite total do clã, snapshot expirado e gravação da marca de início
+
+---
+
 ## [34.9.0] - 2026-11-27
 
 ### Segurança

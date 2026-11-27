@@ -96,6 +96,12 @@ def register_public_routes(app, bot_instance):
             return await handle_web_response(r, 'clan_games', clan_games_cog.fetch_clan_games_data_for_web)
         return web.json_response({"status": "error", "message": "Módulo dos Jogos do Clã não encontrado."}, status=500)
 
+    async def api_events_status_handler(r):
+        # Usado pelo painel para exibir apenas as abas de eventos em andamento.
+        return await handle_web_response(
+            r, 'events_status', web_api_cog.fetch_events_status_for_web, cache_ttl=120
+        )
+
     async def api_save_player_note_handler(request):
         from aiohttp_session import get_session
 
@@ -345,6 +351,7 @@ def register_public_routes(app, bot_instance):
     app.router.add_get("/api/maintenance_message", api_maintenance_message)
     app.router.add_get("/api/capital", api_capital_handler)
     app.router.add_get("/api/clan_games", api_clan_games_handler)
+    app.router.add_get("/api/events_status", api_events_status_handler)
     app.router.add_get("/api/legend", api_legend_data_handler)
     app.router.add_get("/api/legend/history", api_legend_history_handler)
     app.router.add_get("/api/legend/clan", api_legend_clan_summary_handler)

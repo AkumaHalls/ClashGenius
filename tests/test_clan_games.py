@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Testes do ClanGamesCog (FIX-16a, FIX-16b, FIX-16c e resiliência de task loop)."""
 import asyncio
+import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -195,3 +196,57 @@ async def test_periodic_status_update_nao_morre_na_primeira_excecao(cog):
     await cog.periodic_status_update()
 
     assert cog.periodic_status_update.is_running()
+
+
+async def test_pontuacao_do_jogador_e_limitada_ao_maximo_do_evento(cog, collection):
+    """O jogo não permite passar de 4000 por jogador; o painel também não deve."""
+    collection.docs = {"#VETERANO": {"_id": "#VETERANO", "initial_points": 1000, "name": "Veterano"}}
+    cog.bot.api_client.get_clan = AsyncMock(return_value=clan_of([member("#VETERANO", "Veterano")]))
+    cog.bot.api_client.get_player = AsyncMock(return_value=player("#VETERANO", 12000))
+
+    data = await cog.fetch_clan_games_data_for_web()
+
+    assert data["members"][0]["score"] == 4000
+    assert data["total_points"] == 4000
+
+
+async def test_total_do_cla_e_limitado_a_meta(cog, collection):
+    tags = [f"#M{i}" for i in range(13)]
+    collection.docs = {tag: {"_id": tag, "initial_points": 0, "name": tag} for tag in tags}
+    membros = [member(tag, tag) for tag in tags]
+    cog.bot.api_client.get_clan = AsyncMock(return_value=clan_of(membros))
+    cog.bot.api_client.get_player = AsyncMock(side_effect=lambda tag: player(tag, 4000))
+
+    data = await cog.fetch_clan_games_data_for_web()
+
+    assert data["total_points"] == 50000, "soma de 13x4000 não pode passar da meta do clã"
+
+
+async def test_snapshot_antigo_nao_conta_como_evento_ativo(cog, collection):
+    velho = (datetime.datetime.now(pytz.utc) - datetime.timedelta(days=20)).isoformat()
+    collection.docs = {
+        "#VETERANO": {"_id": "#VETERANO", "initial_points": 1000, "name": "Veterano", "started_at": velho}
+    }
+
+    assert await cog._is_snapshot_active() is False
+    data = await cog.fetch_clan_games_data_for_web()
+    assert data["active"] is False
+    assert "error" in data
+
+
+async def test_snapshot_recente_continua_ativo(cog, collection):
+    recente = datetime.datetime.now(pytz.utc).isoformat()
+    collection.docs = {
+        "#V": {"_id": "#V", "initial_points": 0, "name": "V", "started_at": recente}
+    }
+
+    assert await cog._is_snapshot_active() is True
+
+
+async def test_snapshot_grava_marca_de_inicio(cog, collection):
+    cog.bot.api_client.get_clan = AsyncMock(return_value=clan_of([member("#NOVO", "Novo")]))
+    cog.bot.api_client.get_player = AsyncMock(return_value=player("#NOVO", 300))
+
+    await cog.take_snapshot(automated=True)
+
+    assert collection.docs["#NOVO"]["started_at"]
