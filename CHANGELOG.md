@@ -3,7 +3,33 @@
 Todas as mudanças notáveis neste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ---
 
-## [34.8.0] — 2026-10-08
+## [34.9.0] - 2026-11-27
+
+### Segurança
+- **web/middleware.py** - revalidação de conta (status/cargo/`session_version`) no banco a cada request admin, com cache de 5s: banimento, desativação, desmote e troca de senha passam a valer em segundos em vez de 24h; CSP sem `unsafe-inline` em `script-src`, com `object-src`, `base-uri`, `form-action`, `frame-src` e `Permissions-Policy`; `Cache-Control: no-store` em `/api/*` e páginas autenticadas; rate limit estrito (10/min) para `/admin/login` e login/registro, e 12/min para endpoints caros (export, comparação, IA)
+- **web/middleware.py** - novo `public_csrf_middleware`: `/api/notes`, `/api/cwl/player_status`, `/api/admin_border` e `/api/cwl/generate_plan` passam a exigir `X-CSRF-Token` (antes dependiam só de `SameSite=Lax`)
+- **web/auth_routes.py** - senha mínima de 8 e máxima de 128 caracteres; PBKDF2 executado também para usuário inexistente (fim do oráculo de timing); `session_version` incrementado na troca de senha e cache de conta invalidado em aprovar/rejeitar/alterar cargo/excluir
+- **web/server.py** - `client_max_size` de 1 MB; HTMLs não são mais servidos por `/static/*.html`; token CSRF injetado no `painel.html`; proteção contra path traversal no handler de estáticos
+- **web/admin_routes.py** - `/admin/panel` valida status da conta no banco; login mestra checa `Origin`/`Referer` e trata `ADMIN_PASSWORD` vazio
+- **web/routes.py** - `/api/coc_status` deixa de expor `health_stats` internos; export de jogadores passa por cache (1 chamada CoC por membro); `war_id` e tags de comparação validados
+- **cogs/admin_cog.py** - anúncio valida `channel_id` numérico e mensagem de 1-2000 caracteres; erros do Discord não vazam detalhes internos
+- **static/sw.js** - service worker nunca cacheia `/api/*` (evita vazamento de respostas autenticadas) e cache versionado em `v34.9.0`
+
+### Removido
+- Scripts anti-devtools inline em `admin_login.html`, `admin_panel.html` e `trocar_senha.html`
+- Referências a `/static/js/lightning.js` e `/static/js/fire.js` (arquivos inexistentes, geravam 404)
+- Handlers `onclick` inline (substituídos por `data-action` + listeners externos)
+- `get_cog("Lista de Observação")` sem uso em `web/admin_routes.py`
+
+### Corrigido
+- **war_predictor.py** - vazamento de alvo no treino: o modelo usava `star_difference`/`destruction_difference` (resultado final) como entrada e derivava o rótulo delas. Agora treina só com features pré-guerra (TH total, top-5 TH, tamanho do roster, win rate acumulado antes da guerra), com classificadores e `predict_proba`, combinando prior histórico (65%) com o estado ao vivo (35%)
+- **clash.py** - `tree.sync()` roda uma vez por processo, não a cada reconexão do gateway
+- **static/maintenance.html / offline.html** - mensagens e dados do localStorage renderizados com `textContent` (XSS)
+- **static/css/style.css** - `:focus-visible` global, skip link, `prefers-reduced-motion` e foco visível nos campos que removiam `outline`
+
+---
+
+## [34.8.0] - 2026-10-08
 
 ### Adicionado
 - **tests/** — suíte de testes (146 testes) com pytest + pytest-asyncio, `conftest.py` com ambiente fake hermético (sem Discord/Mongo reais) e smoke de imports

@@ -103,7 +103,7 @@ MAINTENANCE_ROLE_ID = _int_env("MAINTENANCE_ROLE_ID")
 
 # ================== CONFIGURAÇÕES DO BOT ==================
 AUTO_ADD_WATCHLIST_ENABLED = os.getenv("AUTO_ADD_WATCHLIST_ENABLED", "True").lower() == "true"
-BOT_VERSION = "34.8.0-GeniusLib-v5.6.0"
+BOT_VERSION = "34.9.0-GeniusLib-v5.6.0"
 TIMEZONE = pytz.timezone('America/Sao_Paulo')
 
 # ================== CACHE ==================

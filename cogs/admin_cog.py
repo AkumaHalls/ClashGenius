@@ -188,19 +188,33 @@ class AdminCog(commands.Cog, name="Painel de Administração Avançado"):
         except Exception: return {"error": "Erro ao buscar dados do banco."}
 
     async def send_announcement(self, channel_id_str: str, message: str) -> Dict[str, Any]:
-        if not channel_id_str or not message: return {"status": "error", "message": "ID do canal e mensagem são obrigatórios."}
+        if not channel_id_str or not message:
+            return {"status": "error", "message": "ID do canal e mensagem são obrigatórios."}
+        if not str(channel_id_str).isdigit() or len(str(channel_id_str)) > 20:
+            return {"status": "error", "message": "ID do canal inválido."}
+        message = str(message).strip()
+        if not message or len(message) > 2000:
+            return {"status": "error", "message": "A mensagem deve ter entre 1 e 2000 caracteres."}
         try:
             channel_id = int(channel_id_str)
             channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
             embed = discord.Embed(title="📢 Anúncio do Administrador", description=message, color=discord.Color.orange(), timestamp=datetime.datetime.now(self.bot.timezone))
-            try: await channel.send(embed=embed)
+            try:
+                await channel.send(embed=embed)
             except discord.errors.HTTPException as e:
                 if e.status == 429:
                     await asyncio.sleep(5)
-                    await channel.send(embed=embed) 
-                else: raise e
+                    await channel.send(embed=embed)
+                else:
+                    raise
             return {"status": "success", "message": "Anúncio enviado com sucesso!"}
-        except Exception as e: return {"status": "error", "message": f"Erro interno: {e}"}
+        except discord.NotFound:
+            return {"status": "error", "message": "Canal não encontrado."}
+        except discord.Forbidden:
+            return {"status": "error", "message": "Sem permissão para enviar mensagens nesse canal."}
+        except Exception:
+            logger.exception("Falha ao enviar anúncio para o canal %s", channel_id_str)
+            return {"status": "error", "message": "Erro interno ao enviar o anúncio."}
 
     async def send_changelog(self) -> Dict[str, Any]:
         channel_id = getattr(self.bot, 'changelog_channel_id', 0)

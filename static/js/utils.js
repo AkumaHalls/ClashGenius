@@ -5,16 +5,27 @@ function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c => map[c]);
 }
 
+// Token CSRF injetado pelo servidor no <head> da página.
+function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.content : '';
+}
+
+// Aplica o header CSRF em métodos que mutam estado.
+function withCsrfHeaders(options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    if (method === 'GET' || method === 'HEAD') return options;
+    const opts = { credentials: 'include', ...options };
+    opts.headers = { ...(options.headers || {}) };
+    const token = getCsrfToken();
+    if (token) opts.headers['X-CSRF-Token'] = token;
+    return opts;
+}
+
 // Fetch para a API admin com CSRF automático em mutations
 async function fetchAdminAPI(path, options = {}) {
     const url = '/api/admin/' + path;
-    const opts = { credentials: 'include', ...options };
-    const method = (opts.method || 'GET').toUpperCase();
-    if (method !== 'GET' && method !== 'HEAD') {
-        opts.headers = { ...opts.headers };
-        const meta = document.querySelector('meta[name="csrf-token"]');
-        if (meta && meta.content) opts.headers['X-CSRF-Token'] = meta.content;
-    }
+    const opts = withCsrfHeaders(options);
     const resp = await fetch(url, opts);
     const data = await resp.json().catch(() => null);
     if (!resp.ok) {

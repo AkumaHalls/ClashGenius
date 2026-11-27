@@ -12,9 +12,39 @@ from aiohttp import web
 from aiohttp_session import get_session
 
 from web.auth import get_db
-from web.middleware import is_session_revoked, revoke_session
+from web.middleware import (
+    BLOCKING_STATUSES,
+    get_account_state,
+    is_session_revoked,
+    revoke_session,
+)
 
 logger = logging.getLogger("web.admin_routes")
+
+MAX_ADMIN_PASSWORD_LEN = 128
+
+
+def _same_origin(request) -> bool:
+    """Confere Origin/Referer contra o Host em requisições de login por form.
+
+    O login por formulário não tem token CSRF (não existe sessão antes dele),
+    então a checagem de origem é a defesa contra login CSRF. Navegadores enviam
+    Origin em POST; clientes não-navegador (curl, testes) não enviam nenhum dos
+    três headers e são aceitos.
+    """
+    host = request.headers.get('Host', '')
+    if not host:
+        return False
+    origin = request.headers.get('Origin', '')
+    referer = request.headers.get('Referer', '')
+    if origin:
+        return origin.split('://', 1)[-1].split('/', 1)[0] == host
+    if referer:
+        return referer.split('://', 1)[-1].split('/', 1)[0] == host
+    fetch_site = request.headers.get('Sec-Fetch-Site', '')
+    if fetch_site:
+        return fetch_site in ('same-origin', 'none')
+    return True
 
 
 def make_troca_senha_page(static_dir):
@@ -48,7 +78,6 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
 
     admin_cog = bot_instance.get_cog("Painel de Administração Avançado")
     maintenance_cog = bot_instance.get_cog("Manutenção do Sistema")
-    bot_instance.get_cog("Lista de Observação")
     _admin_panel_html_cache = None
 
     # --- Admin API handlers ---
@@ -198,6 +227,18 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
         role = session.get('role')
         if not role and not session.get('admin'):
             return web.HTTPFound('/admin')
+        # Conta banida/desativada perde o painel mesmo com cookie válido.
+        username = (session.get('username') or '').lower()
+        if username and username != 'root':
+            state = await get_account_state(getattr(bot_instance, 'db', None), username)
+            if state is not None:
+                if (state.get('status') or 'active').lower() in BLOCKING_STATUSES:
+                    revoke_session(session)
+                    session.invalidate()
+                    return web.HTTPFound('/admin')
+                db_role = state.get('role')
+                if db_role:
+                    session['role'] = db_role
         csrf_token = session.get('csrf_token') or secrets.token_hex(32)
         session['csrf_token'] = csrf_token
         if _admin_panel_html_cache is None:
@@ -208,13 +249,16 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
 
     async def admin_login_handler(r):
         from config import ADMIN_PASSWORD
+        if not _same_origin(r):
+            return web.HTTPFound('/admin?error=1')
         data = await r.post()
-        guild_id_from_form = data.get('guild_id', '')
-        password = data.get('password', '')
+        guild_id_from_form = str(data.get('guild_id', ''))[:32]
+        password = str(data.get('password', ''))[:MAX_ADMIN_PASSWORD_LEN]
         db, err = get_db(bot_instance)
         if err:
             return web.HTTPFound('/admin?error=1')
-        if secrets.compare_digest(password, ADMIN_PASSWORD):
+        master_ok = bool(ADMIN_PASSWORD) and secrets.compare_digest(password, ADMIN_PASSWORD)
+        if master_ok:
             session = await get_session(r)
             session.invalidate()
             session['sid'] = secrets.token_urlsafe(16)
@@ -224,8 +268,7 @@ def register_admin_routes(admin_api_app, app, bot_instance, static_dir):
             session['username'] = 'root'
             session['guild_id'] = guild_id_from_form if guild_id_from_form else None
             return web.HTTPFound('/admin/panel')
-        else:
-            return web.HTTPFound("/admin?error=1")
+        return web.HTTPFound("/admin?error=1")
 
     async def admin_logout_handler(r):
         session = await get_session(r)

@@ -35,12 +35,13 @@ def register_public_routes(app, bot_instance):
     async def handle_web_response(request, key, func, *args, **kwargs):
         now = datetime.datetime.now()
         cache_entry = bot_instance.web_api_cache.get(key)
-        force_call = kwargs.get('force_api_call', False)
+        force_call = bool(kwargs.pop('force_api_call', False))
+        cache_ttl = kwargs.pop('cache_ttl', None) or bot_instance.WEB_API_CACHE_DURATION_SECONDS
         if not bot_instance.coc_client_ready.is_set():
             return web.json_response({"status": "error", "message": "Bot iniciando (Aguardando API CoC)..."}, status=503)
         if not bot_instance.api_client:
             return web.json_response({"status": "error", "message": "Falha na conexão com a API Clash of Clans."}, status=503)
-        if not force_call and cache_entry and (now - cache_entry["timestamp"]).total_seconds() < bot_instance.WEB_API_CACHE_DURATION_SECONDS:
+        if not force_call and cache_entry and (now - cache_entry["timestamp"]).total_seconds() < cache_ttl:
             return web.json_response(cache_entry["data"], dumps=lambda v: json.dumps(v, default=str))
         try:
             data = await func(*args, **kwargs)
@@ -171,6 +172,8 @@ def register_public_routes(app, bot_instance):
         if bot_instance.db is None:
             return web.json_response({"status": "error", "message": "Banco de dados não configurado."}, status=503)
         war_id = request.match_info['war_id']
+        if not re.match(r'^[A-Za-z0-9_#:.\-]{1,80}$', war_id):
+            return web.json_response({"status": "error", "message": "Identificador de guerra inválido."}, status=400)
         try:
             war_doc = await bot_instance.db.war_history.find_one({"_id": war_id})
             if war_doc:
@@ -234,7 +237,13 @@ def register_public_routes(app, bot_instance):
             return web.json_response({"status": "maintenance", "message": "Bot iniciando (Aguardando API CoC)..."}, status=200)
         if not bot_instance.api_client:
             return web.json_response({"status": "error", "message": "Falha na conexão com a API CoC."}, status=503)
-        return web.json_response(await admin_cog.get_api_status())
+        # Endpoint público: devolve só o estado, sem métricas internas do cliente.
+        status_data = await admin_cog.get_api_status()
+        return web.json_response({
+            "status": status_data.get("status"),
+            "message": status_data.get("message"),
+            "latency_ms": status_data.get("latency_ms"),
+        })
 
     async def api_maintenance_message(r):
         return web.json_response({"message": bot_instance.maintenance_message})
@@ -276,25 +285,35 @@ def register_public_routes(app, bot_instance):
 
     async def api_export_clan_handler(request):
         fmt = request.query.get('format', 'json')
-        return web.json_response(await web_api_cog.export_clan_data_for_web(fmt))
+        if fmt not in ('json', 'csv'):
+            fmt = 'json'
+        return await handle_web_response(
+            request, f'export_clan_{fmt}', web_api_cog.export_clan_data_for_web, fmt, cache_ttl=300
+        )
 
     async def api_export_players_handler(request):
+        # Exportar jogadores dispara uma chamada à API do CoC por membro:
+        # o cache de 5 min evita esgotar a cota com chamadas repetidas.
         fmt = request.query.get('format', 'json')
-        return web.json_response(await web_api_cog.export_players_for_web(fmt))
+        if fmt not in ('json', 'csv'):
+            fmt = 'json'
+        return await handle_web_response(
+            request, f'export_players_{fmt}', web_api_cog.export_players_for_web, fmt, cache_ttl=300
+        )
 
     async def api_compare_players_handler(request):
-        tag1 = request.query.get('tag1', '')
-        tag2 = request.query.get('tag2', '')
-        if not tag1 or not tag2:
-            return web.json_response({"status": "error", "message": "Parâmetros tag1 e tag2 são obrigatórios."}, status=400)
+        tag1 = _normalize_player_tag(request.query.get('tag1', ''))
+        tag2 = _normalize_player_tag(request.query.get('tag2', ''))
+        if tag1 is None or tag2 is None:
+            return web.json_response({"status": "error", "message": "Parâmetros tag1 e tag2 inválidos."}, status=400)
         result = await web_api_cog.compare_players_for_web(tag1, tag2)
         return web.json_response(result, dumps=lambda v: json.dumps(v, default=str))
 
     async def api_compare_clans_handler(request):
-        tag1 = request.query.get('tag1', '')
-        tag2 = request.query.get('tag2', '')
-        if not tag1 or not tag2:
-            return web.json_response({"status": "error", "message": "Parâmetros tag1 e tag2 são obrigatórios."}, status=400)
+        tag1 = _normalize_player_tag(request.query.get('tag1', ''))
+        tag2 = _normalize_player_tag(request.query.get('tag2', ''))
+        if tag1 is None or tag2 is None:
+            return web.json_response({"status": "error", "message": "Parâmetros tag1 e tag2 inválidos."}, status=400)
         result = await web_api_cog.compare_clans_for_web(tag1, tag2)
         return web.json_response(result, dumps=lambda v: json.dumps(v, default=str))
 

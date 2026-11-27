@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchData(endpoint, options = {}) {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/${endpoint}`, options);
+            const response = await fetch(`${API_BASE_URL}/api/${endpoint}`, withCsrfHeaders(options));
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ error: `Erro HTTP ${response.status}` }));
                 const errorMessage = errorData.error || errorData.message || `Falha ao carregar ${endpoint}.`;
@@ -2265,11 +2265,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 upgradesHtml += `<div style="text-align:right;margin-top:8px;">
-                    <button onclick="this.closest('.profile-upgrades-container').remove()" style="background:rgba(255,0,170,0.15);border:1px solid #ff00aa;color:#ff66cc;padding:5px 16px;border-radius:6px;cursor:pointer;font-size:0.85em;transition:0.2s;" onmouseover="this.style.background='rgba(255,0,170,0.3)'" onmouseout="this.style.background='rgba(255,0,170,0.15)'">Fechar</button>
+                    <button class="profile-upgrades-close" style="background:rgba(255,0,170,0.15);border:1px solid #ff00aa;color:#ff66cc;padding:5px 16px;border-radius:6px;cursor:pointer;font-size:0.85em;transition:0.2s;">Fechar</button>
                 </div>`;
                 upgradesHtml += `</div>`;
 
                 memberProfileContent.querySelector('.profile-actions-bar').insertAdjacentHTML('afterend', upgradesHtml);
+                memberProfileContent.querySelector('.profile-upgrades-close')?.addEventListener('click', (ev) => {
+                    ev.currentTarget.closest('.profile-upgrades-container')?.remove();
+                });
             } catch (err) {
                 alert('ERRO: Erro ao buscar upgrades.');
             }

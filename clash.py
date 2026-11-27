@@ -283,10 +283,16 @@ class ClashGeniusBot(commands.Bot):
         logger.info(f"Versão: {self.bot_version}")
         logger.info(f"Conectado a {len(self.guilds)} servidor(es).")
         logger.info("="*30)
+        # Sync global é limitado pelo Discord e idempotente: roda uma vez por
+        # processo, não a cada reconexão do gateway.
+        if getattr(self, '_commands_synced', False):
+            return
         try:
             synced = await self.tree.sync()
+            self._commands_synced = True
             logger.info(f"Sincronizados {len(synced)} comandos de barra globalmente no on_ready.")
-        except Exception as e: logger.error(f"Falha ao sincronizar comandos no on_ready: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Falha ao sincronizar comandos no on_ready: {e}", exc_info=True)
 
     async def close(self):
         logger.info("Iniciando desligamento...")

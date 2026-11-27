@@ -1,11 +1,12 @@
 /* ClashGenius Service Worker
    Estratégia:
    - Navegação: network-first, fallback para cache e offline.html
-   - API (/api/* e /assets/*): network-first, fallback para cache
+   - API (/api/*): SEMPRE rede, nunca cache (respostas autenticadas/personalizadas)
+   - Assets (/assets/*): network-first com cache de reserva
    - Estáticos (css/js/imagens): cache-first com atualização em segundo plano
    - Cache versionado e limpo no activate
 */
-const CACHE = 'clashgenius-v34.5.0';
+const CACHE = 'clashgenius-v34.9.0';
 const PRECACHE = [
   '/painel',
   '/offline.html',
@@ -14,6 +15,10 @@ const PRECACHE = [
   '/static/js/utils.js',
   '/static/js/scripts.js',
   '/static/js/admin.js',
+  '/static/js/admin-login.js',
+  '/static/js/change-password.js',
+  '/static/js/maintenance.js',
+  '/static/js/offline.js',
   '/static/js/pwa-install.js',
   '/static/images/android-chrome-192x192.png',
   '/static/images/android-chrome-512x512.png',
@@ -49,6 +54,18 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
+  // API: nunca cacheia. Respostas podem conter dados de sessão e o painel
+  // já envia Cache-Control: no-store.
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request).catch(() => new Response(JSON.stringify({ status: 'offline' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      }))
+    );
+    return;
+  }
+
   // Navegação de páginas: network-first, cache de reserva, offline.html por último
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -67,8 +84,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Dados da API: network-first com cache de reserva
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/assets/')) {
+  // Assets: network-first com cache de reserva
+  if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -78,14 +95,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() =>
-          caches.match(request).then((cached) =>
-            cached || new Response(JSON.stringify({ status: 'offline' }), {
-              status: 503,
-              headers: { 'Content-Type': 'application/json' }
-            })
-          )
-        )
+        .catch(() => caches.match(request).then((cached) => cached || Response.error()))
     );
     return;
   }

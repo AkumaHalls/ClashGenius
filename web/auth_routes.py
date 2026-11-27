@@ -13,6 +13,7 @@ from aiohttp import web
 from aiohttp_session import get_session
 
 from web.auth import check_password, get_db, hash_password
+from web.middleware import invalidate_account_state
 
 logger = logging.getLogger("web.auth_routes")
 
@@ -32,7 +33,15 @@ STATUS_ACTIONS = {
 # de senha no próximo login (campo must_change_password).
 PASSWORD_ACTION = 'trocar_senha'
 PASSWORD_PAGE = '/trocar-senha'
-MIN_PASSWORD_LENGTH = 4
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
+# Hash de referência usado quando o usuário não existe: o login executa o
+# mesmo PBKDF2 nos dois caminhos, eliminando o oráculo de timing que revelava
+# quais contas existem.
+_DUMMY_PASSWORD_HASH = (
+    "00000000000000000000000000000000$"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+)
 
 # Proteção contra força bruta.
 # O bloqueio é POR CONTA (persistido no Mongo) e não só por IP: um atacante
@@ -129,6 +138,9 @@ def register_auth_routes(admin_api_app, bot_instance):
         guild_id = data.get('guild_id', '')
         if not username or not password:
             return web.json_response({"status": "error", "message": "Usuário e senha obrigatórios."}, status=400)
+        if len(password) > MAX_PASSWORD_LENGTH or len(username) > 64:
+            check_password(password[:MAX_PASSWORD_LENGTH], _DUMMY_PASSWORD_HASH)
+            return web.json_response({"status": "error", "message": "Credenciais inválidas."}, status=401)
         db, err = get_db(bot_instance)
         if err:
             return err
@@ -144,6 +156,8 @@ def register_auth_routes(admin_api_app, bot_instance):
 
         user = await db.panel_users.find_one({"_id": username})
         if not user:
+            # Mesmo custo de PBKDF2 do caminho com conta existente.
+            check_password(password, _DUMMY_PASSWORD_HASH)
             return web.json_response({"status": "error", "message": "Credenciais inválidas."}, status=401)
 
         # Usuário banido ou desativado: confere a senha para não vazar a
@@ -196,6 +210,9 @@ def register_auth_routes(admin_api_app, bot_instance):
         session['role'] = user['role']
         session['guild_id'] = guild_id if guild_id else None
         session['password_change_required'] = False
+        # Versão da sessão: trocar senha (ou um reset administrativo) a
+        # incrementa e derruba todas as sessões antigas daquela conta.
+        session['session_version'] = int(user.get('session_version') or 0)
         return web.json_response({"status": "success", "role": user['role'], "username": username})
 
     async def api_auth_change_password(r):
@@ -237,6 +254,8 @@ def register_auth_routes(admin_api_app, bot_instance):
             return _invalid("As senhas não conferem.")
         if len(new_password) < MIN_PASSWORD_LENGTH:
             return _invalid(f"A senha deve ter ao menos {MIN_PASSWORD_LENGTH} caracteres.")
+        if len(new_password) > MAX_PASSWORD_LENGTH:
+            return _invalid(f"A senha deve ter no máximo {MAX_PASSWORD_LENGTH} caracteres.")
 
         db, err = get_db(bot_instance)
         if err:
@@ -266,8 +285,9 @@ def register_auth_routes(admin_api_app, bot_instance):
                 "password_hash": hash_password(new_password),
                 "must_change_password": False,
                 "password_changed_at": datetime.datetime.now(pytz.utc),
-            }}
+            }, "$inc": {"session_version": 1}}
         )
+        invalidate_account_state(username)
         logger.info("Senha alterada pelo usuario '%s'", username)
 
         # Encerra a sessão limitada: o usuário entra novamente com a nova senha.
@@ -284,9 +304,17 @@ def register_auth_routes(admin_api_app, bot_instance):
         data = await r.json()
         username = data.get('username', '').strip().lower()
         password = data.get('password', '')
-        discord_user = data.get('discord', '')
-        if not username or not password or len(username) < 3 or len(password) < 4:
-            return web.json_response({"status": "error", "message": "Usuário (3+ chars) e senha (4+ chars) obrigatórios."}, status=400)
+        discord_user = (data.get('discord') or '').strip()[:100]
+        if not username or not password or len(username) < 3:
+            return web.json_response(
+                {"status": "error", "message": f"Usuário (3+ chars) e senha ({MIN_PASSWORD_LENGTH}+ chars) obrigatórios."},
+                status=400,
+            )
+        if len(password) < MIN_PASSWORD_LENGTH or len(password) > MAX_PASSWORD_LENGTH:
+            return web.json_response(
+                {"status": "error", "message": f"A senha deve ter entre {MIN_PASSWORD_LENGTH} e {MAX_PASSWORD_LENGTH} caracteres."},
+                status=400,
+            )
         if not re.match(r'^[a-z0-9_]+$', username):
             return web.json_response({"status": "error", "message": "Usuário apenas letras minúsculas, números e underscore."}, status=400)
         db, err = get_db(bot_instance)
@@ -331,6 +359,7 @@ def register_auth_routes(admin_api_app, bot_instance):
             {"$set": {"status": "active", "approved_at": datetime.datetime.now(pytz.utc)}}
         )
         if result.modified_count:
+            invalidate_account_state(username)
             return web.json_response({"status": "success", "message": f"{username} aprovado!"})
         return web.json_response({"status": "error", "message": "Usuário não encontrado ou já processado."}, status=404)
 
@@ -342,6 +371,7 @@ def register_auth_routes(admin_api_app, bot_instance):
 
         result = await db.panel_users.delete_one({"_id": username, "status": "pending"})
         if result.deleted_count:
+            invalidate_account_state(username)
             return web.json_response({"status": "success", "message": f"{username} rejeitado e removido."})
         return web.json_response({"status": "error", "message": "Usuário não encontrado."}, status=404)
 
@@ -420,6 +450,7 @@ def register_auth_routes(admin_api_app, bot_instance):
             {"$set": update}
         )
         if result.matched_count:
+            invalidate_account_state(target)
             return web.json_response({"status": "success", "message": message})
         return web.json_response({"status": "error", "message": "Usuário não encontrado ou ainda aguardando aprovação."}, status=404)
 
@@ -494,6 +525,7 @@ def register_auth_routes(admin_api_app, bot_instance):
 
         result = await db.panel_users.delete_one({"_id": username})
         if result.deleted_count:
+            invalidate_account_state(username)
             logger.warning(
                 "Conta '%s' EXCLUIDA por '%s'.", username, admin_username or 'desconhecido'
             )
