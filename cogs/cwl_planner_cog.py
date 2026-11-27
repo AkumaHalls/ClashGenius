@@ -568,7 +568,12 @@ class CwlPlannerCog(commands.Cog, name="CWLPlanner"):
             
             if existing and not force_recalculate:
                 logger.info("Recuperando plano de Rotação CWL salvo no Banco de Dados...")
-                return sanitize_for_mongo(existing)
+                plan = sanitize_for_mongo(existing)
+                # O estado salvo pode estar velho (ex.: "inWar" de uma temporada
+                # encerrada). O estado do grupo é a fonte da verdade para o painel
+                # decidir se a aba da CWL deve aparecer.
+                plan["state"] = group.state
+                return plan
 
             logger.info("Iniciando IA Analítica CWL (Gerando novo plano com Scikit-Learn e Bayes)...")
             fallback_team_size = existing.get("team_size", 15) if existing else 15

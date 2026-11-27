@@ -390,15 +390,60 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSectionEl = document.getElementById(newSectionId);
         if (!newSectionEl) return; 
 
+        // Abas de eventos inativos ficam ocultas e não podem ser abertas.
+        const targetLink = document.querySelector(`.nav-link[data-section="${newSectionId}"]`);
+        if (targetLink && targetLink.closest('li')?.hidden) return;
+
         oldSectionEl?.classList.remove('active-section'); 
         navLinks.forEach(link => link?.classList.remove('active-nav-link')); 
 
         newSectionEl.classList.add('active-section');
-        const newLink = document.querySelector(`.nav-link[data-section="${newSectionId}"]`);
-        newLink?.classList.add('active-nav-link'); 
+        targetLink?.classList.add('active-nav-link'); 
 
         localStorage.setItem('activeSection', newSectionId);
         currentActiveSectionId = newSectionId;
+    }
+
+    // === ABAS DE EVENTOS: visíveis apenas enquanto o evento acontece ===
+    const EVENT_TAB_SECTIONS = {
+        war: 'war-details-nav',
+        cwl: 'cwl-info-nav',
+        clan_games: 'clan-games-nav',
+        capital: 'capital-nav',
+    };
+
+    function eventTabLink(sectionId) {
+        return document.querySelector(`.nav-link[data-section="${sectionId}"]`);
+    }
+
+    function applyEventTabVisibility(flags) {
+        if (!flags) return;
+        Object.entries(EVENT_TAB_SECTIONS).forEach(([eventKey, sectionId]) => {
+            const item = eventTabLink(sectionId)?.closest('li');
+            if (!item) return;
+            item.hidden = !flags[eventKey];
+        });
+
+        const activeItem = eventTabLink(currentActiveSectionId)?.closest('li');
+        if (activeItem && activeItem.hidden) {
+            const firstVisible = Array.from(document.querySelectorAll('.main-nav .nav-link'))
+                .find(link => !link.closest('li')?.hidden);
+            if (firstVisible) setActiveSection(firstVisible.dataset.section);
+        }
+    }
+
+    function eventFlagsFromData({ war, cwl, capital, clanGames }) {
+        return {
+            war: !!(war && !war.error && ['preparation', 'inWar'].includes(war.war_data?.status)),
+            cwl: !!(cwl && !cwl.error && cwl.status === 'InCwl' && cwl.state !== 'ended'),
+            capital: !!(capital && !capital.error && capital.raid && capital.raid.state === 'ongoing'),
+            clan_games: !!(clanGames && !clanGames.error && clanGames.active === true),
+        };
+    }
+
+    async function refreshEventTabs() {
+        const status = await fetchData('events_status');
+        if (status && !status.error) applyEventTabVisibility(status);
     }
 
     navLinks.forEach((link) => {
@@ -2491,6 +2536,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (capitalData) populateCapitalData(capitalData);
             if (clanGamesData) populateClanGamesData(clanGamesData);
 
+            applyEventTabVisibility(eventFlagsFromData({
+                war: currentWarDetailsData,
+                cwl: cwlPlanData,
+                capital: capitalData,
+                clanGames: clanGamesData,
+            }));
+
             updateLastUpdated();
             initTooltips();
             addWarWarningTooltips();
@@ -3039,4 +3091,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadAllData();
     setInterval(refreshActiveSection, 60000); 
+    setInterval(refreshEventTabs, 120000);
 });

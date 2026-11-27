@@ -11,6 +11,11 @@ from discord.ext import commands, tasks
 
 logger = logging.getLogger("clan_games_cog")
 
+# Um snapshot dos Jogos vale para o evento corrente (dura ~7 dias). Se ficou
+# ativo por mais que isso, é resquício de um evento anterior e não pode ser
+# usado como base — senão a diferença acumulada estoura o máximo do jogo.
+SNAPSHOT_TTL_DAYS = 14
+
 class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
     """Cog para gerenciar os Jogos do Clã usando comandos Slash e proteção contra reinícios."""
 
@@ -36,10 +41,37 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         self.periodic_status_update.cancel()
 
     async def _is_snapshot_active(self) -> bool:
-        """Verifica se já existe um snapshot gravado na base de dados."""
+        """Verifica se existe snapshot ativo e dentro da janela do evento."""
         if self.snapshot_collection is None:
             return False
-        return await self.snapshot_collection.find_one({}) is not None
+        doc = await self.snapshot_collection.find_one({})
+        if doc is None:
+            return False
+        return self._snapshot_is_fresh(doc)
+
+    @staticmethod
+    def _parse_started_at(value: Any) -> Optional[datetime.datetime]:
+        """Converte a marca de início do snapshot (ISO ou datetime) em UTC."""
+        if isinstance(value, datetime.datetime):
+            parsed = value
+        elif isinstance(value, str):
+            try:
+                parsed = datetime.datetime.fromisoformat(value)
+            except ValueError:
+                return None
+        else:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=pytz.utc)
+        return parsed
+
+    def _snapshot_is_fresh(self, doc: Dict[str, Any]) -> bool:
+        """Snapshot sem marca (legado) conta como ativo; com marca, expira no TTL."""
+        started_at = self._parse_started_at(doc.get("started_at"))
+        if started_at is None:
+            return True
+        age = datetime.datetime.now(pytz.utc) - started_at
+        return age <= datetime.timedelta(days=SNAPSHOT_TTL_DAYS)
 
     async def _send_to_channel(self, message: str = None, embed: discord.Embed = None, embeds: List[discord.Embed] = None):
         """Envia mensagens para a sala de Eventos Secundários no Discord."""
@@ -59,10 +91,22 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
         except Exception as e:
             logger.error(f"Erro ao enviar aviso de Jogos do Clã: {e}")
 
+    def _clamp_player_score(self, value: Any) -> int:
+        """O jogo nunca deixa um jogador passar do máximo por jogador."""
+        score = max(0, int(value or 0))
+        max_player = int(self.max_player_points or 0)
+        return min(score, max_player) if max_player > 0 else score
+
     async def fetch_clan_games_data_for_web(self) -> Dict[str, Any]:
-        """Calcula os pontos e alimenta o Painel Web."""
+        """Calcula os pontos e alimenta o Painel Web.
+
+        O achievement "Games Champion" é vitalício: o placar do evento é a
+        diferença para o snapshot inicial. Duas travas evitam números que o
+        jogo não permite: cada jogador é limitado ao máximo por jogador e o
+        total do clã à meta do clã.
+        """
         if not await self._is_snapshot_active():
-            return {"error": "Os Jogos do Clã não estão ativos no momento."}
+            return {"active": False, "error": "Os Jogos do Clã não estão ativos no momento."}
 
         try:
             initial_data_cursor = self.snapshot_collection.find({})
@@ -70,10 +114,9 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             
             clan = await self.bot.api_client.get_clan(self.clan_tag)
             if not clan:
-                 return {"error": "Sem conexão com a Supercell."}
+                 return {"active": True, "error": "Sem conexão com a Supercell."}
 
             player_scores = []
-            total_points = 0
             processed_tags = set()
 
             for member_tag, initial_info in initial_data.items():
@@ -87,12 +130,11 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
                         current_pts = ach.value if ach else 0
                         initial_pts = initial_info.get("initial_points", 0)
                         
-                        score = max(0, current_pts - initial_pts) 
+                        score = self._clamp_player_score(current_pts - initial_pts)
                         player_scores.append({
                             "name": member_in_clan.name, "tag": member_tag, 
                             "score": score, "role": member_in_clan.role.name
                         })
-                        total_points += score
                     except Exception:
                          player_scores.append({"name": initial_info.get('name', member_tag), "tag": member_tag, "score": 0, "role": "Membro"})
                 else:
@@ -108,15 +150,19 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
                         current_pts = ach.value if ach else 0
                     except Exception:
                         current_pts = 0
-                    score = max(0, current_pts - initial_pts)
+                    score = self._clamp_player_score(current_pts - initial_pts)
                     if score > 0:
                         player_scores.append({
                             "name": member.name + " (Novo)", "tag": member.tag, 
                             "score": score, "role": member.role.name
                         }) 
-                        total_points += score
 
             player_scores.sort(key=lambda x: x["score"], reverse=True)
+
+            total_points = sum(p["score"] for p in player_scores)
+            max_clan = int(self.max_clan_points or 0)
+            if max_clan > 0:
+                total_points = min(total_points, max_clan)
 
             return {
                 "active": True,
@@ -139,6 +185,7 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
             if not clan: return False
 
             snapshot_data = []
+            started_at = datetime.datetime.now(pytz.utc).isoformat()
 
             for member in clan.members:
                 try:
@@ -149,7 +196,8 @@ class ClanGamesCog(commands.Cog, name="Jogos do Clã"):
                     snapshot_data.append({
                         "_id": player.tag, 
                         "initial_points": initial_pts,
-                        "name": player.name 
+                        "name": player.name,
+                        "started_at": started_at
                     })
                 except Exception: pass
 

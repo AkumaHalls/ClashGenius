@@ -213,6 +213,41 @@ class WebApiCog(commands.Cog, name="Web API"):
             logger.error(f"Erro em fetch_current_war_details_for_web: {e}", exc_info=True)
             return {"error": "Erro interno ao processar dados da guerra."}
 
+    async def fetch_events_status_for_web(self) -> Dict[str, Any]:
+        """Flags leves de evento ativo para o painel ocultar abas inativas.
+
+        Cada checagem é isolada: se uma API falhar, o evento correspondente
+        fica como inativo sem derrubar os demais.
+        """
+        status = {"war": False, "cwl": False, "capital": False, "clan_games": False}
+
+        try:
+            war = await self.bot.api_client.get_current_war(self.bot.clan_tag)
+            status["war"] = bool(war) and str(getattr(war, "state", "")) in ("preparation", "inWar")
+        except Exception:
+            pass
+
+        try:
+            group = await self.bot.api_client.get_league_group(self.bot.clan_tag)
+            status["cwl"] = bool(group) and str(getattr(group, "state", "")) in ("preparation", "inWar")
+        except Exception:
+            pass
+
+        try:
+            raid_log = await self.bot.api_client.get_raid_log(self.bot.clan_tag, limit=1)
+            status["capital"] = bool(raid_log) and str(getattr(raid_log[0], "state", "")) == "ongoing"
+        except Exception:
+            pass
+
+        clan_games_cog = self.bot.get_cog("Jogos do Clã")
+        if clan_games_cog:
+            try:
+                status["clan_games"] = await clan_games_cog._is_snapshot_active()
+            except Exception:
+                pass
+
+        return status
+
     async def fetch_player_profile_for_web(self, player_tag: str):
         try:
             player = await self.bot.api_client.get_player(player_tag)
