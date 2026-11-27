@@ -18,14 +18,39 @@ from web.auth_routes import register_auth_routes
 from web.middleware import (
     admin_auth_middleware,
     admin_csrf_middleware,
+    ensure_csrf_token,
+    public_csrf_middleware,
     rate_limit_middleware,
     security_headers_middleware,
+    set_bot_instance,
 )
 from web.routes import register_public_routes
 
 logger = logging.getLogger("web.server")
 
 ASSET_DOWNLOAD_TIMEOUT = 120
+
+# painel.html é lido uma vez e servido com o token CSRF injetado.
+_painel_html_cache: str | None = None
+
+
+def _load_painel_html(static_dir: str) -> str:
+    global _painel_html_cache
+    if _painel_html_cache is None:
+        with open(os.path.join(static_dir, "painel.html"), encoding="utf-8") as fh:
+            _painel_html_cache = fh.read()
+    return _painel_html_cache
+
+
+async def _static_file_response(static_dir: str, rel_path: str):
+    """Serve arquivos de static/ com proteção contra path traversal."""
+    safe_root = os.path.realpath(static_dir)
+    target = os.path.realpath(os.path.join(safe_root, rel_path))
+    if target != safe_root and not target.startswith(safe_root + os.sep):
+        raise web.HTTPNotFound()
+    if not os.path.isfile(target):
+        raise web.HTTPNotFound()
+    return web.FileResponse(target)
 
 
 async def download_assets_if_needed(assets_dir, script_path):
@@ -109,7 +134,7 @@ async def setup_web_server(bot_instance):
     await bot_instance._setup_hook_done.wait()
     logger.info("setup_web_server: setup_hook terminado. Iniciando configuração do servidor web...")
 
-    app = web.Application()
+    app = web.Application(client_max_size=1024 * 1024)
 
     # Verificar cogs essenciais
     required_cog_names = ["Web API", "Banco de Dados", "Perfis de Membros", "CWLPlanner",
@@ -138,9 +163,11 @@ async def setup_web_server(bot_instance):
     except Exception as e:
         logger.warning(f"Assets da GeniusLib NÃO encontrados: {e}")
 
-    # Security headers (inclui CSP) + rate limiting
+    # Security headers (inclui CSP) + rate limiting + CSRF das rotas públicas
+    set_bot_instance(bot_instance)
     app.middlewares.append(security_headers_middleware)
     app.middlewares.append(rate_limit_middleware)
+    app.middlewares.append(public_csrf_middleware)
 
     # Registrar rotas públicas
     register_public_routes(app, bot_instance)
@@ -150,8 +177,15 @@ async def setup_web_server(bot_instance):
         return web.json_response({"status": "ok", "version": bot_instance.bot_version})
     app.router.add_get("/health", health_check)
 
-    # Rotas de páginas
-    app.router.add_static('/static/', path=static_dir, name='static')
+    # Rotas de páginas. HTMLs não são servidos por /static/: passam pelos
+    # handlers que injetam CSRF e aplicam checagens de sessão.
+    async def static_handler(r):
+        rel_path = r.match_info.get('path', '')
+        if rel_path.lower().endswith(('.html', '.htm')):
+            raise web.HTTPNotFound()
+        return await _static_file_response(static_dir, rel_path)
+
+    app.router.add_get('/static/{path:.*}', static_handler)
     app.router.add_get("/", lambda r: web.json_response({"status": "ok", "version": bot_instance.bot_version}))
 
     # PWA: manifest com MIME correto + service worker com escopo raiz
@@ -192,7 +226,12 @@ async def setup_web_server(bot_instance):
         is_admin = session.get('admin', False) or bool(session.get('role'))
         if (bot_instance.maintenance_mode or status_data.get("status") in ["maintenance", "error"]) and not is_admin:
             return web.HTTPFound('/maintenance')
-        return web.FileResponse(os.path.join(static_dir, "painel.html"))
+        # Token CSRF injetado na página: o front o envia em toda mutação.
+        csrf_token = ensure_csrf_token(session)
+        html = _load_painel_html(static_dir).replace(
+            '</head>', f'<meta name="csrf-token" content="{csrf_token}"></head>', 1
+        )
+        return web.Response(text=html, content_type='text/html', charset='utf-8')
 
     async def maintenance_page_handler(r):
         return web.FileResponse(os.path.join(static_dir, "maintenance.html"))

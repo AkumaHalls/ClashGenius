@@ -2315,4 +2315,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
+// Handlers declarativos (substituem onclick inline, exigido pela CSP).
+document.addEventListener('click', function (event) {
+    const trigger = event.target.closest('[data-action]');
+    if (!trigger) return;
+    switch (trigger.dataset.action) {
+        case 'toggle-radar-drawer':
+            if (typeof window.toggleRadarDrawer === 'function') window.toggleRadarDrawer();
+            break;
+        case 'load-radar-dossier':
+            if (typeof loadRadarDossier === 'function') loadRadarDossier();
+            break;
+        case 'cleanup-smurf-db':
+            if (typeof cleanupSmurfDB === 'function') cleanupSmurfDB();
+            break;
+    }
+});
+
 })();

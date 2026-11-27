@@ -12,8 +12,31 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
+
+# Features que existem ANTES da guerra começar. O modelo treina e prediz
+# apenas com elas: usar star_difference/destruction_difference no treino era
+# vazamento de alvo (o modelo só reaprendia o placar final).
+PRE_WAR_FEATURE_NAMES = (
+    'town_hall_advantage',
+    'historical_win_rate',
+    'roster_size_difference',
+    'top_heavy_advantage',
+)
+
+# Limite de guerras carregadas para treino (ordem cronológica).
+MAX_TRAINING_WARS = 500
+
+
+def _parse_percent(value: Any) -> float:
+    """Converte '85.5%' ou 85.5 em float; devolve 0.0 para valores inválidos."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value).strip().rstrip('%'))
+    except (TypeError, ValueError):
+        return 0.0
 
 # ================== ESTRUTURAS DE DADOS ==================
 
@@ -39,6 +62,10 @@ class AdvancedWarFeatures:
     
     # Features psicológicas
     pressure_index: float = 0.0 # Nível de pressão sobre nosso clã
+
+    # Features pré-guerra (as únicas usadas pelo modelo de ML)
+    roster_size_difference: float = 0.0
+    top_heavy_advantage: float = 0.0
 
 # ================== FEATURE ENGINEERING ==================
 
@@ -96,15 +123,20 @@ class AdvancedFeatureEngineer:
         
         our_unused_strength, opp_unused_strength = self._calculate_unused_strength(war, our_clan, opponent)
 
+        our_ths = sorted((m.town_hall for m in our_clan.members), reverse=True)
+        opp_ths = sorted((m.town_hall for m in opponent.members), reverse=True)
+
         return {
             'star_difference': float(our_clan.stars - opponent.stars),
             'destruction_difference': float(our_clan.destruction - opponent.destruction),
             'attacks_remaining_difference': (total_attacks - our_clan.attacks_used) - (total_attacks - opponent.attacks_used),
-            'town_hall_advantage': sum(m.town_hall for m in our_clan.members) - sum(m.town_hall for m in opponent.members),
+            'town_hall_advantage': float(sum(our_ths) - sum(opp_ths)),
             'efficiency_ratio': our_efficiency / max(opp_efficiency, 0.01),
             'three_star_rate_difference': our_3star_rate - opp_3star_rate,
             'war_progress_percentage': (len(our_attacks) + len(opp_attacks)) / max((total_attacks * 2), 1) * 100,
             'unused_member_strength_diff': our_unused_strength - opp_unused_strength,
+            'roster_size_difference': float(len(our_ths) - len(opp_ths)),
+            'top_heavy_advantage': float(sum(our_ths[:5]) - sum(opp_ths[:5])),
         }
 
     def _extract_temporal_features(self, war: Any, our_clan: Any, opponent: Any) -> Dict[str, float]:
@@ -187,76 +219,77 @@ class AdvancedFeatureEngineer:
 # ================== SISTEMA DE MODELOS ==================
 
 class EnsembleMLSystem:
-    """Sistema de ensemble que combina múltiplos modelos de ML para maior precisão."""
+    """Ensemble de classificadores treinado apenas com features pré-guerra."""
     
     def __init__(self):
         self.logger = logging.getLogger("ensemble_ml")
         self.models = {
-            'gbr': GradientBoostingRegressor(n_estimators=100, max_depth=5, random_state=42),
-            'rf': RandomForestRegressor(n_estimators=100, max_depth=5, random_state=42)
+            'gbc': GradientBoostingClassifier(n_estimators=100, max_depth=3, random_state=42),
+            'rfc': RandomForestClassifier(n_estimators=150, max_depth=4, random_state=42, class_weight='balanced')
         }
-        self.weights = {'gbr': 0.6, 'rf': 0.4}
+        self.weights = {'gbc': 0.55, 'rfc': 0.45}
         self.scaler = StandardScaler()
         self.is_trained = False
 
     def train(self, historical_data: List[Dict]):
-        """Treina todos os modelos do ensemble com dados históricos."""
+        """Treina o ensemble com features conhecidas antes da guerra."""
         if len(historical_data) < 10:
             self.logger.warning(f"Dados históricos insuficientes para treinar ({len(historical_data)}/10). O sistema usará heurística.")
             self.is_trained = False
             return
-            
+
         try:
-            # Garante que todas as features existam nos dados históricos
-            feature_names = list(AdvancedWarFeatures.__annotations__.keys())
             X_list = []
             y_list = []
 
             for d in historical_data:
-                feature_dict = asdict(d['features'])
-                # Garante a ordem correta e valores padrão para features faltantes
-                ordered_features = [feature_dict.get(name, 0.0) for name in feature_names]
-                X_list.append(ordered_features)
-                y_list.append(d['result'])
+                features = d['features']
+                X_list.append([float(getattr(features, name, 0.0)) for name in PRE_WAR_FEATURE_NAMES])
+                y_list.append(int(d['result']))
 
-            X = np.array(X_list)
+            X = np.array(X_list, dtype=float)
             y = np.array(y_list)
 
-            if X.shape[0] == 0:
-                self.logger.warning("Nenhum dado válido para treinamento após o processamento.")
+            if X.shape[0] == 0 or len(set(y_list)) < 2:
+                self.logger.warning("Dados sem variação de resultado; ensemble desativado.")
                 self.is_trained = False
                 return
 
             X_scaled = self.scaler.fit_transform(X)
-            
-            for name, model in self.models.items():
+
+            for model in self.models.values():
                 model.fit(X_scaled, y)
-            
+
             self.is_trained = True
-            self.logger.info(f"Ensemble de ML treinado com sucesso usando {len(historical_data)} guerras.")
+            self.logger.info(f"Ensemble treinado com {len(historical_data)} guerras (features pré-guerra).")
         except Exception as e:
             self.logger.error(f"Erro durante o treinamento do ensemble: {e}", exc_info=True)
             self.is_trained = False
 
 
     def predict(self, features: AdvancedWarFeatures) -> float:
-        """Realiza uma predição combinando os resultados do ensemble."""
+        """Combina o prior pré-guerra (ML) com o estado atual da guerra."""
+        heuristic = self._heuristic_prediction(features)
         if not self.is_trained:
-            return self._heuristic_prediction(features)
+            return heuristic
 
         try:
-            feature_vector = np.array(list(asdict(features).values())).reshape(1, -1)
-            feature_vector_scaled = self.scaler.transform(feature_vector)
-            
-            weighted_prediction = 0.0
+            vector = np.array(
+                [[float(getattr(features, name, 0.0)) for name in PRE_WAR_FEATURE_NAMES]],
+                dtype=float,
+            )
+            vector_scaled = self.scaler.transform(vector)
+
+            prior = 0.0
             for name, model in self.models.items():
-                prediction = model.predict(feature_vector_scaled)[0]
-                weighted_prediction += self.weights[name] * prediction
-            
-            return np.clip(weighted_prediction * 100, 1, 99)
+                prior += self.weights[name] * float(model.predict_proba(vector_scaled)[0][1])
+            prior *= 100
+
+            # 65% do peso no que o histórico diz do confronto, 35% no placar ao vivo.
+            return float(np.clip(0.65 * prior + 0.35 * heuristic, 1, 99))
         except Exception as e:
             self.logger.warning(f"Erro na predição do ensemble, usando heurística. Erro: {e}")
-            return self._heuristic_prediction(features)
+            return heuristic
     
     def _heuristic_prediction(self, features: AdvancedWarFeatures) -> float:
         """Fallback para uma predição baseada em regras caso o modelo não esteja treinado."""
@@ -348,29 +381,62 @@ class WarPredictionSystemV3:
             return {"summary_panel": f"Erro na análise: {type(e).__name__}", "probability": 50.0, "confidence": 0.0}
     
     async def _load_historical_data(self) -> List[Dict]:
-        """Carrega e processa dados históricos do MongoDB para treinamento."""
-        if self.db is None: return []
+        """Carrega guerras históricas usando apenas features pré-guerra.
+
+        Antes, o treino usava star_difference/destruction_difference (resultado
+        final) como entrada e derivava o rótulo dessas mesmas features: o modelo
+        só aprendia a repetir o placar. Agora a entrada é o roster (TH e tamanho)
+        e a taxa de vitória acumulada ANTES de cada guerra, em ordem cronológica.
+        """
+        if self.db is None:
+            return []
         try:
-            cursor = self.db.war_history.find({}).sort("war_data.end_time_iso", -1)
+            cursor = (
+                self.db.war_history.find({})
+                .sort("war_data.end_time_iso", 1)
+                .limit(MAX_TRAINING_WARS)
+            )
             processed_wars = []
+            wins = 0
+            total = 0
             async for doc in cursor:
                 try:
+                    our_members = doc.get('our_clan_members_in_war') or []
+                    opp_members = doc.get('opponent_clan_members_in_war') or []
+                    if not our_members or not opp_members:
+                        continue
+
+                    war_data = doc.get('war_data') or {}
+                    our_ths = sorted((int(m.get('townhall') or 0) for m in our_members), reverse=True)
+                    opp_ths = sorted((int(m.get('townhall') or 0) for m in opp_members), reverse=True)
+                    if not any(our_ths) or not any(opp_ths):
+                        continue
+
+                    our_stars = int(war_data.get('clan_stars') or 0)
+                    opp_stars = int(war_data.get('opponent_stars') or 0)
+                    our_dest = _parse_percent(war_data.get('clan_destruction'))
+                    opp_dest = _parse_percent(war_data.get('opponent_destruction'))
+                    won = our_stars > opp_stars or (our_stars == opp_stars and our_dest > opp_dest)
+
                     features = AdvancedWarFeatures(
-                        star_difference=doc['war_data']['clan_stars'] - doc['war_data']['opponent_stars'],
-                        destruction_difference=float(doc['war_data']['clan_destruction'][:-1]) - float(doc['war_data']['opponent_destruction'][:-1]),
+                        # Features de guerra: neutras — o modelo não as utiliza.
+                        star_difference=0.0,
+                        destruction_difference=0.0,
                         attacks_remaining_difference=0,
-                        town_hall_advantage=sum(m['townhall'] for m in doc['our_clan_members_in_war']) - sum(m['townhall'] for m in doc['opponent_clan_members_in_war']),
-                        efficiency_ratio=float(doc['war_data'].get('clan_avg_stars', 1.5)) / max(float(doc['war_data'].get('opponent_avg_stars', 1.5)), 0.1),
-                        three_star_rate_difference=(doc['war_data']['clan_star_distribution']['3'] / max(doc['war_data']['clan_attacks_used'],1)) - (doc['war_data']['opponent_star_distribution']['3'] / max(doc['war_data']['opponent_attacks_used'],1)),
-                        war_progress_percentage=100.0,
-                        historical_win_rate=50.0,
+                        town_hall_advantage=float(sum(our_ths) - sum(opp_ths)),
+                        efficiency_ratio=1.0,
+                        three_star_rate_difference=0.0,
+                        war_progress_percentage=0.0,
+                        historical_win_rate=(wins / total * 100) if total >= 5 else 50.0,
                         unused_member_strength_diff=0.0,
-                        momentum_indicator=0.5,
-                        clan_synergy_score=0.5,
-                        pressure_index=0.0
+                        roster_size_difference=float(len(our_ths) - len(opp_ths)),
+                        top_heavy_advantage=float(sum(our_ths[:5]) - sum(opp_ths[:5])),
                     )
-                    result = 1 if features.star_difference > 0 or (features.star_difference == 0 and features.destruction_difference > 0) else 0
-                    processed_wars.append({'features': features, 'result': result})
+                    processed_wars.append({'features': features, 'result': 1 if won else 0})
+
+                    # Atualiza o histórico só DEPOIS de usar o valor pré-guerra.
+                    total += 1
+                    wins += 1 if won else 0
                 except (KeyError, TypeError, ValueError):
                     continue
             return processed_wars

@@ -22,7 +22,6 @@
 
     <link rel="stylesheet" href="/static/css/style.css">
 
-    <script>document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('keydown',e=>{if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&['I','J','C'].includes(e.key.toUpperCase()))||(e.ctrlKey&&e.key==='u'))e.preventDefault()});</script>
 
     <style>
 
@@ -1488,9 +1487,11 @@
 
 <body class="admin-page" id="admin-body">
 
+    <a class="skip-link" href="#admin-main">Pular para o conteúdo</a>
+
     <canvas id="particle-background"></canvas>
 
-    <div class="admin-panel-container">
+    <div class="admin-panel-container" id="admin-main">
 
         <div class="admin-card">
 
@@ -1502,7 +1503,7 @@
 
                     <h2>Painel do Administrador</h2>
 
-                    <div class="radar-bell-container" id="radar-bell-btn" onclick="toggleRadarDrawer()" title="Radar de Inatividade" data-viewer-hide>
+                    <div class="radar-bell-container" id="radar-bell-btn" data-action="toggle-radar-drawer" title="Radar de Inatividade" data-viewer-hide>
 
                         <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
 
@@ -1842,9 +1843,9 @@
 
                         <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
 
-                            <button onclick="loadRadarDossier()" class="btn-admin" data-viewer-hide style="background:rgba(0,255,249,0.1); color:#00fff9; border:1px solid rgba(0,255,249,0.3);">Atualizar</button>
+                            <button data-action="load-radar-dossier" class="btn-admin" data-viewer-hide style="background:rgba(0,255,249,0.1); color:#00fff9; border:1px solid rgba(0,255,249,0.3);">Atualizar</button>
 
-                            <button onclick="cleanupSmurfDB()" class="btn-admin" data-viewer-hide style="background:rgba(255,100,50,0.1); color:#ff6432; border:1px solid rgba(255,100,50,0.3);">Limpar Banco de Dados</button>
+                            <button data-action="cleanup-smurf-db" class="btn-admin" data-viewer-hide style="background:rgba(255,100,50,0.1); color:#ff6432; border:1px solid rgba(255,100,50,0.3);">Limpar Banco de Dados</button>
 
                         </div>
 
@@ -2196,7 +2197,7 @@
 
             <h3>Radar de Inatividade</h3>
 
-            <button onclick="toggleRadarDrawer()" class="close-radar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            <button data-action="toggle-radar-drawer" class="close-radar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
 
         </div>
 
